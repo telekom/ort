@@ -9,3 +9,4 @@ org.ossreviewtoolkit.reporter.reporters.NoticeTemplateReporter
 org.ossreviewtoolkit.reporter.reporters.SpdxDocumentReporter
 org.ossreviewtoolkit.reporter.reporters.StaticHtmlReporter
 org.ossreviewtoolkit.reporter.reporters.WebAppReporter
+org.ossreviewtoolkit.reporter.reporters.OSCakeReporter
