@@ -222,7 +222,10 @@ class LicenseInfoResolver(
             val directory = provenance.vcsInfo?.path.orEmpty()
             val rootLicenseFiles = rootLicenseMatcher.getApplicableLicenseFilesForDirectories(
                 relativeFilePaths = archiveDir.walk().filter { it.isFile }.mapTo(mutableSetOf()) {
-                    it.toRelativeString(archiveDir)
+                    //it.toRelativeString(archiveDir)
+                    // Quickfix for Windows-System: replace backslashes with slashes, otherwise the
+                    // glob-path-matching will not work correctly
+                    it.toRelativeString(archiveDir).replace("\\", "/")
                 },
                 directories = listOf(directory)
             ).getValue(directory)
