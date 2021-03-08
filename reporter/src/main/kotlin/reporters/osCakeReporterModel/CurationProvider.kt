@@ -132,6 +132,11 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
         // 8. check file_licenses: license + licenseTextInArchive combinations
         packageCuration.curations?.forEach { curationFileItem ->
             curationFileItem.fileLicenses?.forEach {
+                if (it.modifier == "insert" && it.license == null) {
+                    logger.log("$errorPrefix modifier(insert)/license = null is not allowed in " +
+                            "file_scope: <${curationFileItem.fileScope}>  not valid! $errorSuffix", Severity.WARNING)
+                    return false
+                }
                 if (it.modifier == "insert" && it.license == "*") {
                     logger.log("$errorPrefix modifier(insert)/license combination in file_licensings of " +
                         "file_scope: <${curationFileItem.fileScope}>  not valid! $errorSuffix", Severity.WARNING)

@@ -50,10 +50,15 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
 
         // handle packageModifiers
         val orderByModifier = packageModifierMap.keys.withIndex().associate { it.value to it.index }
-        curationProvider.packageCurations.sortedBy { orderByModifier[it.packageModifier] }.forEach {
-            when (it.packageModifier) {
-                "insert" -> project.packs.add(Pack(it.id, it.repository ?: "", ""))
-                "delete" -> deletePackage(it, archiveDir)
+        curationProvider.packageCurations.sortedBy { orderByModifier[it.packageModifier] }.forEach { packageCuration ->
+            when (packageCuration.packageModifier) {
+                "insert" -> if (project.packs.none { it.id == packageCuration.id}) {
+                        project.packs.add(Pack(packageCuration.id, packageCuration.repository ?: "", ""))
+                    } else {
+                        logger.log("Package: \"${packageCuration.id}\" already exists - no duplication!",
+                            Severity.HINT)
+                    }
+                "delete" -> deletePackage(packageCuration, archiveDir)
             }
         }
 
