@@ -102,7 +102,7 @@ internal data class PackageCuration(
                                 curationFileLicenseItem.license,
                                 FOUND_IN_FILE_SCOPE_DECLARED, insertLTIA(
                                     curationFileLicenseItem.licenseTextInArchive,
-                                    archiveDir, curationFileLicenseItem.license, fileStore, pack
+                                    archiveDir, curationFileLicenseItem.license!!, fileStore, pack
                                 ), true
                             )
                         )
@@ -170,7 +170,7 @@ internal data class PackageCuration(
                             fileLicense.licenseTextInArchive = insertLTIA(
                                 curationFileLicenseItem.licenseTextInArchive,
                                 archiveDir,
-                                fileLicense.license ?: "",
+                                fileLicense.license ?: "null",
                                 fileStore,
                                 pack
                             )
@@ -180,7 +180,7 @@ internal data class PackageCuration(
                             fileLicense.licenseTextInArchive = insertLTIA(
                                 curationFileLicenseItem.licenseTextInArchive,
                                 archiveDir,
-                                fileLicense.license ?: "",
+                                fileLicense.license ?: "null",
                                 fileStore,
                                 pack
                             )
@@ -254,6 +254,7 @@ internal data class PackageCuration(
             if (fileLicensing.licenses.size == 0) {
                 if (fileLicensing.copyrights.size == 0) fileLicensingsToDelete.add(fileLicensing)
                 deleteFromArchive(fileLicensing.fileContentInArchive, archiveDir)
+                fileLicensing.fileContentInArchive = null
             }
         }
         pack.fileLicensings.removeAll(fileLicensingsToDelete)
@@ -342,7 +343,7 @@ internal data class PackageCuration(
                 insertLTIA(
                     curationFileLicenseItem.licenseTextInArchive,
                     archiveDir,
-                    curationFileLicenseItem.license,
+                    curationFileLicenseItem.license!!,
                     fileStore,
                     pack
                 )
