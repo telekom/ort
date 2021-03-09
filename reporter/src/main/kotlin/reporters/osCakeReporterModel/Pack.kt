@@ -4,8 +4,10 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
+import org.json.JSONPropertyIgnore
 import java.util.SortedSet
 import org.ossreviewtoolkit.model.Identifier
 
@@ -15,7 +17,7 @@ import org.ossreviewtoolkit.model.Identifier
  * [ScopeLevel]s: [defaultLicensings], [dirLicensings], and [fileLicensings]. If the sourcecode is not placed in the
  * root directory of the repository (e.g. git), than the property [packageRoot] shows the path to the root directory
   */
-@JsonPropertyOrder("pid", "release", "repository", "id", "defaultLicensings", "dirLicensings", "fileLicensings")
+@JsonPropertyOrder("pid", "release", "repository", "id", "reuseCompliant", "defaultLicensings", "dirLicensings", "fileLicensings")
 internal data class Pack(
     @JsonProperty("id") val id: Identifier,
     @JsonIgnore val website: String,
@@ -29,6 +31,7 @@ internal data class Pack(
     val type = id.type
     @JsonIgnore
     var declaredLicenses: SortedSet<String> = sortedSetOf<String>()
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT) var reuseCompliant: Boolean = false
     val repository = website
     val defaultLicensings = mutableListOf<DefaultLicense>()
     val dirLicensings = mutableListOf<DirLicensing>()

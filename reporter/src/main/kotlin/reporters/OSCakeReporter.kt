@@ -163,6 +163,7 @@ class OSCakeReporter : Reporter {
                 .apply {
                     declaredLicenses.add(it.declaredLicensesProcessed.spdxExpression.toString())
                     osc.project.packs.add(this)
+                    reuseCompliant = isREUSECompliant(this, scanDict)
                 }
         }
         input.ortResult.analyzer?.result?.packages?.filter { !input.ortResult.isExcluded(it.pkg.id) }?.forEach {
@@ -170,14 +171,13 @@ class OSCakeReporter : Reporter {
                 .apply {
                     declaredLicenses.add(it.pkg.declaredLicensesProcessed.spdxExpression.toString())
                     osc.project.packs.add(this)
+                    reuseCompliant = isREUSECompliant(this, scanDict)
                 }
         }
 
-        //val tmpDirectory = createTempDir(suffix = "_lic", directory = outputDir)
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
-
-        osc.project.packs.forEach { pack ->
+        osc.project.packs.filter { !it.reuseCompliant } .forEach { pack ->
             if (scanDict.containsKey(pack.id)) input.ortResult.scanner?.results?.scanResults?.
                 any { it.id == pack.id }.let {
                         fetchInfosFromScanDictionary(pack, scanDict, sourceCodeDir, tmpDirectory)
@@ -185,11 +185,30 @@ class OSCakeReporter : Reporter {
             // if no license texts were found at scope: "default", prepare default entry
             if (pack.defaultLicensings.size == 0) prepareEntryForScopeDefault(pack, input)
         }
+
+        osc.project.packs.filter { it.reuseCompliant && scanDict.containsKey(it.id) } .forEach { pack ->
+            fetchREUSEInfosFromScanDictionary(pack, scanDict, sourceCodeDir, tmpDirectory)
+        }
+
         osc.project.complianceArtifactCollection.archivePath = "./" +
                 input.ortResult.getProjects().first().id.name + ".zip"
 
         zipAndCleanUp(outputDir, tmpDirectory, osc.project.complianceArtifactCollection.archivePath)
         return osc
+    }
+
+    /**
+     * [isREUSECompliant] returns true as soon as a license entry is found in a folder
+     * called "LICENSES/"
+     */
+
+    private fun isREUSECompliant(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>): Boolean {
+        if (!scanDict.containsKey(pack.id) ) return false
+        scanDict[pack.id]?.forEach {
+            if (it.key.startsWith( pack.packageRoot + if (pack.packageRoot != "") "/" else "" +"LICENSES/"))
+                return true
+        }
+        return false
     }
 
     private fun prepareEntryForScopeDefault(pack: Pack, input: ReporterInput) {
@@ -203,6 +222,21 @@ class OSCakeReporter : Reporter {
             }
         }
         reportTrouble("declared license used for project/package: " + pack.id)
+    }
+
+    private fun fetchREUSEInfosFromScanDictionary(
+        pack: Pack,
+        scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
+        sourceCodeDir: String?,
+        tmpDirectory: File
+    ) {
+        println(sourceCodeDir + "- "+ tmpDirectory.name)
+        scanDict[pack.id]?.forEach { fileName, fib ->
+            println(fileName + " - " + fib.licenseTextEntries.size)
+            // case 1: LICENSES/file
+            // case 2: endsWith: ".license"
+            // case 3: default
+        }
     }
 
     @Suppress("MaxLineLength")
@@ -413,12 +447,6 @@ class OSCakeReporter : Reporter {
     private fun isInstancedLicense(input: ReporterInput, license: String): Boolean =
         input.licenseClassifications.licensesByCategory.getOrDefault("instanced",
             setOf<SpdxSingleLicenseExpression>()).map { it.simpleLicense().toString() }.contains(license)
-
-
-/*    private fun isInstancedLicense(input: ReporterInput, license: String): Boolean =
-        input.licenseConfiguration.getLicensesForCategory("instanced")
-            .map { it.id.toString() }
-            .contains(license)*/
 
     private fun getNativeScanResultJson(
         entity: ScanResultContainer,
