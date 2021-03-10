@@ -23,18 +23,17 @@ import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DefaultLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DirLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DirLicensing
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileCopyright
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileLicensing
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.LicenseTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfiguration
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeWrapper
@@ -57,6 +56,9 @@ internal fun deduplicateFileName(path: String): String {
     }
     return ret
 }
+
+internal fun getLicensesFolderPrefix(packageRoot: String) = packageRoot +
+        if (packageRoot != "") "/" else "" +"LICENSES/"
 
 internal fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null): String =
     id.toPath("%") + "%" + path.replace('/', '%').replace('\\', '%'
@@ -99,6 +101,13 @@ internal fun getPathWithoutPackageRoot(pack: Pack, fileScope: String): String {
     }.replace("\\", "/")
     if (pathWithoutPackage.startsWith("/")) return pathWithoutPackage.substring(1)
     return pathWithoutPackage
+}
+
+internal fun getPathName(pack: Pack, fib: FileInfoBlock): String {
+    var rc = fib.path
+    if (pack.packageRoot != "") rc = fib.path.replaceFirst(pack.packageRoot, "")
+    if (rc[0].equals('/') || rc[0].equals('\\')) rc = rc.substring(1)
+    return rc
 }
 
 @Suppress("LargeClass", "TooManyFunctions")
@@ -179,7 +188,7 @@ class OSCakeReporter : Reporter {
 
         osc.project.packs.filter { !it.reuseCompliant } .forEach { pack ->
             if (scanDict.containsKey(pack.id)) input.ortResult.scanner?.results?.scanResults?.
-                any { it.id == pack.id }.let {
+                any { it.id == pack.id }?.let {
                         fetchInfosFromScanDictionary(pack, scanDict, sourceCodeDir, tmpDirectory)
             }
             // if no license texts were found at scope: "default", prepare default entry
@@ -187,7 +196,7 @@ class OSCakeReporter : Reporter {
         }
 
         osc.project.packs.filter { it.reuseCompliant && scanDict.containsKey(it.id) } .forEach { pack ->
-            fetchREUSEInfosFromScanDictionary(pack, scanDict, sourceCodeDir, tmpDirectory)
+            ModeSelector.getMode(pack, scanDict).fetchInfosFromScanDictionary(sourceCodeDir, tmpDirectory)
         }
 
         osc.project.complianceArtifactCollection.archivePath = "./" +
@@ -201,15 +210,8 @@ class OSCakeReporter : Reporter {
      * [isREUSECompliant] returns true as soon as a license entry is found in a folder
      * called "LICENSES/"
      */
-
-    private fun isREUSECompliant(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>): Boolean {
-        if (!scanDict.containsKey(pack.id) ) return false
-        scanDict[pack.id]?.forEach {
-            if (it.key.startsWith( pack.packageRoot + if (pack.packageRoot != "") "/" else "" +"LICENSES/"))
-                return true
-        }
-        return false
-    }
+    private fun isREUSECompliant(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>):
+            Boolean = scanDict[pack.id]?.any { it.key.startsWith(getLicensesFolderPrefix(pack.packageRoot)) } ?: false
 
     private fun prepareEntryForScopeDefault(pack: Pack, input: ReporterInput) {
         if (pack.declaredLicenses.size == 0) reportTrouble("No declared license found for project/package: " + pack.id)
@@ -222,21 +224,6 @@ class OSCakeReporter : Reporter {
             }
         }
         reportTrouble("declared license used for project/package: " + pack.id)
-    }
-
-    private fun fetchREUSEInfosFromScanDictionary(
-        pack: Pack,
-        scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
-        sourceCodeDir: String?,
-        tmpDirectory: File
-    ) {
-        println(sourceCodeDir + "- "+ tmpDirectory.name)
-        scanDict[pack.id]?.forEach { fileName, fib ->
-            println(fileName + " - " + fib.licenseTextEntries.size)
-            // case 1: LICENSES/file
-            // case 2: endsWith: ".license"
-            // case 3: default
-        }
     }
 
     @Suppress("MaxLineLength")
@@ -378,12 +365,7 @@ class OSCakeReporter : Reporter {
         return ""
     }
 
-    private fun getPathName(pack: Pack, fib: FileInfoBlock): String {
-        var rc = fib.path
-        if (pack.packageRoot != "") rc = fib.path.replaceFirst(pack.packageRoot, "")
-        if (rc[0].equals('/') || rc[0].equals('\\')) rc = rc.substring(1)
-        return rc
-    }
+
 
     private fun addInfoToFileLicensings(pack: Pack, licenseTextEntry: LicenseTextEntry, path: String,
                                         pathFlat: String): FileLicensing {

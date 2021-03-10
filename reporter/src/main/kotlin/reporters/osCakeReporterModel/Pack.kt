@@ -17,7 +17,8 @@ import org.ossreviewtoolkit.model.Identifier
  * [ScopeLevel]s: [defaultLicensings], [dirLicensings], and [fileLicensings]. If the sourcecode is not placed in the
  * root directory of the repository (e.g. git), than the property [packageRoot] shows the path to the root directory
   */
-@JsonPropertyOrder("pid", "release", "repository", "id", "reuseCompliant", "defaultLicensings", "dirLicensings", "fileLicensings")
+@JsonPropertyOrder("pid", "release", "repository", "id", "reuseCompliant", "defaultLicensings", "dirLicensings",
+    "reuseLicensings", "fileLicensings")
 internal data class Pack(
     @JsonProperty("id") val id: Identifier,
     @JsonIgnore val website: String,
@@ -34,6 +35,7 @@ internal data class Pack(
     @JsonInclude(JsonInclude.Include.NON_DEFAULT) var reuseCompliant: Boolean = false
     val repository = website
     val defaultLicensings = mutableListOf<DefaultLicense>()
+    val reuseLicensings = mutableListOf<ReuseLicense>()
     val dirLicensings = mutableListOf<DirLicensing>()
     val fileLicensings = mutableListOf<FileLicensing>()
 }
