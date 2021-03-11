@@ -10,9 +10,9 @@ import java.io.File
 internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMap<Identifier,
         MutableMap<String, FileInfoBlock>>) : ModeSelector() {
 
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger("OSCake") }
+    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger("OSCakeReporter") }
 
-    internal override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File
+    override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File
     ) {
         scanDict[pack.id]?.forEach { _, fib ->
             val isInLicensesFolder = fib.path.startsWith(getLicensesFolderPrefix(pack.packageRoot))
@@ -81,5 +81,8 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
                 }
             }
 
+    override fun postActivities() {
+        // nothing to do
+    }
 
 }

@@ -26,12 +26,7 @@ import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CurationManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DefaultLicense
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DirLicense
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DirLicensing
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileLicense
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileLicensing
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.LicenseTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfiguration
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
@@ -39,11 +34,14 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeWrapper
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ScopeLevel
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.TextEntry
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
 import org.ossreviewtoolkit.utils.packZip
 
 const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
+
+internal fun isInstancedLicense(input: ReporterInput, license: String): Boolean =
+    input.licenseClassifications.licensesByCategory.getOrDefault("instanced",
+        setOf<SpdxSingleLicenseExpression>()).map { it.simpleLicense().toString() }.contains(license)
 
 internal fun deduplicateFileName(path: String): String {
     var ret = path
@@ -58,7 +56,7 @@ internal fun deduplicateFileName(path: String): String {
 }
 
 internal fun getLicensesFolderPrefix(packageRoot: String) = packageRoot +
-        if (packageRoot != "") "/" else "" +"LICENSES/"
+        (if (packageRoot != "") "/" else "") +"LICENSES/"
 
 internal fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null): String =
     id.toPath("%") + "%" + path.replace('/', '%').replace('\\', '%'
@@ -110,7 +108,6 @@ internal fun getPathName(pack: Pack, fib: FileInfoBlock): String {
     return rc
 }
 
-@Suppress("LargeClass", "TooManyFunctions")
 /**
  * A Reporter that creates the output for the Tdosca/OSCake projects
  */
@@ -186,17 +183,15 @@ class OSCakeReporter : Reporter {
 
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
-        osc.project.packs.filter { !it.reuseCompliant } .forEach { pack ->
-            if (scanDict.containsKey(pack.id)) input.ortResult.scanner?.results?.scanResults?.
-                any { it.id == pack.id }?.let {
-                        fetchInfosFromScanDictionary(pack, scanDict, sourceCodeDir, tmpDirectory)
+        osc.project.packs.filter { scanDict.containsKey(it.id) }.forEach { pack ->
+            // make sure that the "pack" is also in the scanResults-file and not only in the
+            // "native-scan-results" (=scanDict)
+            input.ortResult.scanner?.results?.scanResults?.any { it.id == pack.id }?.let {
+                ModeSelector.getMode(pack, scanDict, osCakeConfiguration, reporterInput).apply {
+                    fetchInfosFromScanDictionary(sourceCodeDir, tmpDirectory)
+                    postActivities()
+                }
             }
-            // if no license texts were found at scope: "default", prepare default entry
-            if (pack.defaultLicensings.size == 0) prepareEntryForScopeDefault(pack, input)
-        }
-
-        osc.project.packs.filter { it.reuseCompliant && scanDict.containsKey(it.id) } .forEach { pack ->
-            ModeSelector.getMode(pack, scanDict).fetchInfosFromScanDictionary(sourceCodeDir, tmpDirectory)
         }
 
         osc.project.complianceArtifactCollection.archivePath = "./" +
@@ -212,175 +207,6 @@ class OSCakeReporter : Reporter {
      */
     private fun isREUSECompliant(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>):
             Boolean = scanDict[pack.id]?.any { it.key.startsWith(getLicensesFolderPrefix(pack.packageRoot)) } ?: false
-
-    private fun prepareEntryForScopeDefault(pack: Pack, input: ReporterInput) {
-        if (pack.declaredLicenses.size == 0) reportTrouble("No declared license found for project/package: " + pack.id)
-        pack.declaredLicenses.forEach {
-            val pathInArchive: String? = null
-            if (isInstancedLicense(input, it.toString())) reportTrouble(
-                "Declared license: <$it> is instanced license - no license text provided!: " + pack.id)
-            DefaultLicense(it.toString(), FOUND_IN_FILE_SCOPE_DECLARED, pathInArchive).apply {
-                pack.defaultLicensings.add(this)
-            }
-        }
-        reportTrouble("declared license used for project/package: " + pack.id)
-    }
-
-    @Suppress("MaxLineLength")
-    private fun fetchInfosFromScanDictionary(
-        pack: Pack,
-        scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
-        sourceCodeDir: String?,
-        tmpDirectory: File
-    ) {
-        /*
-         * Phase I: identify files on "dir" or "default"-scope containing license information:
-         *          - copy the file to the archive file
-         *          - create a fileLicensing entry
-         * (Info: "default", "dir" scope depends on the matching of filenames against "scopePatterns" in oscake.conf)
-         */
-        scanDict[pack.id]?.forEach { fileName, fib ->
-            val scopeLevel = getScopeLevel(fileName, pack.packageRoot, osCakeConfiguration.scopePatterns)
-            if ((scopeLevel == ScopeLevel.DIR || scopeLevel == ScopeLevel.DEFAULT) && fib.licenseTextEntries.size > 0) {
-                val pathFlat = createPathFlat(pack.id, fib.path)
-                File(sourceCodeDir + "/" + pack.id.toPath("/") + "/" + fib.path).copyTo(
-                    File(tmpDirectory.path + "/" + pathFlat))
-
-                FileLicensing(getPathName(pack, fib)).apply {
-                        fileContentInArchive = pathFlat
-                        pack.fileLicensings.add(this)
-                    }
-            }
-        }
-        /*
-         * Phase II: manage Default- and Dir-Scope entries and
-         *           generate license texts (depending on license-category in license-classifications.yml) for each
-         *           file which contains an "isLicenseText" entry
-         */
-        scanDict[pack.id]?.forEach { fileName, fib ->
-            fib.licenseTextEntries /*.filter { it.isLicenseText }*/.forEach {
-                 val dedupFileName = handleDirDefaultEntriesAndLicenseTextsOnAllScopes(pack, sourceCodeDir, tmpDirectory, fib,
-                        getScopeLevel(fileName, pack.packageRoot, osCakeConfiguration.scopePatterns), it)
-                @Suppress("ComplexCondition")
-                if ((it.isLicenseText && dedupFileName != null) || (!it.isLicenseText && dedupFileName == "")) {
-                     addInfoToFileLicensings(pack, it, getPathName(pack, fib), dedupFileName)
-                 }
-            }
-        }
-        /*
-         * Phase III: copy archived files from scanner - and insert/update the fileLicensing entry
-         *           (Info: files are archived from scanner, if the filename matches a pattern in ort.conf)
-         */
-        reporterInput.licenseInfoResolver.resolveLicenseFiles(pack.id).files.forEach {
-            var path = it.path.replace("\\", "/")
-            if (it.path.startsWith(pack.packageRoot) && pack.packageRoot != "") path = path.replaceFirst(
-                pack.packageRoot, "").substring(1)
-
-            val fl = pack.fileLicensings.firstOrNull { it.scope == path } ?: FileLicensing(path).apply {
-                    licenses.add(FileLicense(null))
-                    pack.fileLicensings.add(this)
-                }
-
-            if (fl.fileContentInArchive == null) {
-                fl.fileContentInArchive = createPathFlat(pack.id, it.path) + "_archived"
-                it.file.copyTo(File(tmpDirectory.path + "/" + fl.fileContentInArchive))
-            }
-        }
-        /*
-         * Phase IV: transfer Copyright text entries
-         */
-        scanDict[pack.id]?.forEach { _, fib ->
-            if (fib.copyrightTextEntries.size > 0) {
-                (pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?:
-                    FileLicensing(getPathName(pack, fib)).apply { pack.fileLicensings.add(this) })
-                    .apply {
-                    fib.copyrightTextEntries.forEach {
-                        copyrights.add(FileCopyright(it.matchedText!!))
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     *  generate and store license texts based on the info "isInstancedLicense" directly from source files
-     *  in case of "dir" or "default"-scope the appropriate entries are inserted/updated
-     */
-    private fun handleDirDefaultEntriesAndLicenseTextsOnAllScopes(
-        pack: Pack,
-        sourceCodeDir: String?,
-        tmpDirectory: File,
-        fib: FileInfoBlock,
-        scopeLevel: ScopeLevel,
-        lte: LicenseTextEntry,
-    ): String? {
-
-        var genText: String? = null
-        var file: File? = null
-
-        if (lte.isLicenseText) {
-            genText = if (lte.isInstancedLicense) generateInstancedLicenseText(pack, fib, sourceCodeDir, lte)
-                            else generateNonInstancedLicenseText(pack, fib, sourceCodeDir, lte)
-            if (genText != null) file = File(deduplicateFileName(tmpDirectory.path + "/" +
-                    createPathFlat(pack.id, fib.path, lte.license)))
-        }
-
-        when (scopeLevel) {
-            ScopeLevel.DEFAULT -> {
-                val fibPathWithoutPackage = getPathWithoutPackageRoot(pack, fib.path)
-                DefaultLicense(
-                    lte.license, fibPathWithoutPackage, file?.name, false
-                ).apply {
-                    if (pack.defaultLicensings.none { it.license == lte.license &&
-                                it.path == fibPathWithoutPackage }) {
-                        pack.defaultLicensings.add(this)
-                        if (lte.isLicenseText) file?.writeText(genText!!)
-                    } else {
-                        reportTrouble(
-                            "multiple equal licenses <${lte.license}> in the same file found: ${fib.path}" +
-                                    " - ignored!")
-                    }
-                }
-            }
-            ScopeLevel.DIR -> {
-                val dirScope = getDirScopePath(pack, fib.path)
-                val fibPathWithoutPackage = getPathWithoutPackageRoot(pack, fib.path)
-                val dirLicensing = pack.dirLicensings.firstOrNull { it.scope == dirScope } ?: DirLicensing(
-                    dirScope).apply {
-                        pack.dirLicensings.add(this)
-                    }
-                if (dirLicensing.licenses.none { it.license == lte.license &&
-                            it.path == fibPathWithoutPackage }) {
-                    dirLicensing.licenses.add(DirLicense(lte.license!!,
-                        file?.name, fibPathWithoutPackage))
-                    if (lte.isLicenseText) file?.writeText(genText!!)
-                } else {
-                    reportTrouble("multiple equal licenses <${lte.license}> in the same file " +
-                            "found: ${fib.path} - ignored!")
-                }
-            }
-            ScopeLevel.FILE -> if (lte.isLicenseText) file?.writeText(genText!!)
-        }
-        if (lte.isLicenseText) return file?.name
-        return ""
-    }
-
-
-
-    private fun addInfoToFileLicensings(pack: Pack, licenseTextEntry: LicenseTextEntry, path: String,
-                                        pathFlat: String): FileLicensing {
-        val fileLicensing = pack.fileLicensings.firstOrNull { it.scope == path } ?: FileLicensing(path)
-
-        if (fileLicensing.licenses.none { it.license == licenseTextEntry.license &&
-                    it.startLine == licenseTextEntry.startLine }) {
-            fileLicensing.licenses.add(FileLicense(licenseTextEntry.license,
-                if (licenseTextEntry.isLicenseText) pathFlat else null, licenseTextEntry.startLine))
-        }
-
-        if (pack.fileLicensings.none { it.scope == path }) pack.fileLicensings.add(fileLicensing)
-
-        return fileLicensing
-    }
 
     /** Reads the scanner result and creates a Hashmap based on the package id (=key) e.g.: "Maven:junit:junit:4.11"
      * and the value (=[FileInfoBlock]). Each of the entries consists of a Hashmap based on the path of the existing
@@ -425,10 +251,6 @@ class OSCakeReporter : Reporter {
         }
         return scanDict
     }
-
-    private fun isInstancedLicense(input: ReporterInput, license: String): Boolean =
-        input.licenseClassifications.licensesByCategory.getOrDefault("instanced",
-            setOf<SpdxSingleLicenseExpression>()).map { it.simpleLicense().toString() }.contains(license)
 
     private fun getNativeScanResultJson(
         entity: ScanResultContainer,
@@ -481,61 +303,6 @@ class OSCakeReporter : Reporter {
     private fun reportTrouble(msg: String, severity: Severity = Severity.WARNING, intoOscc: Boolean = false) {
         logger.log(msg, severity, intoOscc)
     }
-
-    private fun generateNonInstancedLicenseText(pack: Pack, fileInfoBlock: FileInfoBlock, sourceCodeDir: String?,
-                                                licenseTextEntry: LicenseTextEntry): String? {
-        val textBlockList = fileInfoBlock.licenseTextEntries.filter { it.isLicenseText &&
-                it.license == licenseTextEntry.license }.toMutableList<TextEntry>()
-        if (textBlockList.size > 0) {
-            textBlockList.sortBy { it.startLine }
-            val fileName = sourceCodeDir + "/" + pack.id.toPath("/") + "/" + fileInfoBlock.path
-            return getLinesFromFile(fileName, textBlockList[0].startLine, textBlockList[textBlockList.size - 1].endLine)
-        }
-        return null
-    }
-
-    /**
-     * The copyright statement must be found above of the license text [licenseTextEntry]; therefore, search for the
-     * smallest startline of a copyright entry without crossing another license text
-     */
-    private fun getCopyrightStartline(fileInfoBlock: FileInfoBlock, licenseTextEntry: LicenseTextEntry): Int? {
-        val completeList = fileInfoBlock.licenseTextEntries.filter { it.isLicenseText }.toMutableList<TextEntry>()
-        completeList.addAll(fileInfoBlock.copyrightTextEntries)
-        completeList.sortByDescending { it.startLine }
-        var found = false
-        var line: Int? = null
-
-        loop@ for (lte in completeList) {
-            if (found && lte is CopyrightTextEntry) line = lte.startLine
-            if (found && lte is LicenseTextEntry) break@loop
-            if (lte == licenseTextEntry) found = true
-        }
-        return line
-    }
-
-    private fun generateInstancedLicenseText(pack: Pack, fileInfoBlock: FileInfoBlock, sourceCodeDir: String?,
-                                             licenseTextEntry: LicenseTextEntry): String? {
-
-            val copyrightStartLine = getCopyrightStartline(fileInfoBlock, licenseTextEntry)
-            if (copyrightStartLine == null) {
-                reportTrouble("No Copyright-Startline found in ${fileInfoBlock.path}")
-                return null
-            }
-            if (copyrightStartLine > licenseTextEntry.endLine) {
-                reportTrouble(
-                "Line markers $copyrightStartLine : ${licenseTextEntry.endLine} not valid in:${fileInfoBlock.path}"
-                )
-                return null
-            }
-            val fileName = sourceCodeDir + "/" + pack.id.toPath("/") + "/" + fileInfoBlock.path
-            return getLinesFromFile(fileName, copyrightStartLine, licenseTextEntry.endLine)
-    }
-
-    private fun getLinesFromFile(path: String, startLine: Int, endLine: Int): String =
-        File(path).readLines()
-            .slice(startLine - 1..endLine - 1)
-            .map { Regex("""^( \* *)""").replace(it, "") } // removes trailing comment symbols
-            .joinToString(separator = System.lineSeparator())
 
     private fun zipAndCleanUp(outputDir: File, tmpDirectory: File, zipFileName: String) {
         val targetFile = File(outputDir.path + zipFileName)

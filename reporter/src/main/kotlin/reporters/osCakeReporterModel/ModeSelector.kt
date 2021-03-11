@@ -1,18 +1,19 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.reporter.ReporterInput
 import java.io.File
 
 abstract class ModeSelector {
     internal abstract fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File)
+    internal abstract fun postActivities()
 
     companion object {
-        internal fun getMode(pack: Pack, scanDict: MutableMap<Identifier,
-                MutableMap<String, FileInfoBlock>>): ModeSelector {
+        internal fun getMode(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
+                             osCakeConfiguration: OSCakeConfiguration, reporterInput: ReporterInput): ModeSelector {
             return when (pack.reuseCompliant) {
                 true -> ModeREUSE(pack, scanDict)
-                //else -> ModeDefault()
-                else -> throw Exception("Invalid document type")
+                else -> ModeDefault(pack, scanDict, osCakeConfiguration, reporterInput)
             }
         }
     }
