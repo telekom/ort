@@ -38,6 +38,7 @@ import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
 import org.ossreviewtoolkit.utils.packZip
 
 const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
+const val REUSE_LICENSES_FOLDER = "LICENSES/"
 
 internal fun isInstancedLicense(input: ReporterInput, license: String): Boolean =
     input.licenseClassifications.licensesByCategory.getOrDefault("instanced",
@@ -56,7 +57,7 @@ internal fun deduplicateFileName(path: String): String {
 }
 
 internal fun getLicensesFolderPrefix(packageRoot: String) = packageRoot +
-        (if (packageRoot != "") "/" else "") +"LICENSES/"
+        (if (packageRoot != "") "/" else "") + REUSE_LICENSES_FOLDER
 
 internal fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null): String =
     id.toPath("%") + "%" + path.replace('/', '%').replace('\\', '%'
@@ -105,6 +106,10 @@ internal fun getPathName(pack: Pack, fib: FileInfoBlock): String {
     var rc = fib.path
     if (pack.packageRoot != "") rc = fib.path.replaceFirst(pack.packageRoot, "")
     if (rc[0].equals('/') || rc[0].equals('\\')) rc = rc.substring(1)
+    if(pack.reuseCompliant && rc.endsWith(".license")) {
+        val pos = rc.indexOfLast { it == '.' }
+        rc = rc.substring(0, pos)
+    }
     return rc
 }
 

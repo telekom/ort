@@ -41,14 +41,14 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
     }
 
     private fun handleBinaryFiles(fib: FileInfoBlock) {
-        val fileNameWithoutExtension = File(fib.path).nameWithoutExtension
+        val fileNameWithoutExtension = getPathName(pack, fib)
         // check if there is no licenseTextEntry for a file without this extension
         if (scanDict[pack.id]?.any { it.key == fileNameWithoutExtension } == true) {
             logger.log("File \"${fileNameWithoutExtension}\" shows license infos although \"${fib.path}\" " +
                         "also exists! --> Files ignored!", Severity.ERROR)
             return
         }
-        FileLicensing(getPathName(pack, FileInfoBlock(fileNameWithoutExtension))).apply {
+        FileLicensing(fileNameWithoutExtension).apply {
             fib.licenseTextEntries.filter { it.isLicenseNotice }.forEach {
                 licenses.add(FileLicense(it.license))
             }

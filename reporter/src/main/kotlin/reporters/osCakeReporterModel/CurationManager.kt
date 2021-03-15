@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import java.io.Closeable
 import java.io.File
 import org.ossreviewtoolkit.model.Severity
+import org.ossreviewtoolkit.reporter.reporters.getLicensesFolderPrefix
 import org.ossreviewtoolkit.utils.packZip
 import org.ossreviewtoolkit.utils.unpackZip
 
@@ -53,7 +54,10 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
         curationProvider.packageCurations.sortedBy { orderByModifier[it.packageModifier] }.forEach { packageCuration ->
             when (packageCuration.packageModifier) {
                 "insert" -> if (project.packs.none { it.id == packageCuration.id}) {
-                        project.packs.add(Pack(packageCuration.id, packageCuration.repository ?: "", ""))
+                   Pack(packageCuration.id, packageCuration.repository ?: "", "").apply {
+                            project.packs.add(this)
+                            reuseCompliant = checkReuseCompliance(this, packageCuration)
+                        }
                     } else {
                         logger.log("Package: \"${packageCuration.id}\" already exists - no duplication!",
                             Severity.HINT)
@@ -69,6 +73,11 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
                 File(osCakeConfiguration.curations?.get("fileStore")), osCakeConfiguration)
         }
     }
+
+    private fun checkReuseCompliance(pack: Pack, packageCuration: PackageCuration): Boolean =
+        packageCuration.curations?.any {
+            it.fileScope.startsWith(getLicensesFolderPrefix(pack.packageRoot))
+        } ?: false
 
     private fun compareLTIAwithArchive() {
         // consistency check: direction from pack to archive

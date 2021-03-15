@@ -11,6 +11,7 @@ import java.nio.file.FileSystems
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.reporter.reporters.FOUND_IN_FILE_SCOPE_DECLARED
+import org.ossreviewtoolkit.reporter.reporters.REUSE_LICENSES_FOLDER
 import org.ossreviewtoolkit.reporter.reporters.createPathFlat
 import org.ossreviewtoolkit.reporter.reporters.deduplicateFileName
 import org.ossreviewtoolkit.reporter.reporters.getDirScopePath
@@ -199,6 +200,11 @@ internal data class PackageCuration(
                                     it.licenseTextInArchive = fileLicense.licenseTextInArchive
                             }
                         }
+                        // update reuseScope
+                        pack.reuseLicensings.filter { it.path == fileLicensing.scope &&
+                                it.license == fileLicense.license }.forEach {
+                            it.licenseTextInArchive = fileLicense.licenseTextInArchive
+                        }
                     }
             }
         }
@@ -334,7 +340,8 @@ internal data class PackageCuration(
         fileStore: File,
         osCakeConfiguration: OSCakeConfiguration
     ) {
-        val scopeLevel = getScopeLevel(curationFileItem.fileScope, pack.packageRoot, osCakeConfiguration.scopePatterns)
+        val scopeLevel = getScopeLevel(curationFileItem.fileScope,
+            pack.packageRoot, osCakeConfiguration.scopePatterns)
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
@@ -351,7 +358,11 @@ internal data class PackageCuration(
             licenses.add(fileLicense)
             if (pack.fileLicensings.none { it.scope == fileScope }) pack.fileLicensings.add(this)
         }
-        if (scopeLevel == ScopeLevel.DEFAULT) {
+
+        if (pack.reuseCompliant && fileScope.startsWith(REUSE_LICENSES_FOLDER)) pack.reuseLicensings.add(ReuseLicense(
+            fileLicense.license, fileScope, fileLicense.licenseTextInArchive))
+
+        if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
             pack.defaultLicensings.add(
                 DefaultLicense(
                     fileLicense.license, fileScope, fileLicense.licenseTextInArchive,
@@ -359,7 +370,7 @@ internal data class PackageCuration(
                 )
             )
         }
-        if (scopeLevel == ScopeLevel.DIR) {
+        if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
             val dirScope = getDirScopePath(pack, fileScope)
             (pack.dirLicensings.firstOrNull() { it.scope == dirScope } ?: run
                 {

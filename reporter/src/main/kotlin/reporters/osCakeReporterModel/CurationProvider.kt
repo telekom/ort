@@ -203,6 +203,9 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
     // id must consist of type, namespace and name - version may be empty, or is a valid IVY expression
     private fun packageIdIsValid(id: Identifier): Boolean {
         val ret = true
+        // special case, if there is no package manager like in REUSE example
+        if (id.type == "Unmanaged") return ret
+
         if (id.name == "" || id.namespace == "" || id.type == "") return false
         if (id.version != "") {
             return try {
