@@ -69,6 +69,13 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
             }
             pack.reuseLicensings.add(ReuseLicense(it.license, fib.path,  pathFlat))
         }
+        if (fib.licenseTextEntries.any { it.isLicenseText && fib.licenseTextEntries.size > 1 }) {
+            logger.log("More then one license text was found for file: ${fib.path}", Severity.WARNING)
+        }
+        if (fib.licenseTextEntries.any { it.isLicenseNotice }) {
+            logger.log("License Notice was found for a file in LICENSES folder in file: ${fib.path}", Severity.WARNING)
+        }
+
     }
 
     private fun handleCopyrights(fib: FileInfoBlock) =

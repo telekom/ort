@@ -243,6 +243,11 @@ internal data class PackageCuration(
                         it.path == fileLicensing.scope && it.license == licenseEntry.license &&
                                 it.licenseTextInArchive == licenseEntry.licenseTextInArchive
                     })
+                    // delete from reuseLicensings
+                    pack.reuseLicensings.removeAll(pack.reuseLicensings.filter {
+                        it.path == fileLicensing.scope && it.license == licenseEntry.license &&
+                                it.licenseTextInArchive == licenseEntry.licenseTextInArchive
+                    })
                     deleteFromArchive(licenseEntry.licenseTextInArchive, archiveDir)
 
                     // delete from DirScope

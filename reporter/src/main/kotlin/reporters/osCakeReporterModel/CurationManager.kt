@@ -87,6 +87,10 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
                     !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
                 missingFiles.add(it.licenseTextInArchive.toString())
             }
+            pack.reuseLicensings.filter { it.licenseTextInArchive != null &&
+                    !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
+                missingFiles.add(it.licenseTextInArchive.toString())
+            }
             pack.dirLicensings.forEach { dirLicensing ->
                 dirLicensing.licenses.filter { it.licenseTextInArchive != null &&
                         !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {

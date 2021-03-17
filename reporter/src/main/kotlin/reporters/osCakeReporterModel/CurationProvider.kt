@@ -10,6 +10,7 @@ import java.io.IOException
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.reporter.reporters.getLicensesFolderPrefix
 
 /* Hashmap which defines the allowed packageModifier (=key) and their associated modifiers -
    the first set contains modifiers for licenses, second set for copyrights
@@ -150,7 +151,7 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
                 }
                 if (it.modifier != "delete" && it.licenseTextInArchive != null && it.licenseTextInArchive != "*") {
                     if (!File(fileStore.path + "/" + it.licenseTextInArchive).exists()) {
-                        logger.log("$errorPrefix file <${it.licenseTextInArchive} does not exist in " +
+                        logger.log("$errorPrefix file <${it.licenseTextInArchive}> does not exist in " +
                                 "configured file store found in file_scope: <${curationFileItem.fileScope}>! " +
                                 "$errorSuffix", Severity.WARNING)
                         return false
@@ -163,15 +164,17 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
             curationFileItem.fileCopyrights?.forEach {
                 when (it.modifier) {
                     "insert" -> if (it.copyright == null || it.copyright == "") {
-                        logger.log("$errorPrefix Copyrights modifier: insert: neither null nor empty string" +
-                                " is allowed!: <${curationFileItem.fileScope}>! $errorSuffix", Severity.WARNING)
+                        logger.log(
+                            "$errorPrefix Copyrights modifier: insert: neither null nor empty string" +
+                                    " is allowed!: <${curationFileItem.fileScope}>! $errorSuffix", Severity.WARNING
+                        )
                         return false
                     }
                     "delete" -> {
                         if (it.copyright == null || it.copyright == "") {
                             logger.log(
                                 "$errorPrefix Copyrights modifier: delete: only string or string pattern" +
-                                    " are allowed!: <${curationFileItem.fileScope}>! $errorSuffix", Severity.WARNING
+                                        " are allowed!: <${curationFileItem.fileScope}>! $errorSuffix", Severity.WARNING
                             )
                             return false
                         }
@@ -193,8 +196,47 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
                 }
             }
         }
+        // 10. check REUSE compliance
+        if (packageCuration.packageModifier == "insert" && isReuseCompliant(packageCuration)) {
+            // 10.1 check more than one license per file in LICENSES folder is not allowed
+            packageCuration.curations?.groupBy { it.fileScope } ?.forEach{ (_, value) ->
+                val curationFileLicenseItems = mutableListOf<CurationFileLicenseItem>()
+                value.forEach {
+                    it.fileLicenses?.let { it1 -> curationFileLicenseItems.addAll(it1) }
+                }
+                if (curationFileLicenseItems.size > 1) {
+                    logger.log("$errorPrefix if package_modifier = \"insert\" for REUSE package: more than one license per file in LICENSES folder is not allowed! $errorSuffix",
+                        Severity.WARNING)
+                    return false
+                }
+            }
+            // 10.2 licenseTextInArchive must be NOT null for files in LICENSES folder
+            packageCuration.curations?.filter { it.fileScope.startsWith(getLicensesFolderPrefix("")) }?.forEach { curationFileItem1 ->
+                if (curationFileItem1.fileLicenses?.any { it.licenseTextInArchive == null } == true) {
+                    logger.log("$errorPrefix if package_modifier = \"insert\" for REUSE package: " +
+                            "licenseTextInArchive = null is not allowed for files in LICENSES folder! $errorSuffix",
+                        Severity.WARNING
+                    )
+                    return false
+                }
+            }
+            // 10.3 licenseTextInArchive must be null for files outside of the LICENSES folder
+            packageCuration.curations?.filter { !it.fileScope.startsWith(getLicensesFolderPrefix("")) }?.forEach { curationFileItem1 ->
+                if (curationFileItem1.fileLicenses?.any { it.licenseTextInArchive != null } == true) {
+                    logger.log("$errorPrefix if package_modifier = \"insert\" for REUSE package: licenseTextInArchive must be null for files outside of the LICENSES folder! $errorSuffix",
+                        Severity.WARNING)
+                    return false
+                }
+            }
+        }
+
         return true
     }
+
+    private fun isReuseCompliant(packageCuration: PackageCuration): Boolean =
+        packageCuration.curations?.any {
+            it.fileScope.startsWith(getLicensesFolderPrefix(""))
+        } ?: false
 
     private fun containsGlobPatternSymbol(path: String): Boolean =
         (path.contains('*') || path.contains('?') || path.contains('[') || path.contains(']') ||
