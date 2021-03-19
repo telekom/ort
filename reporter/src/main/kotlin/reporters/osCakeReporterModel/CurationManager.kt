@@ -4,50 +4,29 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import java.io.Closeable
 import java.io.File
-import org.ossreviewtoolkit.model.Severity
-import org.ossreviewtoolkit.reporter.reporters.getLicensesFolderPrefix
+import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.utils.packZip
 import org.ossreviewtoolkit.utils.unpackZip
+import kotlin.io.path.createTempDirectory
 
 internal class CurationManager(val project: Project, val osCakeConfiguration: OSCakeConfiguration, val outputDir: File,
-                               val reportFilename: String) : Closeable {
+                               val reportFilename: String) {
 
     private val archiveDir: File by lazy {
-        kotlin.io.path.createTempDirectory(prefix = "oscakeCur_").toFile().apply {
+        createTempDirectory(prefix = "oscakeCur_").toFile().apply {
             File(outputDir, project.complianceArtifactCollection.archivePath).unpackZip(this)
         }
     }
+    private var curationProvider = CurationProvider(File(osCakeConfiguration.curations!!.get("directory")),
+        File(osCakeConfiguration.curations.get("fileStore")))
 
-    private lateinit var curationProvider: CurationProvider
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger("OSCakeCuration") }
-    private var configError = false
-    private var enabled = osCakeConfiguration.curations?.get("enabled").toBoolean()
-
-    init {
-        if (enabled) {
-            if (osCakeConfiguration.curations?.get("fileStore") == null ||
-                !File(osCakeConfiguration.curations.get("fileStore")).exists()) {
-                configError = true
-                logger.log("Invalid config entry found for \"curations.filestore\" in oscake.conf", Severity.ERROR)
-            }
-            if (osCakeConfiguration.curations?.get("directory") == null ||
-                !File(osCakeConfiguration.curations.get("directory")).exists()) {
-                configError = true
-                logger.log("Invalid config entry found for \"curations.directory\" in oscake.conf", Severity.ERROR)
-            }
-            if (!configError) {
-                curationProvider = CurationProvider(
-                    File(osCakeConfiguration.curations!!.get("directory")),
-                    File(osCakeConfiguration.curations.get("fileStore"))
-                )
-            }
-        }
-    }
+    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
     internal fun manage() {
-        if (configError || !enabled) return
+        // reset "hasIssues" values
+        project.hasIssues = false
+        project.packs.forEach { it.hasIssues = false }
 
         // handle packageModifiers
         val orderByModifier = packageModifierMap.keys.withIndex().associate { it.value to it.index }
@@ -60,7 +39,7 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
                         }
                     } else {
                         logger.log("Package: \"${packageCuration.id}\" already exists - no duplication!",
-                            Severity.HINT)
+                            Level.INFO)
                     }
                 "delete" -> deletePackage(packageCuration, archiveDir)
             }
@@ -72,6 +51,13 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
             curationProvider.getCurationFor(it.id)?.curate(it, archiveDir,
                 File(osCakeConfiguration.curations?.get("fileStore")), osCakeConfiguration)
         }
+
+        // 3. report OSCakeIssues
+        if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER))
+            handleOSCakeIssues(project, logger)
+
+        // 4. generate .zip and .oscc files
+        createResultingFiles()
     }
 
     private fun checkReuseCompliance(pack: Pack, packageCuration: PackageCuration): Boolean =
@@ -109,7 +95,7 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
             }
         }
         missingFiles.forEach {
-            logger.log("File: \"${it}\" not found in archive! --> Inconsistency", Severity.ERROR)
+            logger.log("File: \"${it}\" not found in archive! --> Inconsistency", Level.ERROR)
         }
         // consistency check: direction from archive to pack
         missingFiles.clear()
@@ -137,7 +123,7 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
             if (!found) missingFiles.add(fileName)
         }
         missingFiles.forEach {
-            logger.log("Archived file: \"${it}\": no reference found in oscc-file! Inconsistency", Severity.ERROR)
+            logger.log("Archived file: \"${it}\": no reference found in oscc-file! Inconsistency", Level.ERROR)
         }
     }
 
@@ -146,9 +132,7 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
      * 1. generate zip-File
      * 2. generate _curated.oscc file
      */
-    override fun close() {
-        if (!enabled || configError) return
-
+     fun createResultingFiles() {
         val sourceZipFileName = File(stripRelativePathIndicators(project.complianceArtifactCollection.archivePath))
         val newZipFileName = extendFilename(sourceZipFileName)
         val targetFile = File(outputDir.path, newZipFileName)

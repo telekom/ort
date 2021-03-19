@@ -16,102 +16,30 @@ import java.nio.file.FileSystems
 
 import kotlin.collections.HashMap
 
+import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.model.EMPTY_JSON_NODE
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.ScanResultContainer
-import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.LicenseTextEntry
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ModeSelector
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfiguration
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeWrapper
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ScopeLevel
-import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.REPORTER_LOGGER
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.getLicensesFolderPrefix
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.isInstancedLicense
 import org.ossreviewtoolkit.utils.packZip
-
-const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
-const val REUSE_LICENSES_FOLDER = "LICENSES/"
-
-internal fun isInstancedLicense(input: ReporterInput, license: String): Boolean =
-    input.licenseClassifications.licensesByCategory.getOrDefault("instanced",
-        setOf<SpdxSingleLicenseExpression>()).map { it.simpleLicense().toString() }.contains(license)
-
-internal fun deduplicateFileName(path: String): String {
-    var ret = path
-    if (File(path).exists()) {
-        var counter = 2
-        while (File(path + "_" + counter).exists()) {
-            counter++
-        }
-        ret = path + "_" + counter
-    }
-    return ret
-}
-
-internal fun getLicensesFolderPrefix(packageRoot: String) = packageRoot +
-        (if (packageRoot != "") "/" else "") + REUSE_LICENSES_FOLDER
-
-internal fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null): String =
-    id.toPath("%") + "%" + path.replace('/', '%').replace('\\', '%'
-    ) + if (fileExtension != null) ".$fileExtension" else ""
-
-internal fun getScopeLevel(path: String, packageRoot: String, scopePatterns: List<String>): ScopeLevel {
-    var scopeLevel = ScopeLevel.FILE
-    val fileSystem = FileSystems.getDefault()
-
-    if (!scopePatterns.filter { fileSystem.getPathMatcher(
-            "glob:$it"
-        ).matches(File(File(path).name).toPath()) }.isNullOrEmpty()) {
-
-        scopeLevel = ScopeLevel.DIR
-        var fileName = path
-        if (path.startsWith(packageRoot) && packageRoot != "") fileName =
-            path.replace(packageRoot, "").replaceFirst("/", "")
-        if (fileName.split("/").size == 1) scopeLevel = ScopeLevel.DEFAULT
-    }
-    return scopeLevel
-}
-
-internal fun getDirScopePath(pack: Pack, fileScope: String): String {
-    val p = if (fileScope.startsWith(pack.packageRoot) && pack.packageRoot != "") {
-        fileScope.replaceFirst(pack.packageRoot, "")
-    } else {
-        fileScope
-    }
-    val lastIndex = p.lastIndexOf("/")
-    var start = 0
-    if (p[0] == '/' || p[0] == '\\') start = 1
-    return p.substring(start, lastIndex)
-}
-
-internal fun getPathWithoutPackageRoot(pack: Pack, fileScope: String): String {
-    val pathWithoutPackage = if (fileScope.startsWith(pack.packageRoot) && pack.packageRoot != "") {
-        fileScope.replaceFirst(pack.packageRoot, "")
-    } else {
-        fileScope
-    }.replace("\\", "/")
-    if (pathWithoutPackage.startsWith("/")) return pathWithoutPackage.substring(1)
-    return pathWithoutPackage
-}
-
-internal fun getPathName(pack: Pack, fib: FileInfoBlock): String {
-    var rc = fib.path
-    if (pack.packageRoot != "") rc = fib.path.replaceFirst(pack.packageRoot, "")
-    if (rc[0].equals('/') || rc[0].equals('\\')) rc = rc.substring(1)
-    if(pack.reuseCompliant && rc.endsWith(".license")) {
-        val pos = rc.indexOfLast { it == '.' }
-        rc = rc.substring(0, pos)
-    }
-    return rc
-}
 
 /**
  * A Reporter that creates the output for the Tdosca/OSCake projects
@@ -120,8 +48,7 @@ class OSCakeReporter : Reporter {
     override val reporterName = "OSCake"
     private val reportFilename = "OSCake-Report.oscc"
     private lateinit var osCakeConfiguration: OSCakeConfiguration
-    private lateinit var reporterInput: ReporterInput
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger("OSCakeReporter") }
+    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(REPORTER_LOGGER) }
 
     override fun generateReport(
         input: ReporterInput,
@@ -136,8 +63,16 @@ class OSCakeReporter : Reporter {
                 "Value for 'OSCakeConf' is not a valid " +
                     "configuration file!\n Add -O OSCake=configFile=... to the commandline"
         }
-        reporterInput = input
+
         osCakeConfiguration = getOSCakeConfiguration(options["configFile"])
+        if (osCakeConfiguration.curations?.get("enabled").toBoolean()) {
+            require(isValidCurationFolder(osCakeConfiguration.curations?.get("fileStore"))) {
+                "Invalid or missing config entry found for \"curations.filestore\" in oscake.conf"
+            }
+            require(isValidCurationFolder(osCakeConfiguration.curations?.get("directory"))) {
+                "Invalid or missing config entry found for \"curations.directory\" in oscake.conf"
+            }
+        }
 
         val scanDict = getNativeScanResults(input, options["nativeScanResultsDir"])
 
@@ -149,7 +84,8 @@ class OSCakeReporter : Reporter {
             it.write(objectMapper.writeValueAsString(osc.project))
         }
 
-        CurationManager(osc.project, osCakeConfiguration, outputDir, reportFilename).use { obj -> obj.manage() }
+        if (osCakeConfiguration.curations?.get("enabled").toBoolean())
+            CurationManager(osc.project, osCakeConfiguration, outputDir, reportFilename).manage()
 
         return listOf(outputFile)
     }
@@ -189,10 +125,10 @@ class OSCakeReporter : Reporter {
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
         osc.project.packs.filter { scanDict.containsKey(it.id) }.forEach { pack ->
-            // make sure that the "pack" is also in the scanResults-file and not only in the
+            // makes sure that the "pack" is also in the scanResults-file and not only in the
             // "native-scan-results" (=scanDict)
             input.ortResult.scanner?.results?.scanResults?.any { it.id == pack.id }?.let {
-                ModeSelector.getMode(pack, scanDict, osCakeConfiguration, reporterInput).apply {
+                ModeSelector.getMode(pack, scanDict, osCakeConfiguration, input).apply {
                     fetchInfosFromScanDictionary(sourceCodeDir, tmpDirectory)
                     postActivities()
                 }
@@ -203,6 +139,10 @@ class OSCakeReporter : Reporter {
                 input.ortResult.getProjects().first().id.name + ".zip"
 
         zipAndCleanUp(outputDir, tmpDirectory, osc.project.complianceArtifactCollection.archivePath)
+
+        if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) handleOSCakeIssues(osc.project, logger)
+        //if (loggerInUse) handleOSCakeIssues(osc.project, logger)
+
         return osc
     }
 
@@ -233,8 +173,8 @@ class OSCakeReporter : Reporter {
                         LicenseTextEntry().apply {
                             license = it.license.toString()
                             if (it.license.toString().startsWith("LicenseRef-")) {
-                                reportTrouble("Changed <${it.license}> to <NOASSERTION> in package: " +
-                                        "${pp.id.name} - ${it.location.path}")
+                                logger.log("Changed <${it.license}> to <NOASSERTION> in package: " +
+                                        "${pp.id.name} - ${it.location.path}", Level.INFO, pp.id, fileInfoBlock.path)
                                 license = "NOASSERTION"
                             }
                             isInstancedLicense = isInstancedLicense(input, it.license.toString())
@@ -305,10 +245,6 @@ class OSCakeReporter : Reporter {
         }
     }
 
-    private fun reportTrouble(msg: String, severity: Severity = Severity.WARNING, intoOscc: Boolean = false) {
-        logger.log(msg, severity, intoOscc)
-    }
-
     private fun zipAndCleanUp(outputDir: File, tmpDirectory: File, zipFileName: String) {
         val targetFile = File(outputDir.path + zipFileName)
         if (targetFile.exists()) targetFile.delete()
@@ -335,4 +271,9 @@ class OSCakeReporter : Reporter {
     // checks if the value of the optionName in map is a valid file
     internal fun isValidFile(map: Map<String, String>, optionName: String): Boolean =
         if (map[optionName] != null) File(map[optionName]).exists() && File(map[optionName]).isFile() else false
+
+    internal fun isValidCurationFolder(dir: String?): Boolean =
+        !(dir == null || !File(dir).exists() || !File(dir).isDirectory())
+
+
 }

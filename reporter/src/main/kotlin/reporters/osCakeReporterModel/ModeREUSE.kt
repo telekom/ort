@@ -1,16 +1,11 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.Severity
-import org.ossreviewtoolkit.reporter.reporters.createPathFlat
-import org.ossreviewtoolkit.reporter.reporters.getLicensesFolderPrefix
-import org.ossreviewtoolkit.reporter.reporters.getPathName
 import java.io.File
 
 internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMap<Identifier,
         MutableMap<String, FileInfoBlock>>) : ModeSelector() {
-
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger("OSCakeReporter") }
 
     override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File
     ) {
@@ -18,7 +13,7 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
             val isInLicensesFolder = fib.path.startsWith(getLicensesFolderPrefix(pack.packageRoot))
             if (fib.licenseTextEntries.any { it.isLicenseText && !isInLicensesFolder})
                 logger.log ("Found a license text in \"${fib.path}\" - this is outside of the LICENSES folder" +
-                        " - will be ignored!", Severity.ERROR)
+                        " - will be ignored!", Level.WARN, pack.id, fib.path)
 
             // Phase I: inspect ./LICENSES/*
             if (isInLicensesFolder) handleLicenses(fib, sourceCodeDir, tmpDirectory)
@@ -45,7 +40,7 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
         // check if there is no licenseTextEntry for a file without this extension
         if (scanDict[pack.id]?.any { it.key == fileNameWithoutExtension } == true) {
             logger.log("File \"${fileNameWithoutExtension}\" shows license infos although \"${fib.path}\" " +
-                        "also exists! --> Files ignored!", Severity.ERROR)
+                        "also exists! --> Files ignored!", Level.WARN, pack.id, fib.path)
             return
         }
         FileLicensing(fileNameWithoutExtension).apply {
@@ -70,10 +65,11 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
             pack.reuseLicensings.add(ReuseLicense(it.license, fib.path,  pathFlat))
         }
         if (fib.licenseTextEntries.any { it.isLicenseText && fib.licenseTextEntries.size > 1 }) {
-            logger.log("More then one license text was found for file: ${fib.path}", Severity.WARNING)
+            logger.log("More then one license text was found for file: ${fib.path}", Level.WARN, pack.id, fib.path)
         }
         if (fib.licenseTextEntries.any { it.isLicenseNotice }) {
-            logger.log("License Notice was found for a file in LICENSES folder in file: ${fib.path}", Severity.WARNING)
+            logger.log("License Notice was found for a file in LICENSES folder in file: ${fib.path}", Level.WARN,
+                pack.id, fib.path)
         }
 
     }
@@ -89,7 +85,7 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
             }
 
     override fun postActivities() {
-        // nothing to do
+        // nothing to do for REUSE projects
     }
 
 }

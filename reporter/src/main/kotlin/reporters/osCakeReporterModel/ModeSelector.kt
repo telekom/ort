@@ -8,6 +8,8 @@ abstract class ModeSelector {
     internal abstract fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File)
     internal abstract fun postActivities()
 
+    internal val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(REPORTER_LOGGER) }
+
     companion object {
         internal fun getMode(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
                              osCakeConfiguration: OSCakeConfiguration, reporterInput: ReporterInput): ModeSelector {

@@ -1,22 +1,15 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.reporter.reporters.*
-import org.ossreviewtoolkit.reporter.reporters.createPathFlat
-import org.ossreviewtoolkit.reporter.reporters.deduplicateFileName
-import org.ossreviewtoolkit.reporter.reporters.getDirScopePath
-import org.ossreviewtoolkit.reporter.reporters.getPathName
-import org.ossreviewtoolkit.reporter.reporters.getPathWithoutPackageRoot
-import org.ossreviewtoolkit.reporter.reporters.getScopeLevel
+
 import java.io.File
 
 internal class ModeDefault(private val pack: Pack, private val scanDict:
        MutableMap<Identifier, MutableMap<String, FileInfoBlock>>, private val osCakeConfiguration: OSCakeConfiguration,
        private val reporterInput: ReporterInput) : ModeSelector() {
-
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger("OSCakeReporter") }
 
     override fun postActivities() {
         if (pack.defaultLicensings.size == 0) prepareEntryForScopeDefault(pack, reporterInput)
@@ -145,7 +138,7 @@ internal class ModeDefault(private val pack: Pack, private val scanDict:
                     } else {
                         logger.log(
                             "multiple equal licenses <${lte.license}> in the same file found: ${fib.path}" +
-                                    " - ignored!", Severity.WARNING)
+                                    " - ignored!", Level.INFO, pack.id, fib.path)
                     }
                 }
             }
@@ -163,7 +156,7 @@ internal class ModeDefault(private val pack: Pack, private val scanDict:
                     if (lte.isLicenseText) file?.writeText(genText!!)
                 } else {
                     logger.log("multiple equal licenses <${lte.license}> in the same file " +
-                            "found: ${fib.path} - ignored!", Severity.WARNING)
+                            "found: ${fib.path} - ignored!", Level.INFO, pack.id, fib.path)
                 }
             }
             ScopeLevel.FILE -> if (lte.isLicenseText) file?.writeText(genText!!)
@@ -177,12 +170,13 @@ internal class ModeDefault(private val pack: Pack, private val scanDict:
 
         val copyrightStartLine = getCopyrightStartline(fileInfoBlock, licenseTextEntry)
         if (copyrightStartLine == null) {
-            logger.log("No Copyright-Startline found in ${fileInfoBlock.path}", Severity.ERROR)
+            logger.log("No Copyright-Startline found in ${fileInfoBlock.path}", Level.ERROR, pack.id,
+                fileInfoBlock.path)
             return null
         }
         if (copyrightStartLine > licenseTextEntry.endLine) {
             logger.log("Line markers $copyrightStartLine : ${licenseTextEntry.endLine} not valid in: " +
-                    "${fileInfoBlock.path}", Severity.WARNING)
+                    "${fileInfoBlock.path}", Level.ERROR, pack.id, fileInfoBlock.path)
             return null
         }
         val fileName = sourceCodeDir + "/" + pack.id.toPath("/") + "/" + fileInfoBlock.path
@@ -228,16 +222,16 @@ internal class ModeDefault(private val pack: Pack, private val scanDict:
 
     private fun prepareEntryForScopeDefault(pack: Pack, input: ReporterInput) {
         if (pack.declaredLicenses.size == 0) logger.log("No declared license found for project/package: " +
-                pack.id, Severity.WARNING)
+                pack.id, Level.WARN, pack.id)
         pack.declaredLicenses.forEach {
             val pathInArchive: String? = null
             if (isInstancedLicense(input, it.toString())) logger.log(
                 "Declared license: <$it> is instanced license - no license text provided!: " +
-                        pack.id, Severity.WARNING)
+                        pack.id, Level.ERROR, pack.id)
             DefaultLicense(it.toString(), FOUND_IN_FILE_SCOPE_DECLARED, pathInArchive).apply {
                 pack.defaultLicensings.add(this)
             }
         }
-        logger.log("declared license used for project/package: " + pack.id, Severity.HINT)
+        logger.log("declared license used for project/package: " + pack.id, Level.INFO, pack.id)
     }
 }

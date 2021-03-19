@@ -4,6 +4,7 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 
 /**
@@ -11,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
  * as a list of included projects and packages store in instances of [Pack]
  */
 internal data class Project(@JsonIgnore val cid: String) {
+    var hasIssues: Boolean = false
     val complianceArtifactCollection = ComplianceArtifactCollection(cid)
     @JsonProperty("complianceArtifactPackages") val packs: MutableList<Pack> = mutableListOf<Pack>()
 }

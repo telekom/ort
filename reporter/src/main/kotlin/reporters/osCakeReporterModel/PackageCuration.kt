@@ -8,17 +8,10 @@ import com.vdurmont.semver4j.Semver
 import com.vdurmont.semver4j.SemverException
 import java.io.File
 import java.nio.file.FileSystems
+import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.Severity
-import org.ossreviewtoolkit.reporter.reporters.FOUND_IN_FILE_SCOPE_DECLARED
-import org.ossreviewtoolkit.reporter.reporters.REUSE_LICENSES_FOLDER
-import org.ossreviewtoolkit.reporter.reporters.createPathFlat
-import org.ossreviewtoolkit.reporter.reporters.deduplicateFileName
-import org.ossreviewtoolkit.reporter.reporters.getDirScopePath
-import org.ossreviewtoolkit.reporter.reporters.getPathWithoutPackageRoot
-import org.ossreviewtoolkit.reporter.reporters.getScopeLevel
 
-const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
+
 
 internal fun deleteFromArchive(oldPath: String?, archiveDir: File) =
     oldPath?.let { File(archiveDir, oldPath).apply { if (exists()) delete() } }
@@ -30,7 +23,7 @@ internal data class PackageCuration(
     val repository: String? = null,
     val curations: List<CurationFileItem>?
 ) {
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger("OSCakeCuration") }
+    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
     /**
      * Return true if this [PackageCuration] is applicable to the package with the given [identifier][pkgId],
@@ -350,6 +343,11 @@ internal data class PackageCuration(
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
+            if (pack.reuseCompliant && !licenses.isEmpty()) {
+                logger.log("In REUSE compliant projects only one license per is file allowed --> curation " +
+                        "insert ignored!", Level.WARN, pack.id, curationFileItem.fileScope)
+                return
+            }
             fileLicense = FileLicense(
                 curationFileLicenseItem.license,
                 insertLTIA(
@@ -398,7 +396,7 @@ internal data class PackageCuration(
         File(fileStore.path + "/" + newPath).apply {
             if (exists()) copyTo(targetFileDeDup)
             else {
-                logger.log("File '" + name + "' in file store not found --> set to null", Severity.ERROR)
+                logger.log("File '" + name + "' in file store not found --> set to null", Level.ERROR, pack.id)
                 return null
             }
         }

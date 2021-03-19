@@ -3,22 +3,23 @@
  */
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
-import org.ossreviewtoolkit.model.Severity
-import org.ossreviewtoolkit.model.createAndLogIssue
+import org.apache.logging.log4j.Level
+import org.apache.logging.log4j.Logger
+import org.ossreviewtoolkit.model.Identifier
 
-class OSCakeLogger(val source: String) {
-    val osCakeIssues = mutableListOf<OSCakeIssue>()
-    var somethingForOscc = false // for future use
+class OSCakeLogger(val source: String, val logger: Logger) {
 
-    fun log(msg: String, severity: Severity, intoOscc: Boolean = false) {
-        osCakeIssues.add(OSCakeIssue(msg, severity, intoOscc))
-        if (intoOscc) somethingForOscc = true
+    internal val osCakeIssues = mutableListOf<OSCakeIssue>()
 
-        createAndLogIssue(
-            source = "OSCakeReporter",
-            message = "$severity: $msg",
-            // workaround, because in ORT: HINT are not shown even when log4j is set to INFO
-            severity = if (severity == Severity.HINT) Severity.WARNING else severity
-        )
+    internal fun log(msg: String, level: Level, id: Identifier? = null, fileScope: String? = null) {
+        osCakeIssues.add(OSCakeIssue(msg, level, id, fileScope))
+        var prefix = ""
+        if (id != null) prefix += id
+        if (fileScope != null) {
+            if (prefix == "") prefix += "FileScope: " + fileScope
+            else prefix += " - FileScope: " + fileScope
+        }
+        if (prefix != "") prefix = "[$prefix]: "
+        logger.log(level, source + ": " + prefix + msg)
     }
 }
