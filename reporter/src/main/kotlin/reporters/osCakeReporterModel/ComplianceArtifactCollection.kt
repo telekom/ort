@@ -4,6 +4,7 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
+
 import java.time.LocalDateTime
 
 /**

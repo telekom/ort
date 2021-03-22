@@ -1,8 +1,13 @@
+/*
+ * Copyright (C)  tbd
+ */
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
-import org.apache.logging.log4j.Level
-import org.ossreviewtoolkit.model.Identifier
 import java.io.File
+
+import org.apache.logging.log4j.Level
+
+import org.ossreviewtoolkit.model.Identifier
 
 internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMap<Identifier,
         MutableMap<String, FileInfoBlock>>) : ModeSelector() {
@@ -11,8 +16,8 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
     ) {
         scanDict[pack.id]?.forEach { _, fib ->
             val isInLicensesFolder = fib.path.startsWith(getLicensesFolderPrefix(pack.packageRoot))
-            if (fib.licenseTextEntries.any { it.isLicenseText && !isInLicensesFolder})
-                logger.log ("Found a license text in \"${fib.path}\" - this is outside of the LICENSES folder" +
+            if (fib.licenseTextEntries.any { it.isLicenseText && !isInLicensesFolder }) logger.log("Found a " +
+                    "license text in \"${fib.path}\" - this is outside of the LICENSES folder" +
                         " - will be ignored!", Level.WARN, pack.id, fib.path)
 
             // Phase I: inspect ./LICENSES/*
@@ -31,7 +36,7 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
             fib.licenseTextEntries.filter { it.isLicenseNotice }.forEach {
                 licenses.add(FileLicense(it.license))
             }
-            if(licenses.size > 0) pack.fileLicensings.add(this)
+            if (licenses.size > 0) pack.fileLicensings.add(this)
         }
     }
 
@@ -47,7 +52,7 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
             fib.licenseTextEntries.filter { it.isLicenseNotice }.forEach {
                 licenses.add(FileLicense(it.license))
             }
-            if(licenses.size > 0) pack.fileLicensings.add(this)
+            if (licenses.size > 0) pack.fileLicensings.add(this)
         }
     }
 
@@ -62,7 +67,7 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
                 this.licenses.add(FileLicense(it.license, pathFlat))
                 pack.fileLicensings.add(this)
             }
-            pack.reuseLicensings.add(ReuseLicense(it.license, fib.path,  pathFlat))
+            pack.reuseLicensings.add(ReuseLicense(it.license, fib.path, pathFlat))
         }
         if (fib.licenseTextEntries.any { it.isLicenseText && fib.licenseTextEntries.size > 1 }) {
             logger.log("More then one license text was found for file: ${fib.path}", Level.WARN, pack.id, fib.path)
@@ -71,7 +76,6 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
             logger.log("License Notice was found for a file in LICENSES folder in file: ${fib.path}", Level.WARN,
                 pack.id, fib.path)
         }
-
     }
 
     private fun handleCopyrights(fib: FileInfoBlock) =
@@ -87,5 +91,4 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
     override fun postActivities() {
         // nothing to do for REUSE projects
     }
-
 }

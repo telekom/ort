@@ -12,7 +12,6 @@ import com.sksamuel.hoplite.PropertySource
 import com.sksamuel.hoplite.fp.getOrElse
 
 import java.io.File
-import java.nio.file.FileSystems
 
 import kotlin.collections.HashMap
 
@@ -55,6 +54,7 @@ class OSCakeReporter : Reporter {
         outputDir: File,
         options: Map<String, String>
     ): List<File> {
+        // check configuration - cancel processing if necessary
         require(isValidFolder(options, "nativeScanResultsDir")) { "Value for 'nativeScanResultsDir' " +
                 "is not a valid folder!\n Add -O OSCake=nativeScanResultsDir=... to the commandline" }
         require(isValidFolder(options, "sourceCodeDownloadDir")) { "Value for 'sourceCodeDownloadDir' is not a valid " +
@@ -63,7 +63,6 @@ class OSCakeReporter : Reporter {
                 "Value for 'OSCakeConf' is not a valid " +
                     "configuration file!\n Add -O OSCake=configFile=... to the commandline"
         }
-
         osCakeConfiguration = getOSCakeConfiguration(options["configFile"])
         if (osCakeConfiguration.curations?.get("enabled").toBoolean()) {
             require(isValidCurationFolder(osCakeConfiguration.curations?.get("fileStore"))) {
@@ -73,19 +72,28 @@ class OSCakeReporter : Reporter {
                 "Invalid or missing config entry found for \"curations.directory\" in oscake.conf"
             }
         }
+        // relay issues from ORT
+        input.ortResult.analyzer?.result?.let {
+            if (it.hasIssues)logger.log("Issue in ORT-ANALYZER - please check ORT-logfile or console output " +
+                    "or scan_result.yml", Level.WARN)
+        }
+        input.ortResult.scanner?.results?.let {
+            if (it.hasIssues) logger.log("Issue in ORT-SCANNER - please check ORT-logfile or console output " +
+                    "or scan-result.yml", Level.WARN)
+        }
 
+        // start processing
         val scanDict = getNativeScanResults(input, options["nativeScanResultsDir"])
-
         val osc = ingestAnalyzerOutput(input, scanDict, outputDir, options["sourceCodeDownloadDir"])
-
+        // transform result into json output
         val objectMapper = ObjectMapper()
         val outputFile = outputDir.resolve(reportFilename)
         outputFile.bufferedWriter().use {
             it.write(objectMapper.writeValueAsString(osc.project))
         }
-
-        if (osCakeConfiguration.curations?.get("enabled").toBoolean())
-            CurationManager(osc.project, osCakeConfiguration, outputDir, reportFilename).manage()
+        // process curations
+        if (osCakeConfiguration.curations?.get("enabled").toBoolean()) CurationManager(osc.project,
+            osCakeConfiguration, outputDir, reportFilename).manage()
 
         return listOf(outputFile)
     }
@@ -141,7 +149,6 @@ class OSCakeReporter : Reporter {
         zipAndCleanUp(outputDir, tmpDirectory, osc.project.complianceArtifactCollection.archivePath)
 
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) handleOSCakeIssues(osc.project, logger)
-        //if (loggerInUse) handleOSCakeIssues(osc.project, logger)
 
         return osc
     }
@@ -274,6 +281,4 @@ class OSCakeReporter : Reporter {
 
     internal fun isValidCurationFolder(dir: String?): Boolean =
         !(dir == null || !File(dir).exists() || !File(dir).isDirectory())
-
-
 }

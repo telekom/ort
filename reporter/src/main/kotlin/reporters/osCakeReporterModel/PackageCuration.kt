@@ -4,14 +4,16 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.annotation.JsonProperty
+
 import com.vdurmont.semver4j.Semver
 import com.vdurmont.semver4j.SemverException
+
 import java.io.File
 import java.nio.file.FileSystems
+
 import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.model.Identifier
-
-
 
 internal fun deleteFromArchive(oldPath: String?, archiveDir: File) =
     oldPath?.let { File(archiveDir, oldPath).apply { if (exists()) delete() } }
@@ -60,7 +62,7 @@ internal data class PackageCuration(
         isApplicableDisregardingVersion(pkgId)
                 && (id.version.equalsOrIsBlank(pkgId.version) || isApplicableIvyVersion(pkgId))
 
-   internal fun curate(pack: Pack, archiveDir: File, fileStore: File, osCakeConfiguration: OSCakeConfiguration) {
+    internal fun curate(pack: Pack, archiveDir: File, fileStore: File, osCakeConfiguration: OSCakeConfiguration) {
         if (packageModifier == "insert" || packageModifier == "update") {
             curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
                 val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)

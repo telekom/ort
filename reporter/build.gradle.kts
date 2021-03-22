@@ -35,7 +35,6 @@ val simpleExcelVersion: String by project
 val xalanVersion: String by project
 val hopliteVersion: String by project
 
-
 plugins {
     // Apply core plugins.
     `java-library`
@@ -98,5 +97,4 @@ dependencies {
     // for OSCake-Reporter
     implementation("com.sksamuel.hoplite:hoplite-core:$hopliteVersion")
     implementation("com.sksamuel.hoplite:hoplite-hocon:$hopliteVersion")
-
 }

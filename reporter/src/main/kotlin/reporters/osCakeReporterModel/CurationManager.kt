@@ -4,11 +4,15 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.databind.ObjectMapper
+
 import java.io.File
+
+import kotlin.io.path.createTempDirectory
+
 import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.utils.packZip
 import org.ossreviewtoolkit.utils.unpackZip
-import kotlin.io.path.createTempDirectory
 
 internal class CurationManager(val project: Project, val osCakeConfiguration: OSCakeConfiguration, val outputDir: File,
                                val reportFilename: String) {
@@ -32,7 +36,7 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
         val orderByModifier = packageModifierMap.keys.withIndex().associate { it.value to it.index }
         curationProvider.packageCurations.sortedBy { orderByModifier[it.packageModifier] }.forEach { packageCuration ->
             when (packageCuration.packageModifier) {
-                "insert" -> if (project.packs.none { it.id == packageCuration.id}) {
+                "insert" -> if (project.packs.none { it.id == packageCuration.id }) {
                    Pack(packageCuration.id, packageCuration.repository ?: "", "").apply {
                             project.packs.add(this)
                             reuseCompliant = checkReuseCompliance(this, packageCuration)
@@ -53,8 +57,7 @@ internal class CurationManager(val project: Project, val osCakeConfiguration: OS
         }
 
         // 3. report OSCakeIssues
-        if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER))
-            handleOSCakeIssues(project, logger)
+        if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger)
 
         // 4. generate .zip and .oscc files
         createResultingFiles()

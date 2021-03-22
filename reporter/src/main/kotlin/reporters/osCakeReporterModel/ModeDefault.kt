@@ -1,11 +1,14 @@
+/*
+ * Copyright (C)  tbd
+ */
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+
+import java.io.File
 
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.reporter.ReporterInput
-
-import java.io.File
 
 internal class ModeDefault(private val pack: Pack, private val scanDict:
        MutableMap<Identifier, MutableMap<String, FileInfoBlock>>, private val osCakeConfiguration: OSCakeConfiguration,

@@ -1,8 +1,12 @@
+/*
+ * Copyright (C)  tbd
+ */
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+
+import java.io.File
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.reporter.ReporterInput
-import java.io.File
 
 abstract class ModeSelector {
     internal abstract fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File)

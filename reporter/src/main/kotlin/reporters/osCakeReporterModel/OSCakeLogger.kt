@@ -5,6 +5,7 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.Logger
+
 import org.ossreviewtoolkit.model.Identifier
 
 class OSCakeLogger(val source: String, val logger: Logger) {

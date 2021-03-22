@@ -5,9 +5,12 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.vdurmont.semver4j.Semver
 import com.vdurmont.semver4j.SemverException
+
 import java.io.File
 import java.io.IOException
+
 import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.readValue
 
@@ -57,7 +60,7 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
         }
     }
 
-    @Suppress("ComplexMethod")
+    @Suppress("ComplexMethod", "LongMethod")
     private fun checkSemantics(packageCuration: PackageCuration, fileName: String, fileStore: File): Boolean {
         val errorPrefix = "[Semantics] - File: $fileName [${packageCuration.id.toCoordinates()}]: "
         val errorSuffix = " --> curation ignored"
@@ -198,7 +201,7 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
         // 10. check REUSE compliance
         if (packageCuration.packageModifier == "insert" && isReuseCompliant(packageCuration)) {
             // 10.1 check more than one license per file in LICENSES folder is not allowed
-            packageCuration.curations?.groupBy { it.fileScope } ?.forEach{ (_, value) ->
+            packageCuration.curations?.groupBy { it.fileScope }?.forEach { (_, value) ->
                 val curationFileLicenseItems = mutableListOf<CurationFileLicenseItem>()
                 value.forEach {
                     it.fileLicenses?.let { it1 -> curationFileLicenseItems.addAll(it1) }
