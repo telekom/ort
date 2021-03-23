@@ -18,10 +18,40 @@ const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
 const val CURATION_LOGGER = "OSCakeCuration"
 const val REPORTER_LOGGER = "OSCakeReporter"
 
+/**
+ * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
+ * modifiers - the first set contains modifiers for licenses, second set for copyrights
+ * Important: the sequence of items in the sets defines also the sequence of curations
+ * e.g.: for packageModifier: "update" the sequence of curations is "delete-all", than "delete" and finally "insert"
+ */
+internal val packageModifierMap = hashMapOf("delete" to listOf(setOf(), setOf()),
+    "insert" to listOf(setOf("insert"), setOf("insert")),
+    "update" to listOf(setOf("delete", "insert", "update"), setOf("delete-all", "delete", "insert"))
+)
+
+/**
+ * [orderLicenseByModifier] defines the sort order of curations for licenses.
+ */
+internal val orderLicenseByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(0)?.
+withIndex()?.associate { it.value to it.index } }.toMap()
+
+/**
+ * [orderCopyrightByModifier] defines the sort order of curations for copyrights.
+ */
+internal val orderCopyrightByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(1)?.
+withIndex()?.associate { it.value to it.index } }.toMap()
+
+/**
+ * Checks if a license is categorized as "instanced" license - as defined in file
+ * "license-classifications.yml" (passed as program parameter).
+ */
 internal fun isInstancedLicense(input: ReporterInput, license: String): Boolean =
     input.licenseClassifications.licensesByCategory.getOrDefault("instanced",
         setOf<SpdxSingleLicenseExpression>()).map { it.simpleLicense().toString() }.contains(license)
 
+/**
+ * If a file with [path] already exists, a suffix is prepared for uniqueness and the adapted path [ret] is returned.
+ */
 internal fun deduplicateFileName(path: String): String {
     var ret = path
     if (File(path).exists()) {
@@ -41,6 +71,10 @@ internal fun createPathFlat(id: Identifier, path: String, fileExtension: String?
     id.toPath("%") + "%" + path.replace('/', '%').replace('\\', '%'
     ) + if (fileExtension != null) ".$fileExtension" else ""
 
+/**
+ * Depending on the [path] of the file and the name of the file (contained in list [scopePatterns]) the
+ * [scopeLevel] is identified.
+ */
 internal fun getScopeLevel(path: String, packageRoot: String, scopePatterns: List<String>): ScopeLevel {
     var scopeLevel = ScopeLevel.FILE
     val fileSystem = FileSystems.getDefault()
@@ -91,6 +125,10 @@ internal fun getPathName(pack: Pack, fib: FileInfoBlock): String {
     return rc
 }
 
+/**
+ * The method walks through the packages, searches for corresponding issues (stored in [logger]) and sets
+ * the flags "hasIssues" (on package and on global level).
+ */
 internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger) {
     var hasIssuesGlobal = false
     // create Map with key = package (package may also be null)
@@ -108,3 +146,6 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger) {
     // set global hasIssues
     project.hasIssues = hasIssuesGlobal
 }
+
+internal fun deleteFromArchive(oldPath: String?, archiveDir: File) =
+    oldPath?.let { File(archiveDir, oldPath).apply { if (exists()) delete() } }

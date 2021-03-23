@@ -14,27 +14,36 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.readValue
 
-/* Hashmap which defines the allowed packageModifier (=key) and their associated modifiers -
-   the first set contains modifiers for licenses, second set for copyrights
-   Important: the sequence of items in the sets defines also the sequence of curations
-   e.g.: for packageModifier: "update" the sequence of curations is "delete-all", than "delete" and finally "insert"
+/**
+ * The [CurationProvider] gets the locations where to find
+ * - the yml-files containing curations (their semantics is checked while processing) and
+ * - the corresponding license text files
+ * and creates a list of possible [PackageCuration]s.
  */
-internal val packageModifierMap = hashMapOf("delete" to listOf(setOf(), setOf()),
-    "insert" to listOf(setOf("insert"), setOf("insert")),
-    "update" to listOf(setOf("delete", "insert", "update"), setOf("delete-all", "delete", "insert"))
-)
-// defines the sort order of curations for licenses
-internal val orderLicenseByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(0)?.
-    withIndex()?.associate { it.value to it.index } }.toMap()
-
-// defines the sort order of curations for copyrights
-internal val orderCopyrightByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(1)?.
-    withIndex()?.associate { it.value to it.index } }.toMap()
-
-class CurationProvider(curationDirectory: File, fileStore: File) {
+internal class CurationProvider(
+    /**
+     * Contains the root folder containing curation files in yml format (may be organized in subdirectories).
+     */
+    curationDirectory: File,
+    /**
+     *  Contains the root folder containing files with license texts (may be organized in subdirectories).
+     */
+    fileStore: File
+) {
+    /**
+     * List of available [PackageCuration]s
+     */
     internal val packageCurations = mutableListOf<PackageCuration>()
+
+    /**
+     * The [logger] is only initialized, if there is something to log.
+     */
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
+    /**
+     * The init method walks through the folder hierarchy - starting at [curationDirectory] - and creates a list
+     * of [PackageCuration]s.
+     */
     init {
         if (curationDirectory.isDirectory) {
             curationDirectory.walkTopDown().filter { it.isFile && it.extension == "yml" }.forEach {
@@ -51,6 +60,10 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
         }
     }
 
+    /**
+     * Returns the [PackageCuration] which is applicable for a specific package Id or null if there is none or
+     * more than one.
+     */
     internal fun getCurationFor(pkgId: Identifier): PackageCuration? {
         packageCurations.filter { it.isApplicable(pkgId) }.apply {
             if (size > 1) logger.log("Error: more than one curation was found for" +
@@ -60,6 +73,10 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
         }
     }
 
+    /**
+     * Checks semantics of the [packageCuration]. In case of incongruities, these are logged and the curation is
+     * not applied.
+     */
     @Suppress("ComplexMethod", "LongMethod")
     private fun checkSemantics(packageCuration: PackageCuration, fileName: String, fileStore: File): Boolean {
         val errorPrefix = "[Semantics] - File: $fileName [${packageCuration.id.toCoordinates()}]: "
@@ -236,6 +253,9 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
         return true
     }
 
+    /**
+     * A project/package is REUSE compliant if a folder with the name "LICENSES" exists.
+     */
     private fun isReuseCompliant(packageCuration: PackageCuration): Boolean =
         packageCuration.curations?.any {
             it.fileScope.startsWith(getLicensesFolderPrefix(""))
@@ -245,10 +265,13 @@ class CurationProvider(curationDirectory: File, fileStore: File) {
         (path.contains('*') || path.contains('?') || path.contains('[') || path.contains(']') ||
                 path.contains('{') || path.contains('}') || path.contains('!'))
 
-    // id must consist of type, namespace and name - version may be empty, or is a valid IVY expression
+    /**
+     * The method checks if a given [id] is valid: [id] must consist of type, namespace and name - version
+     * may be empty, or contain a valid IVY expression.
+     */
     private fun packageIdIsValid(id: Identifier): Boolean {
         val ret = true
-        // special case, if there is no package manager like in REUSE example
+        // special case, if there is no package manager like in the REUSE example
         if (id.type == "Unmanaged") return ret
 
         if (id.name == "" || id.namespace == "" || id.type == "") return false

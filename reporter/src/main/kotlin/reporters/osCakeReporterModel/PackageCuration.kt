@@ -15,20 +15,41 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 
-internal fun deleteFromArchive(oldPath: String?, archiveDir: File) =
-    oldPath?.let { File(archiveDir, oldPath).apply { if (exists()) delete() } }
-
+/**
+ * A [PackageCuration] contains a curation for a specific package, identified by an [id]. The instances are created
+ * during processing the curation (yml) files.
+ */
 internal data class PackageCuration(
+    /**
+     * The [id] contains a package identification as defined in the [Identifier] class. The version information may
+     * be stored as a specific version number, an IVY-expression (describing a range of versions) or may be empty (then
+     * it will be valid for all version numbers).
+     */
     val id: Identifier,
+    /**
+     * The [packageModifier] indicates that a package should be inserted, updated or deleted.
+     */
     @JsonProperty("package_modifier") val packageModifier: String,
+    /**
+     * An optional [comment] discusses the reason for this curation.
+     */
     val comment: String? = null,
+    /**
+     * Only for [packageModifier] == "insert" the [repository] is necessary.
+     */
     val repository: String? = null,
+    /**
+     * List of [CurationFileItem]s to be applied for this [id].
+     */
     val curations: List<CurationFileItem>?
 ) {
+    /**
+     * The [logger] is only initialized, if there is something to log.
+     */
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
     /**
-     * Return true if this [PackageCuration] is applicable to the package with the given [identifier][pkgId],
+     * Returns true if this [PackageCuration] is applicable to the package with the given [pkgId],
      * disregarding the version.
      */
     private fun isApplicableDisregardingVersion(pkgId: Identifier) =
@@ -37,8 +58,8 @@ internal data class PackageCuration(
                 && id.name == pkgId.name
 
     /**
-     * Return true if the version of this [PackageCuration] interpreted as an Ivy version matcher is applicable to the
-     * package with the given [identifier][pkgId].
+     * Returns true if the version of this [PackageCuration] interpreted as an Ivy version matcher is applicable to the
+     * package with the given [pkgId].
      */
      private fun isApplicableIvyVersion(pkgId: Identifier) =
         try {
@@ -49,12 +70,12 @@ internal data class PackageCuration(
         }
 
     /**
-     * Return true if this string equals the [other] string, or if either string is blank.
+     * Returns true if this string equals the [other] string, or if either string is blank.
      */
     private fun String.equalsOrIsBlank(other: String) = equals(other) || isBlank() || other.isBlank()
 
     /**
-     * Return true if this [PackageCuration] is applicable to the package with the given [identifier][pkgId]. The
+     * Return true if this [PackageCuration] is applicable to the package with the given [pkgId]. The
      * curation's version may be an
      * [Ivy version matcher](http://ant.apache.org/ivy/history/2.4.0/settings/version-matchers.html).
      */
@@ -62,6 +83,11 @@ internal data class PackageCuration(
         isApplicableDisregardingVersion(pkgId)
                 && (id.version.equalsOrIsBlank(pkgId.version) || isApplicableIvyVersion(pkgId))
 
+    /**
+     * The method handles curations for the [packageModifier]s "insert" and "update". Additionally, it manages
+     * the special case of [fileScope] == CURATION_DEFAULT_LICENSING (This special processing is necessary if
+     * defaultLicensings exist, which are not based on fileLicensings - aka "declared license").
+     */
     internal fun curate(pack: Pack, archiveDir: File, fileStore: File, osCakeConfiguration: OSCakeConfiguration) {
         if (packageModifier == "insert" || packageModifier == "update") {
             curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
@@ -331,7 +357,6 @@ internal data class PackageCuration(
             compareString) || match(wildCardString, compareString.substring(1)) else false
     }
 
-    // scopes must match (no glob-pattern matching!)
     private fun curateLicenseInsert(
         curationFileItem: CurationFileItem,
         curationFileLicenseItem: CurationFileLicenseItem,
@@ -387,8 +412,8 @@ internal data class PackageCuration(
     }
 
     /**
-     * insertLTIA = insertLicenseTextInArchive
-     * copies the file from the filestore to the archive file
+     * [insertLTIA] = insertLicenseTextInArchive: copies the file from the filestore to the archive and
+     * checks for filename duplicates.
      */
     private fun insertLTIA(newPath: String?, archiveDir: File, license: String, fileStore: File, pack: Pack): String? {
         if (newPath == null) return null
