@@ -9,9 +9,24 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 
-internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMap<Identifier,
+/**
+ * The class handles REUSE-compliant packages, gets a specific package [pack] and a map [scanDict],
+ * which contains data about every scanned package.
+ */
+internal class ModeREUSE(
+    /**
+     * [pack] represents a specific package which is updated according to the methods.
+     */
+    private val pack: Pack,
+    /**
+     * [scanDict] is a map which contains the scanner output for every package in the project.
+     */
+    private val scanDict: MutableMap<Identifier,
         MutableMap<String, FileInfoBlock>>) : ModeSelector() {
 
+    /**
+     * The method combines data from the package with data from the scanner output
+     */
     override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File
     ) {
         scanDict[pack.id]?.forEach { _, fib ->
@@ -20,17 +35,20 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
                     "license text in \"${fib.path}\" - this is outside of the LICENSES folder" +
                         " - will be ignored!", Level.WARN, pack.id, fib.path)
 
-            // Phase I: inspect ./LICENSES/*
+            // Phase I: inspect ./LICENSES/* folder
             if (isInLicensesFolder) handleLicenses(fib, sourceCodeDir, tmpDirectory)
             // Phase II: handle files with ending  ".license" - should be binary files
             if (!isInLicensesFolder && fib.path.endsWith(".license")) handleBinaryFiles(fib)
             // Phase III: handle all other files
             if (!isInLicensesFolder && !fib.path.endsWith(".license")) handleDefaultFiles(fib)
-            // Phase IV; handle Copyrights
+            // Phase IV: handle Copyrights
             if (fib.copyrightTextEntries.size > 0) handleCopyrights(fib)
         }
     }
 
+    /**
+     * Adds a FileLicensing entry for the specified file, provided by the [fib]
+     */
     private fun handleDefaultFiles(fib: FileInfoBlock) {
         FileLicensing(getPathName(pack, fib)).apply {
             fib.licenseTextEntries.filter { it.isLicenseNotice }.forEach {
@@ -40,6 +58,11 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
         }
     }
 
+    /**
+     * Handles binary files - in REUSE every binary file has an associated ".license" file containing the
+     * license information. The ".license" file is ignored and a FileLicensing is created for the binary file with
+     * the provided license information from the ".licenses" file
+     */
     private fun handleBinaryFiles(fib: FileInfoBlock) {
         val fileNameWithoutExtension = getPathName(pack, fib)
         // check if there is no licenseTextEntry for a file without this extension
@@ -56,6 +79,10 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
         }
     }
 
+    /**
+     * Copies the license files from the [sourceCodeDir] to the [createTempDir], creates a FileLicensing entry and
+     * a reuseLicensing entry
+     */
     private fun handleLicenses(fib: FileInfoBlock, sourceCodeDir: String?, tmpDirectory: File) {
         // REUSE license files should only contain one single licenseTextEntry (by definition)
         fib.licenseTextEntries.filter { it.isLicenseText && fib.licenseTextEntries.size == 1 }.forEach {
@@ -78,6 +105,9 @@ internal class ModeREUSE(private val pack: Pack, private val scanDict: MutableMa
         }
     }
 
+    /**
+     * Handle copyrights stored in [fib] and creates copyright entries for the package
+     */
     private fun handleCopyrights(fib: FileInfoBlock) =
         (pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?: FileLicensing(
             getPathName(pack, fib)

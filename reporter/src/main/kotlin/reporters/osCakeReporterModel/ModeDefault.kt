@@ -10,14 +10,33 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.reporter.ReporterInput
 
-internal class ModeDefault(private val pack: Pack, private val scanDict:
-       MutableMap<Identifier, MutableMap<String, FileInfoBlock>>, private val osCakeConfiguration: OSCakeConfiguration,
-       private val reporterInput: ReporterInput) : ModeSelector() {
+/**
+ * The class handles non-REUSE-compliant packages, gets a specific package [pack] and a map [scanDict],
+ * which contains data about every scanned package.
+ */
+internal class ModeDefault(
+    /**
+     * [pack] represents a specific package which is updated according to the methods.
+     */
+    private val pack: Pack,
+    /**
+     * [scanDict] is a map which contains the scanner output for every package in the project.
+     */
+    private val scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
+    /**
+     * [osCakeConfiguration] contains configuration information
+     */
+    private val osCakeConfiguration: OSCakeConfiguration,
+    /**
+     * [reporterInput] provides information about the analyzed and scanned packages (from ORT)
+     */
+    private val reporterInput: ReporterInput) : ModeSelector() {
 
-    override fun postActivities() {
-        if (pack.defaultLicensings.size == 0) prepareEntryForScopeDefault(pack, reporterInput)
-    }
-
+    /**
+     * The method creates [FileLicensing]s for each file containing license information. Depending on the
+     * scopeLevel (FILE, DIR, or DEFAULT) additional Licensings are added to the dirLicensings or defaultLicensings
+     * lists. Information about copyrights is transferred from the [fib] to the [pack].
+     */
     override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File) {
         /*
          * Phase I: identify files on "dir" or "default"-scope containing license information:
@@ -88,6 +107,9 @@ internal class ModeDefault(private val pack: Pack, private val scanDict:
         }
     }
 
+    /**
+     * Adds a [FileLicensing], if it does not exist already.
+     */
     private fun addInfoToFileLicensings(pack: Pack, licenseTextEntry: LicenseTextEntry, path: String,
                                         pathFlat: String): FileLicensing {
         val fileLicensing = pack.fileLicensings.firstOrNull { it.scope == path } ?: FileLicensing(path)
@@ -105,7 +127,7 @@ internal class ModeDefault(private val pack: Pack, private val scanDict:
 
     /**
      *  generate and store license texts based on the info "isInstancedLicense" directly from source files
-     *  in case of "dir" or "default"-scope the appropriate entries are inserted/updated
+     *  in case of "dir" or "default"-scope the appropriate entries are inserted/updated.
      */
     private fun handleDirDefaultEntriesAndLicenseTextsOnAllScopes(
         pack: Pack,
@@ -168,6 +190,10 @@ internal class ModeDefault(private val pack: Pack, private val scanDict:
         return ""
     }
 
+    /**
+     * The method calculates the first and the last line of the requested license text and returns it (an instanced
+     * license must begin with a copyright statement).
+     */
     private fun generateInstancedLicenseText(pack: Pack, fileInfoBlock: FileInfoBlock, sourceCodeDir: String?,
                                              licenseTextEntry: LicenseTextEntry): String? {
 
@@ -211,6 +237,9 @@ internal class ModeDefault(private val pack: Pack, private val scanDict:
         return line
     }
 
+    /**
+     * The method provides the license text for non-instanced licenses directly from the source file.
+     */
     private fun generateNonInstancedLicenseText(pack: Pack, fileInfoBlock: FileInfoBlock, sourceCodeDir: String?,
                                                 licenseTextEntry: LicenseTextEntry): String? {
         val textBlockList = fileInfoBlock.licenseTextEntries.filter { it.isLicenseText &&
@@ -223,6 +252,14 @@ internal class ModeDefault(private val pack: Pack, private val scanDict:
         return null
     }
 
+    override fun postActivities() {
+        if (pack.defaultLicensings.size == 0) prepareEntryForScopeDefault(pack, reporterInput)
+    }
+
+    /**
+     * If no license is found for the project, a default one is created and filled with information provided by the
+     * declaredLicenses (its origin is the package manager and not the scanner).
+     */
     private fun prepareEntryForScopeDefault(pack: Pack, input: ReporterInput) {
         if (pack.declaredLicenses.size == 0) logger.log("No declared license found for project/package: " +
                 pack.id, Level.WARN, pack.id)
