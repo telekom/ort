@@ -12,7 +12,16 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
  */
 @JsonPropertyOrder("foundInFileScope", "license", "licenseTextInArchive")
 internal data class DirLicense(
+    /**
+     * [license] contains the name of the license.
+     */
     val license: String,
+    /**
+     * Represents the path to the file containing the license text in the archive.
+     */
     var licenseTextInArchive: String? = null,
+    /**
+     * Shows the [path] to the file where the license was found.
+     */
     @get:JsonProperty("foundInFileScope") val path: String? = null
 )

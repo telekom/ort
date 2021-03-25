@@ -11,7 +11,17 @@ import com.fasterxml.jackson.annotation.JsonIgnore
  * and not treated by other logic branches
  */
 internal data class FileLicense(
+    /**
+     * [license] contains the name of the license.
+     */
     val license: String?,
+    /**
+     * Represents the path to the file containing the license text in the archive.
+     */
     var licenseTextInArchive: String? = null,
+    /**
+     * [startLine] indicates the first line of the license statement within the source file. It is used to
+     * distinguish between different license findings in the same file.
+     */
     @JsonIgnore var startLine: Int = -1,
 )

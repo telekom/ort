@@ -11,7 +11,7 @@ import org.ossreviewtoolkit.model.Identifier
 /**
  * The [OSCakeLogger] manages a list of reported [OSCakeIssue]s and a [logger] for a specific [source]
   */
-class OSCakeLogger(
+internal class OSCakeLogger(
     /**
      * [source] represents the origin (e.g. [CURATION_LOGGER] or [REPORTER_LOGGER]).
      */

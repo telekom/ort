@@ -12,11 +12,11 @@ import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
 
-const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
-const val REUSE_LICENSES_FOLDER = "LICENSES/"
-const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
-const val CURATION_LOGGER = "OSCakeCuration"
-const val REPORTER_LOGGER = "OSCakeReporter"
+internal const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
+internal const val REUSE_LICENSES_FOLDER = "LICENSES/"
+internal const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
+internal const val CURATION_LOGGER = "OSCakeCuration"
+internal const val REPORTER_LOGGER = "OSCakeReporter"
 
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated

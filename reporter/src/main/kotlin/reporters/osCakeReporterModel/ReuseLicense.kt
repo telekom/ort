@@ -10,9 +10,9 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
  * A class representing a license item for REUSE packages [fileScope].
  */
 @JsonPropertyOrder("foundInFileScope", "license", "licenseTextInArchive")
-class ReuseLicense(
+internal class ReuseLicense(
     /**
-     * Holding license information.
+     * [license] keeps the name of the license.
      */
     val license: String?,
     /**
