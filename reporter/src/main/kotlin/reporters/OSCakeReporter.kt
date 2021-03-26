@@ -114,7 +114,7 @@ class OSCakeReporter : Reporter {
 
         // prepare projects and packages
         input.ortResult.analyzer?.result?.projects?.forEach {
-            Pack(it.id, it.homepageUrl, input.ortResult.repository.vcs.path)
+            Pack(it.id, it.vcsProcessed.url, input.ortResult.repository.vcs.path)
                 .apply {
                     declaredLicenses.add(it.declaredLicensesProcessed.spdxExpression.toString())
                     osc.project.packs.add(this)
@@ -122,7 +122,7 @@ class OSCakeReporter : Reporter {
                 }
         }
         input.ortResult.analyzer?.result?.packages?.filter { !input.ortResult.isExcluded(it.pkg.id) }?.forEach {
-            Pack(it.pkg.id, it.pkg.homepageUrl, "")
+            Pack(it.pkg.id, it.pkg.vcsProcessed.url, "")
                 .apply {
                     declaredLicenses.add(it.pkg.declaredLicensesProcessed.spdxExpression.toString())
                     osc.project.packs.add(this)

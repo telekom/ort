@@ -28,7 +28,7 @@ internal data class Pack(
     /**
      * [website] contains the URL directing to the source code repository.
      */
-    @JsonIgnore val website: String,
+    @get:JsonProperty("repository") val website: String,
     /**
      * The [packageRoot] is set to the folder where the source code can be found (empty string = default).
      */
@@ -65,10 +65,6 @@ internal data class Pack(
      * [hasIssues] shows that issues have happened during processing.
      */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT) var hasIssues: Boolean = false
-    /**
-     *
-     */
-    val repository = website
     /**
      *  [defaultLicensings] contains a list of [DefaultLicense]s  for non-REUSE compliant packages.
      */
