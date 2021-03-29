@@ -19,15 +19,10 @@
 
 package org.ossreviewtoolkit.clients.fossid.model.result
 
-import com.fasterxml.jackson.annotation.JsonProperty
-
 enum class MatchType {
-    @JsonProperty("none")
     NONE,
-    @JsonProperty("Ignored")
     IGNORED,
-    @JsonProperty("partial")
+    INTAKE,
     PARTIAL,
-    @JsonProperty("full")
     FULL
 }
