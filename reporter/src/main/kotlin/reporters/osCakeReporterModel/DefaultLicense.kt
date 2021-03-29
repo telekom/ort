@@ -1,5 +1,3 @@
-
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 /*
  * Copyright (C) 2021 Deutsche Telekom AG
  *
@@ -18,6 +16,8 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
