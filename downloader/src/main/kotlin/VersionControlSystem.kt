@@ -238,18 +238,33 @@ abstract class VersionControlSystem {
             }
         }
 
-        try {
-            workingTree.guessRevisionName(pkg.id.name, pkg.id.version).also {
-                if (revisionCandidates.add(it)) {
-                    log.info {
-                        "Adding $type revision '$it' (guessed from version '${pkg.id.version}') as a candidate."
+        fun addGuessedRevision(project: String, version: String): Boolean =
+            try {
+                workingTree.guessRevisionName(project, version).also {
+                    if (revisionCandidates.add(it)) {
+                        log.info {
+                            "Adding $type revision '$it' (guessed from package '$project' and version " +
+                                    "'$version') as a candidate."
+                        }
                     }
                 }
-            }
-        } catch (e: IOException) {
-            e.showStackTrace()
 
-            log.info { "No $type revision for version '${pkg.id.version}' found: ${e.collectMessagesAsString()}" }
+                true
+            } catch (e: IOException) {
+                e.showStackTrace()
+
+                log.info {
+                    "No $type revision for package '$project' and version '$version' found: " +
+                            e.collectMessagesAsString()
+                }
+
+                false
+            }
+
+        if (!addGuessedRevision(pkg.id.name, pkg.id.version) && pkg.id.type == "NPM" && pkg.id.namespace.isNotEmpty()) {
+            // Fallback for Lerna workspaces when scoped packages combined with independent versioning are used, e.g.
+            // support Git tag of the format "@organisation/my-component@x.x.x".
+            addGuessedRevision("${pkg.id.namespace}/${pkg.id.name}", pkg.id.version)
         }
 
         if (revisionCandidates.isEmpty()) {

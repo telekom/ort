@@ -19,8 +19,11 @@
 
 package org.ossreviewtoolkit.analyzer.curation
 
+import com.fasterxml.jackson.databind.JsonMappingException
+
 import java.net.HttpURLConnection
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
 import org.ossreviewtoolkit.analyzer.PackageCurationProvider
@@ -89,7 +92,7 @@ class ClearlyDefinedPackageCurationProvider(server: Server = Server.PRODUCTION) 
         val curation = try {
             // TODO: Maybe make PackageCurationProvider.getCurationsFor() a suspend function; then all derived
             //       classes could deal with coroutines more easily.
-            runBlocking { service.getCuration(type, provider, namespace, pkgId.name, pkgId.version) }
+            runBlocking(Dispatchers.IO) { service.getCuration(type, provider, namespace, pkgId.name, pkgId.version) }
         } catch (e: HttpException) {
             // A "HTTP_NOT_FOUND" is expected for non-existing curations, so only handle other codes as a failure.
             if (e.code() != HttpURLConnection.HTTP_NOT_FOUND) {
@@ -100,6 +103,12 @@ class ClearlyDefinedPackageCurationProvider(server: Server = Server.PRODUCTION) 
                     "Getting curations for '${pkgId.toCoordinates()}' failed with code ${e.code()}: $message"
                 }
             }
+
+            return emptyList()
+        } catch (e: JsonMappingException) {
+            e.showStackTrace()
+
+            log.warn { "Deserializing the ClearlyDefined curation for '${pkgId.toCoordinates()}' failed." }
 
             return emptyList()
         }
