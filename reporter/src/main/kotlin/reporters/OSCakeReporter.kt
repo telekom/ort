@@ -268,7 +268,7 @@ class OSCakeReporter : Reporter {
     }
 
     private fun zipAndCleanUp(outputDir: File, tmpDirectory: File, zipFileName: String) {
-        val targetFile = File(outputDir.path + zipFileName)
+        val targetFile = File(outputDir.path + "/" + zipFileName)
         if (targetFile.exists()) targetFile.delete()
         tmpDirectory.packZip(targetFile)
         tmpDirectory.deleteRecursively()
