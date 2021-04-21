@@ -16,10 +16,11 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
+@file:Suppress("TooManyFunctions")
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import java.io.File
+import java.lang.StringBuilder
 import java.nio.file.FileSystems
 
 import org.apache.logging.log4j.Level
@@ -33,6 +34,10 @@ internal const val REUSE_LICENSES_FOLDER = "LICENSES/"
 internal const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
 internal const val CURATION_LOGGER = "OSCakeCuration"
 internal const val REPORTER_LOGGER = "OSCakeReporter"
+
+val commentPrefixRegexList = listOf("""\*""", """/\*+""", "//", "#", "<#", """\.\.\.""", "REM",
+    "<!--", "!", "'", "--", ";", """\(\*""", """\{""").generatePrefixRegex()
+val commentSuffixRegexList = listOf("""\*+/""", "-->", "#>", """\*\)""", """\}""").generateSuffixRegex()
 
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
@@ -165,3 +170,26 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger) {
 
 internal fun deleteFromArchive(oldPath: String?, archiveDir: File) =
     oldPath?.let { File(archiveDir, oldPath).apply { if (exists()) delete() } }
+
+internal fun List<String>.generatePrefixRegex(): String =
+    StringBuilder("^(").also { sb ->
+        this.forEachIndexed { index, element ->
+            if (index > 0) sb.append("|")
+            sb.append("($element *)")
+        }
+        sb.append(")")
+    }.toString()
+
+internal fun List<String>.generateSuffixRegex(): String =
+    StringBuilder().also { sb ->
+        this.forEachIndexed { index, element ->
+            if (index > 0) sb.append("|")
+            sb.append("( *$element)")
+        }
+        sb.append("$")
+    }.toString()
+
+internal fun String.getRidOfCommentSymbols(): String {
+    val withoutPrefix = Regex(commentPrefixRegexList).replace(this.trim(), "")
+    return if (withoutPrefix != this.trim()) Regex(commentSuffixRegexList).replace(withoutPrefix, "") else withoutPrefix
+}

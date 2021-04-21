@@ -230,9 +230,8 @@ internal class ModeDefault(
 
     private fun getLinesFromFile(path: String, startLine: Int, endLine: Int): String =
         File(path).readLines()
-            .slice(startLine - 1..endLine - 1)
-            .map { Regex("""^( \* *)""").replace(it, "") } // removes trailing comment symbols
-            .joinToString(separator = System.lineSeparator())
+            .slice(startLine - 1 until endLine)
+            .joinToString(separator = System.lineSeparator()) { it.getRidOfCommentSymbols() }
 
     /**
      * The copyright statement must be found above of the license text [licenseTextEntry]; therefore, search for the
