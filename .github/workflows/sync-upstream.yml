@@ -21,6 +21,7 @@ jobs:
         upstream_repository: oss-review-toolkit/ort
         upstream_branch: master
         target_branch: master
+        github_token:  ${{ secrets.MERGE_TOKEN }}
 
     - name: Timestamp
       run: date
