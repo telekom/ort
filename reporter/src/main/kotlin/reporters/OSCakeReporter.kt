@@ -32,10 +32,10 @@ import kotlin.collections.HashMap
 
 import org.apache.logging.log4j.Level
 
-import org.ossreviewtoolkit.model.EMPTY_JSON_NODE
-import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.ScanResultContainer
-import org.ossreviewtoolkit.model.jsonMapper
+import org.ossreviewtoolkit.model.EMPTY_JSON_NODE;
+import org.ossreviewtoolkit.model.Identifier;
+import org.ossreviewtoolkit.model.jsonMapper;
+import org.ossreviewtoolkit.model.ScanResult;
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
@@ -150,7 +150,7 @@ class OSCakeReporter : Reporter {
         osc.project.packs.filter { scanDict.containsKey(it.id) }.forEach { pack ->
             // makes sure that the "pack" is also in the scanResults-file and not only in the
             // "native-scan-results" (=scanDict)
-            input.ortResult.scanner?.results?.scanResults?.any { it.id == pack.id }?.let {
+            input.ortResult.scanner?.results?.scanResults?.any { it.key == pack.id }?.let {
                 ModeSelector.getMode(pack, scanDict, osCakeConfiguration, input).apply {
                     fetchInfosFromScanDictionary(sourceCodeDir, tmpDirectory)
                     postActivities()
@@ -183,8 +183,8 @@ class OSCakeReporter : Reporter {
             MutableMap<Identifier, MutableMap<String, FileInfoBlock>> {
         val scanDict = mutableMapOf<Identifier, MutableMap<String, FileInfoBlock>>()
 
-        input.ortResult.scanner?.results?.scanResults?.filter { !input.ortResult.isExcluded(it.id) }?.forEach { pp ->
-                pp.results.forEach {
+        input.ortResult.scanner?.results?.scanResults?.filter { !input.ortResult.isExcluded(it.key) }?.forEach { pp ->
+                pp.value.forEach {
                     val fileInfoBlockDict = HashMap<String, FileInfoBlock>()
                     val nsr = getNativeScanResultJson(pp, nativeScanResultsDir)
 
@@ -196,7 +196,7 @@ class OSCakeReporter : Reporter {
                             license = it.license.toString()
                             if (it.license.toString().startsWith("LicenseRef-")) {
                                 logger.log("Changed <${it.license}> to <NOASSERTION> in package: " +
-                                        "${pp.id.name} - ${it.location.path}", Level.INFO, pp.id, fileInfoBlock.path)
+                                        "${pp.key.name} - ${it.location.path}", Level.INFO, pp.key, fileInfoBlock.path)
                                 license = "NOASSERTION"
                             }
                             isInstancedLicense = isInstancedLicense(input, it.license.toString())
@@ -213,17 +213,17 @@ class OSCakeReporter : Reporter {
                                 it.location.endLine, it.statement))
                         }
                     }
-                    scanDict[pp.id] = fileInfoBlockDict
+                    scanDict[pp.key] = fileInfoBlockDict
                 }
         }
         return scanDict
     }
 
     private fun getNativeScanResultJson(
-        entity: ScanResultContainer,
+        entity: Map.Entry<Identifier, List<ScanResult>>,
         nativeScanResultsDir: String?
     ): JsonNode {
-        val subfolder = entity.id.toPath()
+        val subfolder = entity.key.toPath()
         val filePath = "$nativeScanResultsDir/$subfolder/scan-results_ScanCode.json"
 
         val scanFile: File = File(filePath)
