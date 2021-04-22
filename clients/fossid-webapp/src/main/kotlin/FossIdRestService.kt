@@ -43,6 +43,9 @@ import retrofit2.http.POST
 
 interface FossIdRestService {
     companion object {
+        /**
+         * The mapper for JSON (de-)serialization used by this service.
+         */
         val JSON_MAPPER = JsonMapper()
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
             // FossID has a bug in get_results/scan.
@@ -79,6 +82,9 @@ interface FossIdRestService {
 
     @POST("api.php")
     suspend fun runScan(@Body body: PostRequestBody): EntityPostResponseBody<Nothing>
+
+    @POST("api.php")
+    suspend fun deleteScan(@Body body: PostRequestBody): EntityPostResponseBody<Int>
 
     @POST("api.php")
     suspend fun downloadFromGit(@Body body: PostRequestBody): EntityPostResponseBody<Nothing>

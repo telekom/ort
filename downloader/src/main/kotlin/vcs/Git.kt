@@ -26,7 +26,7 @@ import com.jcraft.jsch.agentproxy.RemoteIdentityRepository
 import com.jcraft.jsch.agentproxy.connector.SSHAgentConnector
 import com.jcraft.jsch.agentproxy.usocket.JNAUSocketFactory
 
-import com.vdurmont.semver4j.Semver
+import com.vdurmont.semver4j.Requirement
 
 import java.io.File
 import java.io.IOException
@@ -52,6 +52,7 @@ import org.ossreviewtoolkit.utils.installAuthenticatorAndProxySelector
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.safeMkdirs
 import org.ossreviewtoolkit.utils.showStackTrace
+import org.ossreviewtoolkit.utils.withoutPrefix
 
 // TODO: Make this configurable.
 const val GIT_HISTORY_DEPTH = 50
@@ -104,6 +105,9 @@ class Git : VersionControlSystem(), CommandLineTool {
 
     override fun getVersion() = getVersion(null)
 
+    // Require at least Git 2.29 on the client side as it has protocol "v2" enabled by default.
+    override fun getVersionRequirement(): Requirement = Requirement.buildIvy("[2.29,)")
+
     override fun getDefaultBranchName(url: String): String {
         val refs = Git.lsRemoteRepository().setRemote(url).callAsMap()
         return (refs["HEAD"] as? SymbolicRef)?.target?.name?.removePrefix("refs/heads/") ?: "master"
@@ -131,13 +135,6 @@ class Git : VersionControlSystem(), CommandLineTool {
         try {
             Git.init().setDirectory(targetDir).call().use { git ->
                 git.remoteAdd().setName("origin").setUri(URIish(vcs.url)).call()
-
-                // Enable the more efficient Git wire protocol version 2, if possible. While JGit supports it since its
-                // version 5.1, we still use the Git CLI to update the working tree (as JGit does not support sparse
-                // checkouts yet), so we need to still also check the Git CLI's version.
-                if (Semver(getVersion()).isGreaterThanOrEqualTo("2.18.0")) {
-                    git.repository.config.setInt("protocol", null, "version", 2)
-                }
 
                 if (Os.isWindows) {
                     git.repository.config.setBoolean("core", null, "longpaths", true)
@@ -168,32 +165,28 @@ class Git : VersionControlSystem(), CommandLineTool {
         updateWorkingTreeWithoutSubmodules(workingTree, revision) && (!recursive || updateSubmodules(workingTree))
 
     private fun updateWorkingTreeWithoutSubmodules(workingTree: WorkingTree, revision: String): Boolean {
-        // To safe network bandwidth, first try to only fetch exactly the revision we want. Skip this optimization for
-        // SSH URLs to GitHub as GitHub does not have "allowReachableSHA1InWant" (nor "allowAnySHA1InWant") enabled and
-        // the SSH transport invokes "git-upload-pack" without the "--stateless-rpc" option, causing different
-        // reachability rules to kick in. Over HTTPS, the ref advertisement and the want/have negotiation happen over
-        // two separate connections so the later actually does a reachability check instead of relying on the advertised
-        // refs.
-        if (!workingTree.getRemoteUrl().startsWith("ssh://git@github.com/")) {
-            try {
-                log.info { "Trying to fetch only revision '$revision' with depth limited to $GIT_HISTORY_DEPTH." }
-                run(workingTree.workingDir, "fetch", "--depth", GIT_HISTORY_DEPTH.toString(), "origin", revision)
+        try {
+            log.info { "Trying to fetch only revision '$revision' with depth limited to $GIT_HISTORY_DEPTH." }
+            val fetch = run(workingTree.workingDir, "fetch", "--depth", "$GIT_HISTORY_DEPTH", "origin", revision)
 
-                // The documentation for git-fetch states that "By default, any tag that points into the histories being
-                // fetched is also fetched", but that is not true for shallow fetches of a tag; then the tag itself is
-                // not fetched. So create it manually afterwards.
-                if (revision in workingTree.listRemoteTags()) {
-                    run(workingTree.workingDir, "tag", revision, "FETCH_HEAD")
-                }
+            // The documentation for git-fetch states that "By default, any tag that points into the histories being
+            // fetched is also fetched", but that is not true for shallow fetches of a tag; then the tag itself is
+            // not fetched. So create it manually afterwards.
+            val tag = fetch.stderr.lineSequence().mapNotNull {
+                it.withoutPrefix(" * tag ")?.substringBefore("->")?.trim()
+            }.firstOrNull()
 
-                return run(workingTree.workingDir, "checkout", revision).isSuccess
-            } catch (e: IOException) {
-                e.showStackTrace()
+            if (revision == tag) {
+                run(workingTree.workingDir, "tag", revision, "FETCH_HEAD")
+            }
 
-                log.warn {
-                    "Could not fetch only revision '$revision': ${e.collectMessagesAsString()}\n" +
-                            "Falling back to fetching all refs."
-                }
+            return run(workingTree.workingDir, "checkout", revision).isSuccess
+        } catch (e: IOException) {
+            e.showStackTrace()
+
+            log.warn {
+                "Could not fetch only revision '$revision': ${e.collectMessagesAsString()}\n" +
+                        "Falling back to fetching all refs."
             }
         }
 

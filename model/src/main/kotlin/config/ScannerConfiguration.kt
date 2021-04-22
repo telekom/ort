@@ -21,6 +21,7 @@ package org.ossreviewtoolkit.model.config
 
 import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonInclude
 
 import org.ossreviewtoolkit.model.utils.FileArchiver
 import org.ossreviewtoolkit.utils.storage.FileStorage
@@ -29,7 +30,14 @@ import org.ossreviewtoolkit.utils.storage.FileStorage
  * The configuration model of the scanner.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 data class ScannerConfiguration(
+    /**
+     * A flag to indicate whether packages that have a concluded license and authors set (to derive copyrights from)
+     * should be skipped in the scan in favor of only using the declared information.
+     */
+    val skipConcluded: Boolean = false,
+
     /**
      * Configuration of a [FileArchiver] that archives certain scanned files in an external [FileStorage].
      */

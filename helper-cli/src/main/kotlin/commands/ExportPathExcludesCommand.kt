@@ -26,17 +26,14 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
-import java.io.File
-
 import org.ossreviewtoolkit.helper.common.RepositoryPathExcludes
 import org.ossreviewtoolkit.helper.common.getRepositoryPathExcludes
 import org.ossreviewtoolkit.helper.common.mergePathExcludes
 import org.ossreviewtoolkit.helper.common.replaceConfig
+import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.safeMkdirs
 
 internal class ExportPathExcludesCommand : CliktCommand(
     help = "Export the path excludes to a path excludes file which maps repository URLs to the path excludes for the " +
@@ -50,8 +47,8 @@ internal class ExportPathExcludesCommand : CliktCommand(
         .convert { it.absoluteFile.normalize() }
         .required()
 
-    private val ortResultFile by option(
-        "--ort-result-file",
+    private val ortFile by option(
+        "--ort-file", "-i",
         help = "The input ORT file from which the path excludes are to be read."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
@@ -71,7 +68,7 @@ internal class ExportPathExcludesCommand : CliktCommand(
     ).flag()
 
     override fun run() {
-        val localPathExcludes = ortResultFile
+        val localPathExcludes = ortFile
             .readValue<OrtResult>()
             .replaceConfig(repositoryConfigurationFile)
             .getRepositoryPathExcludes()
@@ -84,20 +81,6 @@ internal class ExportPathExcludesCommand : CliktCommand(
 
         globalPathExcludes
             .mergePathExcludes(localPathExcludes, updateOnlyExisting = updateOnlyExisting)
-            .writeAsYaml(pathExcludesFile)
+            .write(pathExcludesFile)
     }
-}
-
-/**
- * Serialize this [RepositoryPathExcludes] to the given [targetFile] as YAML.
- */
-internal fun RepositoryPathExcludes.writeAsYaml(targetFile: File) {
-    targetFile.parentFile.apply { safeMkdirs() }
-
-    yamlMapper.writeValue(
-        targetFile,
-        mapValues { (_, pathExcludes) ->
-            pathExcludes.sortedBy { it.pattern }
-        }.toSortedMap()
-    )
 }

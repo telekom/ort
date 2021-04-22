@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import java.io.File
 
 import kotlin.io.path.createTempDirectory
 
+import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.scanner.LocalScanner
 import org.ossreviewtoolkit.spdx.SpdxExpression
@@ -40,7 +41,8 @@ import org.ossreviewtoolkit.utils.safeDeleteRecursively
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 abstract class AbstractScannerFunTest(testTags: Set<Tag> = emptySet()) : StringSpec() {
-    protected val config = ScannerConfiguration()
+    protected val downloaderConfig = DownloaderConfiguration()
+    protected val scannerConfig = ScannerConfiguration()
 
     // This is loosely based on the patterns from
     // https://github.com/licensee/licensee/blob/6c0f803/lib/licensee/project_files/license_file.rb#L6-L43.
@@ -80,7 +82,7 @@ abstract class AbstractScannerFunTest(testTags: Set<Tag> = emptySet()) : StringS
     init {
         "Scanning a single file succeeds".config(tags = testTags) {
             val result = scanner.scanPath(inputDir.resolve("LICENSE"), outputDir)
-            val summary = result.scanner?.results?.scanResults?.singleOrNull()?.results?.singleOrNull()?.summary
+            val summary = result.scanner?.results?.scanResults?.singleOrNull()?.singleOrNull()?.summary
 
             summary shouldNotBeNull {
                 fileCount shouldBe 1
@@ -93,7 +95,7 @@ abstract class AbstractScannerFunTest(testTags: Set<Tag> = emptySet()) : StringS
 
         "Scanning a directory succeeds".config(tags = testTags) {
             val result = scanner.scanPath(inputDir, outputDir)
-            val summary = result.scanner?.results?.scanResults?.singleOrNull()?.results?.singleOrNull()?.summary
+            val summary = result.scanner?.results?.scanResults?.singleOrNull()?.singleOrNull()?.summary
 
             summary shouldNotBeNull {
                 fileCount shouldBe commonlyDetectedFiles.size
@@ -105,3 +107,5 @@ abstract class AbstractScannerFunTest(testTags: Set<Tag> = emptySet()) : StringS
         }
     }
 }
+
+private fun <K, V> Map<K, V>.singleOrNull() = entries.singleOrNull()?.value

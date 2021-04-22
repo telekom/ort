@@ -35,6 +35,7 @@ import java.lang.IllegalArgumentException
 
 import kotlin.io.path.createTempFile
 
+import org.ossreviewtoolkit.model.SourceCodeOrigin
 import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.test.containExactly as containExactlyEntries
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
@@ -42,10 +43,10 @@ import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 class OrtConfigurationTest : WordSpec({
     "OrtConfiguration" should {
         "be deserializable from HOCON" {
-            val refConfig = File("src/test/assets/reference.conf")
+            val refConfig = File("src/main/resources/reference.conf")
             val ortConfig = OrtConfiguration.load(file = refConfig)
 
-            ortConfig.analyzer shouldNotBeNull {
+            with(ortConfig.analyzer) {
                 ignoreToolVersions shouldBe true
                 allowDynamicVersions shouldBe true
 
@@ -60,11 +61,24 @@ class OrtConfigurationTest : WordSpec({
                 }
             }
 
-            ortConfig.scanner shouldNotBeNull {
+            ortConfig.downloader shouldNotBeNull {
+                sourceCodeOrigins shouldBe listOf(SourceCodeOrigin.VCS, SourceCodeOrigin.ARTIFACT)
+            }
+
+            with(ortConfig.scanner) {
                 archive shouldNotBeNull {
-                    storage.httpFileStorage should beNull()
-                    storage.localFileStorage shouldNotBeNull {
-                        directory shouldBe File("~/.ort/scanner/archive")
+                    fileStorage shouldNotBeNull {
+                        httpFileStorage should beNull()
+                        localFileStorage shouldNotBeNull {
+                            directory shouldBe File("~/.ort/scanner/archive")
+                        }
+                    }
+
+                    postgresStorage shouldNotBeNull {
+                        url shouldBe "url"
+                        schema shouldBe "schema"
+                        username shouldBe "user"
+                        password shouldBe "password"
                     }
                 }
 
@@ -118,7 +132,7 @@ class OrtConfigurationTest : WordSpec({
                 ignorePatterns shouldContainExactly listOf("**/META-INF/DEPENDENCIES")
             }
 
-            ortConfig.licenseFilePatterns shouldNotBeNull {
+            with(ortConfig.licenseFilePatterns) {
                 licenseFilenames shouldContainExactly listOf("license*")
                 patentFilenames shouldContainExactly listOf("patents")
                 rootLicenseFilenames shouldContainExactly listOf("readme*")
@@ -155,7 +169,7 @@ class OrtConfigurationTest : WordSpec({
                     file = configFile
                 )
 
-                config.scanner?.storages shouldNotBeNull {
+                config.scanner.storages shouldNotBeNull {
                     val postgresStorage = this["postgresStorage"]
                     postgresStorage.shouldBeInstanceOf<PostgresStorageConfiguration>()
                     postgresStorage.username shouldBe "username"
@@ -198,7 +212,7 @@ class OrtConfigurationTest : WordSpec({
 
             val config = OrtConfiguration.load(file = file, args = args)
 
-            config.scanner should beNull()
+            config.scanner shouldBe ScannerConfiguration()
         }
 
         "support references to environment variables" {
@@ -225,7 +239,7 @@ class OrtConfigurationTest : WordSpec({
             withEnvironment(env) {
                 val config = OrtConfiguration.load(file = configFile)
 
-                config.scanner?.storages shouldNotBeNull {
+                config.scanner.storages shouldNotBeNull {
                     val postgresStorage = this["postgresStorage"]
                     postgresStorage.shouldBeInstanceOf<PostgresStorageConfiguration>()
                     postgresStorage.username shouldBe user
@@ -249,7 +263,7 @@ class OrtConfigurationTest : WordSpec({
             withEnvironment(env) {
                 val config = OrtConfiguration.load(file = File("dummyPath"))
 
-                config.scanner?.storages shouldNotBeNull {
+                config.scanner.storages shouldNotBeNull {
                     val postgresStorage = this["postgresStorage"]
                     postgresStorage.shouldBeInstanceOf<PostgresStorageConfiguration>()
                     postgresStorage.username shouldBe user

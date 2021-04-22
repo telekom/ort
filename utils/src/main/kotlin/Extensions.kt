@@ -29,21 +29,20 @@ import com.vdurmont.semver4j.Semver
 import java.io.File
 import java.io.IOException
 import java.net.URI
-import java.net.URISyntaxException
 import java.nio.file.CopyOption
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
-import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.Locale
 
 /**
  * Return a string of hexadecimal digits representing the bytes in the array.
  */
-fun ByteArray.toHexString(): String = joinToString("") { String.format("%02x", it) }
+fun ByteArray.toHexString(): String = joinToString("") { String.format(Locale.ROOT, "%02x", it) }
 
 /**
  * Format this [Double] as a string with the provided number of [decimalPlaces].
@@ -60,15 +59,13 @@ fun File.expandTilde(): File = File(path.expandTilde()).absoluteFile
  * Return true if and only if this file is a symbolic link.
  */
 fun File.isSymbolicLink(): Boolean =
-    try {
+    runCatching {
         // Note that we cannot use exists() to check beforehand whether a symbolic link exists to avoid a
         // NoSuchFileException to be thrown as it returns "false" e.g. for dangling Windows junctions.
         Files.readAttributes(toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS).let {
             it.isSymbolicLink || (Os.isWindows && it.isOther)
         }
-    } catch (e: NoSuchFileException) {
-        false
-    }
+    }.getOrDefault(false)
 
 /**
  * Resolve the file to the real underlying file. In contrast to Java's [File.getCanonicalFile], this also works to
@@ -207,7 +204,7 @@ val File.formatSizeInMib: String get() = "${length().bytesToMib().format()} MiB"
 /**
  * Construct a "file:" URI in a safe way by never using a null authority for wider compatibility.
  */
-fun File.toSafeURI(): URI {
+fun File.toSafeUri(): URI {
     val fileUri = toURI()
     return URI("file", "", fileUri.path, fileUri.query, fileUri.fragment)
 }
@@ -341,14 +338,18 @@ fun String.percentEncode(): String =
  * not represent a URL or if it does not include a user name.
  */
 fun String.stripCredentialsFromUrl() =
-    try {
-        // Use an URI instead of an URL as the former allows to specify the userInfo separately.
-        URI(this).let {
-            URI(it.scheme, null, it.host, it.port, it.path, it.query, it.fragment).toString()
-        }
-    } catch (e: URISyntaxException) {
-        this
-    }
+    toUri { URI(it.scheme, null, it.host, it.port, it.path, it.query, it.fragment).toString() }.getOrDefault(this)
+
+/**
+ * Return a [Result] that indicates whether the conversion of this [String] to a [URI] was successful.
+ */
+fun String.toUri() = runCatching { URI(this) }
+
+/**
+ * Return a [Result] that indicates whether the conversion of this [String] to a [URI] was successful, and [transform]
+ * the [URI] if so.
+ */
+fun <R> String.toUri(transform: (URI) -> R) = toUri().mapCatching(transform)
 
 /**
  * If this string starts with [prefix], return the string without the prefix, otherwise return [missingPrefixValue].

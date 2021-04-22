@@ -30,7 +30,7 @@ import org.ossreviewtoolkit.helper.common.getScanResultFor
 import org.ossreviewtoolkit.helper.common.importLicenseFindingCurations
 import org.ossreviewtoolkit.helper.common.mergeLicenseFindingCurations
 import org.ossreviewtoolkit.helper.common.sortLicenseFindingCurations
-import org.ossreviewtoolkit.helper.common.writeAsYaml
+import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.PackageConfiguration
 import org.ossreviewtoolkit.model.readValue
@@ -49,8 +49,8 @@ class ImportLicenseFindingCurationsCommand : CliktCommand(
         .convert { it.absoluteFile.normalize() }
         .required()
 
-    private val ortResultFile by option(
-        "--ort-result-file",
+    private val ortFile by option(
+        "--ort-file",
         help = "The ORT file containing the findings the imported curations need to match against."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
@@ -61,7 +61,7 @@ class ImportLicenseFindingCurationsCommand : CliktCommand(
         "--package-configuration-file",
         help = "The package configuration file where the imported curations are to be merged into."
     ).convert { it.expandTilde() }
-        .file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
         .required()
 
@@ -82,7 +82,7 @@ class ImportLicenseFindingCurationsCommand : CliktCommand(
     private val findingCurationMatcher = FindingCurationMatcher()
 
     override fun run() {
-        val ortResult = ortResultFile.readValue<OrtResult>()
+        val ortResult = ortFile.readValue<OrtResult>()
         val packageConfiguration = packageConfigurationFile.readValue<PackageConfiguration>()
 
         val allLicenseFindings = ortResult.getScanResultFor(packageConfiguration)?.summary?.licenseFindings.orEmpty()
@@ -101,6 +101,6 @@ class ImportLicenseFindingCurationsCommand : CliktCommand(
 
         packageConfiguration
             .copy(licenseFindingCurations = curations)
-            .writeAsYaml(packageConfigurationFile)
+            .write(packageConfigurationFile)
     }
 }

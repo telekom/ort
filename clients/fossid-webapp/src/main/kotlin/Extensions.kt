@@ -21,9 +21,6 @@
 
 package org.ossreviewtoolkit.clients.fossid
 
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-
 import kotlin.reflect.KClass
 
 private const val SCAN_GROUP = "scans"
@@ -33,15 +30,21 @@ private const val PROJECT_GROUP = "projects"
  * Verify that a request for the given [operation] was successful. [operation] is a free label describing the operation.
  * If [withDataCheck] is true, also the payload data is checked, otherwise that check is skipped.
  */
-fun EntityPostResponseBody<*>.checkResponse(operation: String, withDataCheck: Boolean = true) {
+fun <B : EntityPostResponseBody<T>, T> B?.checkResponse(operation: String, withDataCheck: Boolean = true): B {
+    // The null check is here to avoid the caller to wrap the call of this function in a null check.
+    requireNotNull(this)
+
     require(error == null) {
         "Could not '$operation'. Additional information : $error"
     }
+
     if (withDataCheck) {
         requireNotNull(data) {
             "No Payload received for '$operation'. Additional information: $error"
         }
     }
+
+    return this
 }
 
 /**
@@ -111,12 +114,11 @@ suspend fun FossIdRestService.createScan(
     user: String,
     apiKey: String,
     projectCode: String,
+    scanCode: String,
     gitRepoUrl: String,
     gitBranch: String
-): MapResponseBody<String> {
-    val formatter = DateTimeFormatter.ofPattern("'$projectCode'_yyyyMMdd_HHmmss")
-    val scanCode = formatter.format(LocalDateTime.now())
-    return createScan(
+): MapResponseBody<String> =
+    createScan(
         PostRequestBody(
             "create",
             SCAN_GROUP,
@@ -129,7 +131,6 @@ suspend fun FossIdRestService.createScan(
             "git_branch" to gitBranch
         )
     )
-}
 
 /**
  * Trigger a scan with the given [scanCode].
@@ -146,6 +147,23 @@ suspend fun FossIdRestService.runScan(user: String, apiKey: String, scanCode: St
             "scan_code" to scanCode,
             "auto_identification_detect_declaration" to "1",
             "auto_identification_detect_copyright" to "1"
+        )
+    )
+
+/**
+ * Delete a scan with the given [scanCode].
+ *
+ * The HTTP request is sent with [user] and [apiKey] as credentials.
+ */
+suspend fun FossIdRestService.deleteScan(user: String, apiKey: String, scanCode: String) =
+    deleteScan(
+        PostRequestBody(
+            "delete",
+            SCAN_GROUP,
+            user,
+            apiKey,
+            "scan_code" to scanCode,
+            "delete_identifications" to "1"
         )
     )
 

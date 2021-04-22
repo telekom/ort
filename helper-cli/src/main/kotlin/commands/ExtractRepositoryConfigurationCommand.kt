@@ -25,7 +25,7 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
-import org.ossreviewtoolkit.helper.common.writeAsYaml
+import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.utils.expandTilde
@@ -33,8 +33,8 @@ import org.ossreviewtoolkit.utils.expandTilde
 class ExtractRepositoryConfigurationCommand : CliktCommand(
     help = "Extract the repository configuration from the given ORT result file."
 ) {
-    private val ortResultFile by option(
-        "--ort-result-file",
+    private val ortFile by option(
+        "--ort-file", "-i",
         help = "The input ORT file from which repository configuration shall be extracted."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
@@ -50,9 +50,9 @@ class ExtractRepositoryConfigurationCommand : CliktCommand(
         .required()
 
     override fun run() {
-        ortResultFile
+        ortFile
             .readValue<OrtResult>()
             .repository
-            .config.writeAsYaml(repositoryConfigurationFile)
+            .config.write(repositoryConfigurationFile)
     }
 }

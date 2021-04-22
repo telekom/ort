@@ -22,15 +22,13 @@ package org.ossreviewtoolkit.commands
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.ProgramResult
 
-import com.vdurmont.semver4j.SemverException
-
 import java.io.File
-import java.io.IOException
 import java.lang.reflect.Modifier
 
 import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
+import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.scanner.Scanner
@@ -79,8 +77,11 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
                     Scanner::class.java.isAssignableFrom(it) -> {
                         category = "Scanner"
                         log.debug { "$it is a $category." }
-                        it.getDeclaredConstructor(String::class.java, ScannerConfiguration::class.java)
-                            .newInstance("", ScannerConfiguration())
+                        it.getDeclaredConstructor(
+                            String::class.java,
+                            ScannerConfiguration::class.java,
+                            DownloaderConfiguration::class.java
+                        ).newInstance("", ScannerConfiguration(), DownloaderConfiguration())
                     }
 
                     VersionControlSystem::class.java.isAssignableFrom(it) -> {
@@ -113,10 +114,10 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
             tools.forEach { tool ->
                 // TODO: State whether a tool can be bootstrapped, but that requires refactoring of CommandLineTool.
                 val message = buildString {
-                    val (prefix, suffix) = if (tool.isInPath()) {
-                        try {
+                    val (prefix, suffix) = if (tool.isInPath() || File(tool.command()).isFile) {
+                        runCatching {
                             val actualVersion = tool.getVersion()
-                            try {
+                            runCatching {
                                 val isRequiredVersion = tool.getVersionRequirement().let {
                                     it == CommandLineTool.ANY_VERSION || it.isSatisfiedBy(actualVersion)
                                 }
@@ -127,17 +128,17 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
                                     statusCode = statusCode or 2
                                     Pair("\t+ ", "Found version $actualVersion.")
                                 }
-                            } catch (e: SemverException) {
+                            }.getOrElse {
                                 statusCode = statusCode or 2
                                 Pair("\t+ ", "Found version '$actualVersion'.")
                             }
-                        } catch (e: IOException) {
+                        }.getOrElse {
                             statusCode = statusCode or 2
                             Pair("\t+ ", "Could not determine the version.")
                         }
                     } else {
-                        // Tolerate scanners to be missing as they can be bootstrapped.
-                        if (category != "Scanner") {
+                        // Tolerate scanners and Pub to be missing as they can be bootstrapped.
+                        if (category != "Scanner" && tool.javaClass.simpleName != "Pub") {
                             statusCode = statusCode or 4
                         }
 

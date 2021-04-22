@@ -50,7 +50,6 @@ ENV \
     CARGO_VERSION=0.47.0-1~exp1ubuntu1~18.04.1 \
     COMPOSER_VERSION=1.6.3-1 \
     CONAN_VERSION=1.18.0 \
-    FLUTTER_VERSION=v1.12.13+hotfix.9-stable \
     GO_DEP_VERSION=0.5.4 \
     GO_VERSION=1.13.4 \
     HASKELL_STACK_VERSION=2.1.3 \
@@ -65,20 +64,20 @@ ENV \
     SCANCODE_VERSION=3.2.1rc2 \
     # Installation directories.
     ANDROID_HOME=/opt/android-sdk \
-    FLUTTER_HOME=/opt/flutter \
     GOPATH=$HOME/go
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    PATH="$PATH:$HOME/.local/bin:$FLUTTER_HOME/bin:$FLUTTER_HOME/bin/cache/dart-sdk/bin:$GOPATH/bin:/opt/go/bin"
+    PATH="$PATH:$HOME/.local/bin:$GOPATH/bin:/opt/go/bin"
 
 # Apt install commands.
 RUN --mount=type=cache,target=/var/cache/apt --mount=type=cache,target=/var/lib/apt \
     apt-get update && \
-    apt-get install -y --no-install-recommends gnupg && \
+    apt-get install -y --no-install-recommends gnupg software-properties-common && \
     echo 'Acquire::https::dl.bintray.com::Verify-Peer "false";' | tee -a /etc/apt/apt.conf.d/00sbt && \
     echo "deb https://dl.bintray.com/sbt/debian /" | tee -a /etc/apt/sources.list.d/sbt.list && \
     curl -ksS "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | apt-key adv --import - && \
     curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
+    add-apt-repository ppa:git-core/ppa && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         # Install general tools required by this Dockerfile.
@@ -117,8 +116,15 @@ RUN --mount=type=cache,target=/var/cache/apt --mount=type=cache,target=/var/lib/
 
 COPY --from=build /usr/local/src/ort/scripts/*.sh /opt/ort/bin/
 
+# This can be set to a directory containing CRT-files for custom certificates that ORT and all build tools should know about.
+ARG CRT_FILES=""
+COPY "$CRT_FILES" /tmp/certificates/
+
 # Custom install commands.
 RUN /opt/ort/bin/import_proxy_certs.sh && \
+    if [ -n "$CRT_FILES" ]; then \
+      /opt/ort/bin/import_certificates.sh /tmp/certificates/; \
+    fi && \
     # Install VCS tools (no specific versions required here).
     curl -ksS https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo && \
     chmod a+x /usr/local/bin/repo && \
@@ -126,12 +132,6 @@ RUN /opt/ort/bin/import_proxy_certs.sh && \
     npm install --global npm@$NPM_VERSION bower@$BOWER_VERSION yarn@$YARN_VERSION && \
     pip install wheel && \
     pip install conan==$CONAN_VERSION pipenv==$PYTHON_PIPENV_VERSION virtualenv==$PYTHON_VIRTUALENV_VERSION && \
-    curl -ksSO https://storage.googleapis.com/flutter_infra/releases/stable/linux/flutter_linux_$FLUTTER_VERSION.tar.xz && \
-    tar xf flutter_linux_$FLUTTER_VERSION.tar.xz -C $(dirname $FLUTTER_HOME) && \
-    rm flutter_linux_$FLUTTER_VERSION.tar.xz && \
-    chmod -R a+rw $FLUTTER_HOME && \
-    flutter config --no-analytics && \
-    flutter doctor && \
     # Install golang in order to have `go mod` as package manager.
     curl -ksSO https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz && \
     tar -C /opt -xzf go$GO_VERSION.linux-amd64.tar.gz && \

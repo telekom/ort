@@ -40,6 +40,11 @@ import okhttp3.Response
 typealias BuilderConfiguration = OkHttpClient.Builder.() -> Unit
 
 /**
+ * A HTTP-specific download error that enriches an [IOException] with an additional HTTP error code.
+ */
+class HttpDownloadError(val code: Int, message: String) : IOException("$message (HTTP code $code)")
+
+/**
  * A helper class to manage OkHttp instances backed by distinct cache directories.
  */
 object OkHttpClientHelper {
@@ -71,10 +76,13 @@ object OkHttpClientHelper {
         // proxy authenticator.
         return OkHttpClient.Builder()
             .addNetworkInterceptor { chain ->
+                val request = chain.request()
                 chain.proceed(
-                    chain.request().newBuilder()
-                        .header("User-Agent", Environment.ORT_USER_AGENT)
-                        .build()
+                    if (request.header("User-Agent") == null) {
+                        request.newBuilder().header("User-Agent", Environment.ORT_USER_AGENT).build()
+                    } else {
+                        request
+                    }
                 )
             }
             .cache(cache)
@@ -106,6 +114,32 @@ object OkHttpClientHelper {
      */
     suspend fun await(request: Request, block: BuilderConfiguration? = null): Response =
         buildClient(block).newCall(request).await()
+
+    /**
+     * Download from [url] and return a [Result] with a string representing the response body content on success, or a
+     * [Result] wrapping an [IOException] (which might be a [HttpDownloadError]) on failure.
+     */
+    fun downloadText(url: String): Result<String> {
+        val request = Request.Builder().get().url(url).build()
+        val response = runCatching { execute(request) }.getOrElse { return Result.failure(it) }
+
+        return response.use {
+            log.debug {
+                if (it.cacheResponse != null) {
+                    "Retrieved $url from local cache."
+                } else {
+                    "Downloaded from $url via network."
+                }
+            }
+
+            if (it.isSuccessful) {
+                val text = it.body?.string().orEmpty()
+                Result.success(text)
+            } else {
+                Result.failure(HttpDownloadError(it.code, it.message))
+            }
+        }
+    }
 }
 
 /**

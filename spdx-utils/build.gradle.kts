@@ -28,8 +28,6 @@ import java.time.Year
 
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
-import org.ossreviewtoolkit.gradle.*
-
 val antlrVersion: String by project
 val jacksonVersion: String by project
 
@@ -42,23 +40,13 @@ plugins {
     id("at.bxm.svntools")
 }
 
-val generateGrammarSource by tasks.existing(AntlrTask::class) {
+tasks.withType<AntlrTask> {
     arguments = arguments + listOf("-visitor")
 }
 
-tasks.withType<KotlinCompile>().configureEach {
-    dependsOn(generateGrammarSource)
-}
-
-rootProject.idea {
-    project {
-        settings {
-            taskTriggers {
-                afterSync(generateGrammarSource.get())
-                beforeBuild(generateGrammarSource.get())
-            }
-        }
-    }
+tasks.withType<KotlinCompile> {
+    val antlrTasks = tasks.withType<AntlrTask>()
+    dependsOn(antlrTasks)
 }
 
 dependencies {
@@ -145,7 +133,7 @@ fun licenseToEnumEntry(id: String, meta: LicenseMetaData): String {
 
 fun generateEnumClass(
     taskName: String, description: String, jsonUrl: String, className: String, resourcePath: String,
-    handleOrLater: Boolean, collectIds: (Map<String, Any>) -> Map<String, LicenseMetaData>
+    collectIds: (Map<String, Any>) -> Map<String, LicenseMetaData>
 ): Map<String, LicenseMetaData> {
     logger.quiet("Fetching $description list...")
 
@@ -231,40 +219,7 @@ fun generateEnumClass(
     |
     """.trimMargin())
 
-    if (handleOrLater) {
-        enumFile.appendText("""
-    |    /**
-    |     * The full $description text as a string.
-    |     */
-    |    val text by lazy {
-    |        val baseId = if (deprecated) {
-    |            id.removeSuffix("+")
-    |        } else {
-    |            id.removeSuffix("-or-later")
-    |        }
-    |
-    |        buildString {
-    |            if (baseId != id) {
-    |                append(SpdxLicense::class.java.getResource("/$resourcePath/${'$'}baseId-or-later").readText())
-    |
-    |                val isGpl = listOf("AGPL-", "GPL-", "LGPL-").any { baseId.startsWith(it) }
-    |                if (isGpl) {
-    |                    appendLine()
-    |
-    |                    // For GPL the "or later version" text is just an amendment that reads better as a prefix as
-    |                    // then no text follows the license's final "That's all there is to it!" sentence.
-    |                    append(SpdxLicense::class.java.getResource("/$resourcePath/${'$'}baseId").readText())
-    |                }
-    |            } else {
-    |                append(SpdxLicense::class.java.getResource("/$resourcePath/${'$'}id").readText())
-    |            }
-    |        }
-    |    }
-    |}
-    |
-    """.trimMargin())
-    } else {
-        enumFile.appendText("""
+    enumFile.appendText("""
     |    /**
     |     * The full $description text as a string.
     |     */
@@ -272,7 +227,6 @@ fun generateEnumClass(
     |}
     |
     """.trimMargin())
-    }
 
     logger.quiet("Generated SPDX $description enum file '$enumFile'.")
 
@@ -320,6 +274,7 @@ fun generateLicenseTextResources(description: String, ids: Map<String, LicenseMe
             if (i.hasNext()) {
                 val candidate = i.next()
 
+                @Suppress("SwallowedException")
                 try {
                     val licenseFile = file(candidate)
                     val lines = licenseFile.readLines().map { it.trimEnd() }.asReversed().dropWhile { it.isEmpty() }
@@ -400,13 +355,12 @@ val generateSpdxLicenseEnum by tasks.registering {
             description,
             "https://raw.githubusercontent.com/spdx/license-list-data/master/json/licenses.json",
             "SpdxLicense",
-            resourcePath,
-            true
+            resourcePath
         ) { json ->
-            (json["licenses"] as List<Map<String, Any>>).map {
+            (json["licenses"] as List<Map<String, Any>>).associate {
                 val id = it["licenseId"] as String
                 id to LicenseMetaData(it["name"] as String, it["isDeprecatedLicenseId"] as Boolean)
-            }.toMap()
+            }
         }
         generateLicenseTextResources(description, ids, resourcePath)
     }
@@ -427,13 +381,12 @@ val generateSpdxLicenseExceptionEnum by tasks.registering {
             description,
             "https://raw.githubusercontent.com/spdx/license-list-data/master/json/exceptions.json",
             "SpdxLicenseException",
-            resourcePath,
-            false
+            resourcePath
         ) { json ->
-            (json["exceptions"] as List<Map<String, Any>>).map {
+            (json["exceptions"] as List<Map<String, Any>>).associate {
                 val id = it["licenseExceptionId"] as String
                 id to LicenseMetaData(it["name"] as String, it["isDeprecatedLicenseId"] as Boolean)
-            }.toMap()
+            }
         }
         generateLicenseTextResources(description, ids, resourcePath)
     }

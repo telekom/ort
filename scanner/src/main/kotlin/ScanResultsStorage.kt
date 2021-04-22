@@ -20,9 +20,6 @@
 
 package org.ossreviewtoolkit.scanner
 
-import com.zaxxer.hikari.HikariConfig
-import com.zaxxer.hikari.HikariDataSource
-
 import kotlin.time.measureTimedValue
 
 import kotlinx.coroutines.Dispatchers
@@ -36,16 +33,16 @@ import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Result
 import org.ossreviewtoolkit.model.ScanResult
-import org.ossreviewtoolkit.model.ScanResultContainer
 import org.ossreviewtoolkit.model.Success
+import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.config.ClearlyDefinedStorageConfiguration
 import org.ossreviewtoolkit.model.config.FileBasedStorageConfiguration
 import org.ossreviewtoolkit.model.config.PostgresStorageConfiguration
 import org.ossreviewtoolkit.model.config.ScanStorageConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.model.config.Sw360StorageConfiguration
+import org.ossreviewtoolkit.model.utils.DatabaseUtils
 import org.ossreviewtoolkit.scanner.storages.*
-import org.ossreviewtoolkit.utils.ORT_FULL_NAME
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.ortDataDirectory
 import org.ossreviewtoolkit.utils.perf
@@ -107,6 +104,11 @@ abstract class ScanResultsStorage {
             val readers = config.storageReaders.orEmpty().map { resolve(it) }
             val writers = config.storageWriters.orEmpty().map { resolve(it) }
 
+            log.info {
+                "Using composite storage with readers ${readers.joinToString { it.name }} and writers " +
+                        "${writers.joinToString { it.name }}."
+            }
+
             return CompositeStorage(readers, writers)
         }
 
@@ -118,7 +120,7 @@ abstract class ScanResultsStorage {
                 is FileBasedStorageConfiguration -> createFileBasedStorage(config)
                 is PostgresStorageConfiguration -> createPostgresStorage(config)
                 is ClearlyDefinedStorageConfiguration -> createClearlyDefinedStorage(config)
-                is Sw360StorageConfiguration -> configureSw360Storage(config)
+                is Sw360StorageConfiguration -> createSw360Storage(config)
             }
 
         /**
@@ -141,65 +143,35 @@ abstract class ScanResultsStorage {
          * Create a [PostgresStorage] based on the [config] passed in.
          */
         private fun createPostgresStorage(config: PostgresStorageConfiguration): ScanResultsStorage {
-            require(config.url.isNotBlank()) {
-                "URL for PostgreSQL storage is missing."
-            }
-
-            require(config.schema.isNotBlank()) {
-                "Schema for PostgreSQL storage is missing."
-            }
-
-            require(config.username.isNotBlank()) {
-                "Username for PostgreSQL storage is missing."
-            }
-
-            require(config.password.isNotBlank()) {
-                "Password for PostgreSQL storage is missing."
-            }
-
-            val dataSourceConfig = HikariConfig().apply {
-                jdbcUrl = config.url
-                username = config.username
-                password = config.password
-                schema = config.schema
-
+            val dataSource = DatabaseUtils.createHikariDataSource(
+                config = config,
+                applicationNameSuffix = TOOL_NAME,
                 // Use a value slightly higher than the number of threads accessing the storage.
-                maximumPoolSize = LocalScanner.NUM_STORAGE_THREADS + 3
+                maxPoolSize = LocalScanner.NUM_STORAGE_THREADS + 3
+            )
 
-                addDataSourceProperty("ApplicationName", "$ORT_FULL_NAME - $TOOL_NAME")
-
-                // Configure SSL, see: https://jdbc.postgresql.org/documentation/head/connect.html
-                // Note that the "ssl" property is only a fallback in case "sslmode" is not used. Since we always set
-                // "sslmode", "ssl" is not required.
-                addDataSourceProperty("sslmode", config.sslmode)
-                addDataSourcePropertyIfDefined("sslcert", config.sslcert)
-                addDataSourcePropertyIfDefined("sslkey", config.sslkey)
-                addDataSourcePropertyIfDefined("sslrootcert", config.sslrootcert)
+            log.info {
+                "Using Postgres storage with URL '${config.url}' and schema '${config.schema}'."
             }
 
-            return PostgresStorage(HikariDataSource(dataSourceConfig))
+            return PostgresStorage(dataSource)
         }
 
         /**
          * Create a [ClearlyDefinedStorage] based on the [config] passed in.
          */
         private fun createClearlyDefinedStorage(config: ClearlyDefinedStorageConfiguration): ScanResultsStorage =
-            ClearlyDefinedStorage(config)
-
-        /**
-         * Add a property with the given [key] and [value] to the [HikariConfig]. If the [value] is *null*, this
-         * function has no effect. (It is not specified how the database driver deals with *null* values in its
-         * properties; so it is safer to avoid them.)
-         */
-        private fun HikariConfig.addDataSourcePropertyIfDefined(key: String, value: String?) {
-            value?.let { addDataSourceProperty(key, it) }
-        }
+            ClearlyDefinedStorage(config).also {
+                log.info { "Using ClearlyDefined storage with URL '${config.serverUrl}'." }
+            }
 
         /**
          * Configure a [Sw360Storage] as the current storage backend.
          */
-        private fun configureSw360Storage(config: Sw360StorageConfiguration): ScanResultsStorage =
-            Sw360Storage(config)
+        private fun createSw360Storage(config: Sw360StorageConfiguration): ScanResultsStorage =
+            Sw360Storage(config).also {
+                log.info { "Using SW360 storage with auth URL '${config.authUrl}' and REST URL '${config.restUrl}'." }
+            }
     }
 
     /**
@@ -213,21 +185,21 @@ abstract class ScanResultsStorage {
     val stats = AccessStatistics()
 
     /**
-     * Read all [ScanResult]s for a package with [id] from the storage. Return a [ScanResultContainer] wrapped in a
+     * Read all [ScanResult]s for a package with [id] from the storage. Return a list of [ScanResult]s wrapped in a
      * [Result], which is a [Failure] if an unexpected error occurred and a [Success] otherwise.
      */
-    fun read(id: Identifier): Result<ScanResultContainer> {
+    fun read(id: Identifier): Result<List<ScanResult>> {
         val (result, duration) = measureTimedValue { readInternal(id) }
 
         stats.numReads.incrementAndGet()
 
         if (result is Success) {
-            if (result.result.results.isNotEmpty()) {
+            if (result.result.isNotEmpty()) {
                 stats.numHits.incrementAndGet()
             }
 
             log.perf {
-                "Read ${result.result.results.size} scan results for '${id.toCoordinates()}' from " +
+                "Read ${result.result.size} scan results for '${id.toCoordinates()}' from " +
                         "${javaClass.simpleName} in ${duration.inMilliseconds}ms."
             }
         }
@@ -241,21 +213,21 @@ abstract class ScanResultsStorage {
      * [Package.vcs], and [Package.vcsProcessed] are used to check if the scan result matches the expected source code
      * location. That check is important to find the correct results when different revisions of a package using the
      * same version name are used (e.g. multiple scans of a "1.0-SNAPSHOT" version during development). Return a
-     * [ScanResultContainer] wrapped in a [Result], which is a [Failure] if an unexpected error occurred and a [Success]
+     * list of [ScanResult]s wrapped in a [Result], which is a [Failure] if an unexpected error occurred and a [Success]
      * otherwise.
      */
-    fun read(pkg: Package, scannerCriteria: ScannerCriteria): Result<ScanResultContainer> {
+    fun read(pkg: Package, scannerCriteria: ScannerCriteria): Result<List<ScanResult>> {
         val (result, duration) = measureTimedValue { readInternal(pkg, scannerCriteria) }
 
         stats.numReads.incrementAndGet()
 
         if (result is Success) {
-            if (result.result.results.isNotEmpty()) {
+            if (result.result.isNotEmpty()) {
                 stats.numHits.incrementAndGet()
             }
 
             log.perf {
-                "Read ${result.result.results.size} scan results for '${pkg.id.toCoordinates()}' from " +
+                "Read ${result.result.size} scan results for '${pkg.id.toCoordinates()}' from " +
                         "${javaClass.simpleName} in ${duration.inMilliseconds}ms."
             }
         }
@@ -272,7 +244,10 @@ abstract class ScanResultsStorage {
      * of [ScanResult]s mapped to the [Identifier]s of the [packages], wrapped in a [Result], which is a [Failure] if
      * an unexpected error occurred and a [Success] otherwise.
      */
-    fun read(packages: List<Package>, scannerCriteria: ScannerCriteria): Result<Map<Identifier, List<ScanResult>>> {
+    fun read(
+        packages: Collection<Package>,
+        scannerCriteria: ScannerCriteria
+    ): Result<Map<Identifier, List<ScanResult>>> {
         val (result, duration) = measureTimedValue { readInternal(packages, scannerCriteria) }
 
         stats.numReads.addAndGet(packages.size)
@@ -290,9 +265,9 @@ abstract class ScanResultsStorage {
     }
 
     /**
-     * Add the given [scanResult] to the [ScanResultContainer] for the scanned [Package] with the provided [id].
-     * Depending on the storage implementation this might first read any existing [ScanResultContainer] and write the
-     * new [ScanResultContainer] to the storage again, implicitly deleting the original storage entry by overwriting it.
+     * Add the given [scanResult] to the stored [ScanResult]s for the scanned [Package] with the provided [id].
+     * Depending on the storage implementation this might first read any existing [ScanResult]s and write the new
+     * [ScanResult]s to the storage again, implicitly deleting the original storage entry by overwriting it.
      * Return a [Result] describing whether the operation was successful.
      */
     fun add(id: Identifier, scanResult: ScanResult): Result<Unit> {
@@ -307,7 +282,7 @@ abstract class ScanResultsStorage {
 
         // Do not store scan results without provenance information, because they cannot be assigned to the revision of
         // the package source code later.
-        if (scanResult.provenance.sourceArtifact == null && scanResult.provenance.vcsInfo == null) {
+        if (scanResult.provenance is UnknownProvenance) {
             val message =
                 "Not storing scan result for '${id.toCoordinates()}' because no provenance information is available."
             log.info { message }
@@ -327,19 +302,19 @@ abstract class ScanResultsStorage {
     /**
      * Internal version of [read] that does not update the [access statistics][stats].
      */
-    protected abstract fun readInternal(id: Identifier): Result<ScanResultContainer>
+    protected abstract fun readInternal(id: Identifier): Result<List<ScanResult>>
 
     /**
      * Internal version of [read] that does not update the [access statistics][stats]. Implementations may want to
      * override this function if they can filter for the wanted [scannerCriteria] in a more efficient way.
      */
-    protected open fun readInternal(pkg: Package, scannerCriteria: ScannerCriteria): Result<ScanResultContainer> {
+    protected open fun readInternal(pkg: Package, scannerCriteria: ScannerCriteria): Result<List<ScanResult>> {
         val scanResults = when (val readResult = readInternal(pkg.id)) {
-            is Success -> readResult.result.results.toMutableList()
+            is Success -> readResult.result.toMutableList()
             is Failure -> return readResult
         }
 
-        if (scanResults.isEmpty()) return Success(ScanResultContainer(pkg.id, scanResults))
+        if (scanResults.isEmpty()) return Success(scanResults)
 
         // Only keep scan results whose provenance information matches the package information.
         scanResults.retainAll { it.provenance.matches(pkg) }
@@ -348,7 +323,7 @@ abstract class ScanResultsStorage {
                 "No stored scan results found for $pkg. The following entries with non-matching provenance have " +
                         "been ignored: ${scanResults.map { it.provenance }}"
             }
-            return Success(ScanResultContainer(pkg.id, scanResults))
+            return Success(scanResults)
         }
 
         // Only keep scan results from compatible scanners.
@@ -358,10 +333,10 @@ abstract class ScanResultsStorage {
                 "No stored scan results found for $scannerCriteria. The following entries with incompatible scanners " +
                         "have been ignored: ${scanResults.map { it.scanner }}"
             }
-            return Success(ScanResultContainer(pkg.id, scanResults))
+            return Success(scanResults)
         }
 
-        return Success(ScanResultContainer(pkg.id, scanResults))
+        return Success(scanResults)
     }
 
     /**
@@ -371,20 +346,17 @@ abstract class ScanResultsStorage {
      * efficient way.
      */
     protected open fun readInternal(
-        packages: List<Package>,
+        packages: Collection<Package>,
         scannerCriteria: ScannerCriteria
     ): Result<Map<Identifier, List<ScanResult>>> {
         val results = runBlocking(Dispatchers.IO) {
-            packages.map { async { readInternal(it, scannerCriteria) } }.awaitAll()
-        }
+            packages.map { async { it.id to readInternal(it, scannerCriteria) } }.awaitAll()
+        }.associate { it }
 
-        return if (results.all { it is Failure }) {
+        return if (results.all { it.value is Failure }) {
             Failure("Could not read any scan results from ${javaClass.simpleName}.")
         } else {
-            Success(
-                results.filterIsInstance<Success<ScanResultContainer>>()
-                    .associate { Pair(it.result.id, it.result.results) }
-            )
+            Success(results.filter { it.value is Success }.mapValues { (it.value as Success).result })
         }
     }
 

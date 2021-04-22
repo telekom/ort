@@ -37,18 +37,16 @@ import com.github.ajalt.clikt.parameters.types.file
 import org.ossreviewtoolkit.GlobalOptions
 import org.ossreviewtoolkit.advisor.Advisor
 import org.ossreviewtoolkit.model.FileFormat
-import org.ossreviewtoolkit.model.config.AdvisorConfiguration
-import org.ossreviewtoolkit.model.config.NexusIqConfiguration
-import org.ossreviewtoolkit.model.config.VulnerableCodeConfiguration
-import org.ossreviewtoolkit.model.mapper
 import org.ossreviewtoolkit.model.utils.mergeLabels
-import org.ossreviewtoolkit.utils.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.ortConfigDirectory
 import org.ossreviewtoolkit.utils.safeMkdirs
 
 class AdvisorCommand : CliktCommand(name = "advise", help = "Check dependencies for security vulnerabilities.") {
-    private val input by option(
+    private val allVulnerabilityProvidersByName = Advisor.ALL.associateBy { it.providerName }
+        .toSortedMap(String.CASE_INSENSITIVE_ORDER)
+
+    private val ortFile by option(
         "--ort-file", "-i",
         help = "An ORT result file with an analyzer result to use."
     ).convert { it.expandTilde() }
@@ -79,33 +77,20 @@ class AdvisorCommand : CliktCommand(name = "advise", help = "Check dependencies 
 
     private val globalOptionsForSubcommands by requireObject<GlobalOptions>()
 
-    private val advisorFactory by option(
-        "--advisor", "-a",
-        help = "The advisor to use, one of ${Advisor.ALL}"
-    ).convert { advisorName ->
-        Advisor.ALL.find { it.advisorName.equals(advisorName, ignoreCase = true) }
-            ?: throw BadParameterValue("Advisor '$advisorName' is not one of ${Advisor.ALL}")
-    }.required()
+    private val providerFactories by option(
+        "--advisors", "-a",
+        help = "The comma-separated advisors to use, any of ${allVulnerabilityProvidersByName.keys}."
+    ).convert { name ->
+        allVulnerabilityProvidersByName[name]
+            ?: throw BadParameterValue(
+                "Advisor '$name' is not one of ${allVulnerabilityProvidersByName.keys}."
+            )
+    }.split(",").required()
 
     private val skipExcluded by option(
         "--skip-excluded",
         help = "Do not check excluded projects or packages."
     ).flag()
-
-    private fun configureAdvisor(advisorConfiguration: AdvisorConfiguration?): Advisor {
-        val config = when (advisorConfiguration) {
-            is NexusIqConfiguration -> advisorConfiguration
-            is VulnerableCodeConfiguration -> advisorConfiguration
-            null -> throw IllegalArgumentException(
-                "No advisor configuration found in ${ortConfigDirectory.resolve(ORT_CONFIG_FILENAME)}"
-            )
-        }
-
-        val advisor = advisorFactory.create(config)
-        println("Using advisor '${advisor.advisorName}'.")
-
-        return advisor
-    }
 
     override fun run() {
         val outputFiles = outputFormats.mapTo(mutableSetOf()) { format ->
@@ -119,17 +104,19 @@ class AdvisorCommand : CliktCommand(name = "advise", help = "Check dependencies 
             }
         }
 
-        val config = globalOptionsForSubcommands.config
-        val advisorConfig = config.advisor?.get(advisorFactory.advisorName.toLowerCase())
-        val advisor = configureAdvisor(advisorConfig)
+        val distinctProviders = providerFactories.distinct()
+        println("The following advisors are activated:")
+        println("\t" + distinctProviders.joinToString())
 
-        val ortResult = advisor.retrieveVulnerabilityInformation(input, skipExcluded).mergeLabels(labels)
+        val advisor = Advisor(distinctProviders, globalOptionsForSubcommands.config.advisor)
+
+        val ortResult = advisor.retrieveVulnerabilityInformation(ortFile, skipExcluded).mergeLabels(labels)
 
         outputDir.safeMkdirs()
 
         outputFiles.forEach { file ->
             println("Writing advisor result to '$file'.")
-            file.mapper().writerWithDefaultPrettyPrinter().writeValue(file, ortResult)
+            file.writeValue(ortResult)
         }
 
         val advisorResults = ortResult.advisor?.results

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Bosch.IO GmbH
+ * Copyright (C) 2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,14 +33,13 @@ import io.mockk.verify
 
 import java.time.Instant
 
+import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.Failure
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.LicenseFinding
 import org.ossreviewtoolkit.model.Package
-import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.ScanResult
-import org.ossreviewtoolkit.model.ScanResultContainer
 import org.ossreviewtoolkit.model.ScanSummary
 import org.ossreviewtoolkit.model.ScannerDetails
 import org.ossreviewtoolkit.model.Success
@@ -71,22 +71,22 @@ private fun storageMock(name: String): ScanResultsStorage {
 }
 
 /**
- * Generate a test [LicenseFinding] object based on the given [idx].
+ * Generate a test [LicenseFinding] object based on the given [index].
  */
-private fun licenseFinding(idx: Int): LicenseFinding =
-    LicenseFinding("testLicense$idx", TextLocation("file$idx", idx + 1, idx + 2))
+private fun licenseFinding(index: Int): LicenseFinding =
+    LicenseFinding("testLicense$index", TextLocation("file$index", index + 1, index + 2))
 
 /**
  * Create a [ScanResult] with [resultCount] findings.
  */
 private fun createScanResult(resultCount: Int): ScanResult {
-    val licenseFindings = (0 until resultCount).map { licenseFinding(it) }
+    val licenseFindings = List(resultCount) { licenseFinding(it) }
     val summary = ScanSummary(
         startTime = Instant.now(), endTime = Instant.now(), fileCount = resultCount,
         packageVerificationCode = "test$resultCount", licenseFindings = licenseFindings.toSortedSet(),
         copyrightFindings = sortedSetOf()
     )
-    val provenance = Provenance(sourceArtifact = RemoteArtifact.EMPTY)
+    val provenance = ArtifactProvenance(sourceArtifact = RemoteArtifact.EMPTY)
     val scanner = ScannerDetails("scanner$resultCount", "v$resultCount", "testConfig")
     return ScanResult(provenance, scanner, summary)
 }
@@ -109,23 +109,19 @@ class CompositeStorageTest : WordSpec({
             val storage = CompositeStorage(emptyList(), listOf(mockk()))
 
             when (val result = storage.read(ID)) {
-                is Success -> {
-                    result.result.id shouldBe ID
-                    result.result.results.isEmpty() shouldBe true
-                }
-
+                is Success -> result.result.isEmpty() shouldBe true
                 is Failure -> fail("Unexpected failure result: ${result.error}")
             }
         }
 
         "return the first non-empty, success result from a reader when asked for an identifier" {
-            val result = Success(ScanResultContainer(ID, listOf(createScanResult(1))))
+            val result = Success(listOf(createScanResult(1)))
             val readerErr = storageMock("r1")
             val readerEmptyContainer = storageMock("r2")
             val readerResult = storageMock("r3")
             val readerUnused = storageMock("r4")
             every { readerErr.read(ID) } returns Failure("an error")
-            every { readerEmptyContainer.read(ID) } returns Success(ScanResultContainer(ID, emptyList()))
+            every { readerEmptyContainer.read(ID) } returns Success(emptyList())
             every { readerResult.read(ID) } returns result
 
             val storage = CompositeStorage(
@@ -138,7 +134,7 @@ class CompositeStorageTest : WordSpec({
         }
 
         "detect a non-empty scan result even if the container contains empty results" {
-            val result = Success(ScanResultContainer(ID, listOf(createScanResult(0), createScanResult(1))))
+            val result = Success(listOf(createScanResult(0), createScanResult(1)))
             val reader = storageMock("reader")
             every { reader.read(ID) } returns result
 
@@ -152,23 +148,19 @@ class CompositeStorageTest : WordSpec({
             val storage = CompositeStorage(emptyList(), listOf(mockk()))
 
             when (val result = storage.read(PACKAGE, CRITERIA)) {
-                is Success -> {
-                    result.result.id shouldBe ID
-                    result.result.results.isEmpty() shouldBe true
-                }
-
+                is Success -> result.result.isEmpty() shouldBe true
                 is Failure -> fail("Unexpected failure result: ${result.error}")
             }
         }
 
         "return the first non-empty, success result from a reader when asked for a package" {
-            val result = Success(ScanResultContainer(ID, listOf(createScanResult(1))))
+            val result = Success(listOf(createScanResult(1)))
             val readerErr = storageMock("r1")
             val readerEmptyContainer = storageMock("r2")
             val readerResult = storageMock("r3")
             val readerUnused = storageMock("r4")
             every { readerErr.read(PACKAGE, CRITERIA) } returns Failure("an error")
-            every { readerEmptyContainer.read(PACKAGE, CRITERIA) } returns Success(ScanResultContainer(ID, emptyList()))
+            every { readerEmptyContainer.read(PACKAGE, CRITERIA) } returns Success(emptyList())
             every { readerResult.read(PACKAGE, CRITERIA) } returns result
 
             val storage = CompositeStorage(

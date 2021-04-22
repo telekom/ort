@@ -19,19 +19,17 @@
 
 package org.ossreviewtoolkit.model.config
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.annotation.JsonSubTypes
-import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 /**
  * The base configuration model of the advisor.
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.MINIMAL_CLASS)
-@JsonSubTypes(
-    JsonSubTypes.Type(NexusIqConfiguration::class),
-    JsonSubTypes.Type(VulnerableCodeConfiguration::class)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+data class AdvisorConfiguration(
+    val nexusIq: NexusIqConfiguration? = null,
+    val vulnerableCode: VulnerableCodeConfiguration? = null
 )
-sealed class AdvisorConfiguration
 
 /**
  * The configuration for Nexus IQ as a security vulnerability provider.
@@ -45,19 +43,22 @@ data class NexusIqConfiguration(
     /**
      * A URL to use as a base for browsing vulnerability details. Defaults to the server URL.
      */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     val browseUrl: String = serverUrl,
 
     /**
-     * Username of the provider. Used without authentication if no password or username is given.
+     * The username to use for authentication. If not both [username] and [password] are provided, authentication is
+     * disabled.
      */
     val username: String?,
 
     /**
-     * Password of the provider. Used without authentication if no password or username is given.
+     * The password to use for authentication. If not both [username] and [password] are provided, authentication is
+     * disabled.
      */
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     val password: String?
-) : AdvisorConfiguration()
+)
 
 /**
  * The configuration for VulnerableCode as security vulnerability provider.
@@ -69,4 +70,4 @@ data class VulnerableCodeConfiguration(
      * The base URL of the VulnerableCode REST API.
      */
     val serverUrl: String
-) : AdvisorConfiguration()
+)

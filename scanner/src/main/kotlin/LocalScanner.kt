@@ -36,22 +36,23 @@ import org.ossreviewtoolkit.downloader.Downloader
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.Failure
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.model.KnownProvenance
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Provenance
-import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.Repository
+import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.ScanRecord
 import org.ossreviewtoolkit.model.ScanResult
-import org.ossreviewtoolkit.model.ScanResultContainer
 import org.ossreviewtoolkit.model.ScanSummary
 import org.ossreviewtoolkit.model.ScannerDetails
 import org.ossreviewtoolkit.model.ScannerRun
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.Success
-import org.ossreviewtoolkit.model.VcsInfo
+import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsType
+import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.model.config.createFileArchiver
 import org.ossreviewtoolkit.model.createAndLogIssue
@@ -70,7 +71,11 @@ import org.ossreviewtoolkit.utils.showStackTrace
 /**
  * Abstraction for a [Scanner] that operates locally. Scan results can be stored in a [ScanResultsStorage].
  */
-abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanner(name, config), CommandLineTool {
+abstract class LocalScanner(
+    name: String,
+    scannerConfig: ScannerConfiguration,
+    downloaderConfig: DownloaderConfiguration
+) : Scanner(name, scannerConfig, downloaderConfig), CommandLineTool {
     companion object {
         /**
          * The number of threads to use for the storage dispatcher.
@@ -94,7 +99,7 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
     }
 
     private val archiver by lazy {
-        config.archive.createFileArchiver()
+        scannerConfig.archive.createFileArchiver()
     }
 
     /**
@@ -185,7 +190,7 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
      * `options.ScanCode.criteria.minScannerVersion=3.0.2`.
      */
     open fun getScannerCriteria(): ScannerCriteria {
-        val options = config.options?.get(scannerName).orEmpty()
+        val options = scannerConfig.options?.get(scannerName).orEmpty()
         val minVersion = parseVersion(options[PROP_CRITERIA_MIN_VERSION]) ?: Semver(normalizeVersion(expectedVersion))
         val maxVersion = parseVersion(options[PROP_CRITERIA_MAX_VERSION]) ?: minVersion.nextMinor()
         val name = options[PROP_CRITERIA_NAME] ?: scannerName
@@ -193,7 +198,7 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
     }
 
     override suspend fun scanPackages(
-        packages: List<Package>,
+        packages: Collection<Package>,
         outputDirectory: File,
         downloadDirectory: File
     ): Map<Package, List<ScanResult>> {
@@ -211,7 +216,7 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
 
         log.info { "Found stored scan results for ${resultsFromStorage.size} packages and $scannerCriteria." }
 
-        if (config.createMissingArchives) {
+        if (scannerConfig.createMissingArchives) {
             createMissingArchives(resultsFromStorage, downloadDirectory)
         }
 
@@ -224,7 +229,7 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
         return resultsFromStorage + resultsFromScanner
     }
 
-    private fun readResultsFromStorage(packages: List<Package>, scannerCriteria: ScannerCriteria) =
+    private fun readResultsFromStorage(packages: Collection<Package>, scannerCriteria: ScannerCriteria) =
         when (val results = ScanResultsStorage.storage.read(packages, scannerCriteria)) {
             is Success -> results.result
             is Failure -> emptyMap()
@@ -235,10 +240,13 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
                 // Due to a bug that has been fixed in d839f6e the scan results for packages were not properly filtered
                 // by VCS path. Filter them again to fix the problem.
                 // TODO: Remove this workaround together with the next change that requires recreating the scan storage.
-                scanResults.map { it.filterByVcsPath().filterByIgnorePatterns(config.ignorePatterns) }
+                scanResults.map { it.filterByVcsPath().filterByIgnorePatterns(scannerConfig.ignorePatterns) }
             }
 
-    private fun List<Package>.scan(outputDirectory: File, downloadDirectory: File): Map<Package, List<ScanResult>> {
+    private fun Collection<Package>.scan(
+        outputDirectory: File,
+        downloadDirectory: File
+    ): Map<Package, List<ScanResult>> {
         var index = 0
 
         return associateWith { pkg ->
@@ -274,7 +282,7 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
 
         val now = Instant.now()
         return ScanResult(
-            provenance = Provenance(),
+            provenance = UnknownProvenance,
             scanner = details,
             summary = ScanSummary(
                 startTime = now,
@@ -291,15 +299,17 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
     private fun createMissingArchives(scanResults: Map<Package, List<ScanResult>>, downloadDirectory: File) {
         scanResults.forEach { (pkg, results) ->
             val missingArchives = results.mapNotNullTo(mutableSetOf()) { result ->
-                result.provenance.takeUnless { archiver.hasArchive(result.provenance) }
+                result.provenance.takeUnless { it is KnownProvenance && archiver.hasArchive(it) }
             }
 
             if (missingArchives.isNotEmpty()) {
                 val pkgDownloadDirectory = downloadDirectory.resolve(pkg.id.toPath())
-                Downloader.download(pkg, pkgDownloadDirectory)
+                Downloader(downloaderConfig).download(pkg, pkgDownloadDirectory)
 
                 missingArchives.forEach { provenance ->
-                    archiveFiles(pkgDownloadDirectory, pkg.id, provenance)
+                    if (provenance is KnownProvenance) {
+                        archiveFiles(pkgDownloadDirectory, pkg.id, provenance)
+                    }
                 }
             }
         }
@@ -332,13 +342,13 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
         val pkgDownloadDirectory = downloadDirectory.resolve(pkg.id.toPath())
 
         val provenance = try {
-            Downloader.download(pkg, pkgDownloadDirectory)
+            Downloader(downloaderConfig).download(pkg, pkgDownloadDirectory)
         } catch (e: DownloadException) {
             e.showStackTrace()
 
             val now = Instant.now()
             return ScanResult(
-                Provenance(),
+                UnknownProvenance,
                 scannerDetails,
                 ScanSummary(
                     startTime = now,
@@ -361,10 +371,14 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
             "Running $scannerDetails on directory '${pkgDownloadDirectory.absolutePath}'."
         }
 
-        archiveFiles(pkgDownloadDirectory, pkg.id, provenance)
+        if (provenance is KnownProvenance) {
+            archiveFiles(pkgDownloadDirectory, pkg.id, provenance)
+        }
 
         val (scanSummary, scanDuration) = measureTimedValue {
-            val vcsPath = provenance.vcsInfo?.takeUnless { it.type == VcsType.GIT_REPO }?.path.orEmpty()
+            val vcsPath = (provenance as? RepositoryProvenance)?.vcsInfo?.takeUnless {
+                it.type == VcsType.GIT_REPO
+            }?.path.orEmpty()
             scanPathInternal(pkgDownloadDirectory, resultsFile).filterByPath(vcsPath)
         }
 
@@ -375,7 +389,7 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
 
         val scanResult = ScanResult(provenance, scannerDetails, scanSummary)
         val storageResult = ScanResultsStorage.storage.add(pkg.id, scanResult)
-        val filteredResult = scanResult.filterByIgnorePatterns(config.ignorePatterns)
+        val filteredResult = scanResult.filterByIgnorePatterns(scannerConfig.ignorePatterns)
 
         return when (storageResult) {
             is Success -> filteredResult
@@ -392,7 +406,7 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
         }
     }
 
-    private fun archiveFiles(directory: File, id: Identifier, provenance: Provenance) {
+    private fun archiveFiles(directory: File, id: Identifier, provenance: KnownProvenance) {
         log.info { "Archiving files for ${id.toCoordinates()}." }
 
         val duration = measureTime { archiver.archive(directory, provenance) }
@@ -438,7 +452,7 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
                 log.info {
                     "Detected licenses for path '$absoluteInputPath': ${it.licenses.joinToString()}"
                 }
-            }.filterByIgnorePatterns(config.ignorePatterns)
+            }.filterByIgnorePatterns(scannerConfig.ignorePatterns)
         } catch (e: ScanException) {
             e.showStackTrace()
 
@@ -465,12 +479,11 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
             inputPath.name.fileSystemEncode(), ""
         )
 
-        val scanResult = ScanResult(Provenance(), details, summary)
-        val scanResultContainer = ScanResultContainer(id, listOf(scanResult))
-        val scanRecord = ScanRecord(sortedSetOf(scanResultContainer), ScanResultsStorage.storage.stats)
+        val scanResult = ScanResult(UnknownProvenance, details, summary)
+        val scanRecord = ScanRecord(sortedMapOf(id to listOf(scanResult)), ScanResultsStorage.storage.stats)
 
         val endTime = Instant.now()
-        val scannerRun = ScannerRun(startTime, endTime, Environment(), config, scanRecord)
+        val scannerRun = ScannerRun(startTime, endTime, Environment(), scannerConfig, scanRecord)
 
         val repository = Repository(VersionControlSystem.getCloneInfo(inputPath))
         return OrtResult(repository, scanner = scannerRun)
@@ -514,12 +527,11 @@ abstract class LocalScanner(name: String, config: ScannerConfiguration) : Scanne
         // Use vcsInfo and sourceArtifact instead of provenance in order to ignore the download time and original VCS
         // info.
         data class Key(
-            val vcsInfo: VcsInfo?,
-            val sourceArtifact: RemoteArtifact?,
+            val provenance: Provenance?,
             val scannerDetails: ScannerDetails
         )
 
-        fun ScanResult.key() = Key(provenance.vcsInfo, provenance.sourceArtifact, scanner)
+        fun ScanResult.key() = Key(provenance, scanner)
 
         val deduplicatedResults = distinctBy { it.key() }
 

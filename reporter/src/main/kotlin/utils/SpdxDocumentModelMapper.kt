@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,14 @@
 package org.ossreviewtoolkit.reporter.utils
 
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
+import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtResult
+import org.ossreviewtoolkit.model.Package
+import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
@@ -36,6 +40,7 @@ import org.ossreviewtoolkit.spdx.SpdxLicense
 import org.ossreviewtoolkit.spdx.SpdxLicenseException
 import org.ossreviewtoolkit.spdx.model.SpdxCreationInfo
 import org.ossreviewtoolkit.spdx.model.SpdxDocument
+import org.ossreviewtoolkit.spdx.model.SpdxExternalReference
 import org.ossreviewtoolkit.spdx.model.SpdxExtractedLicenseInfo
 import org.ossreviewtoolkit.spdx.model.SpdxPackage
 import org.ossreviewtoolkit.spdx.model.SpdxPackageVerificationCode
@@ -85,6 +90,7 @@ object SpdxDocumentModelMapper {
                 spdxId = spdxPackageIdGenerator.nextId(pkg.id.name),
                 copyrightText = getSpdxCopyrightText(licenseInfoResolver, pkg.id),
                 downloadLocation = pkg.binaryArtifact.url.nullOrBlankToSpdxNone(),
+                externalRefs = pkg.toSpdxExternalReferences(),
                 filesAnalyzed = false,
                 homepage = pkg.homepageUrl.nullOrBlankToSpdxNone(),
                 licenseConcluded = pkg.concludedLicense.nullOrBlankToSpdxNoassertionOrNone(),
@@ -105,7 +111,7 @@ object SpdxDocumentModelMapper {
 
             if (pkg.vcsProcessed.url.isNotBlank()) {
                 val vcsScanResult =
-                    ortResult.getScanResultsForId(curatedPackage.pkg.id).find { it.provenance.vcsInfo != null }
+                    ortResult.getScanResultsForId(curatedPackage.pkg.id).find { it.provenance is RepositoryProvenance }
 
                 // TODO: The copyright text contains copyrights from all scan results.
                 val vcsPackage = binaryPackage.copy(
@@ -129,7 +135,7 @@ object SpdxDocumentModelMapper {
 
             if (pkg.sourceArtifact.url.isNotBlank()) {
                 val sourceArtifactScanResult =
-                    ortResult.getScanResultsForId(curatedPackage.pkg.id).find { it.provenance.sourceArtifact != null }
+                    ortResult.getScanResultsForId(curatedPackage.pkg.id).find { it.provenance is ArtifactProvenance }
 
                 // TODO: The copyright text contains copyrights from all scan results.
                 val sourceArtifactPackage = binaryPackage.copy(
@@ -156,7 +162,7 @@ object SpdxDocumentModelMapper {
             comment = params.documentComment,
             creationInfo = SpdxCreationInfo(
                 comment = params.creationInfoComment,
-                created = Instant.now(),
+                created = Instant.now().truncatedTo(ChronoUnit.SECONDS),
                 creators = listOf("${SpdxConstants.TOOL}$ORT_FULL_NAME - ${Environment().ortVersion}"),
                 licenseListVersion = SpdxLicense.LICENSE_LIST_VERSION.substringBefore("-")
             ),
@@ -196,6 +202,18 @@ private fun getSpdxCopyrightText(
 
 private fun Identifier.toSpdxPackageName(): String = "$type:$namespace:$name"
 
+private fun Package.toSpdxExternalReferences(): List<SpdxExternalReference> {
+    if (purl.isEmpty()) return emptyList()
+
+    val reference = SpdxExternalReference(
+        referenceCategory = SpdxExternalReference.Type.PURL.category,
+        referenceLocator = purl,
+        referenceType = SpdxExternalReference.Type.PURL.typeName
+    )
+
+    return listOf(reference)
+}
+
 private fun ProcessedDeclaredLicense.toSpdxDeclaredLicense(): String =
     when {
         unmapped.isEmpty() -> spdxExpression.nullOrBlankToSpdxNoassertionOrNone()
@@ -210,7 +228,7 @@ private fun String?.nullOrBlankToSpdxNone(): String = if (isNullOrBlank()) SpdxC
 private fun ScanResult.toSpdxPackageVerificationCode(): SpdxPackageVerificationCode =
     SpdxPackageVerificationCode(
         packageVerificationCodeExcludedFiles = emptyList(),
-        packageVerificationCodeValue = summary.packageVerificationCode.toLowerCase()
+        packageVerificationCodeValue = summary.packageVerificationCode
     )
 
 private fun SpdxDocument.addExtractedLicenseInfo(licenseTextProvider: LicenseTextProvider): SpdxDocument {

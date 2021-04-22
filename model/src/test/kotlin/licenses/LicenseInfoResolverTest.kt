@@ -32,7 +32,9 @@ import io.kotest.matchers.shouldBe
 
 import java.io.File
 import java.lang.IllegalArgumentException
+import java.util.SortedSet
 
+import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.CopyrightFinding
 import org.ossreviewtoolkit.model.Hash
 import org.ossreviewtoolkit.model.HashAlgorithm
@@ -41,6 +43,7 @@ import org.ossreviewtoolkit.model.LicenseFinding
 import org.ossreviewtoolkit.model.LicenseSource
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RemoteArtifact
+import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
@@ -50,6 +53,7 @@ import org.ossreviewtoolkit.model.config.LicenseFindingCuration
 import org.ossreviewtoolkit.model.config.LicenseFindingCurationReason
 import org.ossreviewtoolkit.model.config.PathExclude
 import org.ossreviewtoolkit.model.config.PathExcludeReason
+import org.ossreviewtoolkit.model.licenses.TestUtils.containLicensesExactly
 import org.ossreviewtoolkit.model.utils.FileArchiver
 import org.ossreviewtoolkit.spdx.SpdxExpression
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
@@ -63,7 +67,7 @@ class LicenseInfoResolverTest : WordSpec() {
     init {
         val pkgId = Identifier("Gradle:org.ossreviewtoolkit:ort:1.0.0")
         val vcsInfo = VcsInfo(VcsType.GIT, "https://github.com/oss-review-toolkit/ort.git", "master", "master")
-        val provenance = Provenance(vcsInfo = vcsInfo)
+        val provenance = RepositoryProvenance(vcsInfo = vcsInfo)
 
         "resolveLicenseInfo()" should {
             "resolve declared licenses" {
@@ -305,7 +309,7 @@ class LicenseInfoResolverTest : WordSpec() {
                     url = "http://example.com",
                     hash = Hash("", HashAlgorithm.NONE)
                 )
-                val sourceArtifactProvenance = Provenance(
+                val sourceArtifactProvenance = ArtifactProvenance(
                     sourceArtifact = sourceArtifact
                 )
                 val sourceArtifactPathExclude = PathExclude(
@@ -506,6 +510,27 @@ class LicenseInfoResolverTest : WordSpec() {
                 result should containNumberOfLocationsForLicense(gplLicense, 2)
                 result should containNumberOfLocationsForLicense(bsdLicense, 4)
             }
+
+            "resolve copyrights from authors" {
+                val licenseInfos = listOf(
+                    createLicenseInfo(
+                        id = pkgId,
+                        authors = authors,
+                        declaredLicenses = declaredLicenses
+                    )
+                )
+                val resolver = createResolver(licenseInfos)
+
+                val result = resolver.resolveLicenseInfo(pkgId)
+                result should containCopyrightStatementsForLicenseExactly(
+                    "LicenseRef-a",
+                    "Copyright (C) The Author", "Copyright (C) The Other Author"
+                )
+                result should containCopyrightStatementsForLicenseExactly(
+                    "LicenseRef-b",
+                    "Copyright (C) The Author", "Copyright (C) The Other Author"
+                )
+            }
         }
 
         "resolveLicenseFiles()" should {
@@ -580,6 +605,7 @@ class LicenseInfoResolverTest : WordSpec() {
 
     private fun createLicenseInfo(
         id: Identifier,
+        authors: SortedSet<String> = sortedSetOf(),
         declaredLicenses: Set<String> = emptySet(),
         detectedLicenses: List<Findings> = emptyList(),
         concludedLicense: SpdxExpression? = null
@@ -587,6 +613,7 @@ class LicenseInfoResolverTest : WordSpec() {
         LicenseInfo(
             id = id,
             declaredLicenseInfo = DeclaredLicenseInfo(
+                authors = authors,
                 licenses = declaredLicenses,
                 processed = DeclaredLicenseProcessor.process(declaredLicenses),
                 appliedCurations = emptyList()
@@ -736,19 +763,6 @@ fun containLicenseExpressionsExactlyBySource(
                     "contain exactly ${expectedExpressions.show().value}, but has ${actualExpressions.show().value}",
             "ResolvedLicenseInfo for original ${source.show().value} license expressions " +
                     "should not contain exactly ${expectedExpressions.show().value}"
-        )
-    }
-
-fun containLicensesExactly(vararg licenses: String): Matcher<Iterable<ResolvedLicense>?> =
-    neverNullMatcher { value ->
-        val expected = licenses.map { SpdxExpression.parse(it) as SpdxSingleLicenseExpression }.toSet()
-        val actual = value.map { it.license }.toSet()
-
-        MatcherResult(
-            expected == actual,
-            "ResolvedLicenseInfo should contain exactly licenses ${expected.show().value}, but has " +
-                    actual.show().value,
-            "ResolvedLicenseInfo should not contain exactly ${expected.show().value}"
         )
     }
 

@@ -150,13 +150,10 @@ class NuGetSupport(serviceIndexUrls: List<String> = listOf(DEFAULT_SERVICE_INDEX
         val lowerId = id.name.toLowerCase()
 
         val data = registrationsBaseUrls.asSequence().mapNotNull { baseUrl ->
-            try {
+            runCatching {
                 val dataUrl = "$baseUrl/$lowerId/${id.version}.json"
                 runBlocking { mapFromUrl<PackageData>(JSON_MAPPER, dataUrl) }
-            } catch (e: IOException) {
-                log.debug { "Failed to retrieve package from $baseUrl." }
-                null
-            }
+            }.getOrNull()
         }.firstOrNull()
             ?: throw IOException("Failed to retrieve package data for '$lowerId' from any of $registrationsBaseUrls.")
 
@@ -229,7 +226,7 @@ class NuGetSupport(serviceIndexUrls: List<String> = listOf(DEFAULT_SERVICE_INDEX
                             // Resolve to the lowest applicable version, see
                             // https://docs.microsoft.com/en-us/nuget/concepts/dependency-resolution#lowest-applicable-version.
                             val version = dependency.range.trim { it.isWhitespace() || it in VERSION_RANGE_CHARS }
-                                .split(",").first().trim()
+                                .split(',').first().trim()
 
                             // TODO: Add support resolving to the highest version for floating versions, see
                             //       https://docs.microsoft.com/en-us/nuget/concepts/dependency-resolution#floating-versions.

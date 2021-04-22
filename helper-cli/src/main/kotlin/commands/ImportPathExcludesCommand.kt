@@ -31,7 +31,7 @@ import org.ossreviewtoolkit.helper.common.importPathExcludes
 import org.ossreviewtoolkit.helper.common.mergePathExcludes
 import org.ossreviewtoolkit.helper.common.replacePathExcludes
 import org.ossreviewtoolkit.helper.common.sortPathExcludes
-import org.ossreviewtoolkit.helper.common.writeAsYaml
+import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.utils.expandTilde
@@ -40,7 +40,7 @@ internal class ImportPathExcludesCommand : CliktCommand(
     help = "Import path excludes by repository from a file into the given repository configuration."
 ) {
     private val pathExcludesFile by option(
-        "--path-excludes-file",
+        "--path-excludes-file", "-i",
         help = "The input path excludes file."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
@@ -88,6 +88,6 @@ internal class ImportPathExcludesCommand : CliktCommand(
         repositoryConfiguration
             .replacePathExcludes(pathExcludes)
             .sortPathExcludes()
-            .writeAsYaml(repositoryConfigurationFile)
+            .write(repositoryConfigurationFile)
     }
 }

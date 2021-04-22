@@ -35,7 +35,9 @@ import okio.sink
 
 import org.ossreviewtoolkit.model.ScanSummary
 import org.ossreviewtoolkit.model.ScannerDetails
+import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
+import org.ossreviewtoolkit.model.readJsonFile
 import org.ossreviewtoolkit.scanner.AbstractScannerFactory
 import org.ossreviewtoolkit.scanner.LocalScanner
 import org.ossreviewtoolkit.scanner.ScanException
@@ -61,10 +63,12 @@ import org.ossreviewtoolkit.utils.unpack
  */
 class ScanCode(
     name: String,
-    config: ScannerConfiguration
-) : LocalScanner(name, config) {
+    scannerConfig: ScannerConfiguration,
+    downloaderConfig: DownloaderConfiguration
+) : LocalScanner(name, scannerConfig, downloaderConfig) {
     class Factory : AbstractScannerFactory<ScanCode>(SCANNER_NAME) {
-        override fun create(config: ScannerConfiguration) = ScanCode(scannerName, config)
+        override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
+            ScanCode(scannerName, scannerConfig, downloaderConfig)
     }
 
     companion object {
@@ -110,11 +114,11 @@ class ScanCode(
 
     override val resultFileExt = "json"
 
-    private val scanCodeConfiguration = config.options?.get("ScanCode").orEmpty()
+    private val scanCodeConfiguration = scannerConfig.options?.get("ScanCode").orEmpty()
 
-    private val configurationOptions = scanCodeConfiguration["commandLine"]?.split(" ")
+    private val configurationOptions = scanCodeConfiguration["commandLine"]?.split(' ')
         ?: DEFAULT_CONFIGURATION_OPTIONS
-    private val nonConfigurationOptions = scanCodeConfiguration["commandLineNonConfig"]?.split(" ")
+    private val nonConfigurationOptions = scanCodeConfiguration["commandLineNonConfig"]?.split(' ')
         ?: DEFAULT_NON_CONFIGURATION_OPTIONS
 
     val commandLineOptions by lazy {
@@ -229,5 +233,5 @@ class ScanCode(
             }
         }
 
-    override fun getRawResult(resultsFile: File) = parseResultsFile(resultsFile)
+    override fun getRawResult(resultsFile: File) = readJsonFile(resultsFile)
 }

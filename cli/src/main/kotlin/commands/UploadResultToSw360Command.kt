@@ -44,6 +44,7 @@ import org.eclipse.sw360.http.HttpClientFactoryImpl
 import org.eclipse.sw360.http.config.HttpClientConfig
 
 import org.ossreviewtoolkit.GlobalOptions
+import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Project
@@ -81,7 +82,7 @@ class UploadResultToSw360Command : CliktCommand(
             "Read ORT result from '${ortFile.name}' (${ortFile.formatSizeInMib}) in ${duration.inMilliseconds}ms."
         }
 
-        val sw360Config = globalOptionsForSubcommands.config.scanner?.storages?.values
+        val sw360Config = globalOptionsForSubcommands.config.scanner.storages?.values
             ?.filterIsInstance<Sw360StorageConfiguration>()?.singleOrNull()
 
         requireNotNull(sw360Config) {
@@ -95,7 +96,7 @@ class UploadResultToSw360Command : CliktCommand(
 
         getProjectWithPackages(ortResult).forEach { (project, pkgList) ->
             val linkedReleases = pkgList.mapNotNull { pkg ->
-                val name = listOfNotNull(pkg.id.namespace, pkg.id.name).joinToString("/")
+                val name = createReleaseName(pkg.id)
                 sw360ReleaseClient.getSparseReleaseByNameAndVersion(name, pkg.id.version)
                     .flatMap { sw360ReleaseClient.enrichSparseRelease(it) }
                     .orElseGet { createSw360Release(pkg, sw360ReleaseClient) }
@@ -131,9 +132,19 @@ class UploadResultToSw360Command : CliktCommand(
     }
 
     private fun createSw360Release(pkg: Package, client: SW360ReleaseClientAdapter): SW360Release? {
+        // TODO: This omits operators and exceptions from licenses. We yet need to find a way to pass these to SW360.
+        val licenseShortNames = pkg.declaredLicensesProcessed.spdxExpression?.licenses().orEmpty().toSortedSet()
+
+        val unmappedLicenses = pkg.declaredLicensesProcessed.unmapped.toSortedSet()
+        if (unmappedLicenses.isNotEmpty()) {
+            log.warn {
+                "The following licenses could not be mapped in order to create a SW360 release: $unmappedLicenses"
+            }
+        }
+
         val sw360Release = SW360Release()
-            .setMainLicenseIds(pkg.declaredLicenses)
-            .setName(pkg.id.name)
+            .setMainLicenseIds(licenseShortNames)
+            .setName(createReleaseName(pkg.id))
             .setVersion(pkg.id.version)
 
         return try {
@@ -175,4 +186,7 @@ class UploadResultToSw360Command : CliktCommand(
             // Upload the uncurated packages because SW360 also is a package curation provider.
             project.collectDependencies().mapNotNull { ortResult.getUncuratedPackageById(it) }
         }
+
+    private fun createReleaseName(pkgId: Identifier) =
+        listOf(pkgId.namespace, pkgId.name).filter { it.isNotEmpty() }.joinToString("/")
 }

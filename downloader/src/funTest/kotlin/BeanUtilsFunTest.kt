@@ -22,9 +22,8 @@ package org.ossreviewtoolkit.downloader
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.core.test.TestCase
 import io.kotest.core.test.TestResult
-import io.kotest.matchers.nulls.beNull
-import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeTypeOf
 
 import java.io.File
 
@@ -33,11 +32,12 @@ import kotlin.io.path.createTempDirectory
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.RemoteArtifact
+import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
+import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.safeDeleteRecursively
-import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class BeanUtilsFunTest : StringSpec() {
     private lateinit var outputDir: File
@@ -73,17 +73,16 @@ class BeanUtilsFunTest : StringSpec() {
                 vcs = vcsFromCuration
             )
 
-            val provenance = Downloader.download(pkg, outputDir)
+            val provenance = Downloader(DownloaderConfiguration()).download(pkg, outputDir)
 
             outputDir.walk().onEnter { it.name != ".svn" }.count() shouldBe 302
-            provenance.sourceArtifact should beNull()
 
-            provenance.vcsInfo shouldNotBeNull {
-                type shouldBe VcsType.SUBVERSION
-                url shouldBe vcsFromCuration.url
-                revision shouldBe "928490"
-                resolvedRevision shouldBe "928490"
-                path shouldBe vcsFromCuration.path
+            provenance.shouldBeTypeOf<RepositoryProvenance>().apply {
+                vcsInfo.type shouldBe VcsType.SUBVERSION
+                vcsInfo.url shouldBe vcsFromCuration.url
+                vcsInfo.revision shouldBe "928490"
+                vcsInfo.resolvedRevision shouldBe "928490"
+                vcsInfo.path shouldBe vcsFromCuration.path
             }
         }
     }

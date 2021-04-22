@@ -21,8 +21,13 @@ package org.ossreviewtoolkit.reporter.utils
 
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.inspectors.forAll
+import io.kotest.matchers.collections.haveSize
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+
+import io.mockk.every
+import io.mockk.mockk
 
 import java.time.Instant
 
@@ -35,49 +40,52 @@ import org.ossreviewtoolkit.model.LicenseFinding
 import org.ossreviewtoolkit.model.LicenseSource
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Project
-import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.Repository
+import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.ScanRecord
 import org.ossreviewtoolkit.model.ScanResult
-import org.ossreviewtoolkit.model.ScanResultContainer
 import org.ossreviewtoolkit.model.ScanSummary
 import org.ossreviewtoolkit.model.ScannerDetails
 import org.ossreviewtoolkit.model.ScannerRun
 import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
+import org.ossreviewtoolkit.model.config.LicenseChoices
+import org.ossreviewtoolkit.model.config.PackageLicenseChoice
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.model.licenses.LicenseClassifications
+import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.licenses.ResolvedLicense
+import org.ossreviewtoolkit.model.licenses.ResolvedLicenseInfo
 import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
+import org.ossreviewtoolkit.reporter.ReporterInput
+import org.ossreviewtoolkit.spdx.SpdxConstants
+import org.ossreviewtoolkit.spdx.SpdxExpression
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
+import org.ossreviewtoolkit.spdx.model.LicenseChoice
 import org.ossreviewtoolkit.spdx.toSpdx
 import org.ossreviewtoolkit.utils.Environment
 import org.ossreviewtoolkit.utils.test.DEFAULT_ANALYZER_CONFIGURATION
 
-private fun scanResultContainer(
-    id: String,
+private fun scanResults(
     vcsInfo: VcsInfo,
     findingsPaths: Collection<String>
-): ScanResultContainer {
+): List<ScanResult> {
     val licenseFindings = findingsPaths.mapTo(sortedSetOf()) { LicenseFinding("MIT", TextLocation(it, 1)) }
     val copyrightFindings = findingsPaths.mapTo(sortedSetOf()) { CopyrightFinding("(c)", TextLocation(it, 1)) }
 
-    return ScanResultContainer(
-        id = Identifier(id),
-        results = listOf(
-            ScanResult(
-                provenance = Provenance(vcsInfo = vcsInfo),
-                scanner = ScannerDetails(name = "scanner", version = "1.0", configuration = ""),
-                summary = ScanSummary(
-                    startTime = Instant.EPOCH,
-                    endTime = Instant.EPOCH,
-                    fileCount = 0,
-                    packageVerificationCode = "",
-                    licenseFindings = licenseFindings,
-                    copyrightFindings = copyrightFindings,
-                )
+    return listOf(
+        ScanResult(
+            provenance = RepositoryProvenance(vcsInfo = vcsInfo),
+            scanner = ScannerDetails(name = "scanner", version = "1.0", configuration = ""),
+            summary = ScanSummary(
+                startTime = Instant.EPOCH,
+                endTime = Instant.EPOCH,
+                fileCount = 0,
+                packageVerificationCode = "",
+                licenseFindings = licenseFindings,
+                copyrightFindings = copyrightFindings,
             )
         )
     )
@@ -131,9 +139,8 @@ private val ORT_RESULT = OrtResult(
         environment = Environment(),
         config = ScannerConfiguration(),
         results = ScanRecord(
-            scanResults = sortedSetOf(
-                scanResultContainer(
-                    id = "NPM:@ort:project-in-root-dir:1.0",
+            scanResults = sortedMapOf(
+                Identifier("NPM:@ort:project-in-root-dir:1.0") to scanResults(
                     vcsInfo = PROJECT_VCS_INFO,
                     findingsPaths = listOf(
                         "src/main.js",
@@ -141,15 +148,13 @@ private val ORT_RESULT = OrtResult(
                         "nested-vcs-dir/src/main.cpp"
                     )
                 ),
-                scanResultContainer(
-                    id = "SpdxDocumentFile:@ort:project-in-sub-dir:1.0",
+                Identifier("SpdxDocumentFile:@ort:project-in-sub-dir:1.0") to scanResults(
                     vcsInfo = PROJECT_VCS_INFO,
                     findingsPaths = listOf(
                         "sub-dir/src/main.cpp"
                     )
                 ),
-                scanResultContainer(
-                    id = "SpdxDocumentFile:@ort:project-in-nested-vcs:1.0",
+                Identifier("SpdxDocumentFile:@ort:project-in-nested-vcs:1.0") to scanResults(
                     vcsInfo = NESTED_VCS_INFO,
                     findingsPaths = listOf(
                         "src/main.cpp"
@@ -160,6 +165,58 @@ private val ORT_RESULT = OrtResult(
         )
     )
 )
+
+/**
+ * Prepare the given [mock for a LicenseInfoResolver][resolverMock] to return a [ResolvedLicenseInfo] for the given
+ * [id]. The [ResolvedLicenseInfo] contains a single [ResolvedLicense], which is constructed based on the provided
+ * [license] and [originalExpressions] map.
+ */
+private fun expectResolveLicenseInfo(
+    resolverMock: LicenseInfoResolver,
+    id: Identifier,
+    license: String,
+    originalExpressions: Map<LicenseSource, Set<SpdxExpression>> = emptyMap()
+) {
+    val resolvedLicense = ResolvedLicense(
+        license = license.toSpdx() as SpdxSingleLicenseExpression,
+        originalDeclaredLicenses = emptySet(),
+        originalExpressions = originalExpressions,
+        locations = emptySet()
+    )
+
+    val info = ResolvedLicenseInfo(id, mockk(), listOf(resolvedLicense), emptyMap(), emptyMap())
+
+    every { resolverMock.resolveLicenseInfo(id) } returns info
+}
+
+/**
+ * Like [expectResolveLicenseInfo] with multiple licenses that have same originalExpression.
+ */
+private fun expectResolveLicenseInfo(
+    resolverMock: LicenseInfoResolver,
+    id: Identifier,
+    licenses: List<String>,
+    originalExpressions: Pair<LicenseSource, Set<SpdxExpression>>
+) {
+    val resolvedLicenses = licenses.map { license ->
+        ResolvedLicense(
+            license = license.toSpdx() as SpdxSingleLicenseExpression,
+            originalDeclaredLicenses = emptySet(),
+            originalExpressions = mapOf(originalExpressions),
+            locations = emptySet()
+        )
+    }
+
+    val info = ResolvedLicenseInfo(id, mockk(), resolvedLicenses, emptyMap(), emptyMap())
+
+    every { resolverMock.resolveLicenseInfo(id) } returns info
+}
+
+/**
+ * Return a list with the projects contained in the test result. The set of projects from the result is converted to
+ * a list, so that single projects can be accessed by index.
+ */
+private fun testProjects() = ORT_RESULT.getProjects().toList()
 
 class FreeMarkerTemplateProcessorTest : WordSpec({
     "deduplicateProjectScanResults" should {
@@ -191,34 +248,157 @@ class FreeMarkerTemplateProcessorTest : WordSpec({
         }
     }
 
-    "mergeResolvedLicenses" should {
-        "merge the original expressions by license sources" {
-            val resolvedLicenses = listOf(
-                ResolvedLicense(
-                    license = "MIT".toSpdx() as SpdxSingleLicenseExpression,
-                    originalDeclaredLicenses = emptySet(),
-                    originalExpressions = mapOf(LicenseSource.DECLARED to setOf("MIT".toSpdx())),
-                    locations = emptySet()
-                ),
-                ResolvedLicense(
-                    license = "MIT".toSpdx() as SpdxSingleLicenseExpression,
-                    originalDeclaredLicenses = emptySet(),
-                    originalExpressions = mapOf(LicenseSource.DECLARED to setOf("GPL-2.0-only OR MIT".toSpdx())),
-                    locations = emptySet()
-                )
+    "mergeLicenses" should {
+        "merge the expressions from packages by license sources" {
+            val projects = testProjects()
+            val resolver = mockk<LicenseInfoResolver>()
+
+            expectResolveLicenseInfo(
+                resolver,
+                projects[0].id,
+                "MIT",
+                mapOf(LicenseSource.DECLARED to setOf("MIT".toSpdx()))
             )
+            expectResolveLicenseInfo(
+                resolver,
+                projects[1].id,
+                "MIT",
+                mapOf(LicenseSource.DECLARED to setOf("GPL-2.0-only OR MIT".toSpdx()))
+            )
+            expectResolveLicenseInfo(
+                resolver,
+                projects[2].id,
+                SpdxConstants.NOASSERTION,
+                mapOf(LicenseSource.DECLARED to setOf(SpdxConstants.NOASSERTION.toSpdx()))
+            )
+
+            val input = ReporterInput(ORT_RESULT, licenseInfoResolver = resolver)
+            val pkg1 = FreemarkerTemplateProcessor.PackageModel(projects[0].id, input)
+            val pkg2 = FreemarkerTemplateProcessor.PackageModel(projects[1].id, input)
+            val pkg3 = FreemarkerTemplateProcessor.PackageModel(projects[2].id, input)
 
             val result = FreemarkerTemplateProcessor.TemplateHelper(
                 OrtResult.EMPTY,
                 LicenseClassifications(),
                 DefaultResolutionProvider()
-            ).mergeResolvedLicenses(resolvedLicenses)
+            ).mergeLicenses(listOf(pkg1, pkg2, pkg3))
 
+            result should haveSize(2)
             with(result[0]) {
+                license.toString() shouldBe "MIT"
                 originalExpressions[LicenseSource.DECLARED] shouldBe setOf(
                     "MIT".toSpdx(),
                     "GPL-2.0-only OR MIT".toSpdx()
                 )
+            }
+
+            result[1].license.toString() shouldBe SpdxConstants.NOASSERTION
+        }
+
+        "filter licenses of excluded packages" {
+            val projects = testProjects()
+            val resolver = mockk<LicenseInfoResolver>()
+
+            expectResolveLicenseInfo(
+                resolver,
+                projects[0].id,
+                "MIT",
+                mapOf(LicenseSource.DECLARED to setOf("MIT".toSpdx()))
+            )
+
+            val mockResult = mockk<OrtResult>()
+            every { mockResult.isExcluded(any()) } returns false
+            every { mockResult.isExcluded(projects[1].id) } returns true
+            every { mockResult.getPackageLicenseChoices(projects[0].id) } returns emptyList()
+            every { mockResult.getPackageLicenseChoices(projects[1].id) } returns emptyList()
+            every { mockResult.getRepositoryLicenseChoices() } returns emptyList()
+            val input = ReporterInput(mockResult, licenseInfoResolver = resolver)
+            val pkg1 = FreemarkerTemplateProcessor.PackageModel(projects[0].id, input)
+            val pkg2 = FreemarkerTemplateProcessor.PackageModel(projects[1].id, input)
+
+            val result = FreemarkerTemplateProcessor.TemplateHelper(
+                OrtResult.EMPTY,
+                LicenseClassifications(),
+                DefaultResolutionProvider()
+            ).mergeLicenses(listOf(pkg1, pkg2))
+
+            result should haveSize(1)
+            result.first().license.toString() shouldBe "MIT"
+        }
+
+        "filter NO_ASSERTION licenses" {
+            val projects = testProjects()
+            val resolver = mockk<LicenseInfoResolver>()
+
+            expectResolveLicenseInfo(
+                resolver,
+                projects[0].id,
+                "MIT",
+                mapOf(LicenseSource.DECLARED to setOf("MIT".toSpdx()))
+            )
+            expectResolveLicenseInfo(
+                resolver,
+                projects[1].id,
+                SpdxConstants.NOASSERTION,
+                mapOf(LicenseSource.DECLARED to setOf(SpdxConstants.NOASSERTION.toSpdx()))
+            )
+
+            val input = ReporterInput(ORT_RESULT, licenseInfoResolver = resolver)
+            val pkg1 = FreemarkerTemplateProcessor.PackageModel(projects[0].id, input)
+            val pkg2 = FreemarkerTemplateProcessor.PackageModel(projects[1].id, input)
+
+            val result = FreemarkerTemplateProcessor.TemplateHelper(
+                OrtResult.EMPTY,
+                LicenseClassifications(),
+                DefaultResolutionProvider()
+            ).mergeLicenses(listOf(pkg1, pkg2), omitNotPresent = true)
+
+            result should haveSize(1)
+            result.first().license.toString() shouldBe "MIT"
+        }
+
+        "apply license choices" {
+            val projects = testProjects()
+            val resolver = mockk<LicenseInfoResolver>()
+
+            expectResolveLicenseInfo(
+                resolver,
+                projects[1].id,
+                listOf("MIT", "GPL-2.0-only", "Apache-2.0"),
+                LicenseSource.DECLARED to setOf("GPL-2.0-only OR MIT OR Apache-2.0".toSpdx())
+            )
+
+            val ortResult = ORT_RESULT.copy(
+                repository = ORT_RESULT.repository.copy(
+                    config = RepositoryConfiguration(
+                        licenseChoices = LicenseChoices(
+                            repositoryLicenseChoices = listOf(
+                                LicenseChoice("GPL-2.0-only OR MIT".toSpdx(), "MIT".toSpdx())
+                            ),
+                            packageLicenseChoices = listOf(
+                                PackageLicenseChoice(
+                                    projects[1].id,
+                                    listOf(LicenseChoice("MIT OR Apache-2.0".toSpdx(), "MIT".toSpdx()))
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+
+            val input = ReporterInput(ortResult, licenseInfoResolver = resolver)
+            val pkg = FreemarkerTemplateProcessor.PackageModel(projects[1].id, input)
+
+            val result = FreemarkerTemplateProcessor.TemplateHelper(
+                OrtResult.EMPTY,
+                LicenseClassifications(),
+                DefaultResolutionProvider()
+            ).mergeLicenses(listOf(pkg))
+
+            result should haveSize(1)
+            with(result[0]) {
+                license.toString() shouldBe "MIT"
+                originalExpressions[LicenseSource.DECLARED] shouldBe setOf("GPL-2.0-only OR MIT OR Apache-2.0".toSpdx())
             }
         }
     }

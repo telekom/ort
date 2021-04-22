@@ -31,7 +31,7 @@ import org.ossreviewtoolkit.helper.common.replaceIssueResolutions
 import org.ossreviewtoolkit.helper.common.replacePathExcludes
 import org.ossreviewtoolkit.helper.common.replaceRuleViolationResolutions
 import org.ossreviewtoolkit.helper.common.replaceScopeExcludes
-import org.ossreviewtoolkit.helper.common.writeAsYaml
+import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.Resolutions
@@ -43,8 +43,8 @@ internal class RemoveConfigurationEntriesCommand : CliktCommand(
     help = "Removes all non-matching path and scope excludes as well as rule violation resolutions. The output is " +
             "written to the given repository configuration file."
 ) {
-    private val ortResultFile by option(
-        "--ort-result-file",
+    private val ortFile by option(
+        "--ort-file", "-i",
         help = "The ORT result file to read as input which should contain an evaluator result."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
@@ -79,7 +79,7 @@ internal class RemoveConfigurationEntriesCommand : CliktCommand(
 
     override fun run() {
         val repositoryConfiguration = repositoryConfigurationFile.readValue<RepositoryConfiguration>()
-        val ortResult = ortResultFile.readValue<OrtResult>().replaceConfig(repositoryConfiguration)
+        val ortResult = ortFile.readValue<OrtResult>().replaceConfig(repositoryConfiguration)
 
         val pathExcludes = findFilesRecursive(sourceCodeDir).let { allFiles ->
             ortResult.getExcludes().paths.filter { pathExclude ->
@@ -99,9 +99,7 @@ internal class RemoveConfigurationEntriesCommand : CliktCommand(
         }
 
         val resolutionProvider = DefaultResolutionProvider().apply {
-            resolutionsFile?.expandTilde()?.readValue<Resolutions>()?.let {
-                add(it)
-            }
+            resolutionsFile?.readValue<Resolutions>()?.let { add(it) }
         }
         val notGloballyResolvedIssues = ortResult.collectIssues().values.flatten().filter {
             resolutionProvider.getIssueResolutionsFor(it).isEmpty()
@@ -115,7 +113,7 @@ internal class RemoveConfigurationEntriesCommand : CliktCommand(
             .replaceScopeExcludes(scopeExcludes)
             .replaceIssueResolutions(issueResolutions)
             .replaceRuleViolationResolutions(ruleViolationResolutions)
-            .writeAsYaml(repositoryConfigurationFile)
+            .write(repositoryConfigurationFile)
 
         buildString {
             val removedPathExcludes = repositoryConfiguration.excludes.paths.size - pathExcludes.size

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import okio.sink
 import org.ossreviewtoolkit.analyzer.Analyzer
 import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.downloader.Downloader
+import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.OrtResult
@@ -52,6 +53,7 @@ import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.CopyrightGarbage
 import org.ossreviewtoolkit.model.config.Curations
+import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.Excludes
 import org.ossreviewtoolkit.model.config.IssueResolution
 import org.ossreviewtoolkit.model.config.LicenseFindingCuration
@@ -61,19 +63,19 @@ import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.Resolutions
 import org.ossreviewtoolkit.model.config.RuleViolationResolution
 import org.ossreviewtoolkit.model.config.ScopeExclude
+import org.ossreviewtoolkit.model.config.VulnerabilityResolution
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.utils.FindingCurationMatcher
 import org.ossreviewtoolkit.model.utils.PackageConfigurationProvider
 import org.ossreviewtoolkit.model.utils.SimplePackageConfigurationProvider
 import org.ossreviewtoolkit.model.utils.createLicenseInfoResolver
-import org.ossreviewtoolkit.model.yamlMapper
+import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.spdx.SpdxExpression
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
 import org.ossreviewtoolkit.utils.CopyrightStatementsProcessor
 import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.OkHttpClientHelper
 import org.ossreviewtoolkit.utils.isSymbolicLink
-import org.ossreviewtoolkit.utils.safeMkdirs
 import org.ossreviewtoolkit.utils.stripCredentialsFromUrl
 import org.ossreviewtoolkit.utils.withoutPrefix
 
@@ -134,19 +136,26 @@ internal fun findFilesRecursive(directory: File): List<String> {
 internal fun findRepositoryPaths(directory: File): Map<String, Set<String>> {
     require(directory.isDirectory)
 
-    val analyzer = Analyzer(AnalyzerConfiguration(ignoreToolVersions = true, allowDynamicVersions = true))
-    val ortResult = analyzer.analyze(
-        absoluteProjectPath = directory,
-        packageManagers = emptyList()
-    )
-
     val result = mutableMapOf<String, MutableSet<String>>()
 
-    ortResult.repository.nestedRepositories.forEach { (path, vcs) ->
+    findRepositories(directory).forEach { (path, vcs) ->
         result.getOrPut(vcs.url.stripCredentialsFromUrl()) { mutableSetOf() } += path
     }
 
     return result
+}
+
+/**
+ * Search the given [directory] for repositories and return a mapping from paths where each respective repository was
+ * found to the corresponding [VcsInfo].
+ */
+internal fun findRepositories(directory: File): Map<String, VcsInfo> {
+    require(directory.isDirectory)
+
+    val analyzer = Analyzer(AnalyzerConfiguration(ignoreToolVersions = true, allowDynamicVersions = true))
+    val ortResult = analyzer.analyze(absoluteProjectPath = directory, packageManagers = emptyList())
+
+    return ortResult.repository.nestedRepositories
 }
 
 /**
@@ -193,14 +202,14 @@ internal fun OrtResult.fetchScannedSources(id: Identifier): File {
     val tempDir = createTempDirectory(Paths.get("."), ORTH_NAME).toFile()
 
     val pkg = getPackageOrProject(id)!!.let {
-        if (getProvenance(id)!!.sourceArtifact != null) {
+        if (getProvenance(id) is ArtifactProvenance) {
             it.copy(vcs = VcsInfo.EMPTY, vcsProcessed = VcsInfo.EMPTY)
         } else {
             it.copy(sourceArtifact = RemoteArtifact.EMPTY)
         }
     }
 
-    Downloader.download(pkg, tempDir)
+    Downloader(DownloaderConfiguration()).download(pkg, tempDir)
 
     return tempDir
 }
@@ -308,29 +317,27 @@ internal fun OrtResult.getLicenseFindingsById(
             packageConfigurationProvider.getPackageConfiguration(id, provenance)?.licenseFindingCurations.orEmpty()
         }
 
-    scanner?.results?.scanResults.orEmpty().filter { it.id == id }.forEach { scanResultContainer ->
-        scanResultContainer.results.forEach { scanResult ->
-            val findingsForProvenance = result.getOrPut(scanResult.provenance) { mutableMapOf() }
+    scanner?.results?.scanResults?.get(id)?.forEach { scanResult ->
+        val findingsForProvenance = result.getOrPut(scanResult.provenance) { mutableMapOf() }
 
-            scanResult.summary.licenseFindings.let { findings ->
-                if (applyCurations) {
-                    FindingCurationMatcher().applyAll(findings, getLicenseFindingsCurations(scanResult.provenance))
-                        .mapNotNullTo(mutableSetOf()) { it.curatedFinding }
-                } else {
-                    findings
+        scanResult.summary.licenseFindings.let { findings ->
+            if (applyCurations) {
+                FindingCurationMatcher().applyAll(findings, getLicenseFindingsCurations(scanResult.provenance))
+                    .mapNotNullTo(mutableSetOf()) { it.curatedFinding }
+            } else {
+                findings
+            }
+        }.let { findings ->
+            if (decomposeLicenseExpressions) {
+                findings.flatMap { finding ->
+                    finding.license.decompose().map { finding.copy(license = it) }
                 }
-            }.let { findings ->
-                if (decomposeLicenseExpressions) {
-                    findings.flatMap { finding ->
-                        finding.license.decompose().map { finding.copy(license = it) }
-                    }
-                } else {
-                    findings
-                }
-            }.forEach { finding ->
-                finding.license.decompose().forEach {
-                    findingsForProvenance.getOrPut(it) { mutableSetOf() } += finding.location
-                }
+            } else {
+                findings
+            }
+        }.forEach { finding ->
+            finding.license.decompose().forEach {
+                findingsForProvenance.getOrPut(it) { mutableSetOf() } += finding.location
             }
         }
     }
@@ -339,13 +346,15 @@ internal fun OrtResult.getLicenseFindingsById(
 }
 
 /**
- * Return all license finding curations from this [OrtResult] represented as [RepositoryPathExcludes].
+ * Return all license finding curations from [curations] represented as [RepositoryLicenseFindingCurations].
  */
-internal fun OrtResult.getRepositoryLicenseFindingCurations(): RepositoryLicenseFindingCurations {
+internal fun getLicenseFindingCurationsByRepository(
+    curations: Collection<LicenseFindingCuration>,
+    nestedRepositories: Map<String, VcsInfo>
+): RepositoryLicenseFindingCurations {
     val result = mutableMapOf<String, MutableList<LicenseFindingCuration>>()
-    val curations = repository.config.curations.licenseFindings
 
-    repository.nestedRepositories.forEach { (path, vcs) ->
+    nestedRepositories.forEach { (path, vcs) ->
         val pathExcludesForRepository = result.getOrPut(vcs.url) { mutableListOf() }
         curations.forEach { curation ->
             curation.path.withoutPrefix("$path/")?.let {
@@ -382,8 +391,8 @@ internal fun OrtResult.getPackageOrProject(id: Identifier): Package? =
 internal fun OrtResult.getProvenance(id: Identifier): Provenance? {
     val pkg = getPackageOrProject(id)!!
 
-    scanner?.results?.scanResults?.forEach { container ->
-        container.results.forEach { scanResult ->
+    scanner?.results?.scanResults?.forEach { (_, results) ->
+        results.forEach { scanResult ->
             if (scanResult.provenance.matches(pkg)) {
                 return scanResult.provenance
             }
@@ -400,9 +409,9 @@ internal fun OrtResult.getProvenance(id: Identifier): Provenance? {
 fun OrtResult.getScanIssues(omitExcluded: Boolean = false): List<OrtIssue> {
     val result = mutableListOf<OrtIssue>()
 
-    scanner?.results?.scanResults?.forEach { container ->
-        if (!omitExcluded || !isExcluded(container.id)) {
-            container.results.forEach { scanResult ->
+    scanner?.results?.scanResults?.forEach { (id, results) ->
+        if (!omitExcluded || !isExcluded(id)) {
+            results.forEach { scanResult ->
                 result += scanResult.summary.issues
             }
         }
@@ -421,12 +430,23 @@ internal fun OrtResult.getRepositoryPathExcludes(): RepositoryPathExcludes {
         }
     }
 
-    val result = mutableMapOf<String, MutableList<PathExclude>>()
-    val pathExcludes = repository.config.excludes.paths
+    val pathExcludes = repository.config.excludes.paths.filterNot { isDefinitionsFile(it) }
 
-    repository.nestedRepositories.forEach { (path, vcs) ->
+    return getPathExcludesByRepository(pathExcludes, repository.nestedRepositories)
+}
+
+/**
+ * Return all path excludes from [pathExcludes] represented as [RepositoryPathExcludes].
+ */
+internal fun getPathExcludesByRepository(
+    pathExcludes: Collection<PathExclude>,
+    nestedRepositories: Map<String, VcsInfo>
+): RepositoryPathExcludes {
+    val result = mutableMapOf<String, MutableList<PathExclude>>()
+
+    nestedRepositories.forEach { (path, vcs) ->
         val pathExcludesForRepository = result.getOrPut(vcs.url) { mutableListOf() }
-        pathExcludes.filterNot { isDefinitionsFile(it) }.forEach { pathExclude ->
+        pathExcludes.forEach { pathExclude ->
             pathExclude.pattern.withoutPrefix("$path/")?.let {
                 pathExcludesForRepository += pathExclude.copy(pattern = it)
             }
@@ -537,11 +557,10 @@ internal fun RepositoryConfiguration.sortScopeExcludes(): RepositoryConfiguratio
     )
 
 /**
- * Serialize a [RepositoryConfiguration] as YAML to the given target [File].
+ * Serialize a [RepositoryConfiguration] to the given [targetFile].
  */
-internal fun RepositoryConfiguration.writeAsYaml(targetFile: File) {
-    targetFile.absoluteFile.parentFile.safeMkdirs()
-    yamlMapper.writeValue(targetFile, this)
+internal fun RepositoryConfiguration.write(targetFile: File) {
+    targetFile.writeValue(this)
 }
 
 /**
@@ -554,16 +573,16 @@ internal fun RepositoryLicenseFindingCurations.mergeLicenseFindingCurations(
     other: RepositoryLicenseFindingCurations,
     updateOnlyExisting: Boolean = false
 ): RepositoryLicenseFindingCurations {
-    val result: MutableMap<String, MutableMap<LicenseFindingCurationHashKey, LicenseFindingCuration>> = mutableMapOf()
+    val result: MutableMap<String, MutableMap<LicenseFindingCurationKey, LicenseFindingCuration>> = mutableMapOf()
 
     fun merge(repositoryUrl: String, curation: LicenseFindingCuration, updateOnlyUpdateExisting: Boolean = false) {
         if (updateOnlyUpdateExisting && !result.containsKey(repositoryUrl)) {
             return
         }
 
-        val curations = result.getOrPut(repositoryUrl, { mutableMapOf() })
+        val curations = result.getOrPut(repositoryUrl) { mutableMapOf() }
 
-        val key = curation.hashKey()
+        val key = curation.key()
         if (updateOnlyUpdateExisting && !curations.containsKey(key)) {
             return
         }
@@ -589,6 +608,18 @@ internal fun RepositoryLicenseFindingCurations.mergeLicenseFindingCurations(
 }
 
 /**
+ * Serialize these [RepositoryLicenseFindingCurations] to the given [targetFile].
+ */
+@JvmName("writeRepositoryLicenseFindingCurations")
+internal fun RepositoryLicenseFindingCurations.write(targetFile: File) {
+    targetFile.writeValue(
+        mapValues { (_, curations) ->
+            curations.sortedBy { it.path.removePrefix("*").removePrefix("*") }
+        }.toSortedMap()
+    )
+}
+
+/**
  * Merge the given [RepositoryPathExcludes] replacing entries with equal [PathExclude.pattern].
  * If the given [updateOnlyExisting] is true then only entries with matching [PathExclude.pattern] are merged.
  */
@@ -603,7 +634,7 @@ internal fun RepositoryPathExcludes.mergePathExcludes(
             return
         }
 
-        val pathExcludes = result.getOrPut(repositoryUrl, { mutableMapOf() })
+        val pathExcludes = result.getOrPut(repositoryUrl) { mutableMapOf() }
         if (updateOnlyUpdateExisting && !result.containsKey(pathExclude.pattern)) {
             return
         }
@@ -626,6 +657,18 @@ internal fun RepositoryPathExcludes.mergePathExcludes(
     return result.mapValues { (_, pathExcludes) ->
         pathExcludes.values.toList()
     }
+}
+
+/**
+ * Serialize these [RepositoryPathExcludes] to the given [targetFile].
+ */
+@JvmName("writeRepositoryPathExcludes")
+internal fun RepositoryPathExcludes.write(targetFile: File) {
+    targetFile.writeValue(
+        mapValues { (_, pathExcludes) ->
+            pathExcludes.sortedBy { it.pattern }
+        }.toSortedMap()
+    )
 }
 
 /**
@@ -652,13 +695,13 @@ internal fun Collection<LicenseFindingCuration>.mergeLicenseFindingCurations(
     other: Collection<LicenseFindingCuration>,
     updateOnlyExisting: Boolean = false
 ): List<LicenseFindingCuration> {
-    val result = mutableMapOf<LicenseFindingCurationHashKey, LicenseFindingCuration>()
+    val result = mutableMapOf<LicenseFindingCurationKey, LicenseFindingCuration>()
 
-    associateByTo(result) { it.hashKey() }
+    associateByTo(result) { it.key() }
 
     other.forEach {
-        if (!updateOnlyExisting || result.containsKey(it.hashKey())) {
-            result[it.hashKey()] = it
+        if (!updateOnlyExisting || result.containsKey(it.key())) {
+            result[it.key()] = it
         }
     }
 
@@ -673,16 +716,19 @@ internal fun Collection<LicenseFindingCuration>.sortLicenseFindingCurations(): L
         curation.path.removePrefix("*").removePrefix("*")
     }
 
-private data class LicenseFindingCurationHashKey(
+/**
+ * This class holds the matcher attributes of a corresponding [LicenseFindingCuration]. It is supposed to be used by the
+ * import and export commands to determine whether an existing entry shall be replaced by a new entry.
+ */
+private data class LicenseFindingCurationKey(
     val path: String,
     val startLines: List<Int> = emptyList(),
     val lineCount: Int? = null,
-    val detectedLicense: SpdxExpression?,
-    val concludedLicense: SpdxExpression
+    val detectedLicense: SpdxExpression?
 )
 
-private fun LicenseFindingCuration.hashKey() =
-    LicenseFindingCurationHashKey(path, startLines, lineCount, detectedLicense, concludedLicense)
+private fun LicenseFindingCuration.key() =
+    LicenseFindingCurationKey(path, startLines, lineCount, detectedLicense)
 
 /**
  * Merge the given [PathExclude]s replacing entries with equal [PathExclude.pattern].
@@ -740,6 +786,20 @@ internal fun Collection<RuleViolationResolution>.mergeRuleViolationResolutions(
 }
 
 /**
+ * Merge the given [VulnerabilityResolution]s replacing entries with equal [VulnerabilityResolution.id].
+ */
+internal fun Collection<VulnerabilityResolution>.mergeVulnerabilityResolutions(
+    other: Collection<VulnerabilityResolution>
+): List<VulnerabilityResolution> {
+    val result = mutableMapOf<String, VulnerabilityResolution>()
+
+    associateByTo(result) { it.id }
+    other.associateByTo(result) { it.id }
+
+    return result.values.toList()
+}
+
+/**
  * Merge the given [RepositoryConfiguration] replacing entries with equal matchers.
  */
 internal fun RepositoryConfiguration.merge(
@@ -755,16 +815,18 @@ internal fun RepositoryConfiguration.merge(
         ),
         resolutions = Resolutions(
             issues = resolutions.issues.mergeIssueResolutions(other.resolutions.issues),
-            ruleViolations = resolutions.ruleViolations.mergeRuleViolationResolutions(other.resolutions.ruleViolations)
+            ruleViolations = resolutions.ruleViolations.mergeRuleViolationResolutions(other.resolutions.ruleViolations),
+            vulnerabilities = resolutions.vulnerabilities.mergeVulnerabilityResolutions(
+                other.resolutions.vulnerabilities
+            )
         )
     )
 
 /**
- * Serialize a [PackageConfiguration] as YAML to the given target [File].
+ * Serialize a [PackageConfiguration] to the given [targetFile].
  */
-internal fun PackageConfiguration.writeAsYaml(targetFile: File) {
-    targetFile.absoluteFile.parentFile.safeMkdirs()
-    yamlMapper.writeValue(targetFile, this)
+internal fun PackageConfiguration.write(targetFile: File) {
+    targetFile.writeValue(this)
 }
 
 internal fun importPathExcludes(sourceCodeDir: File, pathExcludesFile: File): List<PathExclude> {

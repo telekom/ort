@@ -30,6 +30,7 @@ val hamcrestCoreVersion: String by project
 val jacksonVersion: String by project
 val kotlinxCoroutinesVersion: String by project
 val kotlinxHtmlVersion: String by project
+val mockkVersion: String by project
 val retrofitVersion: String by project
 val simpleExcelVersion: String by project
 val xalanVersion: String by project
@@ -94,6 +95,8 @@ dependencies {
     // the HTML generated in StaticHtmlReporter is slightly different with different Java versions.
     implementation("xalan:xalan:$xalanVersion")
 
+    testImplementation("io.mockk:mockk:$mockkVersion")
+    
     // for OSCake-Reporter
     implementation("com.sksamuel.hoplite:hoplite-core:$hopliteVersion")
     implementation("com.sksamuel.hoplite:hoplite-hocon:$hopliteVersion")

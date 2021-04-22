@@ -27,13 +27,9 @@ import com.vdurmont.semver4j.Requirement
 import java.io.File
 import java.io.IOException
 import java.lang.IllegalArgumentException
-import java.lang.NumberFormatException
-import java.net.HttpURLConnection
 import java.util.SortedSet
 
 import kotlin.io.path.createTempDirectory
-
-import okhttp3.Request
 
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
@@ -56,13 +52,11 @@ import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.OkHttpClientHelper
 import org.ossreviewtoolkit.utils.Os
 import org.ossreviewtoolkit.utils.ProcessCapture
-import org.ossreviewtoolkit.utils.collectMessagesAsString
 import org.ossreviewtoolkit.utils.getPathFromEnvironment
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.normalizeLineBreaks
 import org.ossreviewtoolkit.utils.resolveWindowsExecutable
 import org.ossreviewtoolkit.utils.safeDeleteRecursively
-import org.ossreviewtoolkit.utils.showStackTrace
 import org.ossreviewtoolkit.utils.textValueOrEmpty
 
 // The lowest version that supports "--prefer-binary".
@@ -191,13 +185,7 @@ class Pip(
          * Return a version string with leading zeros of components stripped.
          */
         private fun stripLeadingZerosFromVersion(version: String) =
-            version.split(".").joinToString(".") {
-                try {
-                    it.toInt().toString()
-                } catch (e: NumberFormatException) {
-                    it
-                }
-            }
+            version.split('.').joinToString(".") { it.trimStart('0').ifEmpty { "0" } }
     }
 
     override fun command(workingDir: File?) = "pip"
@@ -589,63 +577,37 @@ class Pip(
 
     private fun getPackageFromPyPi(id: Identifier): Package {
         // See https://wiki.python.org/moin/PyPIJSON.
-        val pkgRequest = Request.Builder()
-            .get()
-            .url("https://pypi.org/pypi/${id.name}/${id.version}/json")
-            .build()
+        val url = "https://pypi.org/pypi/${id.name}/${id.version}/json"
 
-        OkHttpClientHelper.execute(pkgRequest).use { response ->
-            val body = response.body?.string()?.trim()
+        return OkHttpClientHelper.downloadText(url).mapCatching {
+            val pkgData = jsonMapper.readTree(it)
 
-            if (response.code != HttpURLConnection.HTTP_OK || body.isNullOrEmpty()) {
-                log.warn { "Unable to retrieve PyPI meta-data for package '${id.toCoordinates()}'." }
-                if (body != null) {
-                    log.warn { "The response was '$body' (code ${response.code})." }
+            val pkgInfo = pkgData["info"]
+
+            val pkgRelease = pkgData["releases"]?.let { pkgReleases ->
+                val pkgVersion = pkgReleases.fieldNames().asSequence().find { version ->
+                    stripLeadingZerosFromVersion(version) == id.version
                 }
 
-                return@use
-            }
+                pkgReleases[pkgVersion]
+            } as? ArrayNode
 
-            val pkgData = try {
-                jsonMapper.readTree(body)!!
-            } catch (e: IOException) {
-                e.showStackTrace()
+            val homepageUrl = pkgInfo["home_page"]?.textValue().orEmpty()
 
-                log.warn {
-                    "Unable to parse PyPI meta-data for package '${id.toCoordinates()}': ${e.collectMessagesAsString()}"
-                }
-
-                return@use
-            }
-
-            pkgData["info"]?.let { pkgInfo ->
-                val pkgRelease = pkgData["releases"]?.let { pkgReleases ->
-                    val pkgVersion = pkgReleases.fieldNames().asSequence().find {
-                        stripLeadingZerosFromVersion(it) == id.version
-                    }
-
-                    pkgReleases[pkgVersion]
-                } as? ArrayNode
-
-                val homepageUrl = pkgInfo["home_page"]?.textValue().orEmpty()
-
-                return Package(
-                    id = id,
-                    homepageUrl = homepageUrl,
-                    description = pkgInfo["summary"]?.textValue().orEmpty(),
-                    authors = parseAuthors(pkgInfo),
-                    declaredLicenses = getDeclaredLicenses(pkgInfo),
-                    binaryArtifact = getBinaryArtifact(pkgRelease),
-                    sourceArtifact = getSourceArtifact(pkgRelease),
-                    vcs = VcsInfo.EMPTY,
-                    vcsProcessed = processPackageVcs(VcsInfo.EMPTY, homepageUrl)
-                )
-            }
-
-            log.warn { "PyPI meta-data for package '${id.toCoordinates()}' does not provide any information." }
-        }
-
-        return Package.EMPTY.copy(id = id)
+            Package(
+                id = id,
+                homepageUrl = homepageUrl,
+                description = pkgInfo["summary"]?.textValue().orEmpty(),
+                authors = parseAuthors(pkgInfo),
+                declaredLicenses = getDeclaredLicenses(pkgInfo),
+                binaryArtifact = getBinaryArtifact(pkgRelease),
+                sourceArtifact = getSourceArtifact(pkgRelease),
+                vcs = VcsInfo.EMPTY,
+                vcsProcessed = processPackageVcs(VcsInfo.EMPTY, homepageUrl)
+            )
+        }.onFailure {
+            log.warn { "Unable to retrieve PyPI meta-data for package '${id.toCoordinates()}'." }
+        }.getOrDefault(Package.EMPTY.copy(id = id))
     }
 
     private fun getInstalledPackagesWithLocalMetaData(
@@ -699,7 +661,7 @@ class Pip(
                 val value = line.substring(index + 1, line.length).trim()
 
                 if (value.isNotEmpty()) {
-                    map.getOrPut(key, { mutableListOf() }) += value
+                    map.getOrPut(key) { mutableListOf() } += value
                 }
 
                 previousKey = key
@@ -707,7 +669,7 @@ class Pip(
             }
 
             previousKey?.let {
-                map.getOrPut(it, { mutableListOf() }) += line.trim()
+                map.getOrPut(it) { mutableListOf() } += line.trim()
             }
         }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,17 +24,21 @@ import freemarker.template.Configuration
 import freemarker.template.TemplateExceptionHandler
 
 import java.io.File
-import java.util.SortedSet
+import java.util.SortedMap
 
 import kotlin.reflect.full.memberProperties
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.LicenseSource
+import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.OrtResult
-import org.ossreviewtoolkit.model.ScanResultContainer
+import org.ossreviewtoolkit.model.RepositoryProvenance
+import org.ossreviewtoolkit.model.RuleViolation
+import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
+import org.ossreviewtoolkit.model.Vulnerability
 import org.ossreviewtoolkit.model.licenses.DefaultLicenseInfoProvider
 import org.ossreviewtoolkit.model.licenses.LicenseClassifications
 import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
@@ -46,7 +50,9 @@ import org.ossreviewtoolkit.model.licenses.filterExcluded
 import org.ossreviewtoolkit.model.utils.ResolutionProvider
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
+import org.ossreviewtoolkit.spdx.SpdxConstants
 import org.ossreviewtoolkit.spdx.SpdxExpression
+import org.ossreviewtoolkit.spdx.model.LicenseChoice
 import org.ossreviewtoolkit.utils.expandTilde
 import org.ossreviewtoolkit.utils.log
 
@@ -72,7 +78,7 @@ class FreemarkerTemplateProcessor(
      * generated files.
      */
     fun processTemplates(input: ReporterInput, outputDir: File, options: Map<String, String>): List<File> {
-        val projectTypesAsPackages = options[OPTION_PROJECT_TYPES_AS_PACKAGES]?.split(",").orEmpty().toSet()
+        val projectTypesAsPackages = options[OPTION_PROJECT_TYPES_AS_PACKAGES]?.split(',').orEmpty().toSet()
         val projectsAsPackages = input.ortResult.getProjects().map { it.id }.filterTo(mutableSetOf()) {
             it.type in projectTypesAsPackages
         }
@@ -131,8 +137,8 @@ class FreemarkerTemplateProcessor(
             wrapUncheckedExceptions = true
         }
 
-        val templatePaths = options[OPTION_TEMPLATE_PATH]?.split(",").orEmpty()
-        val templateIds = options[OPTION_TEMPLATE_ID]?.split(",").orEmpty()
+        val templatePaths = options[OPTION_TEMPLATE_PATH]?.split(',').orEmpty()
+        val templateIds = options[OPTION_TEMPLATE_ID]?.split(',').orEmpty()
 
         val templateFiles = templatePaths.map { path ->
             File(path).expandTilde().also {
@@ -192,6 +198,16 @@ class FreemarkerTemplateProcessor(
         }
 
         /**
+         * The license choices that apply to this package.
+         */
+        val licenseChoices: List<LicenseChoice> by lazy {
+            listOf(
+                input.ortResult.getPackageLicenseChoices(id),
+                input.ortResult.getRepositoryLicenseChoices()
+            ).flatten()
+        }
+
+        /**
          * The resolved license file information for the package.
          */
         val licenseFiles: ResolvedLicenseFileInfo by lazy { input.licenseInfoResolver.resolveLicenseFiles(id) }
@@ -202,9 +218,12 @@ class FreemarkerTemplateProcessor(
          * file and all licenses not contained in those files shall be listed separately.
          */
         @Suppress("UNUSED") // This function is used in the templates.
-        fun licensesNotInLicenseFiles(): List<ResolvedLicense> {
+        @JvmOverloads
+        fun licensesNotInLicenseFiles(
+            resolvedLicenses: List<ResolvedLicense> = license.licenses
+        ): List<ResolvedLicense> {
             val outputFileLicenses = licenseFiles.files.flatMap { it.licenses }
-            return license.filter { it !in outputFileLicenses }
+            return resolvedLicenses.filter { it !in outputFileLicenses }
         }
     }
 
@@ -246,20 +265,28 @@ class FreemarkerTemplateProcessor(
                 .get(LicenseView.Companion) as LicenseView
 
         /**
-         * Merge the [ResolvedLicense]s of multiple [models] and filter them using [licenseView]. [Omits][omitExcluded]
-         * excluded packages, licenses, and copyrights by default. The returned list is sorted by license identifier.
+         * Merge the [ResolvedLicense]s of multiple [models] and filter them using [licenseView] and
+         * [PackageModel.licenseChoices]. [Omits][omitExcluded] excluded packages, licenses, and copyrights by default.
+         * [Undefined][omitNotPresent] licenses can be filtered out optionally. [LicenseChoices][skipLicenseChoices] are
+         * applied by default. The returned list is sorted by license identifier.
          */
         @JvmOverloads
-        @Suppress("UNUSED") // This function is used in the templates.
         fun mergeLicenses(
             models: Collection<PackageModel>,
             licenseView: LicenseView = LicenseView.ALL,
-            omitExcluded: Boolean = true
+            omitNotPresent: Boolean = false,
+            omitExcluded: Boolean = true,
+            skipLicenseChoices: Boolean = false
         ): List<ResolvedLicense> =
             mergeResolvedLicenses(
-                models.filter { !omitExcluded || !it.excluded }.flatMap {
-                    val licenses = it.license.filter(licenseView).licenses
-                    if (omitExcluded) licenses.filterExcluded() else licenses
+                models.filter { !omitExcluded || !it.excluded }.flatMap { model ->
+                    val chosenResolvedLicenseInfo = if (skipLicenseChoices) model.license else licenseView.filter(
+                        model.license,
+                        model.licenseChoices
+                    )
+                    val licenses = chosenResolvedLicenseInfo.filter(licenseView).licenses
+                    val filteredLicenses = if (omitExcluded) licenses.filterExcluded() else licenses
+                    if (omitNotPresent) filteredLicenses.filter(::isLicensePresent) else filteredLicenses
                 }
             )
 
@@ -267,20 +294,42 @@ class FreemarkerTemplateProcessor(
          * Return a list of [ResolvedLicense]s where all duplicate entries for a single license in [licenses] are
          * merged. The returned list is sorted by license identifier.
          */
-        @Suppress("UNUSED") // This function is used in the templates.
+        // This function is used in the templates and needs to be public.
         fun mergeResolvedLicenses(licenses: List<ResolvedLicense>): List<ResolvedLicense> =
             licenses.groupBy { it.license }
                 .map { (_, licenses) -> licenses.merge() }
                 .sortedBy { it.license.toString() }
 
         /**
-         * Return `true` if there are any unresolved issues, or `false` otherwise.
+         * Return true if and only if the given [license] is not one of the special cases _NONE_ or _NOASSERTION_.
+         */
+        @Suppress("WEAKER_ACCESS") // This function is used in the templates.
+        fun isLicensePresent(license: ResolvedLicense): Boolean = SpdxConstants.isPresent(license.license.toString())
+
+        /**
+         * Return `true` if there are any unresolved [OrtIssue]s, or `false` otherwise.
          */
         @Suppress("UNUSED") // This function is used in the templates.
         fun hasUnresolvedIssues() =
             ortResult.collectIssues().values.flatten().any { issue ->
                 resolutionProvider.getIssueResolutionsFor(issue).isEmpty()
             }
+
+        /**
+         * Return `true` if there are any unresolved [RuleViolation]s, or `false` otherwise.
+         */
+        @Suppress("UNUSED") // This function is used in the templates.
+        fun hasUnresolvedRuleViolations() =
+            ortResult.evaluator?.violations?.any { violation ->
+                resolutionProvider.getRuleViolationResolutionsFor(violation).isEmpty()
+            } ?: false
+
+        /**
+         * Return a list of [Vulnerability]s for which there is no [VulnerabilityResolution] is provided.
+         */
+        @Suppress("UNUSED") // This function is used in the templates.
+        fun filterForUnresolvedVulnerabilities(vulnerabilities: List<Vulnerability>): List<Vulnerability> =
+                vulnerabilities.filter { resolutionProvider.getVulnerabilityResolutionsFor(it).isEmpty() }
     }
 }
 
@@ -315,8 +364,9 @@ internal fun OrtResult.deduplicateProjectScanResults(targetProjects: Set<Identif
         val repositoryPath = getRepositoryPath(getProject(id)!!.vcsProcessed)
 
         getScanResultsForId(id).forEach { scanResult ->
-            val vcsPath = scanResult.provenance.vcsInfo?.path.orEmpty()
-            val isGitRepo = scanResult.provenance.vcsInfo?.type == VcsType.GIT_REPO
+            val vcsInfo = (scanResult.provenance as? RepositoryProvenance)?.vcsInfo
+            val vcsPath = vcsInfo?.path.orEmpty()
+            val isGitRepo = vcsInfo?.type == VcsType.GIT_REPO
 
             val findingPaths = with(scanResult.summary) {
                 copyrightFindings.mapTo(mutableSetOf()) { it.location.path } + licenseFindings.map { it.location.path }
@@ -328,13 +378,13 @@ internal fun OrtResult.deduplicateProjectScanResults(targetProjects: Set<Identif
 
     val projectsToFilter = getProjects().mapTo(mutableSetOf()) { it.id } - targetProjects
 
-    val containers = scanner?.results?.scanResults?.mapTo(sortedSetOf()) { container ->
-        if (container.id !in projectsToFilter) {
-            container
+    val scanResults = scanner?.results?.scanResults?.mapValuesTo(sortedMapOf()) { (id, results) ->
+        if (id !in projectsToFilter) {
+            results
         } else {
-            val scanResults = container.results.map { scanResult ->
+            results.map { scanResult ->
                 val summary = scanResult.summary
-                val repositoryPath = getRepositoryPath(scanResult.provenance.vcsInfo!!)
+                val repositoryPath = getRepositoryPath((scanResult.provenance as RepositoryProvenance).vcsInfo)
                 fun TextLocation.isExcluded() = "$repositoryPath$path" !in excludePaths
 
                 val copyrightFindings = summary.copyrightFindings.filterTo(sortedSetOf()) { it.location.isExcluded() }
@@ -347,12 +397,10 @@ internal fun OrtResult.deduplicateProjectScanResults(targetProjects: Set<Identif
                     )
                 )
             }
-
-            container.copy(results = scanResults)
         }
-    } ?: sortedSetOf()
+    } ?: sortedMapOf()
 
-    return replaceScanResults(containers)
+    return replaceScanResults(scanResults)
 }
 
 /**
@@ -373,7 +421,7 @@ private fun OrtResult.getRepositoryPath(vcsInfo: VcsInfo): String {
 /**
  * Return a copy of this [OrtResult] with the scan results replaced by the given [scanResults].
  */
-private fun OrtResult.replaceScanResults(scanResults: SortedSet<ScanResultContainer>): OrtResult =
+private fun OrtResult.replaceScanResults(scanResults: SortedMap<Identifier, List<ScanResult>>): OrtResult =
     copy(
         scanner = scanner?.copy(
             results = scanner!!.results.copy(

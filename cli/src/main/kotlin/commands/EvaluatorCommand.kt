@@ -45,7 +45,6 @@ import org.ossreviewtoolkit.GroupTypes.StringType
 import org.ossreviewtoolkit.evaluator.Evaluator
 import org.ossreviewtoolkit.model.FileFormat
 import org.ossreviewtoolkit.model.OrtResult
-import org.ossreviewtoolkit.model.RuleViolation
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.config.CopyrightGarbage
 import org.ossreviewtoolkit.model.config.LicenseFilenamePatterns
@@ -55,9 +54,9 @@ import org.ossreviewtoolkit.model.licenses.DefaultLicenseInfoProvider
 import org.ossreviewtoolkit.model.licenses.LicenseClassifications
 import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.licenses.orEmpty
-import org.ossreviewtoolkit.model.mapper
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.utils.mergeLabels
+import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.utils.ORT_COPYRIGHT_GARBAGE_FILENAME
 import org.ossreviewtoolkit.utils.ORT_LICENSE_CLASSIFICATIONS_FILENAME
 import org.ossreviewtoolkit.utils.ORT_REPO_CONFIG_FILENAME
@@ -258,7 +257,7 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
         val licenseInfoResolver = LicenseInfoResolver(
             provider = DefaultLicenseInfoProvider(finalOrtResult, packageConfigurationProvider),
             copyrightGarbage = copyrightGarbage,
-            archiver = globalOptionsForSubcommands.config.scanner?.archive.createFileArchiver(),
+            archiver = globalOptionsForSubcommands.config.scanner.archive.createFileArchiver(),
             licenseFilenamePatterns = LicenseFilenamePatterns.getInstance()
         )
 
@@ -276,8 +275,6 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
             }
         }
 
-        printSummary(evaluatorRun.violations)
-
         outputDir?.let { absoluteOutputDir ->
             // Note: This overwrites any existing EvaluatorRun from the input file.
             val ortResultOutput = finalOrtResult.copy(evaluator = evaluatorRun).mergeLabels(labels)
@@ -287,7 +284,7 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
             outputFiles.forEach { file ->
                 println("Writing evaluation result to '$file'.")
                 val writeDuration = measureTime {
-                    file.mapper().writerWithDefaultPrettyPrinter().writeValue(file, ortResultOutput)
+                    file.writeValue(ortResultOutput)
                 }
 
                 log.perf {
@@ -296,19 +293,17 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
             }
         }
 
-        if (evaluatorRun.violations.isNotEmpty()) {
-            println("Rule violations found.")
-            throw ProgramResult(2)
-        }
-    }
-
-    private fun printSummary(errors: List<RuleViolation>) {
-        val counts = errors.groupingBy { it.severity }.eachCount()
+        val counts = evaluatorRun.violations.groupingBy { it.severity }.eachCount()
 
         val errorCount = counts[Severity.ERROR] ?: 0
         val warningCount = counts[Severity.WARNING] ?: 0
         val hintCount = counts[Severity.HINT] ?: 0
 
-        println("Found $errorCount errors, $warningCount warnings, $hintCount hints.")
+        if (errorCount > 0 || warningCount > 0) {
+            println("Found $errorCount errors, $warningCount warnings, $hintCount hints.")
+            throw ProgramResult(2)
+        }
+
+        println("Found $hintCount hints only.")
     }
 }

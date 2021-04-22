@@ -27,11 +27,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import com.vdurmont.semver4j.Requirement
 
 import java.io.File
-import java.net.HttpURLConnection
 import java.net.URLEncoder
 import java.util.SortedSet
-
-import okhttp3.Request
 
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
@@ -51,12 +48,14 @@ import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.ProjectAnalyzerResult
 import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.Scope
+import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.jsonMapper
+import org.ossreviewtoolkit.model.readJsonFile
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.spdx.SpdxConstants
 import org.ossreviewtoolkit.utils.CommandLineTool
@@ -219,12 +218,12 @@ open class Npm(
 
         nodeModulesDir.walk().filter {
             it.name == "package.json" && isValidNodeModulesDirectory(nodeModulesDir, nodeModulesDirForPackageJson(it))
-        }.forEach {
-            val packageDir = it.parentFile
+        }.forEach { file ->
+            val packageDir = file.parentFile
 
             log.debug { "Found a 'package.json' file in '$packageDir'." }
 
-            val json = it.readValue<ObjectNode>()
+            val json = file.readValue<ObjectNode>()
             val rawName = json["name"].textValue()
             val (namespace, name) = splitNamespaceAndName(rawName)
             val version = json["version"].textValue()
@@ -264,50 +263,33 @@ open class Npm(
             } else {
                 log.debug { "Resolving the package info for '$identifier' via NPM registry." }
 
-                val pkgRequest = Request.Builder()
-                    .get()
-                    .url("$npmRegistry/$encodedName")
-                    .build()
+                OkHttpClientHelper.downloadText("$npmRegistry/$encodedName").onSuccess {
+                    val packageInfo = jsonMapper.readTree(it)
 
-                OkHttpClientHelper.execute(pkgRequest).use { response ->
-                    if (response.code == HttpURLConnection.HTTP_OK) {
-                        log.debug {
-                            if (response.cacheResponse != null) {
-                                "Retrieved info about '$encodedName' from local cache."
-                            } else {
-                                "Downloaded info about '$encodedName' from NPM registry."
-                            }
-                        }
+                    packageInfo["versions"]?.get(version)?.let { versionInfo ->
+                        description = versionInfo["description"].textValueOrEmpty()
+                        homepageUrl = versionInfo["homepage"].textValueOrEmpty()
 
-                        response.body?.let { body ->
-                            val packageInfo = jsonMapper.readTree(body.string())
-
-                            packageInfo["versions"]?.get(version)?.let { versionInfo ->
-                                description = versionInfo["description"].textValueOrEmpty()
-                                homepageUrl = versionInfo["homepage"].textValueOrEmpty()
-
-                                versionInfo["dist"]?.let { dist ->
-                                    downloadUrl = dist["tarball"].textValueOrEmpty().let { tarballUrl ->
-                                        if (tarballUrl.startsWith("http://registry.npmjs.org/")) {
-                                            // Work around the issue described at
-                                            // https://npm.community/t/some-packages-have-dist-tarball-as-http-and-not-https/285/19.
-                                            "https://" + tarballUrl.removePrefix("http://")
-                                        } else {
-                                            tarballUrl
-                                        }
-                                    }
-
-                                    hash = Hash.create(dist["shasum"].textValueOrEmpty())
+                        versionInfo["dist"]?.let { dist ->
+                            downloadUrl = dist["tarball"].textValueOrEmpty().let { tarballUrl ->
+                                if (tarballUrl.startsWith("http://registry.npmjs.org/")) {
+                                    // Work around the issue described at
+                                    // https://npm.community/t/some-packages-have-dist-tarball-as-http-and-not-https/285/19.
+                                    "https://" + tarballUrl.removePrefix("http://")
+                                } else {
+                                    tarballUrl
                                 }
-
-                                vcsFromPackage = parseVcsInfo(versionInfo)
                             }
+
+                            hash = Hash.create(dist["shasum"].textValueOrEmpty())
                         }
-                    } else {
-                        log.info {
-                            "Could not retrieve package information for '$encodedName' " +
-                                    "from NPM registry $npmRegistry: ${response.message} (code ${response.code})."
-                        }
+
+                        vcsFromPackage = parseVcsInfo(versionInfo)
+                    }
+                }.onFailure {
+                    log.info {
+                        "Could not retrieve package information for '$encodedName' from NPM registry $npmRegistry: " +
+                                it.message
                     }
                 }
             }
@@ -397,8 +379,10 @@ open class Npm(
             source = managerName,
             message = "Package '$moduleName' was not installed, because the package file could not be found " +
                     "anywhere in '$rootModuleDir'. This might be fine if the module was not installed because it is " +
-                    "specific to a different platform."
+                    "specific to a different platform.",
+            severity = Severity.WARNING
         )
+
         val (namespace, name) = splitNamespaceAndName(moduleName)
 
         return PackageReference(
@@ -489,7 +473,7 @@ open class Npm(
 
     private fun getModuleInfo(moduleDir: File, scopes: Set<String>): ModuleInfo {
         val packageJsonFile = moduleDir.resolve("package.json")
-        val json = jsonMapper.readTree(packageJsonFile)
+        val json = readJsonFile(packageJsonFile)
 
         val name = json["name"].textValueOrEmpty()
         if (name.isBlank()) {

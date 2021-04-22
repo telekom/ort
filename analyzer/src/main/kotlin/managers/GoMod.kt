@@ -228,12 +228,12 @@ class GoMod(
 
     private fun getGoProxy(): String {
         val firstProxy = Os.env["GOPROXY"].orEmpty()
-            .split(",")
+            .split(',')
             .filterNot { it == "direct" || it == "off" }
             .firstOrNull()
             .orEmpty()
 
-        return if (firstProxy.isNotBlank()) firstProxy else DEFAULT_GO_PROXY
+        return firstProxy.ifBlank { DEFAULT_GO_PROXY }
     }
 }
 
@@ -254,7 +254,7 @@ private fun Collection<Edge>.toPackageReferenceForest(
     )
 
     val nodes = mutableMapOf<Identifier, Node>()
-    fun addNode(id: Identifier): Node? = if (!ignoreNode(id)) nodes.getOrPut(id, { Node(id) }) else null
+    fun addNode(id: Identifier): Node? = if (!ignoreNode(id)) nodes.getOrPut(id) { Node(id) } else null
 
     forEach { edge ->
         val source = addNode(edge.source)

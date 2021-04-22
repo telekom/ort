@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,28 +31,30 @@ import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.PackageLinkage
 import org.ossreviewtoolkit.model.Project
-import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.Repository
 import org.ossreviewtoolkit.model.ScanRecord
 import org.ossreviewtoolkit.model.ScanResult
-import org.ossreviewtoolkit.model.ScanResultContainer
 import org.ossreviewtoolkit.model.ScanSummary
 import org.ossreviewtoolkit.model.ScannerDetails
 import org.ossreviewtoolkit.model.ScannerRun
 import org.ossreviewtoolkit.model.Scope
 import org.ossreviewtoolkit.model.TextLocation
+import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.Excludes
+import org.ossreviewtoolkit.model.config.LicenseChoices
+import org.ossreviewtoolkit.model.config.PackageLicenseChoice
 import org.ossreviewtoolkit.model.config.PathExclude
 import org.ossreviewtoolkit.model.config.PathExcludeReason
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
+import org.ossreviewtoolkit.spdx.model.LicenseChoice
 import org.ossreviewtoolkit.spdx.toSpdx
 import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
 import org.ossreviewtoolkit.utils.Environment
 
-val concludedLicense = "LicenseRef-a AND LicenseRef-b".toSpdx()
+val concludedLicense = "LicenseRef-a OR LicenseRef-b OR LicenseRef-c or LicenseRef-d".toSpdx()
 val declaredLicenses = sortedSetOf("Apache-2.0", "MIT")
 val declaredLicensesProcessed = DeclaredLicenseProcessor.process(declaredLicenses)
 
@@ -84,8 +86,8 @@ val packageWithOnlyDeclaredLicense = Package.EMPTY.copy(
 )
 
 val packageWithOnlyDetectedLicense = Package.EMPTY.copy(
-    id = Identifier("Maven:org.ossreviewtoolkit:package-with-only-detected-license:1.0"),
-    concludedLicense = concludedLicense
+    id = Identifier("Maven:org.ossreviewtoolkit:package-with-only-detected-license:1.0")
+    // Detected license for this package is added in the ortResult.
 )
 
 val packageWithConcludedAndDeclaredLicense = Package.EMPTY.copy(
@@ -163,6 +165,22 @@ val ortResult = OrtResult(
                         comment = "excluded"
                     )
                 )
+            ),
+            licenseChoices = LicenseChoices(
+                repositoryLicenseChoices = listOf(
+                    // This license choice will not be applied to "only-concluded-license" since the package license
+                    // choice takes precedence.
+                    LicenseChoice("LicenseRef-a OR LicenseRef-b".toSpdx(), "LicenseRef-b".toSpdx()),
+                    LicenseChoice("LicenseRef-c OR LicenseRef-d".toSpdx(), "LicenseRef-d".toSpdx())
+                ),
+                packageLicenseChoices = listOf(
+                    PackageLicenseChoice(
+                        packageId = Identifier("Maven:org.ossreviewtoolkit:package-with-only-concluded-license:1.0"),
+                        licenseChoices = listOf(
+                            LicenseChoice("LicenseRef-a OR LicenseRef-b".toSpdx(), "LicenseRef-a".toSpdx())
+                        )
+                    )
+                )
             )
         )
     ),
@@ -181,24 +199,21 @@ val ortResult = OrtResult(
         environment = Environment(),
         config = ScannerConfiguration(),
         results = ScanRecord(
-            scanResults = sortedSetOf(
-                ScanResultContainer(
-                    id = Identifier("Maven:org.ossreviewtoolkit:package-with-only-detected-license:1.0"),
-                    results = listOf(
-                        ScanResult(
-                            provenance = Provenance(),
-                            scanner = ScannerDetails.EMPTY,
-                            summary = ScanSummary(
-                                startTime = Instant.EPOCH,
-                                endTime = Instant.EPOCH,
-                                fileCount = 1,
-                                packageVerificationCode = "",
-                                licenseFindings = sortedSetOf(
-                                    LicenseFinding("LicenseRef-a", TextLocation("LICENSE", 1)),
-                                    LicenseFinding("LicenseRef-b", TextLocation("LICENSE", 2))
-                                ),
-                                copyrightFindings = sortedSetOf()
-                            )
+            scanResults = sortedMapOf(
+                Identifier("Maven:org.ossreviewtoolkit:package-with-only-detected-license:1.0") to listOf(
+                    ScanResult(
+                        provenance = UnknownProvenance,
+                        scanner = ScannerDetails.EMPTY,
+                        summary = ScanSummary(
+                            startTime = Instant.EPOCH,
+                            endTime = Instant.EPOCH,
+                            fileCount = 1,
+                            packageVerificationCode = "",
+                            licenseFindings = sortedSetOf(
+                                LicenseFinding("LicenseRef-a", TextLocation("LICENSE", 1)),
+                                LicenseFinding("LicenseRef-b", TextLocation("LICENSE", 2))
+                            ),
+                            copyrightFindings = sortedSetOf()
                         )
                     )
                 )

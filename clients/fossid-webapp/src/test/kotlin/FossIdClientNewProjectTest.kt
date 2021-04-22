@@ -35,6 +35,7 @@ import org.ossreviewtoolkit.clients.fossid.checkResponse
 import org.ossreviewtoolkit.clients.fossid.checkScanStatus
 import org.ossreviewtoolkit.clients.fossid.createProject
 import org.ossreviewtoolkit.clients.fossid.createScan
+import org.ossreviewtoolkit.clients.fossid.deleteScan
 import org.ossreviewtoolkit.clients.fossid.downloadFromGit
 import org.ossreviewtoolkit.clients.fossid.getProject
 import org.ossreviewtoolkit.clients.fossid.listIdentifiedFiles
@@ -113,6 +114,7 @@ class FossIdClientNewProjectTest : StringSpec({
         service.createScan(
             "", "",
             PROJECT_CODE,
+            SCAN_CODE,
             "https://github.com/gundy/semver4j.git",
             "671aa533f7e33c773bf620b9f466650c3b9ab26e"
         ) shouldNotBeNull {
@@ -138,6 +140,15 @@ class FossIdClientNewProjectTest : StringSpec({
     "A scan can be run" {
         service.runScan("", "", SCAN_CODE) shouldNotBeNull {
             checkResponse("trigger scan", false)
+        }
+    }
+
+    "A scan can be deleted" {
+        service.deleteScan("", "", SCAN_CODE) shouldNotBeNull {
+            checkResponse("delete scan", true)
+
+            data shouldBe 2976
+            message shouldContain "has been deleted"
         }
     }
 

@@ -25,6 +25,7 @@ val kotlinxCoroutinesVersion: String by project
 val mockkVersion: String by project
 val postgresVersion: String by project
 val postgresEmbeddedVersion: String by project
+val retrofitVersion: String by project
 val sw360ClientVersion: String by project
 val wiremockVersion: String by project
 
@@ -36,7 +37,7 @@ plugins {
 repositories {
     exclusiveContent {
         forRepository {
-            maven("https://repo.eclipse.org/content/groups/sw360/")
+            maven("https://repo.eclipse.org/content/repositories/sw360-releases/")
         }
 
         filter {
@@ -49,10 +50,12 @@ dependencies {
     api(project(":model"))
 
     implementation(project(":clients:clearly-defined"))
+    implementation(project(":clients:fossid-webapp"))
     implementation(project(":downloader"))
     implementation(project(":utils"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
+    implementation("com.squareup.retrofit2:converter-jackson:$retrofitVersion")
     implementation("com.zaxxer:HikariCP:$hikariVersion")
     implementation("org.eclipse.sw360:client:$sw360ClientVersion")
     implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")

@@ -21,15 +21,18 @@ package org.ossreviewtoolkit.model.config
 
 import com.fasterxml.jackson.annotation.JsonInclude
 
+import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Provenance
+import org.ossreviewtoolkit.model.RepositoryProvenance
+import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.utils.stripCredentialsFromUrl
 
 /**
  * A configuration for a specific package and provenance. It allows to setup [PathExclude]s and
- * [LicenseFindingCuration]s, similar to how its done via the [RepositoryConfiguration] for projects.
+ * [LicenseFindingCuration]s, similar to how it is done via the [RepositoryConfiguration] for projects.
  */
 data class PackageConfiguration(
     /**
@@ -67,24 +70,40 @@ data class PackageConfiguration(
         }
     }
 
-    fun matches(id: Identifier, provenance: Provenance): Boolean =
-        when {
-            id != this.id -> false
-            vcs != null -> when (provenance.vcsInfo) {
-                null -> false
-                else -> vcs.matches(provenance.vcsInfo)
-            }
-            else -> sourceArtifactUrl == provenance.sourceArtifact?.url
+    fun matches(otherId: Identifier, provenance: Provenance): Boolean {
+        if (id != otherId) return false
+
+        return when (provenance) {
+            is UnknownProvenance -> false
+            is ArtifactProvenance -> sourceArtifactUrl != null && sourceArtifactUrl == provenance.sourceArtifact.url
+            is RepositoryProvenance -> vcs != null && vcs.matches(provenance.vcsInfo)
         }
+    }
 }
 
 /**
  * A matcher which matches its properties against [VcsInfo]s.
  */
 data class VcsMatcher(
+    /**
+     * The [type] to match for equality against [VcsInfo.type].
+     */
     val type: VcsType,
+
+    /**
+     * The [url] to match for equality against [VcsInfo.url].
+     */
     val url: String,
+
+    /**
+     * The [url] to match for equality against [VcsInfo.resolvedRevision].
+     */
     val revision: String,
+
+    /**
+     * The [path] to match for equality against [VcsInfo.path]. Must only be specified in case [type] equals
+     * [VcsType.GIT_REPO].
+     */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     val path: String? = null
 ) {
@@ -94,6 +113,10 @@ data class VcsMatcher(
         if (type == VcsType.GIT_REPO) {
             require(!path.isNullOrBlank()) {
                 "Matching against Git-Repo VCS info requires a non-blank path."
+            }
+        } else {
+            require(path == null) {
+                "A path must only be specified for matching Git-Repo VCS info."
             }
         }
     }

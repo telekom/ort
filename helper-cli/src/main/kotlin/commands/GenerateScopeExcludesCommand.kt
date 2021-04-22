@@ -28,7 +28,7 @@ import com.github.ajalt.clikt.parameters.types.file
 import org.ossreviewtoolkit.helper.common.minimize
 import org.ossreviewtoolkit.helper.common.replaceScopeExcludes
 import org.ossreviewtoolkit.helper.common.sortScopeExcludes
-import org.ossreviewtoolkit.helper.common.writeAsYaml
+import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.ScopeExclude
@@ -40,8 +40,8 @@ internal class GenerateScopeExcludesCommand : CliktCommand(
     help = "Generate scope excludes based on common default for the package managers. The output is written to the " +
             "given repository configuration file."
 ) {
-    private val ortResultFile by option(
-        "--ort-result-file",
+    private val ortFile by option(
+        "--ort-file", "-i",
         help = "The input ORT file from which the rule violations are read."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
@@ -57,14 +57,14 @@ internal class GenerateScopeExcludesCommand : CliktCommand(
         .required()
 
     override fun run() {
-        val ortResult = ortResultFile.readValue<OrtResult>()
+        val ortResult = ortFile.readValue<OrtResult>()
         val scopeExcludes = ortResult.generateScopeExcludes()
 
         repositoryConfigurationFile
             .readValue<RepositoryConfiguration>()
             .replaceScopeExcludes(scopeExcludes)
             .sortScopeExcludes()
-            .writeAsYaml(repositoryConfigurationFile)
+            .write(repositoryConfigurationFile)
     }
 }
 

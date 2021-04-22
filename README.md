@@ -12,13 +12,13 @@
 
 [1]: https://img.shields.io/badge/Join_us_on_Slack!-ort--talk-blue.svg?longCache=true&logo=slack
 [2]: https://join.slack.com/t/ort-talk/shared_invite/enQtMzk3MDU5Njk0Njc1LThiNmJmMjc5YWUxZTU4OGI5NmY3YTFlZWM5YTliZmY5ODc0MGMyOWIwYmRiZWFmNGMzOWY2NzVhYTI0NTJkNmY
-[3]: https://dev.azure.com/oss-review-toolkit/ort/_build/latest?definitionId=2&branchName=master
+[3]: https://github.com/oss-review-toolkit/ort/actions/workflows/static-analysis.yml
 [4]: https://dev.azure.com/oss-review-toolkit/ort/_apis/build/status/oss-review-toolkit.ort?branchName=master&jobName=LinuxTest&label=Linux%20Build
 [5]: https://dev.azure.com/oss-review-toolkit/ort/_apis/build/status/oss-review-toolkit.ort?branchName=master&jobName=WindowsTest&label=Windows%20Build
 [6]: https://dev.azure.com/oss-review-toolkit/ort/_apis/build/status/oss-review-toolkit.ort?branchName=master&jobName=DockerBuild&label=Docker%20Build
 [7]: https://dev.azure.com/oss-review-toolkit/ort/_apis/build/status/oss-review-toolkit.ort?branchName=master&jobName=LinuxAnalyzerTest&label=Linux%20Analyzer%20Tests
 [8]: https://dev.azure.com/oss-review-toolkit/ort/_apis/build/status/oss-review-toolkit.ort?branchName=master&jobName=WindowsAnalyzerTest&label=Windows%20Analyzer%20Tests
-[9]: https://dev.azure.com/oss-review-toolkit/ort/_apis/build/status/oss-review-toolkit.ort?branchName=master&jobName=StaticAnalysis&label=Static%20Analysis
+[9]: https://github.com/oss-review-toolkit/ort/actions/workflows/static-analysis.yml/badge.svg?branch=master
 [10]: https://jitpack.io/v/oss-review-toolkit/ort.svg
 [11]: https://jitpack.io/#oss-review-toolkit/ort
 [12]: https://codecov.io/gh/oss-review-toolkit/ort/branch/master/graph/badge.svg
@@ -179,7 +179,7 @@ environment variable, which in turn defaults to the `.ort` directory below the c
 
 The following provides an overview of the various configuration files that can be used to customize ORT behavior:
 
-#### [ORT configuration file](./model/src/test/assets/reference.conf)
+#### [ORT configuration file](./model/src/main/resources/reference.conf)
 
 The main configuration file for the operation of ORT. This configuration is maintained by an administrator who manages
 the ORT instance. In contrast to the configuration files in the following, this file rarely changes once ORT is
@@ -187,9 +187,9 @@ operational.
 
 | Format | Scope | Default location | Default value |
 | ------ | ----- | ---------------- | ------------- |
-| HOCON | Global | `$ORT_CONFIG_DIR/ort.conf` | Empty ([built-in](./model/src/main/resources/default.conf)) |
+| HOCON | Global | `$ORT_CONFIG_DIR/ort.conf` | Empty |
 
-The [reference configuration file](./model/src/test/assets/reference.conf) gives a good impression about the content
+The [reference configuration file](./model/src/main/resources/reference.conf) gives a good impression about the content
 of the main ORT configuration file. It consists of sections related to different sub components of ORT. The meaning
 of these sections and the properties they can contain is described together with the corresponding sub components.
 
@@ -402,7 +402,7 @@ operation is considered successful if all writer storages could successfully per
 
 The configuration of storage backends is located in the [ORT configuration file](#ort-configuration-file). (For the
 general structure of this file and the set of options available refer to the
-[reference configuration](./model/src/test/assets/reference.conf).) The file has a section named _storages_ that lists
+[reference configuration](./model/src/main/resources/reference.conf).) The file has a section named _storages_ that lists
 all the storage backends and assigns them a name. Each storage backend is of a specific type and needs to be configured
 with type-specific properties. The different types of storage backends supported by ORT are described below.
 
@@ -545,16 +545,26 @@ ort {
 
 [![Advisor](./logos/advisor.png)](./advisor/src/main/kotlin)
 
-The _advisor_ retrieves security advisories from configured services. It requires the analyzer result as an input.
+The _advisor_ retrieves security advisories from configured services. It requires the analyzer result as an input. For
+all the packages identified by the analyzer, it queries the services configured for known security vulnerabilities. The
+vulnerabilities returned by these services are then stored in the output result file together with additional
+information like the source of the data and a severity (if available).
 
-### Configuration
+Multiple providers for security advisories are available. The providers require specific configuration in the
+[ORT configuration file](./model/src/main/resources/reference.conf), which needs to be placed in the _advisor_
+section. When executing the advisor the providers to enable are selected with the `--advisors` option (or its short
+alias `-a`); here a comma-separated list with provider IDs is expected. The following sections describe the providers
+supported by the advisor:
 
-The advisor needs to be configured in the ORT configuration file:
+## NexusIQ
+
+A security data provider that queries [Nexus IQ Server](https://help.sonatype.com/iqserver). In the configuration,
+the URL where Nexus IQ Server is running and the credentials to authenticate need to be provided:
 
 ```hocon
 ort {
   advisor {
-    nexusiq {
+    nexusIq {
       serverUrl = "https://nexusiq.ossreviewtoolkit.org"
       username = myUser
       password = myPassword
@@ -563,8 +573,25 @@ ort {
 }
 ```
 
-Currently [Nexus IQ Server](https://help.sonatype.com/iqserver) (`-a NexusIQ`) is the only supported security data
-provider.
+To enable this provider, pass `-a NexusIQ` on the command line.
+
+## VulnerableCode
+
+This provider obtains information about security vulnerabilities from a
+[VulnerableCode](https://github.com/nexB/vulnerablecode) instance. The configuration is limited to the server URL, as
+authentication is not required:
+
+```hocon
+ort {
+  advisor {
+    VulnerableCode {
+      serverUrl = "http://localhost:8000"
+    }
+  }
+}
+```
+
+To enable this provider, pass `-a VulnerableCode` on the command line.
 
 <a name="evaluator">&nbsp;</a>
 

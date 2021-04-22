@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020-2021 Bosch.IO GmbH
+ * Copyright (C) 2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +22,6 @@ package org.ossreviewtoolkit.scanner.storages
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 
 import java.nio.file.Path
 
@@ -42,11 +42,11 @@ import org.ossreviewtoolkit.model.Failure
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Result
 import org.ossreviewtoolkit.model.ScanResult
-import org.ossreviewtoolkit.model.ScanResultContainer
 import org.ossreviewtoolkit.model.Success
 import org.ossreviewtoolkit.model.config.Sw360StorageConfiguration
 import org.ossreviewtoolkit.model.jsonMapper
-import org.ossreviewtoolkit.model.yamlMapper
+import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
 import org.ossreviewtoolkit.utils.collectMessagesAsString
 import org.ossreviewtoolkit.utils.log
@@ -65,7 +65,7 @@ class Sw360Storage(
     )
     private val releaseClient = sw360ConnectionFactory.releaseAdapter
 
-    override fun readInternal(id: Identifier): Result<ScanResultContainer> {
+    override fun readInternal(id: Identifier): Result<List<ScanResult>> {
         val tempScanResultFile = createTempFileForUpload(id)
 
         return try {
@@ -74,11 +74,11 @@ class Sw360Storage(
                 .map { getScanResultOfRelease(it, tempScanResultFile.toPath()) }
                 .orElse(emptyList())
                 .map { path ->
-                    yamlMapper.readValue<ScanResult>(path.toFile())
+                    path.toFile().readValue<ScanResult>()
                 }
-            Success(ScanResultContainer(id, scanResults))
+            Success(scanResults)
         } catch (e: SW360ClientException) {
-            val message = "Could not read scan results for ${id.toCoordinates()} in SW360."
+            val message = "Could not read scan results for ${id.toCoordinates()} in SW360: ${e.message}"
             log.info { message }
             Failure(message)
         } finally {
@@ -90,7 +90,7 @@ class Sw360Storage(
         val tempScanResultFile = createTempFileForUpload(id)
 
         return try {
-            yamlMapper.writeValue(tempScanResultFile, scanResult)
+            tempScanResultFile.writeValue(scanResult)
 
             val uploadResult = releaseClient.getSparseReleaseByNameAndVersion(createReleaseName(id), id.version)
                 .flatMap { releaseClient.getReleaseById(it.releaseId) }

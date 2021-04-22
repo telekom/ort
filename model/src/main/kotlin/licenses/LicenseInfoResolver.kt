@@ -26,8 +26,12 @@ import kotlin.io.path.createTempDirectory
 
 import org.ossreviewtoolkit.model.CopyrightFinding
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.model.KnownProvenance
 import org.ossreviewtoolkit.model.LicenseSource
 import org.ossreviewtoolkit.model.Provenance
+import org.ossreviewtoolkit.model.RepositoryProvenance
+import org.ossreviewtoolkit.model.TextLocation
+import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.config.CopyrightGarbage
 import org.ossreviewtoolkit.model.config.LicenseFilenamePatterns
 import org.ossreviewtoolkit.model.config.PathExclude
@@ -94,6 +98,26 @@ class LicenseInfoResolver(
                 originalDeclaredLicenses.addAll(
                     licenseInfo.declaredLicenseInfo.processed.mapped.filterValues { it == license }.keys
                 )
+
+                licenseInfo.declaredLicenseInfo.authors.takeIf { it.isNotEmpty() }?.let {
+                    locations.add(ResolvedLicenseLocation(
+                        provenance = UnknownProvenance,
+                        location = UNDEFINED_TEXT_LOCATION,
+                        appliedCuration = null,
+                        matchingPathExcludes = emptyList(),
+                        copyrights = licenseInfo.declaredLicenseInfo.authors.mapTo(mutableSetOf()) { author ->
+                            val statement = "Copyright (C) $author".takeUnless {
+                                author.contains("Copyright", ignoreCase = true)
+                            } ?: author
+
+                            ResolvedCopyrightFinding(
+                                statement = statement,
+                                location = UNDEFINED_TEXT_LOCATION,
+                                matchingPathExcludes = emptyList()
+                            )
+                        }
+                    ))
+                }
             }
         }
 
@@ -217,9 +241,12 @@ class LicenseInfoResolver(
         }.forEach { provenance ->
             val archiveDir = createTempDirectory("$ORT_NAME-archive").toFile().apply { deleteOnExit() }
 
-            if (!archiver.unarchive(archiveDir, provenance)) return@forEach
+            when (provenance) {
+                is UnknownProvenance -> return@forEach
+                is KnownProvenance -> if (!archiver.unarchive(archiveDir, provenance)) return@forEach
+            }
 
-            val directory = provenance.vcsInfo?.path.orEmpty()
+            val directory = (provenance as? RepositoryProvenance)?.vcsInfo?.path.orEmpty()
             val rootLicenseFiles = rootLicenseMatcher.getApplicableLicenseFilesForDirectories(
                 relativeFilePaths = archiveDir.walk().filter { it.isFile }.mapTo(mutableSetOf()) {
                     //it.toRelativeString(archiveDir)
@@ -251,3 +278,5 @@ private class ResolvedLicenseBuilder(val license: SpdxSingleLicenseExpression) {
 
     fun build() = ResolvedLicense(license, originalDeclaredLicenses, originalExpressions, locations)
 }
+
+private val UNDEFINED_TEXT_LOCATION = TextLocation(".", TextLocation.UNKNOWN_LINE, TextLocation.UNKNOWN_LINE)

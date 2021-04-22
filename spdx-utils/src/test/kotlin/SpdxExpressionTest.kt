@@ -34,6 +34,7 @@ import io.kotest.matchers.shouldNotBe
 import org.ossreviewtoolkit.spdx.SpdxExpression.Strictness
 import org.ossreviewtoolkit.spdx.SpdxLicense.*
 import org.ossreviewtoolkit.spdx.SpdxLicenseException.*
+import org.ossreviewtoolkit.spdx.model.LicenseChoice
 
 class SpdxExpressionTest : WordSpec() {
     private val yamlMapper = YAMLMapper()
@@ -321,6 +322,24 @@ class SpdxExpressionTest : WordSpec() {
                     "b AND c AND e".toSpdx()
                 )
             }
+
+            "not contain a duplicate valid choice for a simple expression" {
+                "a AND a".toSpdx().validChoices() should containExactlyInAnyOrder("a".toSpdx())
+            }
+
+            "not contain duplicate valid choice for a complex expression" {
+                "(a OR b) AND (a OR b)".toSpdx().validChoices() should containExactlyInAnyOrder(
+                    "a".toSpdx(),
+                    "b".toSpdx(),
+                    "a AND b".toSpdx()
+                )
+            }
+
+            "not contain duplicate valid choice different left and right expressions" {
+                "a AND a AND b".toSpdx().validChoices() should containExactlyInAnyOrder(
+                    "a AND b".toSpdx()
+                )
+            }
         }
 
         "offersChoice()" should {
@@ -472,6 +491,70 @@ class SpdxExpressionTest : WordSpec() {
                 val result = expression.applyChoice(choice, subExpression)
 
                 result shouldBe "a AND c".toSpdx()
+            }
+        }
+
+        "applyChoices()" should {
+            "return the correct result if a single choice is applied" {
+                val expression = "a OR b OR c OR d".toSpdx()
+
+                val choices = listOf(LicenseChoice(expression, "a".toSpdx()))
+
+                val result = expression.applyChoices(choices)
+
+                result shouldBe "a".toSpdx()
+            }
+
+            "return the correct result if multiple simple choices are applied" {
+                val expression = "a OR b AND c OR d".toSpdx()
+
+                val choices = listOf(
+                    LicenseChoice("a OR b".toSpdx(), "a".toSpdx()),
+                    LicenseChoice("c OR d".toSpdx(), "c".toSpdx())
+                )
+
+                val result = expression.applyChoices(choices)
+
+                result shouldBe "a AND c".toSpdx()
+            }
+
+            "ignore invalid sub-expressions and return the correct result for valid choices" {
+                val expression = "a OR b OR c OR d".toSpdx()
+
+                val choices = listOf(
+                    LicenseChoice("a OR b".toSpdx(), "b".toSpdx()), // b OR c OR d
+                    LicenseChoice("a OR c".toSpdx(), "a".toSpdx()) // not applied
+                )
+
+                val result = expression.applyChoices(choices)
+
+                result shouldBe "b OR c OR d".toSpdx()
+            }
+
+            "apply the second choice to the effective license after the first choice" {
+                val expression = "a OR b OR c OR d".toSpdx()
+
+                val choices = listOf(
+                    LicenseChoice("a OR b".toSpdx(), "b".toSpdx()), // b OR c OR d
+                    LicenseChoice("b OR c".toSpdx(), "b".toSpdx()) // b OR d
+                )
+
+                val result = expression.applyChoices(choices)
+
+                result shouldBe "b OR d".toSpdx()
+            }
+
+            "apply a single choice to multiple expressions" {
+                val expression = "(a OR b) AND (c OR d) AND (a OR e)".toSpdx()
+
+                val choices = listOf(
+                    LicenseChoice("a OR b".toSpdx(), "a".toSpdx()),
+                    LicenseChoice("a OR e".toSpdx(), "a".toSpdx())
+                )
+
+                val result = expression.applyChoices(choices)
+
+                result shouldBe "a AND (c OR d) AND a".toSpdx()
             }
         }
 

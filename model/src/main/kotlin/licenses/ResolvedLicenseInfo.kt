@@ -29,6 +29,7 @@ import org.ossreviewtoolkit.model.config.LicenseFindingCuration
 import org.ossreviewtoolkit.model.config.PathExclude
 import org.ossreviewtoolkit.spdx.SpdxExpression
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
+import org.ossreviewtoolkit.spdx.model.LicenseChoice
 import org.ossreviewtoolkit.utils.CopyrightStatementsProcessor
 import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
 
@@ -66,6 +67,24 @@ data class ResolvedLicenseInfo(
     operator fun get(license: SpdxSingleLicenseExpression): ResolvedLicense? = find { it.license == license }
 
     /**
+     * Return the effective [SpdxExpression] of this [ResolvedLicenseInfo] based on their [licenses] filtered by the
+     * [licenseView] and the applied [licenseChoices]. Effective, in this context, refers to an [SpdxExpression] that
+     * can be used as a final license of this [ResolvedLicenseInfo]. [licenseChoices] will be applied in the order they
+     * are given to the function.
+     */
+    fun effectiveLicense(licenseView: LicenseView, vararg licenseChoices: List<LicenseChoice>): SpdxExpression? {
+        val resolvedLicenseInfo = filter(licenseView, filterSources = true)
+
+        return resolvedLicenseInfo.licenses.flatMap { it.originalExpressions.values }
+            .flatten()
+            .toSet()
+            .reduceOrNull(SpdxExpression::and)
+            ?.applyChoices(licenseChoices.asList().flatten())
+            ?.validChoices()
+            ?.reduceOrNull(SpdxExpression::or)
+    }
+
+    /**
      * Return all copyright statements associated to this license info. Copyright findings that are excluded by
      * [PathExclude]s are [omitted][omitExcluded] by default. The copyrights are [processed][process] by default
      * using the [CopyrightStatementsProcessor].
@@ -95,6 +114,18 @@ data class ResolvedLicenseInfo(
                 it.provenance == provenance && it.location.path == path
             }
         }
+
+    /**
+     * Apply [licenseChoices] on the effective license of the [licenseView].
+     */
+    fun applyChoices(
+        licenseChoices: List<LicenseChoice>,
+        licenseView: LicenseView = LicenseView.ALL
+    ): ResolvedLicenseInfo {
+        val licenses = effectiveLicense(licenseView, licenseChoices)?.decompose().orEmpty()
+
+        return this.copy(licenses = this.licenses.filter { it.license in licenses })
+    }
 
     /**
      * Filter all excluded licenses and copyrights. Licenses are removed if they are only

@@ -28,8 +28,6 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.util.SortedSet
 
-import okhttp3.Request
-
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.downloader.VcsHost
@@ -50,6 +48,7 @@ import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.utils.CommandLineTool
+import org.ossreviewtoolkit.utils.HttpDownloadError
 import org.ossreviewtoolkit.utils.OkHttpClientHelper
 import org.ossreviewtoolkit.utils.Os
 import org.ossreviewtoolkit.utils.collectMessagesAsString
@@ -101,7 +100,7 @@ class Bundler(
 
             installDependencies(workingDir)
 
-            val (projectName, version, homepageUrl, declaredLicenses) = parseProject(workingDir)
+            val (projectName, version, homepageUrl, authors, declaredLicenses) = parseProject(workingDir)
             val projectId = Identifier(managerName, "", projectName, version)
             val groupedDeps = getDependencyGroups(workingDir)
 
@@ -112,8 +111,7 @@ class Bundler(
             val project = Project(
                 id = projectId,
                 definitionFilePath = VersionControlSystem.getPathInfo(definitionFile).path,
-                // TODO: Find a way to track authors.
-                authors = sortedSetOf(),
+                authors = authors,
                 declaredLicenses = declaredLicenses.toSortedSet(),
                 vcs = VcsInfo.EMPTY,
                 vcsProcessed = processProjectVcs(workingDir, VcsInfo.EMPTY, homepageUrl),
@@ -164,8 +162,7 @@ class Bundler(
 
                 packages += Package(
                     id = gemId,
-                    // TODO: Find a way to track authors.
-                    authors = sortedSetOf(),
+                    authors = gemSpec.authors,
                     declaredLicenses = gemSpec.declaredLicenses,
                     description = gemSpec.description,
                     homepageUrl = gemSpec.homepageUrl,
@@ -215,7 +212,17 @@ class Bundler(
         getGemspecFile(workingDir)?.let { gemspecFile ->
             // Project is a Gem, i.e. a library.
             getGemspec(gemspecFile.nameWithoutExtension, workingDir)
-        } ?: GemSpec(workingDir.name, "", "", sortedSetOf(), "", emptySet(), VcsInfo.EMPTY, RemoteArtifact.EMPTY)
+        } ?: GemSpec(
+            workingDir.name,
+            "",
+            "",
+            sortedSetOf(),
+            sortedSetOf(),
+            "",
+            emptySet(),
+            VcsInfo.EMPTY,
+            RemoteArtifact.EMPTY
+        )
 
     private fun getGemspec(gemName: String, workingDir: File): GemSpec {
         val spec = run(
@@ -240,22 +247,18 @@ class Bundler(
 
     private fun queryRubygems(name: String, version: String, retryCount: Int = 3): GemSpec? {
         // See http://guides.rubygems.org/rubygems-org-api-v2/.
-        val request = Request.Builder()
-            .get()
-            .url("https://rubygems.org/api/v2/rubygems/$name/versions/$version.json")
-            .build()
+        val url = "https://rubygems.org/api/v2/rubygems/$name/versions/$version.json"
 
-        OkHttpClientHelper.execute(request).use { response ->
-            when (response.code) {
-                HttpURLConnection.HTTP_OK -> {
-                    val body = response.body?.string()?.trim()
-                    return if (body.isNullOrEmpty()) null else GemSpec.createFromJson(body)
-                }
+        return OkHttpClientHelper.downloadText(url).mapCatching {
+            GemSpec.createFromJson(it)
+        }.onFailure {
+            val error = (it as? HttpDownloadError) ?: run {
+                log.warn { "Unable to retrieve meta-data for gem '$name' from RubyGems: ${it.message}" }
+                return null
+            }
 
-                HttpURLConnection.HTTP_NOT_FOUND -> {
-                    log.info { "Gem '$name' was not found on RubyGems." }
-                    return null
-                }
+            when (error.code) {
+                HttpURLConnection.HTTP_NOT_FOUND -> log.info { "Gem '$name' was not found on RubyGems." }
 
                 OkHttpClientHelper.HTTP_TOO_MANY_REQUESTS -> {
                     throw IOException(
@@ -278,12 +281,11 @@ class Bundler(
 
                 else -> {
                     throw IOException(
-                        "RubyGems reported unhandled HTTP code ${response.code} when requesting meta-data for " +
-                                "gem '$name'."
+                        "RubyGems reported unhandled HTTP code ${error.code} when requesting meta-data for gem '$name'."
                     )
                 }
             }
-        }
+        }.getOrNull()
     }
 }
 
@@ -291,6 +293,7 @@ data class GemSpec(
     val name: String,
     val version: String,
     val homepageUrl: String,
+    val authors: SortedSet<String>,
     val declaredLicenses: SortedSet<String>,
     val description: String,
     val runtimeDependencies: Set<String>,
@@ -310,6 +313,7 @@ data class GemSpec(
                 yaml["name"].textValue(),
                 yaml["version"]["version"].textValue(),
                 homepage,
+                yaml["authors"]?.asIterable()?.mapTo(sortedSetOf()) { it.textValue() } ?: sortedSetOf(),
                 yaml["licenses"]?.asIterable()?.mapTo(sortedSetOf()) { it.textValue() } ?: sortedSetOf(),
                 yaml["description"].textValueOrEmpty(),
                 runtimeDependencies.orEmpty(),
@@ -338,10 +342,20 @@ data class GemSpec(
                 RemoteArtifact.EMPTY
             }
 
+            val authors = json["authors"]
+                .textValueOrEmpty()
+                .split(',')
+                .mapNotNullTo(sortedSetOf()) { author ->
+                    author.trim().takeIf {
+                        it.isNotEmpty()
+                    }
+                }
+
             return GemSpec(
                 json["name"].textValue(),
                 json["version"].textValue(),
                 json["homepage_uri"].textValueOrEmpty(),
+                authors,
                 json["licenses"]?.asIterable()?.mapTo(sortedSetOf()) { it.textValue() } ?: sortedSetOf(),
                 json["description"].textValueOrEmpty(),
                 runtimeDependencies.orEmpty(),
@@ -358,6 +372,7 @@ data class GemSpec(
 
         return GemSpec(name, version,
             homepageUrl.takeUnless { it.isEmpty() } ?: other.homepageUrl,
+            authors.takeUnless { it.isEmpty() } ?: other.authors,
             declaredLicenses.takeUnless { it.isEmpty() } ?: other.declaredLicenses,
             description.takeUnless { it.isEmpty() } ?: other.description,
             runtimeDependencies.takeUnless { it.isEmpty() } ?: other.runtimeDependencies,

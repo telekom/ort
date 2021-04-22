@@ -41,9 +41,10 @@ import kotlin.time.measureTime
 
 import org.ossreviewtoolkit.GlobalOptions
 import org.ossreviewtoolkit.model.FileFormat
+import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
-import org.ossreviewtoolkit.model.mapper
 import org.ossreviewtoolkit.model.utils.mergeLabels
+import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.scanner.LocalScanner
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
 import org.ossreviewtoolkit.scanner.Scanner
@@ -120,12 +121,13 @@ class ScannerCommand : CliktCommand(name = "scan", help = "Run external license 
 
     private val globalOptionsForSubcommands by requireObject<GlobalOptions>()
 
-    private fun configureScanner(scannerConfiguration: ScannerConfiguration?): Scanner {
-        val config = scannerConfiguration ?: ScannerConfiguration()
+    private fun configureScanner(
+        scannerConfig: ScannerConfiguration,
+        downloaderConfig: DownloaderConfiguration
+    ): Scanner {
+        ScanResultsStorage.configure(scannerConfig)
 
-        ScanResultsStorage.configure(config)
-
-        val scanner = scannerFactory.create(config)
+        val scanner = scannerFactory.create(scannerConfig, downloaderConfig)
 
         println("Using scanner '${scanner.scannerName}' with storage '${ScanResultsStorage.storage.name}'.")
 
@@ -168,11 +170,11 @@ class ScannerCommand : CliktCommand(name = "scan", help = "Run external license 
         }
 
         val config = globalOptionsForSubcommands.config
-        val scanner = configureScanner(config.scanner)
+        val scanner = configureScanner(config.scanner, config.downloader)
 
         val ortResult = if (input.isFile) {
             scanner.scanOrtResult(
-                ortResultFile = input,
+                ortFile = input,
                 outputDirectory = nativeOutputDir,
                 downloadDirectory = downloadDir ?: outputDir.resolve("downloads"),
                 skipExcluded = skipExcluded
@@ -192,7 +194,7 @@ class ScannerCommand : CliktCommand(name = "scan", help = "Run external license 
 
         outputFiles.forEach { file ->
             println("Writing scan result to '$file'.")
-            val duration = measureTime { file.mapper().writerWithDefaultPrettyPrinter().writeValue(file, ortResult) }
+            val duration = measureTime { file.writeValue(ortResult) }
 
             log.perf {
                 "Wrote ORT result to '${file.name}' (${file.formatSizeInMib}) in ${duration.inMilliseconds}ms."

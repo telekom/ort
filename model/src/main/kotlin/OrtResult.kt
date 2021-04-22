@@ -32,6 +32,7 @@ import org.ossreviewtoolkit.model.config.LicenseFindingCuration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.Resolutions
 import org.ossreviewtoolkit.model.config.orEmpty
+import org.ossreviewtoolkit.spdx.model.LicenseChoice
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.perf
 import org.ossreviewtoolkit.utils.zipWithDefault
@@ -164,9 +165,7 @@ data class OrtResult(
         result
     }
 
-    private val scanResultsById: Map<Identifier, List<ScanResult>> by lazy {
-        scanner?.results?.scanResults?.associateBy({ it.id }, { it.results }).orEmpty()
-    }
+    private val scanResultsById: Map<Identifier, List<ScanResult>> by lazy { scanner?.results?.scanResults.orEmpty() }
 
     private val advisorResultsById: Map<Identifier, List<AdvisorResult>> by lazy {
         advisor?.results?.advisorResults.orEmpty()
@@ -388,6 +387,19 @@ data class OrtResult(
         }
 
     /**
+     * Return all [LicenseChoice]s for the [Package] with [id].
+     */
+    fun getPackageLicenseChoices(id: Identifier): List<LicenseChoice> =
+        repository.config.licenseChoices.packageLicenseChoices.find { it.packageId == id }?.licenseChoices.orEmpty()
+
+    /**
+     * Return all [LicenseChoice]s applicable for the scope of the whole [repository].
+     */
+    @JsonIgnore
+    fun getRepositoryLicenseChoices(): List<LicenseChoice> =
+        repository.config.licenseChoices.repositoryLicenseChoices
+
+    /**
      * Return the list of [AdvisorResult]s for the given [id].
      */
     fun getAdvisorResultsForId(id: Identifier): List<AdvisorResult> = advisorResultsById[id].orEmpty()
@@ -431,6 +443,12 @@ data class OrtResult(
      * Return the list of [ScanResult]s for the given [id].
      */
     fun getScanResultsForId(id: Identifier): List<ScanResult> = scanResultsById[id].orEmpty()
+
+    /**
+     * Return true if and only if the given [id] denotes a [Package] contained in this [OrtResult].
+     */
+    @Suppress("UNUSED")
+    fun isPackage(id: Identifier): Boolean = getPackage(id) != null
 
     /**
      * Return true if and only if the given [id] denotes a [Project] contained in this [OrtResult].

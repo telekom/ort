@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import org.ossreviewtoolkit.helper.common.RepositoryLicenseFindingCurations
 import org.ossreviewtoolkit.helper.common.mergeLicenseFindingCurations
 import org.ossreviewtoolkit.helper.common.replaceLicenseFindingCurations
 import org.ossreviewtoolkit.helper.common.sortLicenseFindingCurations
-import org.ossreviewtoolkit.helper.common.writeAsYaml
+import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.LicenseFinding
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.LicenseFindingCuration
@@ -51,8 +51,8 @@ internal class ImportLicenseFindingCurationsCommand : CliktCommand(
         .convert { it.absoluteFile.normalize() }
         .required()
 
-    private val ortResultFile by option(
-        "--ort-result-file",
+    private val ortFile by option(
+        "--ort-file", "-i",
         help = "The ORT file containing the findings the imported curations need to match against."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
@@ -76,7 +76,7 @@ internal class ImportLicenseFindingCurationsCommand : CliktCommand(
     private val findingCurationMatcher = FindingCurationMatcher()
 
     override fun run() {
-        val ortResult = ortResultFile.readValue<OrtResult>()
+        val ortResult = ortFile.readValue<OrtResult>()
         val repositoryConfiguration = if (repositoryConfigurationFile.isFile) {
             repositoryConfigurationFile.readValue()
         } else {
@@ -97,7 +97,7 @@ internal class ImportLicenseFindingCurationsCommand : CliktCommand(
         repositoryConfiguration
             .replaceLicenseFindingCurations(curations)
             .sortLicenseFindingCurations()
-            .writeAsYaml(repositoryConfigurationFile)
+            .write(repositoryConfigurationFile)
     }
 
     private fun importLicenseFindingCurations(ortResult: OrtResult): Set<LicenseFindingCuration> {
@@ -124,7 +124,7 @@ private fun OrtResult.getRepositoryPaths(): Map<String, Set<String>> {
     val result = mutableMapOf<String, MutableSet<String>>()
 
     repository.nestedRepositories.mapValues { (path, vcsInfo) ->
-        result.getOrPut(vcsInfo.url, { mutableSetOf() }) += path
+        result.getOrPut(vcsInfo.url) { mutableSetOf() } += path
     }
 
     return result
@@ -134,9 +134,9 @@ private fun OrtResult.getLicenseFindingsForAllProjects(): Set<LicenseFinding> {
     val result = mutableSetOf<LicenseFinding>()
 
     val projectIds = getProjects().mapTo(mutableSetOf()) { it.id }
-    scanner?.results?.scanResults?.forEach { container ->
-        if (container.id in projectIds) {
-            container.results.forEach { scanResult ->
+    scanner?.results?.scanResults?.forEach { (id, results) ->
+        if (id in projectIds) {
+            results.forEach { scanResult ->
                 result += scanResult.summary.licenseFindings
             }
         }

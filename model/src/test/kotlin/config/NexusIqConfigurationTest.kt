@@ -27,20 +27,20 @@ import java.io.File
 
 import kotlin.io.path.createTempFile
 
-import org.ossreviewtoolkit.model.mapper
 import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.model.writeValue
 
 class NexusIqConfigurationTest : WordSpec({
     "NexusIqConfiguration" should {
         "support a serialization round-trip via an ObjectMapper" {
-            val referenceOrtConfig = OrtConfiguration.load(file = File("src/test/assets/reference.conf"))
+            val referenceOrtConfig = OrtConfiguration.load(file = File("src/main/resources/reference.conf"))
             val rereadOrtConfig = createTempFile(suffix = ".yml").toFile().apply {
-                mapper().writeValue(this, referenceOrtConfig)
+                writeValue(referenceOrtConfig)
                 deleteOnExit()
             }.readValue<OrtConfiguration>()
 
-            val expectedNexusIqConfig = referenceOrtConfig.advisor?.get("nexusiq")
-            val actualNexusIqConfiguration = rereadOrtConfig.advisor?.get("nexusiq")
+            val expectedNexusIqConfig = referenceOrtConfig.advisor.nexusIq
+            val actualNexusIqConfiguration = rereadOrtConfig.advisor.nexusIq
 
             expectedNexusIqConfig.shouldBeInstanceOf<NexusIqConfiguration>()
             actualNexusIqConfiguration.shouldBeInstanceOf<NexusIqConfiguration>()

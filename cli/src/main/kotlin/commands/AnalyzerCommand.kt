@@ -45,9 +45,8 @@ import org.ossreviewtoolkit.analyzer.curation.FallbackPackageCurationProvider
 import org.ossreviewtoolkit.analyzer.curation.FilePackageCurationProvider
 import org.ossreviewtoolkit.analyzer.curation.Sw360PackageCurationProvider
 import org.ossreviewtoolkit.model.FileFormat
-import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
-import org.ossreviewtoolkit.model.mapper
 import org.ossreviewtoolkit.model.utils.mergeLabels
+import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.utils.ORT_CURATIONS_FILENAME
 import org.ossreviewtoolkit.utils.ORT_REPO_CONFIG_FILENAME
 import org.ossreviewtoolkit.utils.expandTilde
@@ -58,7 +57,8 @@ import org.ossreviewtoolkit.utils.perf
 import org.ossreviewtoolkit.utils.safeMkdirs
 
 class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine dependencies of a software project.") {
-    private val allPackageManagersByName = PackageManager.ALL.associateBy { it.managerName.toUpperCase() }
+    private val allPackageManagersByName = PackageManager.ALL.associateBy { it.managerName }
+        .toSortedMap(String.CASE_INSENSITIVE_ORDER)
 
     private val inputDir by option(
         "--input-dir", "-i",
@@ -119,9 +119,9 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
 
     private val packageManagers by option(
         "--package-managers", "-m",
-        help = "The list of package managers to activate."
+        help = "The comma-separated package managers to activate, any of ${allPackageManagersByName.keys}."
     ).convert { name ->
-        allPackageManagersByName[name.toUpperCase()]
+        allPackageManagersByName[name]
             ?: throw BadParameterValue("Package managers must be one or more of ${allPackageManagersByName.keys}.")
     }.split(",").default(PackageManager.ALL)
 
@@ -146,17 +146,17 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
 
         val distinctPackageManagers = packageManagers.distinct()
         println("The following package managers are activated:")
-        println("\t" + distinctPackageManagers.joinToString(", "))
+        println("\t" + distinctPackageManagers.joinToString())
 
         println("Analyzing project path:\n\t$inputDir")
 
         val config = globalOptionsForSubcommands.config
-        val analyzer = Analyzer(config.analyzer ?: AnalyzerConfiguration())
+        val analyzer = Analyzer(config.analyzer)
 
         val curationProvider = FallbackPackageCurationProvider(
             listOfNotNull(
                 packageCurationsFile.takeIf { it.isFile }?.let { FilePackageCurationProvider(it) },
-                config.analyzer?.sw360Configuration?.let {
+                config.analyzer.sw360Configuration?.let {
                     Sw360PackageCurationProvider(it).takeIf { useSw360Curations }
                 },
                 ClearlyDefinedPackageCurationProvider().takeIf { useClearlyDefinedCurations }
@@ -173,7 +173,7 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
 
         outputFiles.forEach { file ->
             println("Writing analyzer result to '$file'.")
-            val duration = measureTime { file.mapper().writerWithDefaultPrettyPrinter().writeValue(file, ortResult) }
+            val duration = measureTime { file.writeValue(ortResult) }
 
             log.perf {
                 "Wrote ORT result to '${file.name}' (${file.formatSizeInMib}) in ${duration.inMilliseconds}ms."

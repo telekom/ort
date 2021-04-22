@@ -26,7 +26,7 @@ import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
 import org.ossreviewtoolkit.helper.common.getScanResultFor
-import org.ossreviewtoolkit.helper.common.writeAsYaml
+import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.config.PackageConfiguration
@@ -45,8 +45,8 @@ internal class RemoveEntriesCommand : CliktCommand(
         .convert { it.absoluteFile.normalize() }
         .required()
 
-    private val ortResultFile by option(
-        "--ort-result-file",
+    private val ortFile by option(
+        "--ort-file",
         help = "The ORT result file to read as input which should contain a scan result to which the given " +
                 "package configuration applies to."
     ).convert { it.expandTilde() }
@@ -58,7 +58,7 @@ internal class RemoveEntriesCommand : CliktCommand(
 
     override fun run() {
         val packageConfiguration = packageConfigurationFile.readValue<PackageConfiguration>()
-        val ortResult = ortResultFile.readValue<OrtResult>()
+        val ortResult = ortFile.readValue<OrtResult>()
         val scanResult = ortResult.getScanResultFor(packageConfiguration)
 
         if (scanResult == null) {
@@ -79,7 +79,7 @@ internal class RemoveEntriesCommand : CliktCommand(
         packageConfiguration.copy(
             pathExcludes = pathExcludes,
             licenseFindingCurations = licenseFindingCurations
-        ).writeAsYaml(packageConfigurationFile)
+        ).write(packageConfigurationFile)
 
         buildString {
             val removedPathExcludes = packageConfiguration.pathExcludes.size - pathExcludes.size

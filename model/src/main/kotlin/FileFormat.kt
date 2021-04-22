@@ -24,6 +24,8 @@ import com.fasterxml.jackson.module.kotlin.readValue
 
 import java.io.File
 
+import org.ossreviewtoolkit.utils.safeMkdirs
+
 /**
  * An enumeration of supported file formats for (de-)serialization, their primary [fileExtension] and optional aliases
  * (not including the dot).
@@ -46,14 +48,21 @@ enum class FileFormat(val mapper: ObjectMapper, val fileExtension: String, varar
 
     companion object {
         /**
+         * Return the [FileFormat] for the given [extension], or `null` if there is none.
+         */
+        fun forExtension(extension: String): FileFormat =
+            extension.toLowerCase().let { lowerCaseExtension ->
+                enumValues<FileFormat>().find {
+                    lowerCaseExtension in it.fileExtensions
+                } ?: throw IllegalArgumentException(
+                    "Unknown file format for file extension '$extension'."
+                )
+            }
+
+        /**
          * Return the [FileFormat] for the given [file], or `null` if there is none.
          */
-        fun forFile(file: File): FileFormat =
-            enumValues<FileFormat>().find {
-                file.extension in it.fileExtensions
-            } ?: throw IllegalArgumentException(
-                "Unsupported file format '${file.extension}' of file '${file.absolutePath}'."
-            )
+        fun forFile(file: File): FileFormat = forExtension(file.extension)
     }
 
     /**
@@ -73,3 +82,12 @@ fun File.mapper() = FileFormat.forFile(this).mapper
  * Use the Jackson mapper returned from [File.mapper] to read an object of type [T] from this file.
  */
 inline fun <reified T : Any> File.readValue(): T = mapper().readValue(this)
+
+/**
+ * Use the Jackson mapper returned from [File.mapper] to write an object of type [T] to this file. [prettyPrint]
+ * indicates whether to use pretty printing or not. The function also ensures that the parent directory exists.
+ */
+inline fun <reified T : Any> File.writeValue(value: T, prettyPrint: Boolean = true) {
+    parentFile.safeMkdirs()
+    mapper().apply { if (prettyPrint) writerWithDefaultPrettyPrinter() }.writeValue(this, value)
+}

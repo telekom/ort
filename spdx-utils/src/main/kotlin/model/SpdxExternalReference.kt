@@ -47,19 +47,33 @@ data class SpdxExternalReference(
     /**
      * The references type as specified by
      * https://github.com/spdx/spdx-spec/blob/master/chapters/appendix-VI-external-repository-identifiers.md.
-     *
-     * TODO: Introduce an enum for the reference type values.
      */
     val referenceType: String
 ) {
     enum class Category(
         @JsonValue
-        private val serializedName: String
+        val serializedName: String
     ) {
         SECURITY("SECURITY"),
-        PACKAGE_MANAGER("PACKAGE-MANAGER"),
-        PERSISTENT_ID("PERSISTENT-ID"),
+        PACKAGE_MANAGER("PACKAGE_MANAGER"),
+        PERSISTENT_ID("PERSISTENT_ID"),
         OTHER("OTHER");
+    }
+
+    // TODO: Using new values as per https://github.com/spdx/spdx-spec/issues/451.
+    enum class Type(
+        val typeName: String,
+        val category: Category
+    ) {
+        BOWER("bower", Category.PACKAGE_MANAGER),
+        CPE_22_TYPE("cpe22Type", Category.SECURITY),
+        CPE_23_TYPE("cpe23Type", Category.SECURITY),
+        MAVEN_CENTRAL("maven-central", Category.PACKAGE_MANAGER),
+        NPM("npm", Category.PACKAGE_MANAGER),
+        NUGET("nuget", Category.PACKAGE_MANAGER),
+        PURL("purl", Category.PACKAGE_MANAGER),
+        SWH("swh", Category.PERSISTENT_ID),
+        OTHER("OTHER", Category.OTHER);
     }
 
     init {

@@ -22,8 +22,6 @@
 package org.ossreviewtoolkit.utils
 
 import java.io.File
-import java.net.URI
-import java.net.URISyntaxException
 import java.security.Permission
 
 import kotlin.reflect.full.memberProperties
@@ -37,6 +35,17 @@ val ortConfigDirectory by lazy {
     }?.let {
         File(it)
     } ?: ortDataDirectory.resolve("config")
+}
+
+/**
+ * The directory to store ORT (read-write) tools in.
+ */
+val ortToolsDirectory by lazy {
+    Os.env[ORT_TOOLS_DIR_ENV_NAME]?.takeUnless {
+        it.isEmpty()
+    }?.let {
+        File(it)
+    } ?: ortDataDirectory.resolve("tools")
 }
 
 /**
@@ -126,7 +135,7 @@ fun filterVersionNames(version: String, names: List<String>, project: String? = 
         it.startsWith(project.orEmpty())
     }.let {
         // Fall back to the original list if filtering by project results in an empty list.
-        if (it.isEmpty()) filteredNames else it
+        it.ifEmpty { filteredNames }
     }
 }
 
@@ -230,17 +239,11 @@ fun normalizeVcsUrl(vcsUrl: String): String {
     //     [scheme:][//authority][path][?query][#fragment]
     // where a server-based "authority" has the syntax
     //     [user-info@]host[:port]
-    val uri = try {
-        // At this point we do not know whether the URL is actually valid, so use the more general URI.
-        URI(url)
-    } catch (e: URISyntaxException) {
-        // Fall back to a file if the URL is a Windows path.
-        return File(url).toSafeURI().toString()
-    }
+    val uri = url.toUri().getOrNull()
 
-    if (uri.scheme == null && uri.path.isNotEmpty()) {
-        // Fall back to a file if the URL is a Linux path.
-        return File(url).toSafeURI().toString()
+    if (uri == null || (uri.scheme == null && uri.path.isNotEmpty())) {
+        // Fall back to a file if the URL is a Windows or Linux path.
+        return File(url).toSafeUri().toString()
     }
 
     // Handle host-specific normalizations.
@@ -320,6 +323,7 @@ fun trapSystemExitCall(block: () -> Unit): Int? {
         }
     })
 
+    @Suppress("SwallowedException")
     try {
         block()
     } catch (e: ExitTrappedException) {

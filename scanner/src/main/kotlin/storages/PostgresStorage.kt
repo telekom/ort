@@ -31,7 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
 import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.SchemaUtils.createMissingTablesAndColumns
 import org.jetbrains.exposed.sql.SchemaUtils.withDataBaseLock
 import org.jetbrains.exposed.sql.Transaction
 import org.jetbrains.exposed.sql.and
@@ -43,19 +43,22 @@ import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Result
 import org.ossreviewtoolkit.model.ScanResult
-import org.ossreviewtoolkit.model.ScanResultContainer
 import org.ossreviewtoolkit.model.Success
+import org.ossreviewtoolkit.model.utils.DatabaseUtils.checkDatabaseEncoding
+import org.ossreviewtoolkit.model.utils.DatabaseUtils.tableExists
+import org.ossreviewtoolkit.model.utils.arrayParam
+import org.ossreviewtoolkit.model.utils.rawParam
+import org.ossreviewtoolkit.model.utils.tilde
+import org.ossreviewtoolkit.scanner.LocalScanner
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
 import org.ossreviewtoolkit.scanner.ScannerCriteria
 import org.ossreviewtoolkit.scanner.storages.utils.ScanResultDao
 import org.ossreviewtoolkit.scanner.storages.utils.ScanResults
-import org.ossreviewtoolkit.scanner.storages.utils.arrayParam
-import org.ossreviewtoolkit.scanner.storages.utils.execShow
-import org.ossreviewtoolkit.scanner.storages.utils.rawParam
-import org.ossreviewtoolkit.scanner.storages.utils.tilde
 import org.ossreviewtoolkit.utils.collectMessagesAsString
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.showStackTrace
+
+private val TABLE_NAME = ScanResults.tableName
 
 /**
  * The Postgres storage back-end.
@@ -75,8 +78,6 @@ class PostgresStorage(
         private const val VERSION_EXPRESSION = "$VERSION_ARRAY::int[]"
     }
 
-    private val table = "scan_results" // TODO: make configurable
-
     init {
         setupDatabase()
     }
@@ -91,12 +92,10 @@ class PostgresStorage(
 
         transaction {
             withDataBaseLock {
-                if (!tableExists()) {
+                if (!tableExists(TABLE_NAME)) {
                     checkDatabaseEncoding()
 
-                    SchemaUtils.createMissingTablesAndColumns(
-                        ScanResults
-                    )
+                    createMissingTablesAndColumns(ScanResults)
 
                     createIdentifierAndScannerVersionIndex()
                 }
@@ -104,31 +103,11 @@ class PostgresStorage(
         }
     }
 
-    private fun Transaction.checkDatabaseEncoding() =
-        execShow("SHOW client_encoding") { resultSet ->
-            if (resultSet.next()) {
-                val clientEncoding = resultSet.getString(1)
-                if (clientEncoding != "UTF8") {
-                    PostgresStorage.log.warn {
-                        "The database's client_encoding is '$clientEncoding' but should be 'UTF8'."
-                    }
-                }
-            }
-        }
-
-    private fun Transaction.tableExists(): Boolean =
-        exec("SELECT to_regclass('$table')") { resultSet ->
-            resultSet.next() && resultSet.getString(1).let { result ->
-                // At least PostgreSQL 9.6 reports the result including the schema prefix.
-                result == table || result == "$table"
-            }
-        } ?: false
-
     private fun Transaction.createIdentifierAndScannerVersionIndex() =
         exec(
             """
             CREATE INDEX identifier_and_scanner_version
-                ON $table USING btree
+                ON $TABLE_NAME USING btree
                 (
                     identifier,
                     (scan_result->'scanner'->>'name'),
@@ -138,14 +117,14 @@ class PostgresStorage(
             """.trimIndent()
         )
 
-    override fun readInternal(id: Identifier): Result<ScanResultContainer> {
+    override fun readInternal(id: Identifier): Result<List<ScanResult>> {
         @Suppress("TooGenericExceptionCaught")
         return try {
             transaction {
                 val scanResults =
                     ScanResultDao.find { ScanResults.identifier eq id.toCoordinates() }.map { it.scanResult }
 
-                Success(ScanResultContainer(id, scanResults))
+                Success(scanResults)
             }
         } catch (e: Exception) {
             when (e) {
@@ -163,7 +142,7 @@ class PostgresStorage(
         }
     }
 
-    override fun readInternal(pkg: Package, scannerCriteria: ScannerCriteria): Result<ScanResultContainer> {
+    override fun readInternal(pkg: Package, scannerCriteria: ScannerCriteria): Result<List<ScanResult>> {
         val minVersionArray = with(scannerCriteria.minVersion) { intArrayOf(major, minor, patch) }
         val maxVersionArray = with(scannerCriteria.maxVersion) { intArrayOf(major, minor, patch) }
 
@@ -183,7 +162,7 @@ class PostgresStorage(
                     // safe side.
                     .filter { scannerCriteria.matches(it.scanner) }
 
-                Success(ScanResultContainer(pkg.id, scanResults))
+                Success(scanResults)
             }
         } catch (e: Exception) {
             when (e) {
@@ -202,7 +181,7 @@ class PostgresStorage(
     }
 
     override fun readInternal(
-        packages: List<Package>,
+        packages: Collection<Package>,
         scannerCriteria: ScannerCriteria
     ): Result<Map<Identifier, List<ScanResult>>> {
         if (packages.isEmpty()) return Success(emptyMap())
@@ -213,7 +192,7 @@ class PostgresStorage(
         @Suppress("TooGenericExceptionCaught")
         return try {
             val scanResults = runBlocking(Dispatchers.IO) {
-                packages.chunked(max(packages.size / 50, 1)).map { chunk ->
+                packages.chunked(max(packages.size / LocalScanner.NUM_STORAGE_THREADS, 1)).map { chunk ->
                     suspendedTransactionAsync {
                         @Suppress("MaxLineLength")
                         ScanResultDao.find {

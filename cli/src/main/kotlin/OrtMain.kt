@@ -138,6 +138,7 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
         subcommands(
             AdvisorCommand(),
             AnalyzerCommand(),
+            ConfigCommand(),
             DownloaderCommand(),
             EvaluatorCommand(),
             ReporterCommand(),
@@ -165,7 +166,7 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
         // Make options available to subcommands and apply static configuration.
         val ortConfiguration = OrtConfiguration.load(configArguments, configFile)
         currentContext.findOrSetObject { GlobalOptions(ortConfiguration, forceOverwrite) }
-        applyStaticConfiguration(ortConfiguration)
+        LicenseFilenamePatterns.configure(ortConfiguration.licenseFilePatterns)
 
         if (helpAll) {
             registeredSubcommands().forEach {
@@ -206,10 +207,6 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
 
         return header.joinToString("\n", postfix = "\n")
     }
-}
-
-private fun applyStaticConfiguration(ortConfiguration: OrtConfiguration) {
-    ortConfiguration.licenseFilePatterns?.let { LicenseFilenamePatterns.configure(it) }
 }
 
 /**

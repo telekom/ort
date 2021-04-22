@@ -23,15 +23,12 @@ package org.ossreviewtoolkit.analyzer.managers.utils
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.node.ArrayNode
-import com.fasterxml.jackson.databind.node.ObjectNode
 
 import java.io.File
-import java.net.URI
-import java.net.URISyntaxException
 import java.nio.file.FileSystems
 import java.nio.file.PathMatcher
 
-import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.model.readJsonFile
 import org.ossreviewtoolkit.utils.AuthenticatedProxy
 import org.ossreviewtoolkit.utils.ProtocolProxyMap
 import org.ossreviewtoolkit.utils.collectMessagesAsString
@@ -39,6 +36,7 @@ import org.ossreviewtoolkit.utils.determineProxyFromURL
 import org.ossreviewtoolkit.utils.hasRevisionFragment
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.showStackTrace
+import org.ossreviewtoolkit.utils.toUri
 
 /**
  * Return whether the [directory] contains an NPM lock file.
@@ -80,10 +78,7 @@ fun expandNpmShortcutURL(url: String): String {
     //     [scheme:][//authority][path][?query][#fragment]
     // where a server-based "authority" has the syntax
     //     [user-info@]host[:port]
-    val uri = try {
-        // At this point we do not know whether the URL is actually valid, so use the more general URI.
-        URI(url)
-    } catch (e: URISyntaxException) {
+    val uri = url.toUri().getOrElse {
         // Fall back to returning the original URL.
         return url
     }
@@ -180,7 +175,7 @@ private fun getPackageJsonInfo(definitionFiles: Set<File>): Collection<PackageJs
 
 private fun isYarnWorkspaceRoot(definitionFile: File) =
     try {
-        definitionFile.readValue<ObjectNode>()["workspaces"] != null
+        readJsonFile(definitionFile).has("workspaces")
     } catch (e: JsonProcessingException) {
         e.showStackTrace()
 
@@ -215,7 +210,7 @@ private fun getYarnWorkspaceSubmodules(definitionFiles: Set<File>): Set<File> {
 
 private fun getWorkspaceMatchers(definitionFile: File): List<PathMatcher> {
     var workspaces = try {
-        definitionFile.readValue<ObjectNode>()["workspaces"]
+        readJsonFile(definitionFile).get("workspaces")
     } catch (e: JsonProcessingException) {
         e.showStackTrace()
 

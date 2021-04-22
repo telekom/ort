@@ -135,11 +135,13 @@ open class PackageRule(
      * A DSL function to configure a [LicenseRule] and add it to this rule.
      */
     fun licenseRule(name: String, licenseView: LicenseView, block: LicenseRule.() -> Unit) {
-        resolvedLicenseInfo.filter(licenseView, filterSources = true).forEach { resolvedLicense ->
-            resolvedLicense.sources.forEach { licenseSource ->
-                licenseRules += LicenseRule(name, resolvedLicense, licenseSource).apply(block)
+        resolvedLicenseInfo.filter(licenseView, filterSources = true)
+            .applyChoices(ruleSet.ortResult.getPackageLicenseChoices(pkg.id), licenseView)
+            .applyChoices(ruleSet.ortResult.getRepositoryLicenseChoices(), licenseView).forEach { resolvedLicense ->
+                resolvedLicense.sources.forEach { licenseSource ->
+                    licenseRules += LicenseRule(name, resolvedLicense, licenseSource).apply(block)
+                }
             }
-        }
     }
 
     fun issue(severity: Severity, message: String, howToFix: String) =

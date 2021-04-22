@@ -24,10 +24,10 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.inspectors.forAll
 import io.kotest.matchers.collections.beEmpty
 import io.kotest.matchers.collections.containExactly
-import io.kotest.matchers.nulls.beNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
+import io.kotest.matchers.types.shouldBeTypeOf
 
 import java.io.File
 
@@ -40,6 +40,8 @@ import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Provenance
+import org.ossreviewtoolkit.model.RepositoryProvenance
+import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.safeDeleteRecursively
 import org.ossreviewtoolkit.utils.test.DEFAULT_ANALYZER_CONFIGURATION
@@ -76,7 +78,7 @@ abstract class AbstractIntegrationSpec : StringSpec() {
     protected lateinit var outputDir: File
 
     /**
-     * The directory where the source code of [pkg] was downloaded to.
+     * The provenance of the downloaded source code of [pkg].
      */
     protected lateinit var provenance: Provenance
 
@@ -84,7 +86,7 @@ abstract class AbstractIntegrationSpec : StringSpec() {
         // Do not use the usual simple class name as the suffix here to shorten the path which otherwise gets too long
         // on Windows for SimpleFormIntegrationTest.
         outputDir = createTempDirectory("$ORT_NAME-${javaClass.simpleName}").toFile()
-        provenance = Downloader.download(pkg, outputDir)
+        provenance = Downloader(DownloaderConfiguration()).download(pkg, outputDir)
     }
 
     override fun afterSpec(spec: Spec) {
@@ -97,10 +99,7 @@ abstract class AbstractIntegrationSpec : StringSpec() {
                 isValid() shouldBe true
                 vcsType shouldBe pkg.vcs.type
 
-                provenance.sourceArtifact should beNull()
-                provenance.vcsInfo shouldNotBeNull {
-                    type shouldBe vcsType
-                }
+                provenance.shouldBeTypeOf<RepositoryProvenance>().vcsInfo.type shouldBe vcsType
             }
         }
 

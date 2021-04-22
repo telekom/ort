@@ -36,7 +36,7 @@ import org.gradle.tooling.internal.consumer.DefaultGradleConnector
 
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
-import org.ossreviewtoolkit.analyzer.managers.utils.GradleDependencyGraphBuilder
+import org.ossreviewtoolkit.analyzer.managers.utils.DependencyGraphBuilder
 import org.ossreviewtoolkit.analyzer.managers.utils.MavenSupport
 import org.ossreviewtoolkit.analyzer.managers.utils.identifier
 import org.ossreviewtoolkit.downloader.VersionControlSystem
@@ -169,7 +169,7 @@ class Gradle(
         // Set the value to empirically determined 8 GiB if no value is set in "~/.gradle/gradle.properties".
         val jvmArgs = gradleProperties.find { (key, _) ->
             key == "org.gradle.jvmargs"
-        }?.second?.split(" ").orEmpty().toMutableList()
+        }?.second?.split(' ').orEmpty().toMutableList()
 
         if (jvmArgs.none { it.contains("-xmx", ignoreCase = true) }) {
             jvmArgs += "-Xmx8g"
@@ -222,10 +222,11 @@ class Gradle(
                     "The Gradle project '$projectName' uses the following Maven repositories: $repositories"
                 }
 
-                val graphBuilder = GradleDependencyGraphBuilder(managerName, maven)
+                val dependencyHandler = GradleDependencyHandler(managerName, maven, repositories)
+                val graphBuilder = DependencyGraphBuilder(dependencyHandler)
                 dependencyTreeModel.configurations.forEach { configuration ->
                     configuration.dependencies.forEach { dependency ->
-                        graphBuilder.addDependency(configuration.name, dependency, repositories)
+                        graphBuilder.addDependency(configuration.name, dependency)
                     }
 
                     // Make sure that scopes without dependencies are recorded.

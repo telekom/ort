@@ -23,14 +23,15 @@ import java.io.IOException
 import java.net.URI
 import java.time.Instant
 
-import org.ossreviewtoolkit.advisor.AbstractAdvisorFactory
-import org.ossreviewtoolkit.advisor.Advisor
+import org.ossreviewtoolkit.advisor.AbstractVulnerabilityProviderFactory
+import org.ossreviewtoolkit.advisor.VulnerabilityProvider
 import org.ossreviewtoolkit.clients.nexusiq.NexusIqService
 import org.ossreviewtoolkit.model.AdvisorDetails
 import org.ossreviewtoolkit.model.AdvisorResult
 import org.ossreviewtoolkit.model.AdvisorSummary
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Vulnerability
+import org.ossreviewtoolkit.model.VulnerabilityReference
 import org.ossreviewtoolkit.model.config.AdvisorConfiguration
 import org.ossreviewtoolkit.model.config.NexusIqConfiguration
 import org.ossreviewtoolkit.model.utils.PurlType
@@ -49,15 +50,10 @@ private const val REQUEST_CHUNK_SIZE = 100
 /**
  * A wrapper for [Nexus IQ Server](https://help.sonatype.com/iqserver) security vulnerability data.
  */
-class NexusIq(
-    name: String,
-    config: AdvisorConfiguration
-) : Advisor(name, config) {
-    class Factory : AbstractAdvisorFactory<NexusIq>("NexusIQ") {
-        override fun create(config: AdvisorConfiguration) = NexusIq(advisorName, config)
+class NexusIq(name: String, private val nexusIqConfig: NexusIqConfiguration) : VulnerabilityProvider(name) {
+    class Factory : AbstractVulnerabilityProviderFactory<NexusIq>("NexusIQ") {
+        override fun create(config: AdvisorConfiguration) = NexusIq(providerName, config.forProvider { nexusIq })
     }
-
-    private val nexusIqConfig = config as NexusIqConfiguration
 
     private val service by lazy {
         NexusIqService.create(
@@ -87,24 +83,22 @@ class NexusIq(
         return try {
             val componentDetails = mutableMapOf<String, NexusIqService.ComponentDetails>()
 
-            components.chunked(REQUEST_CHUNK_SIZE).forEach { component ->
-                val requestResults = getComponentDetails(service, component).componentDetails.associateBy {
+            components.chunked(REQUEST_CHUNK_SIZE).forEach { chunk ->
+                val requestResults = getComponentDetails(service, chunk).componentDetails.associateBy {
                     it.component.packageUrl.substringBefore("?")
                 }
 
-                componentDetails += requestResults
+                componentDetails += requestResults.filterValues { it.securityData.securityIssues.isNotEmpty() }
             }
 
             val endTime = Instant.now()
 
             packages.mapNotNullTo(mutableListOf()) { pkg ->
-                componentDetails[pkg.id.toPurl()]?.takeUnless {
-                    it.securityData.securityIssues.isEmpty()
-                }?.let { details ->
+                componentDetails[pkg.id.toPurl()]?.let { details ->
                     pkg to listOf(
                         AdvisorResult(
-                            details.securityData.securityIssues.map { it.toVulnerability() },
-                            AdvisorDetails(advisorName),
+                            details.securityData.securityIssues.mapNotNull { it.toVulnerability() },
+                            AdvisorDetails(providerName),
                             AdvisorSummary(startTime, endTime)
                         )
                     )
@@ -115,14 +109,22 @@ class NexusIq(
         }
     }
 
-    private fun NexusIqService.SecurityIssue.toVulnerability(): Vulnerability {
-        val browseUrl = if (url == null && reference.startsWith("sonatype-")) {
+    /**
+     * Construct a [Vulnerability] from the data stored in this issue. As a [VulnerabilityReference] requires a
+     * non-null URI, issues without an URI yield *null* results. (This is rather a paranoia check, as issues are
+     * expected to have a URI.)
+     */
+    private fun NexusIqService.SecurityIssue.toVulnerability(): Vulnerability? {
+        val browseUrl = if (url == null && reference.startsWith(NexusIqService.SONATYPE_PREFIX)) {
             URI("${nexusIqConfig.browseUrl}/assets/index.html#/vulnerabilities/$reference")
         } else {
             url
         }
 
-        return Vulnerability(reference, severity, browseUrl)
+        return browseUrl?.let { uri ->
+            val ref = VulnerabilityReference(uri, scoringSystem(), severity.toString())
+            Vulnerability(reference, listOf(ref))
+        }
     }
 
     /**
