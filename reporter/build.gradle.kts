@@ -96,7 +96,7 @@ dependencies {
     implementation("xalan:xalan:$xalanVersion")
 
     testImplementation("io.mockk:mockk:$mockkVersion")
-    
+
     // for OSCake-Reporter
     implementation("com.sksamuel.hoplite:hoplite-core:$hopliteVersion")
     implementation("com.sksamuel.hoplite:hoplite-hocon:$hopliteVersion")
