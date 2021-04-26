@@ -184,9 +184,6 @@ class OSCakeReporter : Reporter {
 
         input.ortResult.scanner?.results?.scanResults?.
             filter { !input.ortResult.isExcluded(it.key) }?.forEach { key, pp ->
-
-//        input.ortResult.scanner?.results?.scanResults?.forEach { key, pp ->
-            if (input.ortResult.isExcluded(key)) return@forEach
             pp.forEach {
                 val fileInfoBlockDict = HashMap<String, FileInfoBlock>()
                 val nsr = getNativeScanResultJson(key, nativeScanResultsDir)
