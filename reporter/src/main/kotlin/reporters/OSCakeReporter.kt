@@ -53,6 +53,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.getLicensesFo
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.isInstancedLicense
 import org.ossreviewtoolkit.utils.packZip
+import java.io.FileNotFoundException
 
 /**
  * A Reporter that creates the output for the Tdosca/OSCake projects
@@ -185,35 +186,48 @@ class OSCakeReporter : Reporter {
         input.ortResult.scanner?.results?.scanResults?.
             filter { !input.ortResult.isExcluded(it.key) }?.forEach { key, pp ->
             pp.forEach {
-                val fileInfoBlockDict = HashMap<String, FileInfoBlock>()
-                val nsr = getNativeScanResultJson(key, nativeScanResultsDir)
+                try {
+                    val fileInfoBlockDict = HashMap<String, FileInfoBlock>()
+                    val nsr = getNativeScanResultJson(key, nativeScanResultsDir)
 
-                it.summary.licenseFindings.forEach {
-                    val fileInfoBlock =
-                        fileInfoBlockDict.getOrPut(it.location.path) { FileInfoBlock(it.location.path) }
+                    it.summary.licenseFindings.forEach {
+                        val fileInfoBlock =
+                            fileInfoBlockDict.getOrPut(it.location.path) { FileInfoBlock(it.location.path) }
 
-                    LicenseTextEntry().apply {
-                        license = it.license.toString()
-                        if (it.license.toString().startsWith("LicenseRef-")) {
-                            logger.log("Changed <${it.license}> to <NOASSERTION> in package: " +
-                                    "${key.name} - ${it.location.path}", Level.INFO, key, fileInfoBlock.path)
-                            license = "NOASSERTION"
+                        LicenseTextEntry().apply {
+                            license = it.license.toString()
+                            if (it.license.toString().startsWith("LicenseRef-")) {
+                                logger.log(
+                                    "Changed <${it.license}> to <NOASSERTION> in package: " +
+                                            "${key.name} - ${it.location.path}", Level.INFO, key, fileInfoBlock.path
+                                )
+                                license = "NOASSERTION"
+                            }
+                            isInstancedLicense = isInstancedLicense(input, it.license.toString())
+                            startLine = it.location.startLine
+                            endLine = it.location.endLine
+                            combineNativeScanResults(fileInfoBlock.path, this, nsr)
+                            fileInfoBlock.licenseTextEntries.add(this)
                         }
-                        isInstancedLicense = isInstancedLicense(input, it.license.toString())
-                        startLine = it.location.startLine
-                        endLine = it.location.endLine
-                        combineNativeScanResults(fileInfoBlock.path, this, nsr)
-                        fileInfoBlock.licenseTextEntries.add(this)
                     }
-                }
-                it.summary.copyrightFindings.forEach {
-                    fileInfoBlockDict.getOrPut(it.location.path) { FileInfoBlock(it.location.path)
-                    }.apply {
-                        copyrightTextEntries.add(CopyrightTextEntry(it.location.startLine,
-                            it.location.endLine, it.statement))
+                    it.summary.copyrightFindings.forEach {
+                        fileInfoBlockDict.getOrPut(it.location.path) {
+                            FileInfoBlock(it.location.path)
+                        }.apply {
+                            copyrightTextEntries.add(
+                                CopyrightTextEntry(
+                                    it.location.startLine,
+                                    it.location.endLine, it.statement
+                                )
+                            )
+                        }
                     }
+                    scanDict[key] = fileInfoBlockDict
                 }
-                scanDict[key] = fileInfoBlockDict
+                catch(fileNotFound : FileNotFoundException){
+                    //if native scan results are not found for one package, we continue, but log an error
+                    logger.logger.error(fileNotFound)
+                }
             }
         }
         return scanDict
