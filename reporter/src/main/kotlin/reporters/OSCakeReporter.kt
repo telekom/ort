@@ -196,13 +196,14 @@ class OSCakeReporter : Reporter {
 
                         LicenseTextEntry().apply {
                             license = it.license.toString()
-                            if (it.license.toString().startsWith("LicenseRef-")) {
-                                logger.log(
-                                    "Changed <${it.license}> to <NOASSERTION> in package: " +
-                                            "${key.name} - ${it.location.path}", Level.INFO, key, fileInfoBlock.path
-                                )
-                                license = "NOASSERTION"
-                            }
+                            //NOTE: 
+//                            if (it.license.toString().startsWith("LicenseRef-")) {
+//                                logger.log(
+//                                    "Changed <${it.license}> to <NOASSERTION> in package: " +
+//                                            "${key.name} - ${it.location.path}", Level.INFO, key, fileInfoBlock.path
+//                                )
+//                                license = "NOASSERTION"
+//                            }
                             isInstancedLicense = isInstancedLicense(input, it.license.toString())
                             startLine = it.location.startLine
                             endLine = it.location.endLine
