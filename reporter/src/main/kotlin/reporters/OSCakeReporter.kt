@@ -229,7 +229,7 @@ class OSCakeReporter : Reporter {
         val scanFile: File = File(filePath)
         if (!scanFile.exists()) {
             throw java.io.FileNotFoundException(
-                "Recheck the path of option <-i> and the option for <nativeScanResultsDir>")
+                "Cannot find native scan result \"${scanFile.absolutePath}\". Recheck the path of option <-i> and the option for <nativeScanResultsDir>")
         }
         var node: JsonNode = EMPTY_JSON_NODE
         if (scanFile.isFile && scanFile.length() > 0L) {
