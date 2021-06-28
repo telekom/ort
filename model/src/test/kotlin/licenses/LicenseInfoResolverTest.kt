@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,7 @@
 package org.ossreviewtoolkit.model.licenses
 
 import io.kotest.assertions.show.show
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.Matcher
 import io.kotest.matchers.MatcherResult
@@ -29,6 +30,7 @@ import io.kotest.matchers.collections.haveSize
 import io.kotest.matchers.neverNullMatcher
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeTypeOf
 
 import java.io.File
 import java.lang.IllegalArgumentException
@@ -55,6 +57,8 @@ import org.ossreviewtoolkit.model.config.PathExclude
 import org.ossreviewtoolkit.model.config.PathExcludeReason
 import org.ossreviewtoolkit.model.licenses.TestUtils.containLicensesExactly
 import org.ossreviewtoolkit.model.utils.FileArchiver
+import org.ossreviewtoolkit.model.utils.FileArchiverFileStorage
+import org.ossreviewtoolkit.model.utils.getArchivePath
 import org.ossreviewtoolkit.spdx.SpdxExpression
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
 import org.ossreviewtoolkit.spdx.getLicenseText
@@ -66,8 +70,15 @@ import org.ossreviewtoolkit.utils.test.createDefault
 class LicenseInfoResolverTest : WordSpec() {
     init {
         val pkgId = Identifier("Gradle:org.ossreviewtoolkit:ort:1.0.0")
-        val vcsInfo = VcsInfo(VcsType.GIT, "https://github.com/oss-review-toolkit/ort.git", "master", "master")
-        val provenance = RepositoryProvenance(vcsInfo = vcsInfo)
+        val vcsInfo = VcsInfo(
+            type = VcsType.GIT,
+            url = "https://github.com/oss-review-toolkit/ort.git",
+            revision = "master"
+        )
+        val provenance = RepositoryProvenance(
+            vcsInfo = vcsInfo,
+            resolvedRevision = "0000000000000000000000000000000000000000"
+        )
 
         "resolveLicenseInfo()" should {
             "resolve declared licenses" {
@@ -569,6 +580,11 @@ class LicenseInfoResolverTest : WordSpec() {
 
                 val result = resolver.resolveLicenseFiles(pkgId)
 
+                archiver.storage.shouldBeTypeOf<FileArchiverFileStorage>().apply {
+                    withClue(archiveDir.resolve(getArchivePath(provenance))) {
+                        hasArchive(provenance) shouldBe true
+                    }
+                }
                 result.id shouldBe pkgId
                 result.files should haveSize(1)
 

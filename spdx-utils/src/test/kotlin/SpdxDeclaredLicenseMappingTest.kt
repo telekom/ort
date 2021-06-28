@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -96,9 +96,9 @@ class SpdxDeclaredLicenseMappingTest : WordSpec({
 
         "be case-insensitive" {
             SpdxDeclaredLicenseMapping.mapping.asSequence().forAll { (key, license) ->
-                SpdxDeclaredLicenseMapping.map(key.toLowerCase()) shouldBe license
-                SpdxDeclaredLicenseMapping.map(key.toUpperCase()) shouldBe license
-                SpdxDeclaredLicenseMapping.map(key.toLowerCase().capitalize()) shouldBe license
+                SpdxDeclaredLicenseMapping.map(key.lowercase()) shouldBe license
+                SpdxDeclaredLicenseMapping.map(key.uppercase()) shouldBe license
+                SpdxDeclaredLicenseMapping.map(key.titlecase()) shouldBe license
             }
         }
     }

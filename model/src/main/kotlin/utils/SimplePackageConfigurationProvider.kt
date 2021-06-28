@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,6 +22,7 @@ package org.ossreviewtoolkit.model.utils
 import java.io.File
 import java.io.IOException
 
+import org.ossreviewtoolkit.model.FileFormat
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.config.PackageConfiguration
@@ -48,7 +49,7 @@ class SimplePackageConfigurationProvider(
          * configuration per [Identifier] and [Provenance].
          */
         fun forDirectory(directory: File): SimplePackageConfigurationProvider {
-            val entries = findPackageConfigurationFiles(directory).mapTo(mutableListOf()) { file ->
+            val entries = FileFormat.findFilesWithKnownExtensions(directory).mapTo(mutableListOf()) { file ->
                 try {
                     file.readValue<PackageConfiguration>()
                 } catch (e: IOException) {
@@ -58,9 +59,6 @@ class SimplePackageConfigurationProvider(
 
             return SimplePackageConfigurationProvider(entries)
         }
-
-        fun findPackageConfigurationFiles(directory: File): List<File> =
-            directory.walkBottomUp().filter { !it.isHidden && it.isFile }.toList()
 
         /**
          * Return a [SimplePackageConfigurationProvider] which provides all [PackageConfiguration]s found in the given

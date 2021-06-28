@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,14 +22,21 @@ package org.ossreviewtoolkit.model
 import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.databind.SerializerProvider
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
+import com.fasterxml.jackson.databind.ser.std.StdSerializer
 
 import java.util.SortedMap
 import java.util.SortedSet
+
+import org.ossreviewtoolkit.model.utils.DependencyGraphConverter
 
 /**
  * A class that merges all information from individual [ProjectAnalyzerResult]s created for each found definition file.
  */
 @JsonIgnoreProperties(value = ["has_issues", /* Backwards-compatibility: */ "has_errors"], allowGetters = true)
+@JsonSerialize(using = AnalyzerResultSerializer::class)
 data class AnalyzerResult(
     /**
      * Sorted set of the projects, as they appear in the individual analyzer results.
@@ -49,7 +56,15 @@ data class AnalyzerResult(
      */
     @JsonAlias("errors")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    val issues: SortedMap<Identifier, List<OrtIssue>> = sortedMapOf()
+    val issues: SortedMap<Identifier, List<OrtIssue>> = sortedMapOf(),
+
+    /**
+     * A map with [DependencyGraph]s keyed by the name of the package manager that created this graph. Package
+     * managers supporting this feature can construct a shared [DependencyGraph] over all projects and store it in
+     * this map.
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    val dependencyGraphs: Map<String, DependencyGraph> = sortedMapOf()
 ) {
     companion object {
         /**
@@ -76,9 +91,15 @@ data class AnalyzerResult(
         }
 
         packages.forEach { curatedPackage ->
-            val issues = curatedPackage.pkg.collectIssues()
+            val issues = curatedPackage.collectIssues()
             if (issues.isNotEmpty()) {
                 collectedIssues.getOrPut(curatedPackage.pkg.id) { mutableSetOf() } += issues
+            }
+        }
+
+        dependencyGraphs.values.forEach { graph ->
+            graph.collectIssues().forEach { (id, issues) ->
+                collectedIssues.getOrPut(id) { mutableSetOf() } += issues
             }
         }
 
@@ -88,6 +109,49 @@ data class AnalyzerResult(
     /**
      * True if there were any issues during the analysis, false otherwise.
      */
-    @Suppress("UNUSED") // Not used in code, but shall be serialized.
     val hasIssues by lazy { collectIssues().isNotEmpty() }
+
+    /**
+     * Return a result, in which all contained [Project]s have their scope information resolved. If this result
+     * has shared dependency graphs, the projects referring to one of these graphs are replaced by corresponding
+     * instances that store their dependencies in the classic [Scope]-based format. Otherwise, this instance is
+     * returned without changes.
+     */
+    fun withScopesResolved(): AnalyzerResult =
+        if (dependencyGraphs.isNotEmpty()) {
+            copy(
+                projects = projects.map { it.withResolvedScopes(dependencyGraphs[it.id.type]) }.toSortedSet(),
+                dependencyGraphs = sortedMapOf()
+            )
+        } else {
+            this
+        }
+}
+
+/**
+ * A custom serializer for [AnalyzerResult] instances.
+ *
+ * This serializer makes sure that [AnalyzerResult]s always use the dependency graph representation when they are
+ * serialized. This is achieved by processing the result by [DependencyGraphConverter] before it is written out.
+ */
+private class AnalyzerResultSerializer : StdSerializer<AnalyzerResult>(AnalyzerResult::class.java) {
+    override fun serialize(result: AnalyzerResult, gen: JsonGenerator, provider: SerializerProvider?) {
+        val resultWithGraph = DependencyGraphConverter.convert(result)
+
+        gen.writeStartObject()
+
+        with(resultWithGraph) {
+            gen.writeObjectField("projects", projects)
+            gen.writeObjectField("packages", packages)
+
+            if (issues.isNotEmpty()) {
+                gen.writeObjectField("issues", issues)
+            }
+
+            gen.writeObjectField("dependency_graphs", dependencyGraphs)
+            gen.writeBooleanField("has_issues", hasIssues)
+        }
+
+        gen.writeEndObject()
+    }
 }

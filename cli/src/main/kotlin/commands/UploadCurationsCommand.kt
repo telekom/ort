@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.commands
+package org.ossreviewtoolkit.cli.commands
 
 import com.fasterxml.jackson.module.kotlin.readValue
 
@@ -35,6 +35,7 @@ import java.net.URI
 
 import kotlinx.coroutines.runBlocking
 
+import org.ossreviewtoolkit.cli.utils.inputGroup
 import org.ossreviewtoolkit.clients.clearlydefined.ClearlyDefinedService
 import org.ossreviewtoolkit.clients.clearlydefined.ClearlyDefinedService.ContributionInfo
 import org.ossreviewtoolkit.clients.clearlydefined.ClearlyDefinedService.ContributionPatch
@@ -48,7 +49,7 @@ import org.ossreviewtoolkit.clients.clearlydefined.ErrorResponse
 import org.ossreviewtoolkit.clients.clearlydefined.HarvestStatus
 import org.ossreviewtoolkit.model.PackageCuration
 import org.ossreviewtoolkit.model.jsonMapper
-import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.model.readValueOrDefault
 import org.ossreviewtoolkit.model.utils.toClearlyDefinedCoordinates
 import org.ossreviewtoolkit.model.utils.toClearlyDefinedSourceLocation
 import org.ossreviewtoolkit.utils.OkHttpClientHelper
@@ -95,7 +96,7 @@ class UploadCurationsCommand : CliktCommand(
         }
 
     override fun run() {
-        val curations = inputFile.readValue<List<PackageCuration>>()
+        val curations = inputFile.readValueOrDefault(emptyList<PackageCuration>())
         val curationsToCoordinates = curations.mapNotNull { curation ->
             curation.id.toClearlyDefinedCoordinates()?.let { coordinates ->
                 curation to coordinates
@@ -165,7 +166,7 @@ private fun PackageCuration.toContributionPatch(): ContributionPatch? {
         removedDefinitions = false
     )
 
-    val licenseExpression = data.concludedLicense?.toString() ?: data.declaredLicenses?.joinToString(" AND ")
+    val licenseExpression = data.concludedLicense?.toString()
 
     val described = Described(
         projectWebsite = data.homepageUrl?.let { URI(it) },

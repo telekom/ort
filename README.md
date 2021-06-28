@@ -152,6 +152,10 @@ for documentation of the required Jenkins plugins. The job accepts various param
 line arguments. Additionally, one can trigger a downstream job which e.g. further processes scan results. Note that it
 is the downstream job's responsibility to copy any artifacts it needs from the upstream job.
 
+A demo instance of a Jenkins pipeline for ORT will soon be
+
+![Fosshost Logo](./logos/fosshost.png)
+
 ## Getting started
 
 Please see [Getting Started](./docs/getting-started.md) for an introduction to the individual tools.
@@ -281,8 +285,8 @@ or rule violations resolutions in the context of the repository.
 #### [Package configuration file / directory](./docs/config-file-package-configuration-yml.md)
 
 A single file or a directory with multiple files containing configurations to set provenance-specific path excludes and
-license finding curations for dependency packages to address issues found within a scan result. The `helper-cli`'s
-[GeneratePackageConfigurationsCommand](./helper-cli/src/main/kotlin/commands/GeneratePackageConfigurationsCommand.kt)
+license finding curations for dependency packages to address issues found within a scan result. `helper-cli`'s
+[`package-config create` command](./helper-cli/src/main/kotlin/commands/packageconfig/CreateCommand.kt)
 can be used to populate a directory with template package configuration files.
 
 | Format | Scope | Default location | Default value |
@@ -318,6 +322,8 @@ Currently, the following package managers are supported:
 * [Bundler](http://bundler.io/) (Ruby)
 * [Cargo](https://doc.rust-lang.org/cargo/) (Rust)
 * [Carthage](https://github.com/Carthage/Carthage) (iOS / Cocoa)
+* [CocoaPods](https://github.com/CocoaPods/CocoaPods) (iOS / Cocoa, with currently some
+  [limitations](https://github.com/oss-review-toolkit/ort/issues/4188))  
 * [Composer](https://getcomposer.org/) (PHP)
 * [Conan](https://conan.io/) (C / C++, *experimental* as the VCS locations often times do not contain the actual source
   code, see [issue #2037](https://github.com/oss-review-toolkit/ort/issues/2037))
@@ -326,15 +332,16 @@ Currently, the following package managers are supported:
   [limitations](https://github.com/oss-review-toolkit/ort/pull/1303#issue-253860146))
 * [Glide](https://github.com/Masterminds/glide) (Go)
 * [Godep](https://github.com/tools/godep) (Go)
-* [GoMod](https://github.com/golang/go/wiki/Modules) (Go, *experimental* as only proxy-based source artifacts but no VCS
-  locations are supported)
+* [GoMod](https://github.com/golang/go/wiki/Modules) (Go)
 * [Gradle](https://gradle.org/) (Java)
 * [Maven](http://maven.apache.org/) (Java)
 * [NPM](https://www.npmjs.com/) (Node.js)
 * [NuGet](https://www.nuget.org/) (.NET, with currently some
   [limitations](https://github.com/oss-review-toolkit/ort/pull/1303#issue-253860146))
-* [PIP](https://pip.pypa.io/) (Python)
-* [Pipenv](https://pipenv.readthedocs.io/) (Python)
+* [PIP](https://pip.pypa.io/) (Python, currently [limited](https://github.com/oss-review-toolkit/ort/issues/3671) to
+  projects that are compatible with Python 2.7 or Python 3.6)
+* [Pipenv](https://pipenv.readthedocs.io/) (Python, currently [limited](https://github.com/oss-review-toolkit/ort/issues/3671)
+  to projects that are compatible with Python 2.7 or Python 3.6)
 * [Pub](https://pub.dev/) (Dart / Flutter)
 * [SBT](http://www.scala-sbt.org/) (Scala)
 * [SPDX](https://spdx.dev/specifications/) (SPDX documents used to describe
@@ -492,7 +499,7 @@ ort {
     storages {
       postgresStorage {
         url = "jdbc:postgresql://example.com:5444/database"
-        schema = "schema"
+        schema = "public"
         username = "username"
         password = "password"
         sslmode = "verify-full"
@@ -510,7 +517,9 @@ ort {
 }
 ```
 
-While the specified schema already needs to exist, the _scanner_ will itself create a table called `scan_results` and
+The database needs to exist. If the schema is set to something else than the default of `public`, it needs to exist and be accessible by the configured username.
+
+The _scanner_ will itself create a table called `scan_results` and
 store the data in a [jsonb](https://www.postgresql.org/docs/current/datatype-json.html) column.
 
 If you do not want to use SSL set the `sslmode` to `disable`, other possible values are explained in the
@@ -608,7 +617,6 @@ well. See [rules.kts](./examples/rules.kts) for an example file.
 The _reporter_ generates a wide variety of documents in different formats from ORT result files. Currently, the
 following formats are supported (reporter names are case-insensitive):
 
-* [Amazon OSS Attribution Builder](https://github.com/amzn/oss-attribution-builder) document (*experimental*, `-f AmazonOssAttributionBuilder`)
 * [AsciiDoc Template](docs/reporters/AsciiDocTemplateReporter.md) (`-f AsciiDocTemplate`)
   * Content customizable with [Apache Freemarker](https://freemarker.apache.org/) templates and [AsciiDoc](https://asciidoc.org/)
   * Supports all AsciiDoc backends
@@ -674,10 +682,9 @@ the following steps to import the project.
 
 To set up a basic run configuration for debugging, navigate to `OrtMain.kt` in the `cli` module and look for the
 `fun main(args: Array<String>)` function. In the gutter next to it, a green "Play" icon should be displayed. Click on it
-and select `Run 'org.ossreviewtoolkit.Main'` to run the entry point, which implicitly creates a run configuration.
-Double-check that running ORT without any arguments will simply show the command line help in IDEA's *Run* tool window.
-Finally, edit the created run configuration to your needs, e.g. by adding an argument and options to run a specific ORT
-sub-command.
+and select `Run 'OrtMainKt'` to run the entry point, which implicitly creates a run configuration. Double-check that
+running ORT without any arguments will simply show the command line help in IDEA's *Run* tool window. Finally, edit the
+created run configuration to your needs, e.g. by adding an argument and options to run a specific ORT sub-command.
 
 ## Testing
 
@@ -687,6 +694,8 @@ needs to be installed. Afterwards tests can be run via the green "Play" icon fro
 # License
 
 Copyright (C) 2017-2021 HERE Europe B.V.
+Copyright (C) 2019-2020 Bosch Software Innovations GmbH
+Copyright (C) 2020-2021 Bosch.IO GmbH
 
 See the [LICENSE](./LICENSE) file in the root of this project for license details.
 

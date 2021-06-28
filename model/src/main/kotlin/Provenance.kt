@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,15 +19,12 @@
 
 package org.ossreviewtoolkit.model
 
-import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.module.kotlin.treeToValue
-
-import java.time.Instant
 
 /**
  * Provenance information about the origin of source code.
@@ -44,19 +41,12 @@ object UnknownProvenance : Provenance() {
     override fun matches(pkg: Package): Boolean = false
 }
 
-sealed class KnownProvenance : Provenance() {
-    /**
-     * The time when the source code was downloaded.
-     */
-    abstract val downloadTime: Instant
-}
+sealed class KnownProvenance : Provenance()
 
 /**
  * Provenance information for a source artifact.
  */
 data class ArtifactProvenance(
-    override val downloadTime: Instant = Instant.EPOCH,
-
     /**
      * The source artifact that was downloaded.
      */
@@ -69,40 +59,25 @@ data class ArtifactProvenance(
  * Provenance information for a Version Control System location.
  */
 data class RepositoryProvenance(
-    override val downloadTime: Instant = Instant.EPOCH,
-
     /**
      * The VCS repository that was downloaded.
      */
     val vcsInfo: VcsInfo,
 
     /**
-     * The original [VcsInfo] that was used to download the source code. It can be different to [vcsInfo] if any
-     * automatic detection took place. For example if the original [VcsInfo] does not contain any revision and the
-     * revision was automatically detected by searching for a tag that matches the version of the package there
-     * would be no way to match the package to the [Provenance] without downloading the source code and searching
-     * for the tag again.
+     * The VCS revision of the source code that was downloaded, resolved from [vcsInfo] during download. Must not be
+     * blank, and must also be fixed revision, e.g. the SHA1 of a Git commit instead of a branch or tag name.
      */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    val originalVcsInfo: VcsInfo? = null
+    val resolvedRevision: String
 ) : KnownProvenance() {
-    override fun matches(pkg: Package): Boolean {
-        // If no VCS information is present either, or it does not have a resolved revision, there is no way of
-        // verifying matching provenance.
-        if (vcsInfo.resolvedRevision == null) return false
-
-        // If pkg.vcsProcessed equals originalVcsInfo or vcsInfo this provenance was definitely created when
-        // downloading this package.
-        if (pkg.vcsProcessed == originalVcsInfo || pkg.vcsProcessed == vcsInfo) return true
-
-        return listOf(pkg.vcs, pkg.vcsProcessed).any {
-            if (it.resolvedRevision != null) {
-                it.resolvedRevision == vcsInfo.resolvedRevision
-            } else {
-                it.revision == vcsInfo.revision || it.revision == vcsInfo.resolvedRevision
-            } && it.type == vcsInfo.type && it.url == vcsInfo.url && it.path == vcsInfo.path
-        }
+    init {
+        require(resolvedRevision.isNotBlank()) { "The resolved revision must not be blank." }
     }
+
+    /**
+     * Return true if this provenance matches the VCS information of the [package][pkg].
+     */
+    override fun matches(pkg: Package): Boolean = vcsInfo == pkg.vcs || vcsInfo == pkg.vcsProcessed
 }
 
 /**
@@ -113,15 +88,14 @@ private class ProvenanceDeserializer : StdDeserializer<Provenance>(Provenance::c
         val node = p.codec.readTree<JsonNode>(p)
         return when {
             node.has("source_artifact") -> {
-                val downloadTime = jsonMapper.treeToValue<Instant>(node["download_time"])!!
                 val sourceArtifact = jsonMapper.treeToValue<RemoteArtifact>(node["source_artifact"])!!
-                ArtifactProvenance(downloadTime, sourceArtifact)
+                ArtifactProvenance(sourceArtifact)
             }
             node.has("vcs_info") -> {
-                val downloadTime = jsonMapper.treeToValue<Instant>(node["download_time"])!!
                 val vcsInfo = jsonMapper.treeToValue<VcsInfo>(node["vcs_info"])!!
-                val originalVcsInfo = node["original_vcs_info"]?.let { jsonMapper.treeToValue<VcsInfo>(it)!! }
-                RepositoryProvenance(downloadTime, vcsInfo, originalVcsInfo)
+                // For backward compatibility, if there is no resolved_revision use the revision from vcsInfo.
+                val resolvedRevision = node["resolved_revision"]?.textValue() ?: vcsInfo.revision
+                RepositoryProvenance(vcsInfo, resolvedRevision)
             }
             else -> UnknownProvenance
         }

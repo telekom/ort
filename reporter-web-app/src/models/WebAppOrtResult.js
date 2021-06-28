@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2019-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +18,7 @@
  * License-Filename: LICENSE
  */
 
+import MetaData from './MetaData';
 import Repository from './Repository';
 import Statistics from './Statistics';
 import WebAppCopyright from './WebAppCopyright';
@@ -64,6 +66,8 @@ class WebAppOrtResult {
     #licenses = [];
 
     #licensesIndexesByNameMap = new Map();
+
+    #metaData = {};
 
     #packages = [];
 
@@ -117,6 +121,10 @@ class WebAppOrtResult {
                 }
             }
 
+            if (obj.meta_data || obj.metaData) {
+                this.#metaData = new MetaData(obj.meta_data || obj.metaData);
+            }
+
             if (obj.packages) {
                 const { packages } = obj;
 
@@ -165,9 +173,11 @@ class WebAppOrtResult {
             if (obj.scan_results || obj.scanResults) {
                 const scanResults = obj.scan_results || obj.scanResults;
 
-                for (let i = 0, len = scanResults.length; i < len; i++) {
-                    this.#scanResults.push(new WebAppScanResult(scanResults[i]));
-                }
+                setTimeout(() => {
+                    for (let i = 0, len = scanResults.length; i < len; i++) {
+                        this.#scanResults.push(new WebAppScanResult(scanResults[i]));
+                    }
+                }, 0);
             }
 
             if (obj.repository) {
@@ -300,13 +310,15 @@ class WebAppOrtResult {
                 };
 
                 for (let i = 0, len = dependencyTrees.length; i < len; i++) {
-                    this.#dependencyTrees.push(
-                        new WebAppTreeNode(
-                            dependencyTrees[i],
-                            this,
-                            callback
-                        )
-                    );
+                    setTimeout(() => {
+                        this.#dependencyTrees.push(
+                            new WebAppTreeNode(
+                                dependencyTrees[i],
+                                this,
+                                callback
+                            )
+                        );
+                    }, 0);
                 }
 
                 this.#treeNodesByPackageIndexMap = treeNodesByPackageIndexMap;
@@ -369,6 +381,10 @@ class WebAppOrtResult {
 
     get licenses() {
         return this.#licenses;
+    }
+
+    get metaData() {
+        return this.#metaData;
     }
 
     get packages() {

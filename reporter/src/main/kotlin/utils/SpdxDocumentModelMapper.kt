@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,7 +48,7 @@ import org.ossreviewtoolkit.spdx.model.SpdxRelationship
 import org.ossreviewtoolkit.utils.Environment
 import org.ossreviewtoolkit.utils.ORT_FULL_NAME
 import org.ossreviewtoolkit.utils.ProcessedDeclaredLicense
-import org.ossreviewtoolkit.utils.stripCredentialsFromUrl
+import org.ossreviewtoolkit.utils.replaceCredentialsInUri
 
 /**
  * A class for mapping [OrtResult]s to [SpdxDocument]s.
@@ -112,12 +112,13 @@ object SpdxDocumentModelMapper {
             if (pkg.vcsProcessed.url.isNotBlank()) {
                 val vcsScanResult =
                     ortResult.getScanResultsForId(curatedPackage.pkg.id).find { it.provenance is RepositoryProvenance }
+                val provenance = vcsScanResult?.provenance as? RepositoryProvenance
 
                 // TODO: The copyright text contains copyrights from all scan results.
                 val vcsPackage = binaryPackage.copy(
                     spdxId = spdxPackageIdGenerator.nextId("${pkg.id.name}-vcs"),
                     filesAnalyzed = vcsScanResult != null,
-                    downloadLocation = pkg.vcsProcessed.toSpdxDownloadLocation(),
+                    downloadLocation = pkg.vcsProcessed.toSpdxDownloadLocation(provenance?.resolvedRevision),
                     licenseConcluded = SpdxConstants.NOASSERTION,
                     licenseDeclared = SpdxConstants.NOASSERTION,
                     packageVerificationCode = vcsScanResult?.toSpdxPackageVerificationCode()
@@ -163,7 +164,7 @@ object SpdxDocumentModelMapper {
             creationInfo = SpdxCreationInfo(
                 comment = params.creationInfoComment,
                 created = Instant.now().truncatedTo(ChronoUnit.SECONDS),
-                creators = listOf("${SpdxConstants.TOOL}$ORT_FULL_NAME - ${Environment().ortVersion}"),
+                creators = listOf("${SpdxConstants.TOOL}$ORT_FULL_NAME - ${Environment.ORT_VERSION}"),
                 licenseListVersion = SpdxLicense.LICENSE_LIST_VERSION.substringBefore("-")
             ),
             documentNamespace = "spdx://${UUID.randomUUID()}",
@@ -206,9 +207,8 @@ private fun Package.toSpdxExternalReferences(): List<SpdxExternalReference> {
     if (purl.isEmpty()) return emptyList()
 
     val reference = SpdxExternalReference(
-        referenceCategory = SpdxExternalReference.Type.PURL.category,
-        referenceLocator = purl,
-        referenceType = SpdxExternalReference.Type.PURL.typeName
+        referenceType = SpdxExternalReference.Type.Purl,
+        referenceLocator = purl
     )
 
     return listOf(reference)
@@ -259,20 +259,20 @@ private fun SpdxExpression?.nullOrBlankToSpdxNoassertionOrNone(): String =
         else -> toString()
     }
 
-private fun VcsInfo.toSpdxDownloadLocation(): String {
+private fun VcsInfo.toSpdxDownloadLocation(resolvedRevision: String?): String {
     val vcsTool = when (type) {
         VcsType.CVS -> "cvs"
         VcsType.GIT -> "git"
         VcsType.GIT_REPO -> "repo"
         VcsType.MERCURIAL -> "hg"
         VcsType.SUBVERSION -> "svn"
-        else -> type.toString().toLowerCase()
+        else -> type.toString().lowercase()
     }
 
     return buildString {
         append(vcsTool)
         if (vcsTool.isNotEmpty()) append("+")
-        append(url.stripCredentialsFromUrl())
+        append(url.replaceCredentialsInUri())
         if (!resolvedRevision.isNullOrBlank()) append("@$resolvedRevision")
         if (path.isNotBlank()) append("#$path")
     }

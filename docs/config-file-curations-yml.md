@@ -20,9 +20,12 @@ Curations can be used to:
   * metadata-only packages, such as Maven BOM files, do not have any source code. Thus, when the flag is set the
   _downloader_ just skips the download and the _scanner_ skips the scan. Also, any _evaluator rule_ may optionally skip
   its execution.
+* set the _is_modified_ flag:
+  * indicates whether files of this package have been modified compared to the original files, e.g., in case of a fork
+    of an upstream Open Source project, or a copy of the code in this project's repository. 
 * set the _declared_license_mapping_ property:
   * Packages may have declared license string values which cannot be parsed to SpdxExpressions. In some cases this can
-    be fixed by mapping these strings to a valid license. If multiple curations declare license mapping they get
+    be fixed by mapping these strings to a valid license. If multiple curations declare license mappings, they get
     combined into a single mapping. Thus, multiple curations can contribute to the declared license mapping for the
     package. The effect of its application can be seen in the _declared_license_processed_ property of the respective
     curated package. 
@@ -45,7 +48,7 @@ location of source artifacts.
 
 The structure of the curations file consist of one or more `id` entries:
 
-```
+```yaml
 - id: "package identifier."
   curations:
     comment: "An explanation why the curation is needed or the reasoning for a license conclusion"
@@ -69,6 +72,7 @@ The structure of the curations file consist of one or more `id` entries:
       revision: "1234abc"
       path: "subdirectory"
     is_meta_data_only: true
+    is_modified: true
     declared_license_mapping:
       "license a": "Apache-2.0"
 ````
@@ -78,12 +82,21 @@ The structure of the curations file consist of one or more `id` entries:
 To use the `curations.yml` file put it to `$ORT_CONFIG_DIR/curations.yml` or pass it to the `--package-curations-file`
 option of the _analyzer_:
 
-```
+```bash
 cli/build/install/ort/bin/ort analyze
   -i [source-code-of-project-dir]
   -o [analyzer-output-dir]
   --package-curations-file $ORT_CONFIG_DIR/curations.yml
 ```
+
+Alternatively specify a directory with multiple curation files using the `--package-curations-dir` to the _analyzer_:
+
+```bash
+cli/build/install/ort/bin/ort analyze
+  -i [source-code-of-project-dir]
+  -o [analyzer-output-dir]
+  --package-curations-dir $ORT_CONFIG_DIR/curations
+``` 
 
 ORT can use [ClearlyDefined](https://clearlydefined.io/) as a source for curated metadata. The preferred workflow is to
 use curations from ClearlyDefined, and to submit curations there. However, this is not always possible, for example in
@@ -91,7 +104,7 @@ case of curations for organization internal packages. To support this workflow, 
 single source for curations or in combination with a `curations.yml` with the `--clearly-defined-curations` option of
 the analyzer:  
 
-```
+```bash
 cli/build/install/ort/bin/ort analyze
   -i [source-code-of-project-dir]
   -o [analyzer-output-dir]

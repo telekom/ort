@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2019-2021 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +47,21 @@ SyntaxHighlighter.registerLanguage('yaml', yaml);
 const AboutModal = (props) => {
     const { webAppOrtResult } = props;
     const { repositoryConfiguration } = webAppOrtResult;
-    const { labels } = webAppOrtResult;
+    const {
+        labels,
+        metaData
+    } = webAppOrtResult;
+
+    const { analyzerStartTime } = metaData;
+    const analyzerStartDate = new Date(analyzerStartTime).toLocaleDateString(
+        undefined,
+        {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        }
+    );
 
     return (
         <Modal
@@ -123,14 +138,6 @@ const AboutModal = (props) => {
                                     ))
                                 }
                             </Descriptions>
-                            {/* FIXME: Replace with Ant Descriptions once unique key bug is fixed */}
-                            <div className="ant-descriptions ant-descriptions-small ant-descriptions-bordered">
-                                <div className="ant-descriptions-view">
-                                    <table>
-                                        <tbody />
-                                    </table>
-                                </div>
-                            </div>
                         </TabPane>
                     )
                 }
@@ -148,7 +155,9 @@ const AboutModal = (props) => {
                         rel="noopener noreferrer"
                         target="_blank"
                     >
-                        <div className="ort-loading-logo ort-logo" />
+                        <div
+                            className="ort-about-logo ort-logo"
+                        />
                     </a>
                     <p>
                         For documentation on how to create this report please see
@@ -158,7 +167,7 @@ const AboutModal = (props) => {
                             rel="noopener noreferrer"
                             target="_blank"
                         >
-                            http://oss-review-toolkit.org
+                            https://oss-review-toolkit.org/
                         </a>
                         .
                     </p>
@@ -167,6 +176,17 @@ const AboutModal = (props) => {
                         third-party software components under other open source licenses.
                         See OSS Review Toolkit code repository for further details.
                     </p>
+                    {
+                        !!analyzerStartDate
+                        && (
+                            <p>
+                                This ORT report is based on an analysis started on
+                                {' '}
+                                {analyzerStartDate}
+                                .
+                            </p>
+                        )
+                    }
                 </TabPane>
             </Tabs>
         </Modal>

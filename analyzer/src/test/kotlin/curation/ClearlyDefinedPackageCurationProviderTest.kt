@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +27,7 @@ import io.kotest.matchers.shouldBe
 
 import org.ossreviewtoolkit.clients.clearlydefined.ClearlyDefinedService.Server
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.spdx.toSpdx
 
 class ClearlyDefinedPackageCurationProviderTest : WordSpec({
     "The production server" should {
@@ -37,9 +38,8 @@ class ClearlyDefinedPackageCurationProviderTest : WordSpec({
             val curations = provider.getCurationsFor(identifier)
 
             curations should haveSize(1)
-            curations.first().data.declaredLicenses shouldBe sortedSetOf(
-                "CDDL-1.0 OR GPL-2.0-only WITH Classpath-exception-2.0"
-            )
+            curations.first().data.concludedLicense shouldBe
+                    "CDDL-1.0 OR GPL-2.0-only WITH Classpath-exception-2.0".toSpdx()
         }
 
         "return no curation for a non-existing dummy NPM package" {
@@ -60,7 +60,7 @@ class ClearlyDefinedPackageCurationProviderTest : WordSpec({
             val curations = provider.getCurationsFor(identifier)
 
             curations should haveSize(1)
-            curations.first().data.declaredLicenses shouldBe sortedSetOf("Apache-1.0")
+            curations.first().data.concludedLicense shouldBe "Apache-1.0".toSpdx()
         }
 
         "return no curation for a non-existing dummy Maven package" {

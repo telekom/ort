@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,7 +22,9 @@ package org.ossreviewtoolkit.scanner.storages
 
 import com.vdurmont.semver4j.Semver
 
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.WordSpec
+import io.kotest.core.test.TestCase
 import io.kotest.matchers.collections.beEmpty
 import io.kotest.matchers.collections.containExactly
 import io.kotest.matchers.collections.containExactlyInAnyOrder
@@ -53,20 +55,18 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
 import org.ossreviewtoolkit.scanner.ScannerCriteria
 
-abstract class AbstractStorageFunTest : WordSpec() {
-    private companion object {
-        val DUMMY_TEXT_LOCATION = TextLocation("fakepath", 13, 21)
-    }
+private val DUMMY_TEXT_LOCATION = TextLocation("fakepath", 13, 21)
 
+abstract class AbstractStorageFunTest : WordSpec() {
     private val id1 = Identifier("type", "namespace", "name1", "version")
     private val id2 = Identifier("type", "namespace", "name2", "version")
 
     private val sourceArtifact1 = RemoteArtifact("url1", Hash.create("0123456789abcdef0123456789abcdef01234567"))
     private val sourceArtifact2 = RemoteArtifact("url2", Hash.create("0123456789abcdef0123456789abcdef01234567"))
 
-    private val vcs1 = VcsInfo(VcsType("type"), "url1", "revision", "resolvedRevision", "path")
-    private val vcs2 = VcsInfo(VcsType("type"), "url2", "revision", "resolvedRevision", "path")
-    private val vcsWithoutRevision = VcsInfo(VcsType("type"), "url", "", "")
+    private val vcs1 = VcsInfo(VcsType("type"), "url1", "revision", "path")
+    private val vcs2 = VcsInfo(VcsType("type"), "url2", "revision", "path")
+    private val vcsWithoutRevision = VcsInfo(VcsType("type"), "url", "")
 
     private val pkg1 = Package.EMPTY.copy(
         id = id1,
@@ -84,33 +84,15 @@ abstract class AbstractStorageFunTest : WordSpec() {
 
     private val pkgWithoutRevision = pkg1.copy(vcs = vcsWithoutRevision, vcsProcessed = vcsWithoutRevision.normalize())
 
-    private val downloadTime1 = Instant.EPOCH + Duration.ofDays(1)
-    private val downloadTime2 = Instant.EPOCH + Duration.ofDays(2)
-
-    private val provenanceWithSourceArtifact1 = ArtifactProvenance(
-        downloadTime = downloadTime1,
-        sourceArtifact = sourceArtifact1
-    )
-    private val provenanceWithVcsInfo1 = RepositoryProvenance(
-        downloadTime = downloadTime2,
-        vcsInfo = vcs1
-    )
-
-    private val provenanceWithSourceArtifact2 = ArtifactProvenance(
-        downloadTime = downloadTime1,
-        sourceArtifact = sourceArtifact2
-    )
-    private val provenanceWithVcsInfo2 = RepositoryProvenance(
-        downloadTime = downloadTime2,
-        vcsInfo = vcs2
-    )
-
-    private val provenanceWithOriginalVcsInfo = RepositoryProvenance(
-        downloadTime = downloadTime2,
-        vcsInfo = vcs1,
-        originalVcsInfo = pkgWithoutRevision.vcsProcessed
-    )
     private val provenanceEmpty = UnknownProvenance
+    private val provenanceWithoutRevision = RepositoryProvenance(
+        vcsInfo = pkgWithoutRevision.vcsProcessed,
+        resolvedRevision = "resolvedRevision"
+    )
+    private val provenanceWithSourceArtifact1 = ArtifactProvenance(sourceArtifact = sourceArtifact1)
+    private val provenanceWithSourceArtifact2 = ArtifactProvenance(sourceArtifact = sourceArtifact2)
+    private val provenanceWithVcsInfo1 = RepositoryProvenance(vcsInfo = vcs1, resolvedRevision = "resolvedRevision")
+    private val provenanceWithVcsInfo2 = RepositoryProvenance(vcsInfo = vcs2, resolvedRevision = "resolvedRevision")
 
     private val scannerDetails1 = ScannerDetails("name 1", "1.0.0", "config 1")
     private val scannerDetails2 = ScannerDetails("name 2", "2.0.0", "config 2")
@@ -118,35 +100,36 @@ abstract class AbstractStorageFunTest : WordSpec() {
     private val scannerDetailsCompatibleVersion2 = ScannerDetails("name 1", "1.0.1-alpha.1", "config 1")
     private val scannerDetailsIncompatibleVersion = ScannerDetails("name 1", "1.1.0", "config 1")
 
-    private val scannerStartTime1 = downloadTime1 + Duration.ofMinutes(1)
-    private val scannerEndTime1 = scannerStartTime1 + Duration.ofMinutes(1)
-    private val scannerStartTime2 = downloadTime2 + Duration.ofMinutes(1)
-    private val scannerEndTime2 = scannerStartTime2 + Duration.ofMinutes(1)
-
-    private val error1 = OrtIssue(source = "source-1", message = "error-1")
-    private val error2 = OrtIssue(source = "source-2", message = "error-2")
-
     private val scanSummaryWithFiles = ScanSummary(
-        scannerStartTime1,
-        scannerEndTime1,
-        1,
-        "packageVerificationCode",
-        sortedSetOf(
+        startTime = Instant.EPOCH + Duration.ofMinutes(1),
+        endTime = Instant.EPOCH + Duration.ofMinutes(2),
+        fileCount = 1,
+        packageVerificationCode = "packageVerificationCode",
+        licenseFindings = sortedSetOf(
             LicenseFinding("license-1.1", DUMMY_TEXT_LOCATION),
             LicenseFinding("license-1.2", DUMMY_TEXT_LOCATION)
         ),
-        sortedSetOf(),
-        mutableListOf(error1, error2)
+        copyrightFindings = sortedSetOf(),
+        issues = mutableListOf(
+            OrtIssue(source = "source-1", message = "error-1"),
+            OrtIssue(source = "source-2", message = "error-2")
+        )
     )
     private val scanSummaryWithoutFiles = ScanSummary(
-        scannerStartTime2,
-        scannerEndTime2,
-        0,
-        "packageVerificationCode",
-        sortedSetOf(),
-        sortedSetOf(),
-        mutableListOf()
+        startTime = Instant.EPOCH + Duration.ofMinutes(3),
+        endTime = Instant.EPOCH + Duration.ofMinutes(4),
+        fileCount = 0,
+        packageVerificationCode = "packageVerificationCode",
+        licenseFindings = sortedSetOf(),
+        copyrightFindings = sortedSetOf(),
+        issues = mutableListOf()
     )
+
+    private lateinit var storage: ScanResultsStorage
+
+    override fun beforeTest(testCase: TestCase) {
+        storage = createStorage()
+    }
 
     abstract fun createStorage(): ScanResultsStorage
 
@@ -164,7 +147,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
     init {
         "Adding a scan result" should {
             "succeed for a valid scan result" {
-                val storage = createStorage()
                 val scanResult = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
 
                 val addResult = storage.add(id1, scanResult)
@@ -176,7 +158,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "fail if the fileCount is 0" {
-                val storage = createStorage()
                 val scanResult = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithoutFiles)
 
                 val addResult = storage.add(id1, scanResult)
@@ -190,7 +171,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "fail if provenance information is missing" {
-                val storage = createStorage()
                 val scanResult = ScanResult(provenanceEmpty, scannerDetails1, scanSummaryWithFiles)
 
                 val addResult = storage.add(id1, scanResult)
@@ -206,7 +186,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
 
         "Reading a scan result" should {
             "find all scan results for an id" {
-                val storage = createStorage()
                 val scanResult1 = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
                 val scanResult2 = ScanResult(provenanceWithSourceArtifact1, scannerDetails2, scanSummaryWithFiles)
 
@@ -219,7 +198,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "find all scan results for a specific scanner" {
-                val storage = createStorage()
                 val scanResult1 = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
                 val scanResult2 = ScanResult(provenanceWithVcsInfo1, scannerDetails1, scanSummaryWithFiles)
                 val scanResult3 = ScanResult(provenanceWithSourceArtifact1, scannerDetails2, scanSummaryWithFiles)
@@ -234,7 +212,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "find all scan results for scanners with names matching a pattern" {
-                val storage = createStorage()
                 val detailsCompatibleOtherScanner = scannerDetails1.copy(name = "name 2")
                 val detailsIncompatibleOtherScanner = scannerDetails1.copy(name = "other Scanner name")
                 val scanResult1 = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
@@ -254,7 +231,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "find all scan results for compatible scanners" {
-                val storage = createStorage()
                 val scanResult = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
                 val scanResultCompatible1 =
                     ScanResult(provenanceWithSourceArtifact1, scannerDetailsCompatibleVersion1, scanSummaryWithFiles)
@@ -269,7 +245,10 @@ abstract class AbstractStorageFunTest : WordSpec() {
                 storage.add(id1, scanResultIncompatible) should beSuccess()
                 val readResult = storage.read(pkg1, criteriaForDetails(scannerDetails1))
 
-                readResult should beSuccess()
+                withClue(lazy { (readResult as Failure).error }) {
+                    readResult should beSuccess()
+                }
+
                 (readResult as Success).result should containExactlyInAnyOrder(
                     scanResult,
                     scanResultCompatible1,
@@ -278,7 +257,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "find all scan results for a scanner in a version range" {
-                val storage = createStorage()
                 val scanResult = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
                 val scanResultCompatible1 =
                     ScanResult(provenanceWithSourceArtifact1, scannerDetailsCompatibleVersion1, scanSummaryWithFiles)
@@ -304,19 +282,19 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "find only packages with matching provenance" {
-                val storage = createStorage()
                 val scanResultSourceArtifactMatching =
                     ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
                 val scanResultVcsMatching = ScanResult(provenanceWithVcsInfo1, scannerDetails1, scanSummaryWithFiles)
                 val provenanceSourceArtifactNonMatching = provenanceWithSourceArtifact1.copy(
                     sourceArtifact = sourceArtifact1.copy(
-                        hash = Hash.create("0123456789012345678901234567890123456789")
+                        hash = Hash.create("0000000000000000000000000000000000000000")
                     )
                 )
                 val scanResultSourceArtifactNonMatching =
                     ScanResult(provenanceSourceArtifactNonMatching, scannerDetails1, scanSummaryWithFiles)
                 val provenanceVcsNonMatching = provenanceWithVcsInfo1.copy(
-                    vcsInfo = vcs1.copy(revision = "revision2", resolvedRevision = "resolvedRevision2")
+                    vcsInfo = vcs1.copy(revision = "revision2"),
+                    resolvedRevision = "resolvedRevision2"
                 )
                 val scanResultVcsNonMatching =
                     ScanResult(provenanceVcsNonMatching, scannerDetails1, scanSummaryWithFiles)
@@ -334,9 +312,8 @@ abstract class AbstractStorageFunTest : WordSpec() {
                 )
             }
 
-            "find a scan result if the revision was detected from a version" {
-                val storage = createStorage()
-                val scanResult = ScanResult(provenanceWithOriginalVcsInfo, scannerDetails1, scanSummaryWithFiles)
+            "find a scan result if the revision was resolved from a version" {
+                val scanResult = ScanResult(provenanceWithoutRevision, scannerDetails1, scanSummaryWithFiles)
 
                 storage.add(id1, scanResult) should beSuccess()
                 val readResult = storage.read(pkgWithoutRevision, criteriaForDetails(scannerDetails1))
@@ -348,7 +325,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
 
         "Reading scan results for multiple packages" should {
             "find all scan results for a specific scanner" {
-                val storage = createStorage()
                 val scanResult1 = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
                 val scanResult2 = ScanResult(provenanceWithVcsInfo1, scannerDetails1, scanSummaryWithFiles)
                 val scanResult3 = ScanResult(provenanceWithSourceArtifact1, scannerDetails2, scanSummaryWithFiles)
@@ -364,6 +340,10 @@ abstract class AbstractStorageFunTest : WordSpec() {
                 storage.add(id2, scanResult6) should beSuccess()
                 val readResult = storage.read(listOf(pkg1, pkg2), criteriaForDetails(scannerDetails1))
 
+                withClue(lazy { (readResult as Failure).error }) {
+                    readResult should beSuccess()
+                }
+
                 (readResult as Success).result.let { result ->
                     result.keys should containExactly(id1, id2)
                     result[id1] should containExactlyInAnyOrder(scanResult1, scanResult2)
@@ -372,7 +352,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "find all scan results for scanners with names matching a pattern" {
-                val storage = createStorage()
                 val detailsCompatibleOtherScanner = scannerDetails1.copy(name = "name 2")
                 val detailsIncompatibleOtherScanner = scannerDetails1.copy(name = "other Scanner name")
                 val scanResult1 = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
@@ -395,6 +374,10 @@ abstract class AbstractStorageFunTest : WordSpec() {
                 storage.add(id2, scanResult6) should beSuccess()
                 val readResult = storage.read(listOf(pkg1, pkg2), criteria)
 
+                withClue(lazy { (readResult as Failure).error }) {
+                    readResult should beSuccess()
+                }
+
                 (readResult as Success).result.let { result ->
                     result.keys should containExactly(id1, id2)
                     result[id1] should containExactlyInAnyOrder(scanResult1, scanResult2)
@@ -403,8 +386,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "find all scan results for compatible scanners" {
-                val storage = createStorage()
-
                 val scanResult1 = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
                 val scanResult1Compatible1 =
                     ScanResult(provenanceWithSourceArtifact1, scannerDetailsCompatibleVersion1, scanSummaryWithFiles)
@@ -433,7 +414,10 @@ abstract class AbstractStorageFunTest : WordSpec() {
 
                 val readResult = storage.read(listOf(pkg1, pkg2), criteriaForDetails(scannerDetails1))
 
-                readResult should beSuccess()
+                withClue(lazy { (readResult as Failure).error }) {
+                    readResult should beSuccess()
+                }
+
                 (readResult as Success).result.let { result ->
                     result.keys should containExactly(id1, id2)
                     result[id1] should containExactlyInAnyOrder(
@@ -450,8 +434,6 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "find all scan results for a scanner in a version range" {
-                val storage = createStorage()
-
                 val scanResult1 = ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
                 val scanResult1Compatible1 =
                     ScanResult(provenanceWithSourceArtifact1, scannerDetailsCompatibleVersion1, scanSummaryWithFiles)
@@ -482,7 +464,10 @@ abstract class AbstractStorageFunTest : WordSpec() {
 
                 val readResult = storage.read(listOf(pkg1, pkg2), criteria)
 
-                readResult should beSuccess()
+                withClue(lazy { (readResult as Failure).error }) {
+                    readResult should beSuccess()
+                }
+
                 (readResult as Success).result.let { result ->
                     result.keys should containExactly(id1, id2)
                     result[id1] should containExactlyInAnyOrder(
@@ -501,20 +486,19 @@ abstract class AbstractStorageFunTest : WordSpec() {
             }
 
             "find only packages with matching provenance" {
-                val storage = createStorage()
-
                 val scanResultSourceArtifactMatching1 =
                     ScanResult(provenanceWithSourceArtifact1, scannerDetails1, scanSummaryWithFiles)
                 val scanResultVcsMatching1 = ScanResult(provenanceWithVcsInfo1, scannerDetails1, scanSummaryWithFiles)
                 val provenanceSourceArtifactNonMatching1 = provenanceWithSourceArtifact1.copy(
                     sourceArtifact = sourceArtifact1.copy(
-                        hash = Hash.create("0123456789012345678901234567890123456789")
+                        hash = Hash.create("0000000000000000000000000000000000000000")
                     )
                 )
                 val scanResultSourceArtifactNonMatching1 =
                     ScanResult(provenanceSourceArtifactNonMatching1, scannerDetails1, scanSummaryWithFiles)
                 val provenanceVcsNonMatching1 = provenanceWithVcsInfo1.copy(
-                    vcsInfo = vcs1.copy(revision = "revision2", resolvedRevision = "resolvedRevision2")
+                    vcsInfo = vcs1.copy(revision = "revision2"),
+                    resolvedRevision = "resolvedRevision2"
                 )
                 val scanResultVcsNonMatching1 =
                     ScanResult(provenanceVcsNonMatching1, scannerDetails1, scanSummaryWithFiles)
@@ -524,13 +508,14 @@ abstract class AbstractStorageFunTest : WordSpec() {
                 val scanResultVcsMatching2 = ScanResult(provenanceWithVcsInfo2, scannerDetails1, scanSummaryWithFiles)
                 val provenanceSourceArtifactNonMatching2 = provenanceWithSourceArtifact2.copy(
                     sourceArtifact = sourceArtifact2.copy(
-                        hash = Hash.create("0123456789012345678901234567890123456789")
+                        hash = Hash.create("0000000000000000000000000000000000000000")
                     )
                 )
                 val scanResultSourceArtifactNonMatching2 =
                     ScanResult(provenanceSourceArtifactNonMatching2, scannerDetails1, scanSummaryWithFiles)
                 val provenanceVcsNonMatching2 = provenanceWithVcsInfo2.copy(
-                    vcsInfo = vcs2.copy(revision = "revision2", resolvedRevision = "resolvedRevision2")
+                    vcsInfo = vcs2.copy(revision = "revision2"),
+                    resolvedRevision = "resolvedRevision2"
                 )
                 val scanResultVcsNonMatching2 =
                     ScanResult(provenanceVcsNonMatching2, scannerDetails1, scanSummaryWithFiles)
@@ -547,7 +532,10 @@ abstract class AbstractStorageFunTest : WordSpec() {
 
                 val readResult = storage.read(listOf(pkg1, pkg2), criteriaForDetails(scannerDetails1))
 
-                readResult should beSuccess()
+                withClue(lazy { (readResult as Failure).error }) {
+                    readResult should beSuccess()
+                }
+
                 (readResult as Success).result.let { result ->
                     result.keys should containExactly(id1, id2)
                     result[id1] should containExactlyInAnyOrder(
@@ -561,15 +549,20 @@ abstract class AbstractStorageFunTest : WordSpec() {
                 }
             }
 
-            "find a scan result if the revision was detected from a version" {
-                val storage = createStorage()
-                val scanResult = ScanResult(provenanceWithOriginalVcsInfo, scannerDetails1, scanSummaryWithFiles)
+            "find a scan result if the revision was resolved from a version" {
+                val scanResult = ScanResult(provenanceWithoutRevision, scannerDetails1, scanSummaryWithFiles)
 
                 val addResult = storage.add(id1, scanResult)
                 val readResult = storage.read(listOf(pkgWithoutRevision), criteriaForDetails(scannerDetails1))
 
-                addResult should beSuccess()
-                readResult should beSuccess()
+                withClue(lazy { (addResult as Failure).error }) {
+                    addResult should beSuccess()
+                }
+
+                withClue(lazy { (readResult as Failure).error }) {
+                    readResult should beSuccess()
+                }
+
                 (readResult as Success).result.let { result ->
                     result.keys should containExactly(id1)
                     result[id1] should containExactly(scanResult)

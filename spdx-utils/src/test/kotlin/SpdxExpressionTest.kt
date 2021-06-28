@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,9 +24,13 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.show.show
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.WordSpec
+import io.kotest.matchers.Matcher
+import io.kotest.matchers.MatcherResult
 import io.kotest.matchers.collections.containExactlyInAnyOrder
+import io.kotest.matchers.neverNullMatcher
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -182,7 +186,7 @@ class SpdxExpressionTest : WordSpec() {
 
             "normalize the case of SPDX licenses" {
                 SpdxLicense.values().filterNot { it.deprecated }.forEach {
-                    it.id.toLowerCase().toSpdx().normalize() shouldBe it.toExpression()
+                    it.id.lowercase().toSpdx().normalize() shouldBe it.toExpression()
                 }
             }
 
@@ -289,27 +293,43 @@ class SpdxExpressionTest : WordSpec() {
 
         "disjunctiveNormalForm()" should {
             "not change an expression already in DNF" {
-                val spdxExpression = "(a AND b) OR (c AND d)".toSpdx()
-
-                spdxExpression.disjunctiveNormalForm() shouldBe spdxExpression
+                "a AND b OR c AND d".toSpdx().disjunctiveNormalForm() should beString("a AND b OR c AND d")
             }
 
             "correctly convert an OR on the left side of an AND expression" {
-                "(a OR b) AND c".toSpdx().disjunctiveNormalForm() shouldBe "(a AND c) OR (b AND c)".toSpdx()
+                "(a OR b) AND c".toSpdx().disjunctiveNormalForm() should beString("a AND c OR b AND c")
             }
 
             "correctly convert an OR on the right side of an AND expression" {
-                "a AND (b OR c)".toSpdx().disjunctiveNormalForm() shouldBe "(a AND b) OR (a AND c)".toSpdx()
+                "a AND (b OR c)".toSpdx().disjunctiveNormalForm() should beString("a AND b OR a AND c")
             }
 
             "correctly convert ORs on both sides of an AND expression" {
-                "(a OR b) AND (c OR d)".toSpdx().disjunctiveNormalForm() shouldBe
-                        "(a AND c) OR (a AND d) OR (b AND c) OR (b AND d)".toSpdx()
+                "(a OR b) AND (c OR d)".toSpdx().disjunctiveNormalForm() should
+                        beString("a AND c OR a AND d OR b AND c OR b AND d")
             }
 
             "correctly convert a complex expression" {
-                "(a OR b) AND c AND (d OR e)".toSpdx().disjunctiveNormalForm() shouldBe
-                        "(a AND c AND d) OR (a AND c AND e) OR (b AND c AND d) OR (b AND c AND e)".toSpdx()
+                "(a OR b) AND c AND (d OR e)".toSpdx().disjunctiveNormalForm() should
+                        beString("a AND c AND d OR a AND c AND e OR b AND c AND d OR b AND c AND e")
+            }
+        }
+
+        "sort()" should {
+            "not change already sorted expressions" {
+                "a AND b".toSpdx().sort() should beString("a AND b")
+                "(a OR b) AND (c OR d)".toSpdx().sort() should beString("(a OR b) AND (c OR d)")
+            }
+
+            "correctly sort simple expressions" {
+                "b AND a".toSpdx().sort() should beString("a AND b")
+                "b OR a".toSpdx().sort() should beString("a OR b")
+                "c AND b AND a".toSpdx().sort() should beString("a AND b AND c")
+            }
+
+            "correctly sort a complex expression" {
+                "(h OR g) AND (f OR e) OR (c OR d) AND (a OR b)".toSpdx().sort() should
+                        beString("(a OR b) AND (c OR d) OR (e OR f) AND (g OR h)")
             }
         }
 
@@ -594,3 +614,12 @@ class SpdxExpressionTest : WordSpec() {
         }
     }
 }
+
+private fun beString(expected: String): Matcher<SpdxExpression> =
+    neverNullMatcher { spdxExpression ->
+        MatcherResult(
+            spdxExpression.toString() == expected,
+            "SPDX expression ${spdxExpression.show().value} should be $expected",
+            "SPDX expression ${spdxExpression.show().value} should not be $expected"
+        )
+    }

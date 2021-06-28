@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,8 @@
  * License-Filename: LICENSE
  */
 
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 val cliktVersion: String by project
 val jsltVersion: String by project
 val log4jCoreVersion: String by project
@@ -25,6 +27,9 @@ val log4jCoreVersion: String by project
 plugins {
     // Apply core plugins.
     application
+
+    // Apply third-party plugins.
+    id("com.github.johnrengelman.shadow")
 }
 
 application {
@@ -32,7 +37,11 @@ application {
     mainClassName = "org.ossreviewtoolkit.helper.HelperMainKt"
 }
 
-tasks.named<CreateStartScripts>("startScripts") {
+tasks.withType<ShadowJar> {
+    isZip64 = true
+}
+
+tasks.named<CreateStartScripts>("startScripts").configure {
     doLast {
         // Work around the command line length limit on Windows when passing the classpath to Java, see
         // https://github.com/gradle/gradle/issues/1989#issuecomment-395001392.
@@ -46,7 +55,7 @@ repositories {
     // https://github.com/gradle/gradle/issues/4106.
     exclusiveContent {
         forRepository {
-            maven("https://repo.gradle.org/gradle/libs-releases-local/")
+            maven("https://repo.gradle.org/artifactory/libs-releases-local/")
         }
 
         filter {

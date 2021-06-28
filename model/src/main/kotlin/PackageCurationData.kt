@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,6 +19,7 @@
 
 package org.ossreviewtoolkit.model
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 
 import java.util.SortedSet
@@ -31,6 +32,7 @@ import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
  * package with corrections. This is required because the meta data provided by a package can be wrong (e.g. outdated
  * VCS data) or incomplete.
  */
+@JsonIgnoreProperties(value = [/* Backwards-compatibility: */ "declared_licenses"])
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class PackageCurationData(
     /**
@@ -45,14 +47,9 @@ data class PackageCurationData(
     val authors: SortedSet<String>? = null,
 
     /**
-     * The list of licenses the authors have declared for this package. This does not necessarily correspond to the
-     * licenses as detected by a scanner. Both need to be taken into account for any conclusions.
-     */
-    val declaredLicenses: SortedSet<String>? = null,
-
-    /**
-     * The concluded license as an [SpdxExpression]. It can be used to correct the license of a package in case the
-     * [declaredLicenses] found in the packages metadata or the licenses detected by a scanner do not match reality.
+     * The concluded license as an [SpdxExpression]. It can be used to correct the [declared licenses of a package]
+     * [Package.declaredLicenses] in case the found in the packages metadata or the licenses detected by a scanner do
+     * not match reality.
      */
     val concludedLicense: SpdxExpression? = null,
 
@@ -118,20 +115,18 @@ private fun applyCurationToPackage(targetPackage: CuratedPackage, curation: Pack
             type = it.type ?: base.vcs.type,
             url = it.url ?: base.vcs.url,
             revision = it.revision ?: base.vcs.revision,
-            resolvedRevision = it.resolvedRevision ?: base.vcs.resolvedRevision,
             path = it.path ?: base.vcs.path
         )
     } ?: base.vcs
 
     val authors = curation.authors ?: base.authors
-    val declaredLicenses = curation.declaredLicenses ?: base.declaredLicenses
     val declaredLicenseMapping = targetPackage.getDeclaredLicenseMapping() + curation.declaredLicenseMapping
-    val declaredLicensesProcessed = DeclaredLicenseProcessor.process(declaredLicenses, declaredLicenseMapping)
+    val declaredLicensesProcessed = DeclaredLicenseProcessor.process(base.declaredLicenses, declaredLicenseMapping)
 
     val pkg = Package(
         id = base.id,
         authors = authors,
-        declaredLicenses = declaredLicenses,
+        declaredLicenses = base.declaredLicenses,
         declaredLicensesProcessed = declaredLicensesProcessed,
         concludedLicense = curation.concludedLicense ?: base.concludedLicense,
         description = curation.description ?: base.description,

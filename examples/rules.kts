@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -113,7 +113,7 @@ val ruleSet = ruleSet(ortResult, licenseInfoResolver) {
             // Throw an error message including guidance how to fix the issue.
             error(
                 "The license $license is currently not covered by policy rules. " +
-                        "The license was ${licenseSource.name.toLowerCase()} in package " +
+                        "The license was ${licenseSource.name.lowercase()} in package " +
                         "${pkg.id.toCoordinates()}",
                 howToFixDefault()
             )
@@ -146,10 +146,10 @@ val ruleSet = ruleSet(ortResult, licenseInfoResolver) {
             }
 
             val message = if (licenseSource == LicenseSource.DETECTED) {
-                "The ScanCode copyleft categorized license $license was ${licenseSource.name.toLowerCase()} " +
+                "The ScanCode copyleft categorized license $license was ${licenseSource.name.lowercase()} " +
                         "in package ${pkg.id.toCoordinates()}."
             } else {
-                "The package ${pkg.id.toCoordinates()} has the ${licenseSource.name.toLowerCase()} ScanCode copyleft " +
+                "The package ${pkg.id.toCoordinates()} has the ${licenseSource.name.lowercase()} ScanCode copyleft " +
                         "catalogized license $license."
             }
 
@@ -164,19 +164,51 @@ val ruleSet = ruleSet(ortResult, licenseInfoResolver) {
 
             val message = if (licenseSource == LicenseSource.DETECTED) {
                 if (pkg.id.type == "Unmanaged") {
-                    "The ScanCode copyleft-limited categorized license $license was ${licenseSource.name.toLowerCase()} " +
+                    "The ScanCode copyleft-limited categorized license $license was ${licenseSource.name.lowercase()} " +
                             "in package ${pkg.id.toCoordinates()}."
                 } else {
-                    "The ScanCode copyleft-limited categorized license $license was ${licenseSource.name.toLowerCase()} " +
+                    "The ScanCode copyleft-limited categorized license $license was ${licenseSource.name.lowercase()} " +
                             "in package ${pkg.id.toCoordinates()}."
                 }
             } else {
-                "The package ${pkg.id.toCoordinates()} has the ${licenseSource.name.toLowerCase()} ScanCode " +
+                "The package ${pkg.id.toCoordinates()} has the ${licenseSource.name.lowercase()} ScanCode " +
                         "copyleft-limited categorized license $license."
             }
 
             error(message, howToFixDefault())
         }
+    }
+
+    packageRule("VULNERABILITY_IN_PACKAGE") {
+        require {
+            -isExcluded()
+            +hasVulnerability()
+        }
+
+        issue(
+            Severity.WARNING,
+            "The package ${pkg.id.toCoordinates()} has a vulnerability",
+            howToFixDefault()
+        )
+    }
+
+    packageRule("HIGH_SEVERITY_VULNERABILITY_IN_PACKAGE") {
+        val maxAcceptedSeverity = "5.0"
+        val scoringSystem = "CVSS2"
+
+        require {
+            -isExcluded()
+            +hasVulnerability(maxAcceptedSeverity, scoringSystem) { value, threshold ->
+                value.toFloat().compareTo(threshold.toFloat())
+            }
+        }
+
+        issue(
+            Severity.ERROR,
+            "The package ${pkg.id.toCoordinates()} has a vulnerability with $scoringSystem severity > " +
+                    "$maxAcceptedSeverity",
+            howToFixDefault()
+        )
     }
 
     // Define a rule that is executed for each dependency of a project.

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,6 +37,7 @@ import org.ossreviewtoolkit.utils.Ci
 import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.safeDeleteRecursively
 import org.ossreviewtoolkit.utils.test.DEFAULT_ANALYZER_CONFIGURATION
+import org.ossreviewtoolkit.utils.test.convertToDependencyGraph
 import org.ossreviewtoolkit.utils.test.patchActualResult
 import org.ossreviewtoolkit.utils.test.patchExpectedResult
 
@@ -66,11 +67,13 @@ class GitRepoFunTest : StringSpec() {
         // Disabled on Azure Windows because it fails for unknown reasons.
         "Analyzer correctly reports VcsInfo for git-repo projects".config(enabled = !Ci.isAzureWindows) {
             val ortResult = Analyzer(DEFAULT_ANALYZER_CONFIGURATION).analyze(outputDir)
-            val actualResult = ortResult.toYaml()
-            val expectedResult = patchExpectedResult(
-                File("src/funTest/assets/projects/external/git-repo-expected-output.yml"),
-                revision = REPO_REV,
-                path = outputDir.invariantSeparatorsPath
+            val actualResult = ortResult.withResolvedScopes().toYaml()
+            val expectedResult = convertToDependencyGraph(
+                patchExpectedResult(
+                    File("src/funTest/assets/projects/external/git-repo-expected-output.yml"),
+                    revision = REPO_REV,
+                    path = outputDir.invariantSeparatorsPath
+                )
             )
 
             patchActualResult(actualResult, patchStartAndEndTime = true) shouldBe expectedResult

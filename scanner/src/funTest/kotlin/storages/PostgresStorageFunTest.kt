@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,8 +21,8 @@ package org.ossreviewtoolkit.scanner.storages
 
 import com.opentable.db.postgres.embedded.EmbeddedPostgres
 
-import io.kotest.core.spec.IsolationMode
 import io.kotest.core.spec.Spec
+import io.kotest.core.test.TestCase
 
 import java.time.Duration
 
@@ -35,12 +35,19 @@ class PostgresStorageFunTest : AbstractStorageFunTest() {
         postgres = EmbeddedPostgres.builder().setPGStartupWait(PG_STARTUP_WAIT).start()
     }
 
+    override fun beforeTest(testCase: TestCase) {
+        postgres.postgresDatabase.connection.use { c ->
+            val s = c.createStatement()
+            s.execute("DROP SCHEMA public CASCADE")
+            s.execute("CREATE SCHEMA public")
+        }
+
+        super.beforeTest(testCase)
+    }
+
     override fun afterSpec(spec: Spec) {
         postgres.close()
     }
 
-    override fun isolationMode() = IsolationMode.InstancePerTest
-
-    override fun createStorage() =
-        PostgresStorage(postgres.postgresDatabase)
+    override fun createStorage() = PostgresStorage(postgres.postgresDatabase)
 }

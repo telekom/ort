@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -104,14 +104,16 @@ class WebAppTreeNode {
             if (obj.children) {
                 const { children } = obj;
                 for (let i = 0, len = children.length; i < len; i++) {
-                    this.#children.push(
-                        new WebAppTreeNode(
-                            children[i],
-                            webAppOrtResult,
-                            callback,
-                            that
-                        )
-                    );
+                    setTimeout(() => {
+                        this.#children.push(
+                            new WebAppTreeNode(
+                                children[i],
+                                webAppOrtResult,
+                                callback,
+                                that
+                            )
+                        );
+                    }, 0);
                 }
             }
 

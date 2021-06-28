@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,7 +32,8 @@ import java.util.SortedSet
 
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
-import org.ossreviewtoolkit.analyzer.managers.utils.expandNpmShortcutURL
+import org.ossreviewtoolkit.analyzer.PackageManagerResult
+import org.ossreviewtoolkit.analyzer.managers.utils.expandNpmShortcutUrl
 import org.ossreviewtoolkit.analyzer.managers.utils.hasNpmLockFile
 import org.ossreviewtoolkit.analyzer.managers.utils.mapDefinitionFilesForNpm
 import org.ossreviewtoolkit.analyzer.managers.utils.readProxySettingsFromNpmRc
@@ -40,6 +41,7 @@ import org.ossreviewtoolkit.analyzer.managers.utils.readRegistryFromNpmRc
 import org.ossreviewtoolkit.analyzer.parseAuthorString
 import org.ossreviewtoolkit.downloader.VcsHost
 import org.ossreviewtoolkit.downloader.VersionControlSystem
+import org.ossreviewtoolkit.model.DependencyGraph
 import org.ossreviewtoolkit.model.Hash
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Package
@@ -47,7 +49,6 @@ import org.ossreviewtoolkit.model.PackageReference
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.ProjectAnalyzerResult
 import org.ossreviewtoolkit.model.RemoteArtifact
-import org.ossreviewtoolkit.model.Scope
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
@@ -57,10 +58,12 @@ import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.model.readJsonFile
 import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.model.utils.DependencyGraphBuilder
 import org.ossreviewtoolkit.spdx.SpdxConstants
 import org.ossreviewtoolkit.utils.CommandLineTool
 import org.ossreviewtoolkit.utils.OkHttpClientHelper
 import org.ossreviewtoolkit.utils.Os
+import org.ossreviewtoolkit.utils.fieldNamesOrEmpty
 import org.ossreviewtoolkit.utils.installAuthenticatorAndProxySelector
 import org.ossreviewtoolkit.utils.isSymbolicLink
 import org.ossreviewtoolkit.utils.log
@@ -89,141 +92,107 @@ open class Npm(
         ) = Npm(managerName, analysisRoot, analyzerConfig, repoConfig)
     }
 
-    private val ortProxySelector = installAuthenticatorAndProxySelector()
+    companion object {
+        /** Name of the scope with the regular dependencies. */
+        private const val DEPENDENCIES_SCOPE = "dependencies"
 
-    private val npmRegistry: String
+        /** Name of the scope with optional dependencies. */
+        private const val OPTIONAL_DEPENDENCIES_SCOPE = "optionalDependencies"
 
-    init {
-        val npmRcFile = Os.userHomeDirectory.resolve(".npmrc")
-        npmRegistry = if (npmRcFile.isFile) {
-            val npmRcContent = npmRcFile.readText()
-            ortProxySelector.addProxies(managerName, readProxySettingsFromNpmRc(npmRcContent))
-            readRegistryFromNpmRc(npmRcContent) ?: PUBLIC_NPM_REGISTRY
-        } else {
-            PUBLIC_NPM_REGISTRY
+        /** Name of the scope with development dependencies. */
+        private const val DEV_DEPENDENCIES_SCOPE = "devDependencies"
+
+        /**
+         * Parse information about licenses from the [package.json][json] file of a module.
+         */
+        internal fun parseLicenses(json: JsonNode): SortedSet<String> {
+            val declaredLicenses = mutableListOf<String>()
+
+            // See https://docs.npmjs.com/files/package.json#license. Some old packages use a "license" (singular) node
+            // which ...
+            json["license"]?.let { licenseNode ->
+                // ... can either be a direct text value, an array of text values (which is not officially supported),
+                // or an object containing nested "type" (and "url") text nodes.
+                when {
+                    licenseNode.isTextual -> declaredLicenses += licenseNode.textValue()
+                    licenseNode.isArray -> licenseNode.mapNotNullTo(declaredLicenses) { it.textValue() }
+                    licenseNode.isObject -> declaredLicenses += licenseNode["type"].textValue()
+                    else -> throw IllegalArgumentException("Unsupported node type in '$licenseNode'.")
+                }
+            }
+
+            // New packages use a "licenses" (plural) node containing an array of objects with nested "type" (and "url")
+            // text nodes.
+            json["licenses"]?.mapNotNullTo(declaredLicenses) { licenseNode ->
+                licenseNode["type"]?.textValue()
+            }
+
+            return declaredLicenses.mapNotNullTo(sortedSetOf()) { declaredLicense ->
+                when {
+                    // NPM does not mean https://unlicense.org/ here, but the wish to not "grant others the right to use
+                    // a private or unpublished package under any terms", which corresponds to SPDX's "NONE".
+                    declaredLicense == "UNLICENSED" -> SpdxConstants.NONE
+
+                    // NPM allows to declare non-SPDX licenses only by referencing a license file. Avoid reporting an
+                    // [OrtIssue] by mapping this to a valid license identifier.
+                    declaredLicense.startsWith("SEE LICENSE IN ") -> "LicenseRef-ort-unknown-license-reference"
+
+                    else -> declaredLicense.takeUnless { it.isBlank() }
+                }
+            }
         }
-    }
 
-    /**
-     * Array of parameters passed to the install command when installing dependencies.
-     */
-    protected open val installParameters = arrayOf("--ignore-scripts")
+        /**
+         * Parse information about the author from the [package.json][json] file of a module. According to
+         * https://docs.npmjs.com/files/package.json#people-fields-author-contributors, there are two formats to
+         * specify the author of a package: An object with multiple properties or a single string.
+         */
+        internal fun parseAuthors(json: JsonNode): SortedSet<String> =
+            sortedSetOf<String>().apply {
+                json["author"]?.let { authorNode ->
+                    when {
+                        authorNode.isObject -> authorNode["name"]?.textValue()
+                        authorNode.isTextual -> parseAuthorString(authorNode.textValue(), '<', '(')
+                        else -> null
+                    }
+                }?.let { add(it) }
+            }
 
-    protected open fun hasLockFile(projectDir: File) = hasNpmLockFile(projectDir)
+        /**
+         * Parse information about the VCS from the [package.json][node] file of a module.
+         */
+        internal fun parseVcsInfo(node: JsonNode): VcsInfo {
+            // See https://github.com/npm/read-package-json/issues/7 for some background info.
+            val head = node["gitHead"].textValueOrEmpty()
 
-    override fun command(workingDir: File?) = if (Os.isWindows) "npm.cmd" else "npm"
+            return node["repository"]?.let { repo ->
+                val type = repo["type"].textValueOrEmpty()
+                val url = repo.textValue() ?: repo["url"].textValueOrEmpty()
+                val path = repo["directory"].textValueOrEmpty()
 
-    override fun getVersionRequirement(): Requirement = Requirement.buildNPM("5.7.* - 6.14.*")
-
-    override fun mapDefinitionFiles(definitionFiles: List<File>) = mapDefinitionFilesForNpm(definitionFiles).toList()
-
-    override fun beforeResolution(definitionFiles: List<File>) {
-        // We do not actually depend on any features specific to an NPM version, but we still want to stick to a
-        // fixed minor version to be sure to get consistent results.
-        checkVersion(analyzerConfig.ignoreToolVersions)
-    }
-
-    override fun afterResolution(definitionFiles: List<File>) {
-        ortProxySelector.removeProxyOrigin(managerName)
-    }
-
-    override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
-        val workingDir = definitionFile.parentFile
-
-        stashDirectories(workingDir.resolve("node_modules")).use {
-            // Actually installing the dependencies is the easiest way to get the meta-data of all transitive
-            // dependencies (i.e. their respective "package.json" files). As NPM uses a global cache, the same
-            // dependency is only ever downloaded once.
-            installDependencies(workingDir)
-
-            val packages = parseInstalledModules(workingDir)
-
-            // Optional dependencies are just like regular dependencies except that NPM ignores failures when installing
-            // them (see https://docs.npmjs.com/files/package.json#optionaldependencies), i.e. they are not a separate
-            // scope in our semantics.
-            val dependencies = getModuleDependencies(workingDir, setOf("dependencies", "optionalDependencies"))
-            val dependenciesScope = Scope("dependencies", dependencies.toSortedSet())
-
-            val devDependencies = getModuleDependencies(workingDir, setOf("devDependencies"))
-            val devDependenciesScope = Scope("devDependencies", devDependencies)
-
-            // TODO: add support for peerDependencies and bundledDependencies.
-
-            return listOf(
-                parseProject(
-                    definitionFile,
-                    sortedSetOf(dependenciesScope, devDependenciesScope),
-                    packages.values.toSortedSet()
+                VcsInfo(
+                    type = VcsType(type),
+                    url = expandNpmShortcutUrl(url),
+                    revision = head,
+                    path = path
                 )
+            } ?: VcsInfo(
+                type = VcsType.UNKNOWN,
+                url = "",
+                revision = head
             )
         }
-    }
 
-    private fun parseLicenses(json: JsonNode): SortedSet<String> {
-        val declaredLicenses = sortedSetOf<String>()
-
-        // See https://docs.npmjs.com/files/package.json#license. Some old packages use a "license" (singular) node
-        // which ...
-        json["license"]?.let { licenseNode ->
-            // ... can either be a direct text value, an array of text values (which is not officially supported), or
-            // an object containing nested "type" (and "url") text nodes.
-            when {
-                licenseNode.isTextual -> declaredLicenses += licenseNode.textValue()
-                licenseNode.isArray -> licenseNode.mapNotNullTo(declaredLicenses) { it.textValue() }
-                licenseNode.isObject -> declaredLicenses += licenseNode["type"].textValue()
-                else -> throw IllegalArgumentException("Unsupported node type in '$licenseNode'.")
-            }
-        }
-
-        // New packages use a "licenses" (plural) node containing an array of objects with nested "type" (and "url")
-        // text nodes.
-        json["licenses"]?.mapNotNullTo(declaredLicenses) { licenseNode ->
-            licenseNode["type"]?.textValue()
-        }
-
-        return declaredLicenses.mapTo(sortedSetOf()) { declaredLicense ->
-            when {
-                // NPM does not mean https://unlicense.org/ here, but the wish to not "grant others the right to use a
-                // private or unpublished package under any terms", which corresponds to SPDX's "NONE".
-                declaredLicense == "UNLICENSED" -> SpdxConstants.NONE
-                // NPM allows to declare non-SPDX licenses only by referencing a license file. Avoid reporting an
-                // [OrtIssue] by mapping this to a valid license identifier.
-                declaredLicense.startsWith("SEE LICENSE IN ") -> "LicenseRef-ort-unknown-license-reference"
-                else -> declaredLicense
-            }
-        }
-    }
-
-    /**
-     * Parse information about the author. According to
-     * https://docs.npmjs.com/files/package.json#people-fields-author-contributors, there are two formats to
-     * specify the author of a package: An object with multiple properties or a single string.
-     */
-    private fun parseAuthors(json: JsonNode): SortedSet<String> =
-        sortedSetOf<String>().apply {
-            json["author"]?.let { authorNode ->
-                when {
-                    authorNode.isObject -> authorNode["name"]?.textValue()
-                    authorNode.isTextual -> parseAuthorString(authorNode.textValue(), '<', '(')
-                    else -> null
-                }
-            }?.let { add(it) }
-        }
-
-    private fun parseInstalledModules(rootDirectory: File): Map<String, Package> {
-        val packages = mutableMapOf<String, Package>()
-        val nodeModulesDir = rootDirectory.resolve("node_modules")
-
-        log.info { "Searching for 'package.json' files in '$nodeModulesDir'..." }
-
-        nodeModulesDir.walk().filter {
-            it.name == "package.json" && isValidNodeModulesDirectory(nodeModulesDir, nodeModulesDirForPackageJson(it))
-        }.forEach { file ->
-            val packageDir = file.parentFile
+        /**
+         * Construct a [Package] by parsing its _package.json_ file and - if applicable - querying additional
+         * content from the [npmRegistry]. Result is a [Pair] with the raw identifier and the new package.
+         */
+        internal fun parsePackage(packageFile: File, npmRegistry: String): Pair<String, Package> {
+            val packageDir = packageFile.parentFile
 
             log.debug { "Found a 'package.json' file in '$packageDir'." }
 
-            val json = file.readValue<ObjectNode>()
+            val json = packageFile.readValue<ObjectNode>()
             val rawName = json["name"].textValue()
             val (namespace, name) = splitNamespaceAndName(rawName)
             val version = json["version"].textValue()
@@ -233,7 +202,11 @@ open class Npm(
 
             var description = json["description"].textValueOrEmpty()
             var homepageUrl = json["homepage"].textValueOrEmpty()
-            var downloadUrl = json["_resolved"].textValueOrEmpty()
+            var downloadUrl = expandNpmShortcutUrl(json["_resolved"].textValueOrEmpty()).ifEmpty {
+                // If the normalized form of the specified dependency contains a URL as the version, expand and use it.
+                val fromVersion = json["_from"].textValueOrEmpty().substringAfterLast('@')
+                expandNpmShortcutUrl(fromVersion).takeIf { it != fromVersion }.orEmpty()
+            }
 
             var vcsFromPackage = parseVcsInfo(json)
 
@@ -294,7 +267,7 @@ open class Npm(
                 }
             }
 
-            val vcsFromDownloadUrl = VcsHost.toVcsInfo(expandNpmShortcutURL(downloadUrl))
+            val vcsFromDownloadUrl = VcsHost.toVcsInfo(downloadUrl)
             if (vcsFromDownloadUrl.url != downloadUrl) {
                 vcsFromPackage = vcsFromPackage.merge(vcsFromDownloadUrl)
             }
@@ -312,7 +285,7 @@ open class Npm(
                 homepageUrl = homepageUrl,
                 binaryArtifact = RemoteArtifact.EMPTY,
                 sourceArtifact = RemoteArtifact(
-                    url = downloadUrl,
+                    url = VcsHost.toArchiveDownloadUrl(vcsFromDownloadUrl) ?: downloadUrl,
                     hash = hash
                 ),
                 vcs = vcsFromPackage,
@@ -327,7 +300,117 @@ open class Npm(
                 "Generated package info for $identifier has no version."
             }
 
-            packages[identifier] = module
+            return Pair(identifier, module)
+        }
+
+        /**
+         * Split the given [rawName] of a module to a pair with namespace and name.
+         */
+        internal fun splitNamespaceAndName(rawName: String): Pair<String, String> {
+            val name = rawName.substringAfterLast("/")
+            val namespace = rawName.removeSuffix(name).removeSuffix("/")
+            return Pair(namespace, name)
+        }
+    }
+
+    private val ortProxySelector = installAuthenticatorAndProxySelector()
+
+    private val npmRegistry: String
+
+    init {
+        val npmRcFile = Os.userHomeDirectory.resolve(".npmrc")
+        npmRegistry = if (npmRcFile.isFile) {
+            val npmRcContent = npmRcFile.readText()
+            ortProxySelector.addProxies(managerName, readProxySettingsFromNpmRc(npmRcContent))
+            readRegistryFromNpmRc(npmRcContent) ?: PUBLIC_NPM_REGISTRY
+        } else {
+            PUBLIC_NPM_REGISTRY
+        }
+    }
+
+    private val graphBuilder: DependencyGraphBuilder<NpmModuleInfo> =
+        DependencyGraphBuilder(NpmDependencyHandler(npmRegistry))
+
+    /**
+     * Array of parameters passed to the install command when installing dependencies.
+     */
+    protected open val installParameters = arrayOf("--ignore-scripts")
+
+    protected open fun hasLockFile(projectDir: File) = hasNpmLockFile(projectDir)
+
+    override fun command(workingDir: File?) = if (Os.isWindows) "npm.cmd" else "npm"
+
+    override fun getVersionRequirement(): Requirement = Requirement.buildNPM("5.7.* - 6.14.*")
+
+    override fun mapDefinitionFiles(definitionFiles: List<File>) = mapDefinitionFilesForNpm(definitionFiles).toList()
+
+    override fun beforeResolution(definitionFiles: List<File>) {
+        // We do not actually depend on any features specific to an NPM version, but we still want to stick to a
+        // fixed minor version to be sure to get consistent results.
+        checkVersion(analyzerConfig.ignoreToolVersions)
+    }
+
+    override fun afterResolution(definitionFiles: List<File>) {
+        ortProxySelector.removeProxyOrigin(managerName)
+    }
+
+    override fun createPackageManagerResult(projectResults: Map<File, List<ProjectAnalyzerResult>>) =
+        PackageManagerResult(projectResults, graphBuilder.build(), graphBuilder.packages())
+
+    override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
+        val workingDir = definitionFile.parentFile
+
+        stashDirectories(workingDir.resolve("node_modules")).use {
+            // Actually installing the dependencies is the easiest way to get the meta-data of all transitive
+            // dependencies (i.e. their respective "package.json" files). As NPM uses a global cache, the same
+            // dependency is only ever downloaded once.
+            installDependencies(workingDir)
+
+            // Create packages for all modules found in the workspace and add them to the graph builder. They are
+            // reused when they are referenced by scope dependencies.
+            val packages = parseInstalledModules(workingDir)
+            graphBuilder.addPackages(packages.values)
+
+            val project = parseProject(definitionFile)
+
+            val scopeNames = listOfNotNull(
+                // Optional dependencies are just like regular dependencies except that NPM ignores failures when
+                // installing them (see https://docs.npmjs.com/files/package.json#optionaldependencies), i.e. they are
+                // not a separate scope in our semantics.
+                buildDependencyGraphForScopes(
+                    project,
+                    workingDir,
+                    setOf(DEPENDENCIES_SCOPE, OPTIONAL_DEPENDENCIES_SCOPE),
+                    DEPENDENCIES_SCOPE
+                ),
+
+                buildDependencyGraphForScopes(
+                    project,
+                    workingDir,
+                    setOf(DEV_DEPENDENCIES_SCOPE),
+                    DEV_DEPENDENCIES_SCOPE
+                )
+            )
+
+            // TODO: add support for peerDependencies and bundledDependencies.
+
+            return listOf(
+                ProjectAnalyzerResult(project.copy(scopeNames = scopeNames.toSortedSet()), sortedSetOf())
+            )
+        }
+    }
+
+    private fun parseInstalledModules(rootDirectory: File): Map<String, Package> {
+        val packages = mutableMapOf<String, Package>()
+        val nodeModulesDir = rootDirectory.resolve("node_modules")
+
+        log.info { "Searching for 'package.json' files in '$nodeModulesDir'..." }
+
+        nodeModulesDir.walk().filter {
+            it.name == "package.json" && isValidNodeModulesDirectory(nodeModulesDir, nodeModulesDirForPackageJson(it))
+        }.forEach { file ->
+            val (id, pkg) = parsePackage(file, npmRegistry)
+            packages[id] = pkg
         }
 
         return packages
@@ -362,16 +445,22 @@ open class Npm(
         return modulesDir.takeIf { it.name == "node_modules" }
     }
 
-    private fun parseVcsInfo(node: JsonNode): VcsInfo {
-        // See https://github.com/npm/read-package-json/issues/7 for some background info.
-        val head = node["gitHead"].textValueOrEmpty()
+    /**
+     * Retrieve all the dependencies of [project] from the given [scopes] and add them to the dependency graph under
+     * the given [targetScope]. Return the target scope name if dependencies are found; *null* otherwise.
+     */
+    private fun buildDependencyGraphForScopes(
+        project: Project,
+        workingDir: File,
+        scopes: Set<String>,
+        targetScope: String
+    ): String? {
+        val qualifiedScopeName = DependencyGraph.qualifyScope(project, targetScope)
+        val moduleDependencies = getModuleDependencies(workingDir, scopes)
 
-        return node["repository"]?.let { repo ->
-            val type = repo["type"].textValueOrEmpty()
-            val url = repo.textValue() ?: repo["url"].textValueOrEmpty()
-            val path = repo["directory"].textValueOrEmpty()
-            VcsInfo(VcsType(type), expandNpmShortcutURL(url), head, path = path)
-        } ?: VcsInfo(VcsType.UNKNOWN, "", head)
+        moduleDependencies.forEach { graphBuilder.addDependency(qualifiedScopeName, it) }
+
+        return targetScope.takeUnless { moduleDependencies.isEmpty() }
     }
 
     private fun getPackageReferenceForMissingModule(moduleName: String, rootModuleDir: File): PackageReference {
@@ -404,27 +493,27 @@ open class Npm(
         }
     }
 
-    private fun getModuleDependencies(moduleDir: File, scopes: Set<String>): SortedSet<PackageReference> {
+    private fun getModuleDependencies(moduleDir: File, scopes: Set<String>): Set<NpmModuleInfo> {
         val workspaceModuleDirs = findWorkspaceSubmodules(moduleDir)
 
-        return sortedSetOf<PackageReference>().apply {
-            addAll(getPackageReferenceForModule(moduleDir, scopes)!!.dependencies)
+        return mutableSetOf<NpmModuleInfo>().apply {
+            addAll(getModuleInfo(moduleDir, scopes)!!.dependencies)
 
             workspaceModuleDirs.forEach { workspaceModuleDir ->
-                addAll(getPackageReferenceForModule(workspaceModuleDir, scopes, listOf(moduleDir))!!.dependencies)
+                addAll(getModuleInfo(workspaceModuleDir, scopes, listOf(moduleDir))!!.dependencies)
             }
         }
     }
 
-    private fun getPackageReferenceForModule(
+    private fun getModuleInfo(
         moduleDir: File,
         scopes: Set<String>,
         ancestorModuleDirs: List<File> = emptyList(),
         ancestorModuleIds: List<Identifier> = emptyList(),
         packageType: String = managerName
-    ): PackageReference? {
-        val moduleInfo = getModuleInfo(moduleDir, scopes)
-        val dependencies = sortedSetOf<PackageReference>()
+    ): NpmModuleInfo? {
+        val moduleInfo = parsePackageJson(moduleDir, scopes)
+        val dependencies = mutableSetOf<NpmModuleInfo>()
         val moduleId = splitNamespaceAndName(moduleInfo.name).let { (namespace, name) ->
             Identifier(packageType, namespace, name, moduleInfo.version)
         }
@@ -447,7 +536,7 @@ open class Npm(
                 val dependencyModuleDir = dependencyModuleDirPath.first()
                 log.debug { "Found module dir for '$dependencyName' at '$dependencyModuleDir'." }
 
-                getPackageReferenceForModule(
+                getModuleInfo(
                     moduleDir = dependencyModuleDir,
                     scopes = setOf("dependencies", "optionalDependencies"),
                     ancestorModuleDirs = dependencyModuleDirPath.subList(1, dependencyModuleDirPath.size),
@@ -462,16 +551,22 @@ open class Npm(
             getPackageReferenceForMissingModule(dependencyName, pathToRoot.first())
         }
 
-        return PackageReference(id = moduleId, dependencies = dependencies)
+        return NpmModuleInfo(moduleId, moduleInfo.packageJson, dependencies)
     }
 
-    private data class ModuleInfo(
+    /**
+     * An internally used data class with information about a module retrieved from the module's package.json. This
+     * information is further processed and eventually converted to an [NpmModuleInfo] object containing everything
+     * required by the Npm package manager.
+     */
+    private data class RawModuleInfo(
         val name: String,
         val version: String,
-        val dependencyNames: Set<String>
+        val dependencyNames: Set<String>,
+        val packageJson: File
     )
 
-    private fun getModuleInfo(moduleDir: File, scopes: Set<String>): ModuleInfo {
+    private fun parsePackageJson(moduleDir: File, scopes: Set<String>): RawModuleInfo {
         val packageJsonFile = moduleDir.resolve("package.json")
         val json = readJsonFile(packageJsonFile)
 
@@ -489,12 +584,16 @@ open class Npm(
             }
         }
 
-        return ModuleInfo(
+        val dependencyNames = scopes.flatMapTo(mutableSetOf()) { scope ->
+            // Yarn ignores "//" keys in the dependencies to allow comments, therefore ignore them here as well.
+            json[scope].fieldNamesOrEmpty().asSequence().filterNot { it == "//" }
+        }
+
+        return RawModuleInfo(
             name = name,
             version = version,
-            dependencyNames = scopes.map { scope ->
-                json[scope]?.fieldNames()?.asSequence()?.toSet().orEmpty()
-            }.flatten().toSet()
+            dependencyNames = dependencyNames,
+            packageJson = packageJsonFile
         )
     }
 
@@ -509,8 +608,7 @@ open class Npm(
         return emptyList()
     }
 
-    private fun parseProject(packageJson: File, scopes: SortedSet<Scope>, packages: SortedSet<Package>):
-            ProjectAnalyzerResult {
+    private fun parseProject(packageJson: File): Project {
         log.debug { "Parsing project info from '$packageJson'." }
 
         val json = jsonMapper.readTree(packageJson)
@@ -532,7 +630,7 @@ open class Npm(
         val projectDir = packageJson.parentFile
         val vcsFromPackage = parseVcsInfo(json)
 
-        val project = Project(
+        return Project(
             id = Identifier(
                 type = managerName,
                 namespace = namespace,
@@ -544,11 +642,8 @@ open class Npm(
             declaredLicenses = declaredLicenses,
             vcs = vcsFromPackage,
             vcsProcessed = processProjectVcs(projectDir, vcsFromPackage, homepageUrl),
-            homepageUrl = homepageUrl,
-            scopeDependencies = scopes
+            homepageUrl = homepageUrl
         )
-
-        return ProjectAnalyzerResult(project, packages)
     }
 
     /**
@@ -566,11 +661,5 @@ open class Npm(
 
         // TODO: Capture warnings from npm output, e.g. "Unsupported platform" which happens for fsevents on all
         //       platforms except for Mac.
-    }
-
-    private fun splitNamespaceAndName(rawName: String): Pair<String, String> {
-        val name = rawName.substringAfterLast("/")
-        val namespace = rawName.removeSuffix(name).removeSuffix("/")
-        return Pair(namespace, name)
     }
 }

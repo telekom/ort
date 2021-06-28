@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -213,7 +213,7 @@ private fun stripYears(copyrightStatement: String): Pair<String, Set<Int>> =
 
 private fun String.removeDuplicateWhitespaces() = replace(DUPLICATE_WHITESPACES_REGEX, " ")
 
-private fun String.toNormalizedOwnerKey() = filter { it !in INVALID_OWNER_KEY_CHARS }.toUpperCase()
+private fun String.toNormalizedOwnerKey() = filter { it !in INVALID_OWNER_KEY_CHARS }.uppercase()
 
 private fun Collection<Parts>.groupByPrefixAndOwner(): List<Parts> {
     val map = mutableMapOf<String, Parts>()

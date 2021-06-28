@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -83,7 +83,7 @@ extensions.findByName("buildScan")?.withGroovyBuilder {
     setProperty("termsOfServiceAgree", "yes")
 }
 
-tasks.named<DependencyUpdatesTask>("dependencyUpdates") {
+tasks.named<DependencyUpdatesTask>("dependencyUpdates").configure {
     val nonFinalQualifiers = listOf(
         "alpha", "b", "beta", "cr", "ea", "eap", "m", "milestone", "pr", "preview", "rc"
     ).joinToString("|", "(", ")")
@@ -104,20 +104,12 @@ val mergeDetektReports by tasks.registering(ReportMergeTask::class) {
 allprojects {
     buildscript {
         repositories {
-            // Explicitly add Maven Central as some plugins continue to have problems with JCenter, see
-            // https://github.com/detekt/detekt/issues/3062.
             mavenCentral()
-
-            jcenter()
         }
     }
 
     repositories {
-        // Work-around for JCenter not correctly proxying "maven-metadata.xml", see
-        // https://github.com/ben-manes/gradle-versions-plugin/issues/424#issuecomment-691628498.
         mavenCentral()
-
-        jcenter()
     }
 
     apply(plugin = "io.gitlab.arturbosch.detekt")
@@ -213,13 +205,14 @@ subprojects {
                 // Ensure all API library versions match our core library version.
                 force("org.apache.logging.log4j:log4j-api:$log4jCoreVersion")
 
-                // Ensure that all transitive versions of "kotlin-reflect" match our version of Kotlin.
+                // Ensure that all transitive versions of Kotlin libraries match our version of Kotlin.
                 force("org.jetbrains.kotlin:kotlin-reflect:$kotlinPluginVersion")
+                force("org.jetbrains.kotlin:kotlin-script-runtime:$kotlinPluginVersion")
             }
         }
     }
 
-    tasks.withType<KotlinCompile> {
+    tasks.withType<KotlinCompile>().configureEach {
         val customCompilerArgs = listOf(
             "-Xallow-result-return-type",
             "-Xopt-in=kotlin.io.path.ExperimentalPathApi",
@@ -229,9 +222,8 @@ subprojects {
         kotlinOptions {
             allWarningsAsErrors = true
             jvmTarget = "11"
-            apiVersion = "1.4"
+            apiVersion = "1.5"
             freeCompilerArgs = freeCompilerArgs + customCompilerArgs
-            useIR = true
         }
     }
 
@@ -282,7 +274,7 @@ subprojects {
     gradle.taskGraph.whenReady {
         val enabled = allTasks.any { it is JacocoReport }
 
-        tasks.withType<Test> {
+        tasks.withType<Test>().configureEach {
             extensions.configure(JacocoTaskExtension::class) {
                 isEnabled = enabled
             }
@@ -304,14 +296,14 @@ subprojects {
         }
     }
 
-    tasks.named<JacocoReport>("jacocoTestReport") {
+    tasks.named<JacocoReport>("jacocoTestReport").configure {
         reports {
             // Enable XML in addition to HTML for CI integration.
             xml.isEnabled = true
         }
     }
 
-    tasks.register<JacocoReport>("jacocoFunTestReport") {
+    tasks.register<JacocoReport>("jacocoFunTestReport").configure {
         description = "Generates code coverage report for the funTest task."
         group = "Reporting"
 
@@ -324,23 +316,28 @@ subprojects {
         }
     }
 
-    tasks.register("jacocoReport") {
+    tasks.register("jacocoReport").configure {
         description = "Generates code coverage reports for all test tasks."
         group = "Reporting"
 
         dependsOn(tasks.withType<JacocoReport>())
     }
 
-    tasks.named("check") {
+    tasks.named("check").configure {
         dependsOn(funTest)
     }
 
-    tasks.register<Jar>("sourcesJar") {
+    tasks.withType<Jar>().configureEach {
+        isPreserveFileTimestamps = false
+        isReproducibleFileOrder = true
+    }
+
+    tasks.register<Jar>("sourcesJar").configure {
         archiveClassifier.set("sources")
         from(sourceSets["main"].allSource)
     }
 
-    tasks.register<Jar>("dokkaHtmlJar") {
+    tasks.register<Jar>("dokkaHtmlJar").configure {
         dependsOn(tasks.dokkaHtml)
 
         description = "Assembles a jar archive containing the minimalistic HTML documentation."
@@ -350,7 +347,7 @@ subprojects {
         from(tasks.dokkaHtml)
     }
 
-    tasks.register<Jar>("dokkaJavadocJar") {
+    tasks.register<Jar>("dokkaJavadocJar").configure {
         dependsOn(tasks.dokkaJavadoc)
 
         description = "Assembles a jar archive containing the Javadoc documentation."
@@ -389,11 +386,13 @@ subprojects {
     }
 }
 
-tasks.register("allDependencies") {
-    val dependenciesTasks = allprojects.map { it.tasks.named("dependencies").get() }
+tasks.register("allDependencies").configure {
+    val dependenciesTasks = allprojects.map { it.tasks.named("dependencies") }
     dependsOn(dependenciesTasks)
 
     dependenciesTasks.zipWithNext().forEach { (a, b) ->
-        b.mustRunAfter(a)
+        b.configure {
+            mustRunAfter(a)
+        }
     }
 }

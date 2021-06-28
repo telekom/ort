@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,9 +29,9 @@ import com.github.ajalt.clikt.parameters.types.file
 import org.ossreviewtoolkit.helper.common.getScanResultFor
 import org.ossreviewtoolkit.helper.common.importLicenseFindingCurations
 import org.ossreviewtoolkit.helper.common.mergeLicenseFindingCurations
+import org.ossreviewtoolkit.helper.common.readOrtResult
 import org.ossreviewtoolkit.helper.common.sortLicenseFindingCurations
 import org.ossreviewtoolkit.helper.common.write
-import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.PackageConfiguration
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.utils.FindingCurationMatcher
@@ -82,7 +82,7 @@ class ImportLicenseFindingCurationsCommand : CliktCommand(
     private val findingCurationMatcher = FindingCurationMatcher()
 
     override fun run() {
-        val ortResult = ortFile.readValue<OrtResult>()
+        val ortResult = readOrtResult(ortFile)
         val packageConfiguration = packageConfigurationFile.readValue<PackageConfiguration>()
 
         val allLicenseFindings = ortResult.getScanResultFor(packageConfiguration)?.summary?.licenseFindings.orEmpty()

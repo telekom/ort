@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -117,7 +117,7 @@ data class OrtResult(
             )
         }
 
-        log.perf { "Computing excluded projects took ${duration.inSeconds}s." }
+        log.perf { "Computing excluded projects took ${duration.inWholeSeconds}s." }
 
         result
     }
@@ -160,7 +160,7 @@ data class OrtResult(
             }
         }
 
-        log.perf { "Computing excluded packages took ${duration.inSeconds}s." }
+        log.perf { "Computing excluded packages took ${duration.inWholeSeconds}s." }
 
         result
     }
@@ -340,7 +340,7 @@ data class OrtResult(
     /**
      * Return a copy of this [OrtResult] with the [PackageCuration]s replaced by the given [curations].
      */
-    fun replacePackageCurations(curations: List<PackageCuration>): OrtResult =
+    fun replacePackageCurations(curations: Collection<PackageCuration>): OrtResult =
         copy(
             analyzer = analyzer?.copy(
                 result = analyzer.result.copy(
@@ -372,7 +372,7 @@ data class OrtResult(
      */
     @JsonIgnore
     fun getProjects(omitExcluded: Boolean = false): Set<Project> =
-        analyzer?.result?.projects.orEmpty().filterTo(mutableSetOf()) { project ->
+        analyzer?.result?.withScopesResolved()?.projects.orEmpty().filterTo(mutableSetOf()) { project ->
             !omitExcluded || !isExcluded(project.id)
         }
 
@@ -447,7 +447,6 @@ data class OrtResult(
     /**
      * Return true if and only if the given [id] denotes a [Package] contained in this [OrtResult].
      */
-    @Suppress("UNUSED")
     fun isPackage(id: Identifier): Boolean = getPackage(id) != null
 
     /**
@@ -461,9 +460,7 @@ data class OrtResult(
     fun withResolvedScopes(): OrtResult =
         copy(
             analyzer = analyzer?.copy(
-                result = analyzer.result.copy(
-                    projects = analyzer.result.projects.mapTo(sortedSetOf()) { it.withResolvedScopes() }
-                )
+                result = analyzer.result.withScopesResolved()
             )
         )
 }

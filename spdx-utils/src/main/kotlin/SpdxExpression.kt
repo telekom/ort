@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -125,6 +125,11 @@ sealed class SpdxExpression {
     abstract fun normalize(mapDeprecated: Boolean = true): SpdxExpression
 
     /**
+     * Sort this expression lexicographically.
+     */
+    open fun sort(): SpdxExpression = this
+
+    /**
      * Validate this expression. [strictness] defines whether only the syntax is checked
      * ([ALLOW_ANY][Strictness.ALLOW_ANY]), or semantics are also checked but deprecated license identifiers are
      * allowed ([ALLOW_DEPRECATED][Strictness.ALLOW_DEPRECATED]) or only current license identifiers are allowed
@@ -232,35 +237,58 @@ class SpdxCompoundExpression(
         val leftDnf = left.disjunctiveNormalForm()
         val rightDnf = right.disjunctiveNormalForm()
 
-        // Both AND and OR operators are commutative, so it is fine to sort operands alphabetically.
-        val (firstDnf, secondDnf) = if (rightDnf.toString() < leftDnf.toString()) {
-            rightDnf to leftDnf
-        } else {
-            leftDnf to rightDnf
-        }
-
         return when (operator) {
-            SpdxOperator.OR -> SpdxCompoundExpression(firstDnf, SpdxOperator.OR, secondDnf)
+            SpdxOperator.OR -> SpdxCompoundExpression(leftDnf, SpdxOperator.OR, rightDnf)
 
             SpdxOperator.AND -> when {
-                firstDnf is SpdxCompoundExpression && firstDnf.operator == SpdxOperator.OR &&
-                        secondDnf is SpdxCompoundExpression && secondDnf.operator == SpdxOperator.OR ->
-                    ((firstDnf.left and secondDnf.left) or (firstDnf.left and secondDnf.right)) or
-                            ((firstDnf.right and secondDnf.left) or (firstDnf.right and secondDnf.right))
+                leftDnf is SpdxCompoundExpression && leftDnf.operator == SpdxOperator.OR &&
+                        rightDnf is SpdxCompoundExpression && rightDnf.operator == SpdxOperator.OR ->
+                    ((leftDnf.left and rightDnf.left) or (leftDnf.left and rightDnf.right)) or
+                            ((leftDnf.right and rightDnf.left) or (leftDnf.right and rightDnf.right))
 
-                firstDnf is SpdxCompoundExpression && firstDnf.operator == SpdxOperator.OR ->
-                    (firstDnf.left and secondDnf) or (firstDnf.right and secondDnf)
+                leftDnf is SpdxCompoundExpression && leftDnf.operator == SpdxOperator.OR ->
+                    (leftDnf.left and rightDnf) or (leftDnf.right and rightDnf)
 
-                secondDnf is SpdxCompoundExpression && secondDnf.operator == SpdxOperator.OR ->
-                    (firstDnf and secondDnf.left) or (firstDnf and secondDnf.right)
+                rightDnf is SpdxCompoundExpression && rightDnf.operator == SpdxOperator.OR ->
+                    (leftDnf and rightDnf.left) or (leftDnf and rightDnf.right)
 
-                else -> SpdxCompoundExpression(firstDnf, operator, secondDnf)
+                else -> SpdxCompoundExpression(leftDnf, operator, rightDnf)
             }
         }
     }
 
     override fun normalize(mapDeprecated: Boolean) =
         SpdxCompoundExpression(left.normalize(mapDeprecated), operator, right.normalize(mapDeprecated))
+
+    override fun sort(): SpdxExpression {
+        /**
+         * Get all transitive children of this expression that are concatenated with the same operator as this compound
+         * expression. These can be re-ordered because the AND and OR operators are both commutative.
+         */
+        fun getSortedChildrenWithSameOperator(expression: SpdxCompoundExpression): List<SpdxExpression> {
+            val children = mutableListOf<SpdxExpression>()
+
+            fun addChildren(child: SpdxExpression) {
+                if (child is SpdxCompoundExpression && child.operator == operator) {
+                    children += getSortedChildrenWithSameOperator(child)
+                } else {
+                    children += child.sort()
+                }
+            }
+
+            addChildren(expression.left)
+            addChildren(expression.right)
+
+            return children.sortedBy { it.toString() }
+        }
+
+        return getSortedChildrenWithSameOperator(this).reduce(
+            when (operator) {
+                SpdxOperator.AND -> SpdxExpression::and
+                SpdxOperator.OR -> SpdxExpression::or
+            }
+        )
+    }
 
     override fun validate(strictness: Strictness) {
         left.validate(strictness)
@@ -344,7 +372,7 @@ class SpdxCompoundExpression(
         return validChoices.size == otherValidChoices.size && validChoices.all { otherValidChoices.contains(it) }
     }
 
-    override fun hashCode() = decompose().sumBy { it.hashCode() }
+    override fun hashCode() = decompose().sumOf { it.hashCode() }
 
     override fun toString(): String {
         // If the priority of this operator is higher than the binding of the left or right operator, we need to put the

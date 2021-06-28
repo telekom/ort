@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,8 @@ import java.io.File
 import java.security.Permission
 
 import kotlin.reflect.full.memberProperties
+
+import org.ossreviewtoolkit.spdx.VCS_DIRECTORIES
 
 /**
  * The directory to store ORT (read-only) configuration in.
@@ -65,6 +67,25 @@ val ortDataDirectory by lazy {
 var printStackTrace = false
 
 /**
+ * Archive the contents of [inputDir], omitting common [VCS_DIRECTORIES], to [zipFile] where an optional [prefix] is
+ * added to each file. Return a [Result] wrapping the [zipFile] on success, or an exception of failure.
+ */
+fun archive(inputDir: File, zipFile: File, prefix: String = ""): Result<File> {
+    return runCatching {
+        inputDir.packZip(
+            zipFile,
+            prefix,
+            directoryFilter = { it.name !in VCS_DIRECTORIES },
+            fileFilter = { it != zipFile }
+        )
+
+        zipFile
+    }.onFailure {
+        it.showStackTrace()
+    }
+}
+
+/**
  * Return whether [T] (usually an instance of a data class) has any non-null property.
  */
 inline fun <reified T : Any> T.hasNonNullProperty() =
@@ -86,7 +107,7 @@ fun filterVersionNames(version: String, names: List<String>, project: String? = 
     // Create variants of the version string to recognize.
     data class VersionVariant(val name: String, val separators: List<Char>)
 
-    val versionLower = version.toLowerCase()
+    val versionLower = version.lowercase()
     val versionVariants = mutableListOf(VersionVariant(versionLower, versionSeparators))
 
     val separatorRegex = Regex(versionSeparators.joinToString("", "[", "]"))
@@ -95,38 +116,34 @@ fun filterVersionNames(version: String, names: List<String>, project: String? = 
     }
 
     val filteredNames = names.filter {
-        val name = it.toLowerCase()
+        val name = it.lowercase()
 
         versionVariants.any { versionVariant ->
-            when {
-                // Allow to ignore suffixes in names that are separated by something else than the current
-                // separator, e.g. for version "3.3.1" accept "3.3.1-npm-packages" but not "3.3.1.0".
-                name.startsWith(versionVariant.name) -> {
-                    val tail = name.removePrefix(versionVariant.name)
-                    tail.firstOrNull() !in versionVariant.separators
-                }
+            // Allow to ignore suffixes in names that are separated by something else than the current separator, e.g.
+            // for version "3.3.1" accept "3.3.1-npm-packages" but not "3.3.1.0".
+            val hasIgnorableSuffix = name.withoutPrefix(versionVariant.name)?.let { tail ->
+                tail.firstOrNull() !in versionVariant.separators
+            } ?: false
 
-                // Allow to ignore prefixes in names that are separated by something else than the current
-                // separator, e.g. for version "0.10" accept "docutils-0.10" but not "1.0.10".
-                name.endsWith(versionVariant.name) -> {
-                    val head = name.removeSuffix(versionVariant.name)
-                    val last = head.lastOrNull()
-                    val forelast = head.dropLast(1).lastOrNull()
+            // Allow to ignore prefixes in names that are separated by something else than the current separator, e.g.
+            // for version "0.10" accept "docutils-0.10" but not "1.0.10".
+            val hasIgnorablePrefix = name.withoutSuffix(versionVariant.name)?.let { head ->
+                val last = head.lastOrNull()
+                val forelast = head.dropLast(1).lastOrNull()
 
-                    val currentSeparators = if (versionHasSeparator) versionVariant.separators else versionSeparators
+                val currentSeparators = if (versionHasSeparator) versionVariant.separators else versionSeparators
 
-                    // Full match with the current version variant.
-                    last == null
-                            // The prefix does not end with the current separators or a digit.
-                            || (last !in currentSeparators && !last.isDigit())
-                            // The prefix ends with the current separators but the forelast character is not a digit.
-                            || (last in currentSeparators && (forelast == null || !forelast.isDigit()))
-                            // The prefix ends with 'v' and the forelast character is a separator.
-                            || (last == 'v' && (forelast == null || forelast in currentSeparators))
-                }
+                // Full match with the current version variant.
+                last == null
+                        // The prefix does not end with the current separators or a digit.
+                        || (last !in currentSeparators && !last.isDigit())
+                        // The prefix ends with the current separators but the forelast character is not a digit.
+                        || (last in currentSeparators && (forelast == null || !forelast.isDigit()))
+                        // The prefix ends with 'v' and the forelast character is a separator.
+                        || (last == 'v' && (forelast == null || forelast in currentSeparators))
+            } ?: false
 
-                else -> false
-            }
+            hasIgnorableSuffix || hasIgnorablePrefix
         }
     }
 
@@ -172,14 +189,28 @@ fun getCommonFileParent(files: Collection<File>): File? =
  * Return the full path to the given executable file if it is in the system's PATH environment, or null otherwise.
  */
 fun getPathFromEnvironment(executable: String): File? {
+    fun String.expandVariable(referencePattern: Regex, groupName: String): String =
+        replace(referencePattern) {
+            val variableName = it.groups[groupName]!!.value
+            Os.env[variableName] ?: variableName
+        }
+
     val paths = Os.env["PATH"]?.splitToSequence(File.pathSeparatorChar).orEmpty()
 
     return if (Os.isWindows) {
+        val referencePattern = Regex("%(?<reference>\\w+)%")
+
         paths.mapNotNull { path ->
-            resolveWindowsExecutable(File(path, executable))
+            val expandedPath = path.expandVariable(referencePattern, "reference")
+            resolveWindowsExecutable(File(expandedPath, executable))
         }.firstOrNull()
     } else {
-        paths.map { path -> File(path, executable) }.find { it.isFile }
+        val referencePattern = Regex("\\$\\{?(?<reference>\\w+)}?")
+
+        paths.map { path ->
+            val expandedPath = path.expandVariable(referencePattern, "reference")
+            File(expandedPath, executable)
+        }.find { it.isFile }
     }
 }
 
@@ -276,7 +307,7 @@ fun normalizeVcsUrl(vcsUrl: String): String {
  */
 fun resolveWindowsExecutable(executable: File): File? {
     val extensions = Os.env["PATHEXT"]?.splitToSequence(File.pathSeparatorChar).orEmpty()
-    return extensions.map { File(executable.path + it.toLowerCase()) }.find { it.isFile }
+    return extensions.map { File(executable.path + it.lowercase()) }.find { it.isFile }
         ?: executable.takeIf { it.isFile }
 }
 

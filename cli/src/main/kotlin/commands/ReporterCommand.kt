@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.commands
+package org.ossreviewtoolkit.cli.commands
 
 import com.github.ajalt.clikt.core.BadParameterValue
 import com.github.ajalt.clikt.core.CliktCommand
@@ -41,10 +41,17 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 
-import org.ossreviewtoolkit.GlobalOptions
-import org.ossreviewtoolkit.model.OrtResult
+import org.ossreviewtoolkit.cli.GlobalOptions
+import org.ossreviewtoolkit.cli.utils.OPTION_GROUP_CONFIGURATION
+import org.ossreviewtoolkit.cli.utils.PackageConfigurationOption
+import org.ossreviewtoolkit.cli.utils.configurationGroup
+import org.ossreviewtoolkit.cli.utils.createProvider
+import org.ossreviewtoolkit.cli.utils.inputGroup
+import org.ossreviewtoolkit.cli.utils.outputGroup
+import org.ossreviewtoolkit.cli.utils.readOrtResult
 import org.ossreviewtoolkit.model.config.CopyrightGarbage
 import org.ossreviewtoolkit.model.config.LicenseFilenamePatterns
+import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.Resolutions
 import org.ossreviewtoolkit.model.config.createFileArchiver
 import org.ossreviewtoolkit.model.config.orEmpty
@@ -53,6 +60,7 @@ import org.ossreviewtoolkit.model.licenses.LicenseClassifications
 import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.licenses.orEmpty
 import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.model.readValueOrDefault
 import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
 import org.ossreviewtoolkit.reporter.DefaultLicenseTextProvider
 import org.ossreviewtoolkit.reporter.HowToFixTextProvider
@@ -64,14 +72,10 @@ import org.ossreviewtoolkit.utils.ORT_HOW_TO_FIX_TEXT_PROVIDER_FILENAME
 import org.ossreviewtoolkit.utils.ORT_LICENSE_CLASSIFICATIONS_FILENAME
 import org.ossreviewtoolkit.utils.ORT_REPO_CONFIG_FILENAME
 import org.ossreviewtoolkit.utils.ORT_RESOLUTIONS_FILENAME
-import org.ossreviewtoolkit.utils.PackageConfigurationOption
 import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.createProvider
 import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.formatSizeInMib
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.ortConfigDirectory
-import org.ossreviewtoolkit.utils.perf
 import org.ossreviewtoolkit.utils.safeMkdirs
 import org.ossreviewtoolkit.utils.showStackTrace
 
@@ -200,14 +204,11 @@ class ReporterCommand : CliktCommand(
     private val globalOptionsForSubcommands by requireObject<GlobalOptions>()
 
     override fun run() {
-        var (ortResult, duration) = measureTimedValue { ortFile.readValue<OrtResult>() }
-
-        log.perf {
-            "Read ORT result from '${ortFile.name}' (${ortFile.formatSizeInMib}) in ${duration.inMilliseconds}ms."
-        }
+        var ortResult = readOrtResult(ortFile)
 
         repositoryConfigurationFile?.let {
-            ortResult = ortResult.replaceConfig(it.readValue())
+            val config = it.readValueOrDefault(RepositoryConfiguration())
+            ortResult = ortResult.replaceConfig(config)
         }
 
         val resolutionProvider = DefaultResolutionProvider()
@@ -273,10 +274,11 @@ class ReporterCommand : CliktCommand(
 
         reportDurationMap.value.forEach { (reporter, timedValue) ->
             val name = reporter.reporterName
-            val durationInSeconds = timedValue.duration.inSeconds
+            val durationInSeconds = timedValue.duration.inWholeSeconds
 
             timedValue.value.onSuccess { files ->
-                println("Successfully created the '$name' report at $files in ${durationInSeconds}s.")
+                val fileList = files.joinToString { "'$it'" }
+                println("Successfully created '$name' report(s) at $fileList in ${durationInSeconds}s.")
             }.onFailure { e ->
                 e.showStackTrace()
 
@@ -287,7 +289,8 @@ class ReporterCommand : CliktCommand(
         }
 
         val successCount = reportFormats.size - failureCount
-        println("Created $successCount of ${reportFormats.size} report(s) in ${reportDurationMap.duration.inSeconds}s.")
+        println("Created $successCount of ${reportFormats.size} report(s) in " +
+                "${reportDurationMap.duration.inWholeSeconds}s.")
 
         if (failureCount > 0) throw ProgramResult(2)
     }

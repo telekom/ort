@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,8 +34,7 @@ class ScanRecordTest : StringSpec({
             ---
             scan_results:
               type:namespace:name:version:
-              - provenance:
-                  download_time: "1970-01-01T00:00:00Z"
+              - provenance: {}
                 scanner:
                   name: "scanner"
                   version: "version"

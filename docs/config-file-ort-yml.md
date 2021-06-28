@@ -6,6 +6,7 @@ The items below can be configured by adding an `.ort.yml` file to the root of th
   not included in released artifacts.
 * [license finding curations](#curations) - Overwrite scan results to correct identified licenses.
 * [resolutions](#resolutions) - Resolve any issues or policy rule violations.
+* [license choices](#License-Choices) - Select a license for packages which offer a license choice.
 
 The sections below explain each in further detail. Prefer to learn by example? See the [.ort.yml](../.ort.yml) for the
 OSS Review Toolkit itself.
@@ -95,7 +96,7 @@ excludes:
     comment: "Packages for testing only."
 ```
 
-The above example excludes all of the following scopes for all projects: `testAnnotationProcessor`,`testApi`,
+The above example excludes all the following scopes for all projects: `testAnnotationProcessor`,`testApi`,
 `testCompile`, `testCompileClasspath`, `testCompileOnly`, `testImplementation`, `testRuntime`, `testRuntimeClasspath`,
 `testRuntimeOnly`.
 
@@ -208,7 +209,7 @@ resolutions:
 
 ### Resolving Policy Rule Violations
 
-Resolutions should not be not used to resolve license policy rule violations as they do not change the generated open
+Resolutions should not be used to resolve license policy rule violations as they do not change the generated open
 source notices. To resolve a license policy rule violation either add a [license finding curation](#curations) to the
 .ort.yml file if the finding is in your code repository or add a curation to the
 [curations.yml](config-file-curations-yml.md) if the violation occurs in a third-party dependency.
@@ -261,7 +262,7 @@ resolutions:
     comment: "CVE-9999-9999 is a false positive"
 ```
 
-# License Choices
+## License Choices
 
 ### When to Use License Choices
 

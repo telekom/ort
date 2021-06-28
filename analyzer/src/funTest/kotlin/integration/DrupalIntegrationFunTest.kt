@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,10 +43,9 @@ class DrupalIntegrationFunTest : AbstractIntegrationSpec() {
         binaryArtifact = RemoteArtifact.EMPTY,
         sourceArtifact = RemoteArtifact.EMPTY,
         vcs = VcsInfo(
-            VcsType.GIT,
-            "https://github.com/drupal/drupal.git",
-            "4a765491d80d1bcb11e542ffafccf10aef05b853",
-            ""
+            type = VcsType.GIT,
+            url = "https://github.com/drupal/drupal.git",
+            revision = "4a765491d80d1bcb11e542ffafccf10aef05b853"
         )
     )
 

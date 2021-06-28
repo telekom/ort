@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -349,7 +349,6 @@ class ClearlyDefinedStorageTest : WordSpec({
             val vcsGit = VcsInfo(
                 VcsType.GIT,
                 "https://github.com/$NAMESPACE/$NAME.git",
-                VERSION,
                 COMMIT
             )
             val pkg = TEST_PACKAGE.copy(vcs = vcsGit)
@@ -364,7 +363,7 @@ class ClearlyDefinedStorageTest : WordSpec({
         }
 
         "only use VCS info pointing to GitHub" {
-            val vcs = VcsInfo(VcsType.GIT, "https://gitlab.com/foo/bar.git", VERSION, COMMIT)
+            val vcs = VcsInfo(VcsType.GIT, "https://gitlab.com/foo/bar.git", COMMIT)
             val pkg = TEST_PACKAGE.copy(vcs = vcs)
             val tools = listOf(toolUrl(COORDINATES, "scancode", SCANCODE_VERSION))
             stubHarvestTools(wiremock, COORDINATES, tools)

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -68,7 +68,6 @@ data class ScanRecord(
     /**
      * True if any of the [scanResults] contain [OrtIssue]s.
      */
-    @Suppress("UNUSED") // Not used in code, but shall be serialized.
     val hasIssues by lazy {
         scanResults.any { (_, results) ->
             results.any { it.summary.issues.isNotEmpty() }

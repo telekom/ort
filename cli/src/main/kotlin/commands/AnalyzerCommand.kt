@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +18,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.commands
+package org.ossreviewtoolkit.cli.commands
 
 import com.github.ajalt.clikt.core.BadParameterValue
 import com.github.ajalt.clikt.core.CliktCommand
@@ -35,25 +35,28 @@ import com.github.ajalt.clikt.parameters.options.split
 import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.file
 
-import kotlin.time.measureTime
-
-import org.ossreviewtoolkit.GlobalOptions
 import org.ossreviewtoolkit.analyzer.Analyzer
 import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.analyzer.curation.ClearlyDefinedPackageCurationProvider
 import org.ossreviewtoolkit.analyzer.curation.FallbackPackageCurationProvider
 import org.ossreviewtoolkit.analyzer.curation.FilePackageCurationProvider
 import org.ossreviewtoolkit.analyzer.curation.Sw360PackageCurationProvider
+import org.ossreviewtoolkit.cli.GlobalOptions
+import org.ossreviewtoolkit.cli.concludeSeverityStats
+import org.ossreviewtoolkit.cli.utils.configurationGroup
+import org.ossreviewtoolkit.cli.utils.inputGroup
+import org.ossreviewtoolkit.cli.utils.outputGroup
+import org.ossreviewtoolkit.cli.utils.writeOrtResult
 import org.ossreviewtoolkit.model.FileFormat
+import org.ossreviewtoolkit.model.config.RepositoryConfiguration
+import org.ossreviewtoolkit.model.readValueOrNull
 import org.ossreviewtoolkit.model.utils.mergeLabels
-import org.ossreviewtoolkit.model.writeValue
-import org.ossreviewtoolkit.utils.ORT_CURATIONS_FILENAME
+import org.ossreviewtoolkit.utils.ORT_PACKAGE_CURATIONS_DIRNAME
+import org.ossreviewtoolkit.utils.ORT_PACKAGE_CURATIONS_FILENAME
 import org.ossreviewtoolkit.utils.ORT_REPO_CONFIG_FILENAME
 import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.formatSizeInMib
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.ortConfigDirectory
-import org.ossreviewtoolkit.utils.perf
 import org.ossreviewtoolkit.utils.safeMkdirs
 
 class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine dependencies of a software project.") {
@@ -72,7 +75,7 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
 
     private val outputDir by option(
         "--output-dir", "-o",
-        help = "The directory to write the analyzer result as ORT result file(s) to, in the specified output format(s)."
+        help = "The directory to write the ORT result file with analyzer results to."
     ).convert { it.expandTilde() }
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
@@ -90,7 +93,16 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
         .convert { it.absoluteFile.normalize() }
-        .default(ortConfigDirectory.resolve(ORT_CURATIONS_FILENAME))
+        .default(ortConfigDirectory.resolve(ORT_PACKAGE_CURATIONS_FILENAME))
+        .configurationGroup()
+
+    private val packageCurationsDir by option(
+        "--package-curations-dir",
+        help = "A directory containing package curation data."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .default(ortConfigDirectory.resolve(ORT_PACKAGE_CURATIONS_DIRNAME))
         .configurationGroup()
 
     private val repositoryConfigurationFile by option(
@@ -114,7 +126,8 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
 
     private val labels by option(
         "--label", "-l",
-        help = "Add a label to the ORT result. Can be used multiple times. For example: --label distribution=external"
+        help = "Set a label in the ORT result, overwriting any existing label of the same name. Can be used multiple " +
+                "times. For example: --label distribution=external"
     ).associate()
 
     private val packageManagers by option(
@@ -139,9 +152,9 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
             }
         }
 
-        val configurationFiles = listOfNotNull(packageCurationsFile, repositoryConfigurationFile)
-                .map { it.absolutePath }
-        println("The following configuration files are used:")
+        val configurationFiles = listOfNotNull(packageCurationsFile, packageCurationsDir, repositoryConfigurationFile)
+            .map { it.absolutePath }
+        println("The following configuration files and directories are used:")
         println("\t" + configurationFiles.joinToString("\n\t"))
 
         val distinctPackageManagers = packageManagers.distinct()
@@ -155,7 +168,7 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
 
         val curationProvider = FallbackPackageCurationProvider(
             listOfNotNull(
-                packageCurationsFile.takeIf { it.isFile }?.let { FilePackageCurationProvider(it) },
+                FilePackageCurationProvider.from(packageCurationsFile, packageCurationsDir),
                 config.analyzer.sw360Configuration?.let {
                     Sw360PackageCurationProvider(it).takeIf { useSw360Curations }
                 },
@@ -163,22 +176,22 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
             )
         )
 
+        val actualRepositoryConfigurationFile = repositoryConfigurationFile
+            ?: inputDir.resolve(ORT_REPO_CONFIG_FILENAME)
+
+        val repositoryConfiguration = actualRepositoryConfigurationFile.takeIf { it.isFile }?.let {
+            log.info { "Using configuration file '${it.absolutePath}'." }
+            it.readValueOrNull()
+        } ?: RepositoryConfiguration()
+
         val ortResult = analyzer.analyze(
-            inputDir, distinctPackageManagers, curationProvider, repositoryConfigurationFile
+            inputDir, distinctPackageManagers, curationProvider, repositoryConfiguration
         ).mergeLabels(labels)
 
         println("Found ${ortResult.getProjects().size} project(s) in total.")
 
         outputDir.safeMkdirs()
-
-        outputFiles.forEach { file ->
-            println("Writing analyzer result to '$file'.")
-            val duration = measureTime { file.writeValue(ortResult) }
-
-            log.perf {
-                "Wrote ORT result to '${file.name}' (${file.formatSizeInMib}) in ${duration.inMilliseconds}ms."
-            }
-        }
+        writeOrtResult(ortResult, outputFiles, "analyzer")
 
         val analyzerResult = ortResult.analyzer?.result
 
@@ -187,9 +200,7 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
             throw ProgramResult(1)
         }
 
-        if (analyzerResult.hasIssues) {
-            println("The analyzer result contains issues.")
-            throw ProgramResult(2)
-        }
+        val counts = analyzerResult.collectIssues().flatMap { it.value }.groupingBy { it.severity }.eachCount()
+        concludeSeverityStats(counts, config.severeIssueThreshold, 2)
     }
 }

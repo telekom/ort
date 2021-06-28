@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,16 +23,9 @@ package org.ossreviewtoolkit.downloader
 import java.io.File
 import java.io.IOException
 import java.net.URI
-import java.time.Instant
 
 import kotlin.io.path.createTempDirectory
-import kotlin.io.path.createTempFile
 import kotlin.time.TimeSource
-
-import okhttp3.Request
-
-import okio.buffer
-import okio.sink
 
 import org.ossreviewtoolkit.downloader.vcs.GitRepo
 import org.ossreviewtoolkit.model.ArtifactProvenance
@@ -44,20 +37,18 @@ import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.SourceCodeOrigin
 import org.ossreviewtoolkit.model.UnknownProvenance
-import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
-import org.ossreviewtoolkit.utils.ArchiveType
 import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.OkHttpClientHelper
 import org.ossreviewtoolkit.utils.collectMessagesAsString
+import org.ossreviewtoolkit.utils.createOrtTempDir
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.perf
+import org.ossreviewtoolkit.utils.replaceCredentialsInUri
 import org.ossreviewtoolkit.utils.safeDeleteRecursively
 import org.ossreviewtoolkit.utils.safeMkdirs
-import org.ossreviewtoolkit.utils.stripCredentialsFromUrl
 import org.ossreviewtoolkit.utils.unpack
-import org.ossreviewtoolkit.utils.withoutPrefix
 
 /**
  * The class to download source code. The signatures of public functions in this class define the library API.
@@ -84,22 +75,15 @@ class Downloader(private val config: DownloaderConfiguration) {
         val exception = DownloadException("Download failed for '${pkg.id.toCoordinates()}'.")
 
         config.sourceCodeOrigins.forEach { origin ->
-            val provenance = handleDownload(origin, pkg, outputDirectory, allowMovingRevisions, exception)
+            val provenance = when (origin) {
+                SourceCodeOrigin.VCS -> handleVcsDownload(pkg, outputDirectory, allowMovingRevisions, exception)
+                SourceCodeOrigin.ARTIFACT -> handleSourceArtifactDownload(pkg, outputDirectory, exception)
+            }
+
             if (provenance != null) return provenance
         }
 
         throw exception
-    }
-
-    private fun handleDownload(
-        origin: SourceCodeOrigin,
-        pkg: Package,
-        outputDirectory: File,
-        allowMovingRevisions: Boolean,
-        exception: DownloadException
-    ) = when (origin) {
-        SourceCodeOrigin.VCS -> handleVcsDownload(pkg, outputDirectory, allowMovingRevisions, exception)
-        SourceCodeOrigin.ARTIFACT -> handleSourceArtifactDownload(pkg, outputDirectory, exception)
     }
 
     /**
@@ -125,7 +109,7 @@ class Downloader(private val config: DownloaderConfiguration) {
 
                 log.perf {
                     "Downloaded source code for '${pkg.id.toCoordinates()}' from $vcsInfo in " +
-                            "${vcsMark.elapsedNow().inMilliseconds}ms."
+                            "${vcsMark.elapsedNow().inWholeMilliseconds}ms."
                 }
 
                 return result
@@ -137,7 +121,7 @@ class Downloader(private val config: DownloaderConfiguration) {
 
             log.perf {
                 "Failed attempt to download source code for '${pkg.id.toCoordinates()}' from ${pkg.vcsProcessed} " +
-                        "took ${vcsMark.elapsedNow().inMilliseconds}ms."
+                        "took ${vcsMark.elapsedNow().inWholeMilliseconds}ms."
             }
 
             // Clean up any left-over files (force to delete read-only files in ".git" directories on Windows).
@@ -166,7 +150,7 @@ class Downloader(private val config: DownloaderConfiguration) {
 
             log.perf {
                 "Downloaded source code for '${pkg.id.toCoordinates()}' from ${pkg.sourceArtifact} in " +
-                        "${sourceArtifactMark.elapsedNow().inMilliseconds}ms."
+                        "${sourceArtifactMark.elapsedNow().inWholeMilliseconds}ms."
             }
 
             return result
@@ -177,7 +161,7 @@ class Downloader(private val config: DownloaderConfiguration) {
 
             log.perf {
                 "Failed attempt to download source code for '${pkg.id.toCoordinates()}' from ${pkg.sourceArtifact} " +
-                        "took ${sourceArtifactMark.elapsedNow().inMilliseconds}ms."
+                        "took ${sourceArtifactMark.elapsedNow().inWholeMilliseconds}ms."
             }
 
             // Clean up any left-over files.
@@ -255,13 +239,12 @@ class Downloader(private val config: DownloaderConfiguration) {
             throw DownloadException("Unsupported VCS type '${pkg.vcsProcessed.type}'.")
         }
 
-        val startTime = Instant.now()
         val workingTree = try {
             applicableVcs.download(pkg, outputDirectory, allowMovingRevisions)
         } catch (e: DownloadException) {
             // TODO: We should introduce something like a "strict" mode and only do these kind of fallbacks in
             //       non-strict mode.
-            val vcsUrlNoCredentials = pkg.vcsProcessed.url.stripCredentialsFromUrl()
+            val vcsUrlNoCredentials = pkg.vcsProcessed.url.replaceCredentialsInUri()
             if (vcsUrlNoCredentials != pkg.vcsProcessed.url) {
                 // Try once more with any user name / password stripped from the URL.
                 log.info {
@@ -278,19 +261,13 @@ class Downloader(private val config: DownloaderConfiguration) {
                 throw e
             }
         }
-        val revision = workingTree.getRevision()
+        val resolvedRevision = workingTree.getRevision()
 
-        log.info { "Finished downloading source code revision '$revision' to '${outputDirectory.absolutePath}'." }
+        log.info {
+            "Finished downloading source code revision '$resolvedRevision' to '${outputDirectory.absolutePath}'."
+        }
 
-        val vcsInfo = VcsInfo(
-            type = applicableVcs.type,
-            url = pkg.vcsProcessed.url,
-            revision = pkg.vcsProcessed.revision.takeIf { it.isNotBlank() } ?: revision,
-            resolvedRevision = revision,
-            path = pkg.vcsProcessed.path
-        )
-
-        return RepositoryProvenance(startTime, vcsInfo, pkg.vcsProcessed.takeIf { it != vcsInfo })
+        return RepositoryProvenance(pkg.vcsProcessed, resolvedRevision)
     }
 
     /**
@@ -308,65 +285,18 @@ class Downloader(private val config: DownloaderConfiguration) {
             throw DownloadException("No source artifact URL provided for '${pkg.id.toCoordinates()}'.")
         }
 
-        val startTime = Instant.now()
-
         // Some (Linux) file URIs do not start with "file://" but look like "file:/opt/android-sdk-linux".
-        val sourceArchive = if (pkg.sourceArtifact.url.startsWith("file:/")) {
+        val isLocalFileUrl = pkg.sourceArtifact.url.startsWith("file:/")
+
+        var tempDir: File? = null
+
+        val sourceArchive = if (isLocalFileUrl) {
             File(URI(pkg.sourceArtifact.url))
         } else {
-            val request = Request.Builder()
-                // Disable transparent gzip, otherwise we might end up writing a tar file to disk and expecting to
-                // find a tar.gz file, thus failing to unpack the archive.
-                // See https://github.com/square/okhttp/blob/parent-3.10.0/okhttp/src/main/java/okhttp3/internal/ \
-                // http/BridgeInterceptor.java#L79
-                .header("Accept-Encoding", "identity")
-                .get()
-                .url(pkg.sourceArtifact.url)
-                .build()
-
-            try {
-                OkHttpClientHelper.execute(request).use { response ->
-                    val body = response.body
-                    if (!response.isSuccessful || body == null) {
-                        throw DownloadException("Failed to download source artifact: $response")
-                    }
-
-                    val candidateNames = mutableSetOf<String>()
-
-                    // Depending on the package manager / registry, we may only get a useful source artifact file name
-                    // when looking at the response header or at a redirected URL. For example for Cargo, we want to
-                    // resolve
-                    //     https://crates.io/api/v1/crates/cfg-if/0.1.9/download
-                    // to
-                    //     https://static.crates.io/crates/cfg-if/cfg-if-0.1.9.crate
-                    //
-                    // On the other hand, e.g. for GitHub exactly the opposite is the case, as it turns getting URL
-                    //     https://github.com/microsoft/tslib/archive/1.10.0.zip
-                    // to
-                    //     https://codeload.github.com/microsoft/tslib/zip/1.10.0
-                    //
-                    // So first look for a dedicated header in the response, but then also try both redirected and
-                    // original URLs to find a name which has a recognized archive type extension.
-                    response.headers("Content-disposition").mapNotNullTo(candidateNames) { value ->
-                        val filenames = value.split(';').mapNotNull { it.trim().withoutPrefix("filename=") }
-                        filenames.firstOrNull()?.removeSurrounding("\"")
-                    }
-
-                    listOf(response.request.url, request.url).mapTo(candidateNames) {
-                        it.pathSegments.last()
-                    }
-
-                    val tempFileName = candidateNames.find {
-                        ArchiveType.getType(it) != ArchiveType.NONE
-                    } ?: candidateNames.first()
-
-                    createTempFile(ORT_NAME, tempFileName).toFile().also { tempFile ->
-                        tempFile.sink().buffer().use { it.writeAll(body.source()) }
-                        tempFile.deleteOnExit()
-                    }
-                }
-            } catch (e: IOException) {
-                throw DownloadException("Failed to download source artifact.", e)
+            tempDir = createOrtTempDir()
+            OkHttpClientHelper.downloadFile(pkg.sourceArtifact.url, tempDir).getOrElse {
+                tempDir.safeDeleteRecursively(force = true)
+                throw DownloadException("Failed to download source artifact.", it)
             }
         }
 
@@ -376,9 +306,8 @@ class Downloader(private val config: DownloaderConfiguration) {
                     "Cannot verify source artifact with ${pkg.sourceArtifact.hash}, skipping verification."
                 }
             } else if (!pkg.sourceArtifact.hash.verify(sourceArchive)) {
-                throw DownloadException(
-                    "Source artifact does not match expected ${pkg.sourceArtifact.hash}."
-                )
+                tempDir?.safeDeleteRecursively(force = true)
+                throw DownloadException("Source artifact does not match expected ${pkg.sourceArtifact.hash}.")
             }
         }
 
@@ -392,9 +321,7 @@ class Downloader(private val config: DownloaderConfiguration) {
                     sourceArchive.unpack(gemDirectory)
                     dataFile.unpack(outputDirectory)
                 } finally {
-                    if (!gemDirectory.deleteRecursively()) {
-                        log.warn { "Unable to delete temporary directory '$gemDirectory'." }
-                    }
+                    gemDirectory.safeDeleteRecursively(force = true)
                 }
             } else {
                 sourceArchive.unpack(outputDirectory)
@@ -403,6 +330,8 @@ class Downloader(private val config: DownloaderConfiguration) {
             log.error {
                 "Could not unpack source artifact '${sourceArchive.absolutePath}': ${e.collectMessagesAsString()}"
             }
+
+            tempDir?.safeDeleteRecursively(force = true)
             throw DownloadException(e)
         }
 
@@ -411,7 +340,8 @@ class Downloader(private val config: DownloaderConfiguration) {
                     "'${outputDirectory.absolutePath}'..."
         }
 
-        return ArtifactProvenance(startTime, pkg.sourceArtifact)
+        tempDir?.safeDeleteRecursively(force = true)
+        return ArtifactProvenance(pkg.sourceArtifact)
     }
 }
 

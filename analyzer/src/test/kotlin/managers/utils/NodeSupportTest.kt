@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,13 +32,10 @@ import io.kotest.matchers.shouldBe
 
 import java.io.File
 
-import kotlin.io.path.createTempDirectory
-
-import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.ProtocolProxyMap
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
 import org.ossreviewtoolkit.utils.safeMkdirs
 import org.ossreviewtoolkit.utils.test.containExactly as containExactlyEntries
+import org.ossreviewtoolkit.utils.test.createTestTempDir
 import org.ossreviewtoolkit.utils.test.toGenericString
 
 class NodeSupportTest : WordSpec() {
@@ -160,9 +157,14 @@ class NodeSupportTest : WordSpec() {
             }
         }
 
-        "expandNpmShortcutURL" should {
+        "expandNpmShortcutUrl" should {
             "do nothing for empty URLs" {
-                expandNpmShortcutURL("") shouldBe ""
+                expandNpmShortcutUrl("") shouldBe ""
+            }
+
+            "return valid URLs unmodified" {
+                expandNpmShortcutUrl("https://github.com/oss-review-toolkit/ort") shouldBe
+                        "https://github.com/oss-review-toolkit/ort"
             }
 
             "properly handle NPM shortcut URLs" {
@@ -171,6 +173,8 @@ class NodeSupportTest : WordSpec() {
                             to "https://github.com/npm/npm.git",
                     "mochajs/mocha#4727d357ea"
                             to "https://github.com/mochajs/mocha.git#4727d357ea",
+                    "user/repo#feature/branch"
+                            to "https://github.com/user/repo.git#feature/branch",
                     "github:snyk/node-tap#540c9e00f52809cb7fbfd80463578bf9d08aad50"
                             to "https://github.com/snyk/node-tap.git#540c9e00f52809cb7fbfd80463578bf9d08aad50",
                     "gist:11081aaa281"
@@ -182,7 +186,7 @@ class NodeSupportTest : WordSpec() {
                 )
 
                 packages.entries.forAll { (actualUrl, expectedUrl) ->
-                    expandNpmShortcutURL(actualUrl) shouldBe expectedUrl
+                    expandNpmShortcutUrl(actualUrl) shouldBe expectedUrl
                 }
             }
 
@@ -197,7 +201,7 @@ class NodeSupportTest : WordSpec() {
                 )
 
                 packages.entries.forAll { (actualUrl, expectedUrl) ->
-                    expandNpmShortcutURL(actualUrl) shouldBe expectedUrl
+                    expandNpmShortcutUrl(actualUrl) shouldBe expectedUrl
                 }
             }
         }
@@ -281,12 +285,11 @@ class NodeSupportTest : WordSpec() {
 
     override fun beforeTest(testCase: TestCase) {
         super.beforeTest(testCase)
-        tempDir = createTempDirectory("$ORT_NAME-${javaClass.simpleName}").toFile()
+        tempDir = createTestTempDir()
         definitionFiles.clear()
     }
 
     override fun afterTest(testCase: TestCase, result: TestResult) {
-        tempDir.safeDeleteRecursively(force = true)
         definitionFiles.clear()
         super.afterTest(testCase, result)
     }

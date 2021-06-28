@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,14 +29,11 @@ import io.kotest.matchers.shouldNotBe
 
 import java.io.File
 
-import kotlin.io.path.createTempDirectory
-
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.ortDataDirectory
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.test.createSpecTempDir
 import org.ossreviewtoolkit.utils.unpack
 
 class GitWorkingTreeFunTest : StringSpec() {
@@ -46,14 +43,10 @@ class GitWorkingTreeFunTest : StringSpec() {
     override fun beforeSpec(spec: Spec) {
         val zipFile = File("src/funTest/assets/pipdeptree-2018-01-03-git.zip")
 
-        zipContentDir = createTempDirectory("$ORT_NAME-${javaClass.simpleName}").toFile()
+        zipContentDir = createSpecTempDir()
 
         println("Extracting '$zipFile' to '$zipContentDir'...")
         zipFile.unpack(zipContentDir)
-    }
-
-    override fun afterSpec(spec: Spec) {
-        zipContentDir.safeDeleteRecursively(force = true)
     }
 
     init {
@@ -80,7 +73,6 @@ class GitWorkingTreeFunTest : StringSpec() {
                 type = VcsType.GIT,
                 url = "https://github.com/naiquevin/pipdeptree.git",
                 revision = "6f70dd5508331b6cfcfe3c1b626d57d9836cfd7c",
-                resolvedRevision = null,
                 path = ""
             )
             workingTree.getNested() should beEmpty()

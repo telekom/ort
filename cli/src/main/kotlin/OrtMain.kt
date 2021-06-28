@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,9 +17,10 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit
+package org.ossreviewtoolkit.cli
 
 import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.context
 import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.output.CliktHelpFormatter
@@ -40,7 +41,8 @@ import kotlin.system.exitProcess
 import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.core.config.Configurator
 
-import org.ossreviewtoolkit.commands.*
+import org.ossreviewtoolkit.cli.commands.*
+import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.config.LicenseFilenamePatterns
 import org.ossreviewtoolkit.model.config.OrtConfiguration
 import org.ossreviewtoolkit.utils.Environment
@@ -70,6 +72,42 @@ data class GlobalOptions(
     val config: OrtConfiguration,
     val forceOverwrite: Boolean
 )
+
+/**
+ * A helper function to print statistics about the [counts] of severities. If there are severities equal to or greater
+ * than [threshold], print an according note and throw a ProgramResult exception with [severeStatusCode].
+ */
+fun concludeSeverityStats(counts: Map<Severity, Int>, threshold: Severity, severeStatusCode: Int) {
+    var severeIssueCount = 0
+
+    fun getSeverityCount(severity: Severity) =
+        counts.getOrDefault(severity, 0).also { count ->
+            if (severity >= threshold) severeIssueCount += count
+        }
+
+    val hintCount = getSeverityCount(Severity.HINT)
+    val warningCount = getSeverityCount(Severity.WARNING)
+    val errorCount = getSeverityCount(Severity.ERROR)
+
+    println("Found $errorCount error(s), $warningCount warning(s), $hintCount hint(s).")
+
+    if (severeIssueCount > 0) {
+        println(
+            "There are $severeIssueCount issue(s) with a severity equal to or greater than the $threshold threshold."
+        )
+
+        throw ProgramResult(severeStatusCode)
+    }
+}
+
+/**
+ * The entry point for the application with [args] being the list of arguments.
+ */
+fun main(args: Array<String>) {
+    Os.fixupUserHomeProperty()
+    OrtMain().main(args)
+    exitProcess(0)
+}
 
 class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
     private val configFile by option("--config", "-c", help = "The path to a configuration file.")
@@ -207,13 +245,4 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
 
         return header.joinToString("\n", postfix = "\n")
     }
-}
-
-/**
- * The entry point for the application with [args] being the list of arguments.
- */
-fun main(args: Array<String>) {
-    Os.fixupUserHomeProperty()
-    OrtMain().main(args)
-    exitProcess(0)
 }

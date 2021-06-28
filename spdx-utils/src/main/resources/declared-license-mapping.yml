@@ -114,6 +114,7 @@
 "CDDL+GPL License": CDDL-1.0 AND GPL-2.0-or-later
 "CDDL+GPL": CDDL-1.0 AND GPL-2.0-or-later
 "CDDL+GPLv2": CDDL-1.0 AND GPL-2.0-only
+"CDDL, v1.0": CDDL-1.0
 "CDDL/GPLv2 dual license": CDDL-1.0 OR GPL-2.0-only
 "CDDL/GPLv2+CE": CDDL-1.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 "CEA CNRS Inria Logiciel Libre License, version 2.1 (CeCILL-2.1)": CECILL-2.1
@@ -272,6 +273,7 @@
 "GPL v3+": GPL-3.0-or-later
 "GPL version 2": GPL-2.0-only
 "GPL2 w/ CPE": GPL-2.0-only WITH Classpath-exception-2.0
+"GPLv2 license, includes the CLASSPATH exception": GPL-2.0-only WITH Classpath-exception-2.0
 "GPLv2+CE": GPL-2.0-only WITH Classpath-exception-2.0
 "GWT Terms": Apache-2.0 AND BSD-3-Clause AND CC0-1.0 AND EPL-1.0 AND LGPL-2.1-only AND MPL-1.1
 "General Public License (GPL)": GPL-2.0-or-later
@@ -298,6 +300,7 @@
 "LGPL v3+": LGPL-3.0-or-later
 "LGPL with exceptions or ZPL": LGPL-3.0-or-later OR ZPL-2.1
 "LGPL+BSD": LGPL-2.1-or-later AND BSD-2-Clause
+"LGPL, v2.1 or later": LGPL-2.1-or-later
 "LGPL, version 2.1": LGPL-2.1-only
 "LGPL, version 3.0": LGPL-3.0-only
 "LGPL/MIT": LGPL-3.0-or-later OR MIT
@@ -310,6 +313,7 @@
 "MIT -or- Apache License 2.0": MIT OR Apache-2.0
 "MIT / http://rem.mit-license.org": MIT
 "MIT Licence": MIT
+"MIT License (MIT)": MIT
 "MIT License (http://opensource.org/licenses/MIT)": MIT
 "MIT Licensed. http://www.opensource.org/licenses/mit-license.php": MIT
 "MIT, 2-clause BSD": MIT AND BSD-2-Clause
@@ -412,6 +416,7 @@
 "Two-clause BSD-style license": BSD-2-Clause
 "Unicode/ICU License": ICU
 "Universal Permissive License (UPL)": UPL-1.0
+"Universal Permissive License, Version 1.0": UPL-1.0
 "Vovida License 1.0": VSL-1.0
 "Vovida Software License 1.0": VSL-1.0
 "Vovida Software License": VSL-1.0
@@ -466,6 +471,7 @@
 "http://asm.ow2.org/license.html": BSD-3-Clause
 "http://creativecommons.org/licenses/publicdomain": CC-PDDC
 "http://creativecommons.org/publicdomain/zero/1.0/legalcode": CC0-1.0
+"http://en.wikipedia.org/wiki/Zlib_License": Zlib
 "http://go.microsoft.com/fwlink/?LinkId=329770": LicenseRef-scancode-ms-net-library-2018-11
 "http://go.microsoft.com/fwlink/?LinkId=529443": LicenseRef-scancode-ms-net-library-2018-11
 "http://json.codeplex.com/license": MIT

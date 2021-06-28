@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -85,7 +85,7 @@ fun Identifier.toClearlyDefinedSourceLocation(
     sourceArtifact: RemoteArtifact?
 ): SourceLocation? {
     val vcsUrl = vcs?.url
-    val vcsRevision = vcs?.resolvedRevision
+    val vcsRevision = vcs?.revision
     val matchGroups = vcsUrl?.let { REG_GIT_URL.matchEntire(it)?.groupValues }
 
     return when {
@@ -149,7 +149,7 @@ enum class PurlType(private val value: String) {
  * [Package]'s type if the [PurlType] cannot be determined.
  */
 fun Identifier.getPurlType() =
-    when (val lowerType = type.toLowerCase()) {
+    when (val lowerType = type.lowercase()) {
         "bower" -> PurlType.BOWER
         "composer" -> PurlType.COMPOSER
         "conan" -> PurlType.CONAN

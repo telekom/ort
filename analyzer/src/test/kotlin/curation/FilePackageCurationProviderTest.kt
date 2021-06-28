@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,9 +27,11 @@ import io.kotest.matchers.shouldBe
 
 import java.io.File
 
+import org.ossreviewtoolkit.model.FileFormat
 import org.ossreviewtoolkit.model.Identifier
 
 class FilePackageCurationProviderTest : StringSpec() {
+    private val curationsDir = File("src/test/assets/package-curations-dir")
     private val curationsFile = File("src/test/assets/package-curations.yml")
 
     init {
@@ -37,6 +39,38 @@ class FilePackageCurationProviderTest : StringSpec() {
             val provider = FilePackageCurationProvider(curationsFile)
 
             provider.packageCurations should haveSize(8)
+        }
+
+        "Provider can read from multiple yaml files" {
+            val provider = FilePackageCurationProvider(FileFormat.findFilesWithKnownExtensions(curationsDir))
+            val idsWithExistingCurations = listOf(
+                Identifier("maven", "org.ossreviewtoolkit", "example", "1.0"),
+                Identifier("maven", "org.foo", "bar", "0.42")
+            )
+
+            idsWithExistingCurations.forEach {
+                val curations = provider.getCurationsFor(it)
+
+                curations should haveSize(1)
+            }
+        }
+
+        "Provider can read from a single file and directories" {
+            val provider = FilePackageCurationProvider.from(curationsFile, curationsDir)
+
+            val idsWithExistingCurations = listOf(
+                // File
+                Identifier("npm", "", "ramda", "0.21.0"),
+                // Directory
+                Identifier("maven", "org.ossreviewtoolkit", "example", "1.0"),
+                Identifier("maven", "org.foo", "bar", "0.42")
+            )
+
+            idsWithExistingCurations.forEach {
+                val curations = provider.getCurationsFor(it)
+
+                curations should haveSize(1)
+            }
         }
 
         "Provider returns only matching curations for a fixed version" {

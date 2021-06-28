@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit
+package org.ossreviewtoolkit.cli
 
 import io.kotest.assertions.throwables.shouldNotThrow
 import io.kotest.assertions.withClue
@@ -34,8 +34,6 @@ import java.io.File
 import java.io.IOException
 import java.time.Instant
 
-import kotlin.io.path.createTempDirectory
-
 import org.ossreviewtoolkit.evaluator.Evaluator
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.OrtResult
@@ -51,8 +49,8 @@ import org.ossreviewtoolkit.reporter.HowToFixTextProvider
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.reporter.reporters.AsciiDocTemplateReporter
 import org.ossreviewtoolkit.spdx.toSpdx
-import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.ORT_REPO_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.test.createSpecTempDir
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class ExamplesFunTest : StringSpec() {
@@ -140,15 +138,18 @@ class ExamplesFunTest : StringSpec() {
 
             val result = evaluator.run(script)
 
-            result.violations shouldHaveSize 2
+            result.violations shouldHaveSize 4
             val failedRules = result.violations.map { it.rule }
-            failedRules shouldContainExactlyInAnyOrder listOf("UNHANDLED_LICENSE", "COPYLEFT_LIMITED_IN_SOURCE")
+            failedRules shouldContainExactlyInAnyOrder listOf(
+                "UNHANDLED_LICENSE",
+                "COPYLEFT_LIMITED_IN_SOURCE",
+                "VULNERABILITY_IN_PACKAGE",
+                "HIGH_SEVERITY_VULNERABILITY_IN_PACKAGE"
+            )
         }
 
         "asciidoctor-pdf-theme.yml is a valid asciidoctor-pdf theme" {
-            val outputDir = createTempDirectory("$ORT_NAME-${ExamplesFunTest::class.simpleName}").toFile().apply {
-                deleteOnExit()
-            }
+            val outputDir = createSpecTempDir()
 
             takeExampleFile("asciidoctor-pdf-theme.yml")
 

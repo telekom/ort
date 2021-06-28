@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,22 +25,21 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 
 import java.io.File
 
-import kotlin.io.path.createTempFile
-
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.writeValue
+import org.ossreviewtoolkit.utils.test.createTestTempFile
 
 class NexusIqConfigurationTest : WordSpec({
     "NexusIqConfiguration" should {
         "support a serialization round-trip via an ObjectMapper" {
-            val referenceOrtConfig = OrtConfiguration.load(file = File("src/main/resources/reference.conf"))
-            val rereadOrtConfig = createTempFile(suffix = ".yml").toFile().apply {
-                writeValue(referenceOrtConfig)
-                deleteOnExit()
-            }.readValue<OrtConfiguration>()
+            val ortConfig = OrtConfiguration.load(file = File("src/main/resources/reference.conf"))
+            val rereadOrtConfig = createTestTempFile(suffix = ".yml").run {
+                writeValue(ortConfig)
+                readValue<OrtConfiguration>()
+            }
 
-            val expectedNexusIqConfig = referenceOrtConfig.advisor.nexusIq
             val actualNexusIqConfiguration = rereadOrtConfig.advisor.nexusIq
+            val expectedNexusIqConfig = ortConfig.advisor.nexusIq
 
             expectedNexusIqConfig.shouldBeInstanceOf<NexusIqConfiguration>()
             actualNexusIqConfiguration.shouldBeInstanceOf<NexusIqConfiguration>()

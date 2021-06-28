@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,8 +33,8 @@ class ScannerDetailsTest : WordSpec({
         }
 
         "be compatible if the name differs in case" {
-            val detailsLowerCaseName = scanCodeDetails.copy(name = scanCodeDetails.name.toLowerCase())
-            val detailsUpperCaseName = scanCodeDetails.copy(name = scanCodeDetails.name.toUpperCase())
+            val detailsLowerCaseName = scanCodeDetails.copy(name = scanCodeDetails.name.lowercase())
+            val detailsUpperCaseName = scanCodeDetails.copy(name = scanCodeDetails.name.uppercase())
             detailsLowerCaseName.isCompatible(detailsUpperCaseName) shouldBe true
         }
 

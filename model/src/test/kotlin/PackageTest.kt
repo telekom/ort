@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -75,7 +75,6 @@ class PackageTest : StringSpec({
         diff.binaryArtifact shouldBe pkg.binaryArtifact
         diff.comment should beNull()
         diff.authors shouldBe pkg.authors
-        diff.declaredLicenses shouldBe pkg.declaredLicenses
         diff.homepageUrl shouldBe pkg.homepageUrl
         diff.sourceArtifact shouldBe pkg.sourceArtifact
         diff.vcs shouldBe pkg.vcs.toCuration()
@@ -104,7 +103,6 @@ class PackageTest : StringSpec({
         diff.binaryArtifact should beNull()
         diff.comment should beNull()
         diff.authors should beNull()
-        diff.declaredLicenses should beNull()
         diff.homepageUrl should beNull()
         diff.sourceArtifact should beNull()
         diff.vcs should beNull()

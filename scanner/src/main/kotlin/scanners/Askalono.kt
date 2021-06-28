@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -149,7 +149,7 @@ class Askalono(
         result.mapTo(licenseFindings) {
             val filePath = File(it["Path"].textValue())
             LicenseFinding(
-                license = getSpdxLicenseIdString(it["License"].textValue()),
+                license = it["License"].textValue(),
                 location = TextLocation(
                     // Turn absolute paths in the native result into relative paths to not expose any information.
                     relativizePath(scanPath, filePath),

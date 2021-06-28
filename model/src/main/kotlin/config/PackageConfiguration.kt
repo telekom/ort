@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +28,7 @@ import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.stripCredentialsFromUrl
+import org.ossreviewtoolkit.utils.replaceCredentialsInUri
 
 /**
  * A configuration for a specific package and provenance. It allows to setup [PathExclude]s and
@@ -76,13 +76,13 @@ data class PackageConfiguration(
         return when (provenance) {
             is UnknownProvenance -> false
             is ArtifactProvenance -> sourceArtifactUrl != null && sourceArtifactUrl == provenance.sourceArtifact.url
-            is RepositoryProvenance -> vcs != null && vcs.matches(provenance.vcsInfo)
+            is RepositoryProvenance -> vcs != null && vcs.matches(provenance)
         }
     }
 }
 
 /**
- * A matcher which matches its properties against [VcsInfo]s.
+ * A matcher which matches its properties against a [RepositoryProvenance].
  */
 data class VcsMatcher(
     /**
@@ -96,7 +96,7 @@ data class VcsMatcher(
     val url: String,
 
     /**
-     * The [url] to match for equality against [VcsInfo.resolvedRevision].
+     * The [revision] to match for equality against [RepositoryProvenance.resolvedRevision].
      */
     val revision: String,
 
@@ -121,10 +121,12 @@ data class VcsMatcher(
         }
     }
 
-    fun matches(vcsInfo: VcsInfo): Boolean =
-        type == vcsInfo.type && matchesWithoutCredentials(url, vcsInfo.url) && (path == null || path == vcsInfo.path) &&
-                revision == vcsInfo.resolvedRevision
+    fun matches(provenance: RepositoryProvenance): Boolean =
+        type == provenance.vcsInfo.type &&
+                matchesWithoutCredentials(url, provenance.vcsInfo.url) &&
+                (path == null || path == provenance.vcsInfo.path) &&
+                revision == provenance.resolvedRevision
 }
 
 private fun matchesWithoutCredentials(lhs: String, rhs: String): Boolean =
-    lhs.stripCredentialsFromUrl() == rhs.stripCredentialsFromUrl()
+    lhs.replaceCredentialsInUri() == rhs.replaceCredentialsInUri()

@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -129,17 +129,16 @@ class StaticHtmlReporter : Reporter {
                         strong { +"ORT" }
                         +", the "
                         a {
-                            href = "http://oss-review-toolkit.org/"
+                            href = "https://oss-review-toolkit.org/"
                             +ORT_FULL_NAME
                         }
-                        +", version ${Environment().ortVersion} on ${Instant.now()}."
+                        +", version ${Environment.ORT_VERSION} on ${Instant.now()}."
                     }
 
                     h2 { +"Project" }
 
                     div {
                         with(reportTableModel.vcsInfo) {
-                            val revision = resolvedRevision ?: revision
                             +"Scanned revision $revision of $type repository $url"
                         }
                     }

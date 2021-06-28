@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,10 +19,12 @@
 
 package org.ossreviewtoolkit.analyzer.managers
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.nulls.beNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 
 import java.io.File
 
@@ -32,7 +34,9 @@ import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.spdx.SpdxConstants
 import org.ossreviewtoolkit.spdx.SpdxModelMapper
+import org.ossreviewtoolkit.spdx.model.SpdxChecksum
 import org.ossreviewtoolkit.spdx.model.SpdxDocument
+import org.ossreviewtoolkit.spdx.model.SpdxExternalDocumentReference
 import org.ossreviewtoolkit.spdx.model.SpdxPackage
 
 /*
@@ -89,39 +93,39 @@ private fun createSpdxDocument(): SpdxDocument {
 class SpdxDocumentFileTest : WordSpec({
     "getBinaryArtifact()" should {
         "return a RemoteArtifact for a downloadLocation that points to a binary artifact" {
-            getBinaryArtifact(pkgForBinaryArtifact) shouldBe RemoteArtifact(
+            pkgForBinaryArtifact.getBinaryArtifact() shouldBe RemoteArtifact(
                 url = "https://repo1.maven.org/maven2/junit/junit/4.11/junit-4.11.jar",
                 hash = Hash.NONE
             )
         }
 
         "return null for a downloadLocation that does not point to a binary artifact" {
-            getBinaryArtifact(pkgForBinaryArtifact.copy(downloadLocation = SpdxConstants.NONE)) should beNull()
-            getBinaryArtifact(pkgForBinaryArtifact.copy(downloadLocation = SpdxConstants.NOASSERTION)) should beNull()
-            getBinaryArtifact(pkgForSourceArtifact) should beNull()
-            getBinaryArtifact(pkgForVcs) should beNull()
+            pkgForBinaryArtifact.copy(downloadLocation = SpdxConstants.NONE).getBinaryArtifact() should beNull()
+            pkgForBinaryArtifact.copy(downloadLocation = SpdxConstants.NOASSERTION).getBinaryArtifact() should beNull()
+            pkgForSourceArtifact.getBinaryArtifact() should beNull()
+            pkgForVcs.getBinaryArtifact() should beNull()
         }
     }
 
     "getSourceArtifact()" should {
         "return a RemoteArtifact for a downloadLocation that points to a source artifact" {
-            getSourceArtifact(pkgForSourceArtifact) shouldBe RemoteArtifact(
+            pkgForSourceArtifact.getSourceArtifact() shouldBe RemoteArtifact(
                 url = "http://ftp.gnu.org/gnu/glibc/glibc-ports-2.15.tar.gz",
                 hash = Hash.NONE
             )
         }
 
         "return null for a downloadLocation that does not point to a source artifact" {
-            getSourceArtifact(pkgForSourceArtifact.copy(downloadLocation = SpdxConstants.NONE)) should beNull()
-            getSourceArtifact(pkgForSourceArtifact.copy(downloadLocation = SpdxConstants.NOASSERTION)) should beNull()
-            getSourceArtifact(pkgForBinaryArtifact) should beNull()
-            getSourceArtifact(pkgForVcs) should beNull()
+            pkgForSourceArtifact.copy(downloadLocation = SpdxConstants.NONE).getSourceArtifact() should beNull()
+            pkgForSourceArtifact.copy(downloadLocation = SpdxConstants.NOASSERTION).getSourceArtifact() should beNull()
+            pkgForBinaryArtifact.getSourceArtifact() should beNull()
+            pkgForVcs.getSourceArtifact() should beNull()
         }
     }
 
     "getVcsInfo()" should {
         "return the VcsInfo for a downloadLocation that points to a VCS" {
-            getVcsInfo(pkgForVcs) shouldBe VcsInfo(
+            pkgForVcs.getVcsInfo() shouldBe VcsInfo(
                 type = VcsType.GIT,
                 url = "https://git.myproject.org/MyProject.git",
                 revision = "master",
@@ -130,10 +134,10 @@ class SpdxDocumentFileTest : WordSpec({
         }
 
         "return null for a downloadLocation that does not point to a VCS" {
-            getVcsInfo(pkgForVcs.copy(downloadLocation = SpdxConstants.NONE)) should beNull()
-            getVcsInfo(pkgForVcs.copy(downloadLocation = SpdxConstants.NOASSERTION)) should beNull()
-            getVcsInfo(pkgForBinaryArtifact) should beNull()
-            getVcsInfo(pkgForSourceArtifact) should beNull()
+            pkgForVcs.copy(downloadLocation = SpdxConstants.NONE).getVcsInfo() should beNull()
+            pkgForVcs.copy(downloadLocation = SpdxConstants.NOASSERTION).getVcsInfo() should beNull()
+            pkgForBinaryArtifact.getVcsInfo() should beNull()
+            pkgForSourceArtifact.getVcsInfo() should beNull()
         }
     }
 
@@ -157,6 +161,35 @@ class SpdxDocumentFileTest : WordSpec({
             val spdxDocument = createSpdxDocument(listOf(projectPackage!!), false)
 
             spdxDocument.projectPackage() shouldBe null
+        }
+    }
+
+    "getSpdxPackage()" should {
+        "throw if an external package id does not match relationship id" {
+            val externalDocumentReference = SpdxExternalDocumentReference(
+                "DocumentRef-zlib-1.2.11",
+                SpdxChecksum(SpdxChecksum.Algorithm.SHA1, "16b1c4c5c0f2a0655643d04f20ecee385ca8cf29"),
+                "src/funTest/assets/projects/synthetic/spdx/package/libs/zlib/package.spdx.yml"
+            )
+
+            val exception = shouldThrow<IllegalArgumentException> {
+                externalDocumentReference.getSpdxPackage("SPDXRef-Package_wrong_id", File(""))
+            }
+
+            exception.message shouldContain externalDocumentReference.externalDocumentId
+        }
+
+        "return the correct SPDX package" {
+            val externalDocumentReference = SpdxExternalDocumentReference(
+                "DocumentRef-zlib-1.2.11",
+                SpdxChecksum(SpdxChecksum.Algorithm.SHA1, "16b1c4c5c0f2a0655643d04f20ecee385ca8cf29"),
+                "src/funTest/assets/projects/synthetic/spdx/package/libs/zlib/package.spdx.yml"
+            )
+
+            val spdxPackageId = "SPDXRef-Package-zlib"
+            val spdxPackage = externalDocumentReference.getSpdxPackage(spdxPackageId, File(""))
+
+            spdxPackage.spdxId shouldBe spdxPackageId
         }
     }
 })

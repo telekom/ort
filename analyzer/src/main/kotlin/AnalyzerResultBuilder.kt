@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,8 +22,10 @@ package org.ossreviewtoolkit.analyzer
 
 import org.ossreviewtoolkit.model.AnalyzerResult
 import org.ossreviewtoolkit.model.CuratedPackage
+import org.ossreviewtoolkit.model.DependencyGraph
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
+import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.ProjectAnalyzerResult
 import org.ossreviewtoolkit.model.createAndLogIssue
@@ -33,8 +35,9 @@ class AnalyzerResultBuilder(private val curationProvider: PackageCurationProvide
     private val projects = sortedSetOf<Project>()
     private val packages = sortedSetOf<CuratedPackage>()
     private val issues = sortedMapOf<Identifier, List<OrtIssue>>()
+    private val dependencyGraphs = sortedMapOf<String, DependencyGraph>()
 
-    fun build() = AnalyzerResult(projects, packages, issues)
+    fun build() = AnalyzerResult(projects, packages, issues, dependencyGraphs)
 
     fun addResult(projectAnalyzerResult: ProjectAnalyzerResult): AnalyzerResultBuilder {
         // TODO: It might be, e.g. in the case of PIP "requirements.txt" projects, that different projects with
@@ -61,23 +64,41 @@ class AnalyzerResultBuilder(private val curationProvider: PackageCurationProvide
             issues[existingProject.id] = projectIssues + issue
         } else {
             projects += projectAnalyzerResult.project
-
-            packages += projectAnalyzerResult.packages.map { pkg ->
-                val curations = curationProvider.getCurationsFor(pkg.id)
-                curations.fold(pkg.toCuratedPackage()) { cur, packageCuration ->
-                    log.debug {
-                        "Applying curation '$packageCuration' to package '${pkg.id.toCoordinates()}'."
-                    }
-
-                    packageCuration.apply(cur)
-                }
-            }
+            addPackages(projectAnalyzerResult.packages)
 
             if (projectAnalyzerResult.issues.isNotEmpty()) {
                 issues[projectAnalyzerResult.project.id] = projectAnalyzerResult.issues
             }
         }
 
+        return this
+    }
+
+    /**
+     * Add the given [packageSet] to this builder. This function can be used for packages that have been obtained
+     * independently of a [ProjectAnalyzerResult].
+     */
+    fun addPackages(packageSet: Set<Package>): AnalyzerResultBuilder {
+        packages += packageSet.map { pkg ->
+            val curations = curationProvider.getCurationsFor(pkg.id)
+            curations.fold(pkg.toCuratedPackage()) { cur, packageCuration ->
+                log.debug {
+                    "Applying curation '$packageCuration' to package '${pkg.id.toCoordinates()}'."
+                }
+
+                packageCuration.apply(cur)
+            }
+        }
+
+        return this
+    }
+
+    /**
+     * Add a [DependencyGraph][graph] with all dependencies detected by the [PackageManager] with the given
+     * [name][packageManagerName] to the result produced by this builder.
+     */
+    fun addDependencyGraph(packageManagerName: String, graph: DependencyGraph): AnalyzerResultBuilder {
+        dependencyGraphs[packageManagerName] = graph
         return this
     }
 }

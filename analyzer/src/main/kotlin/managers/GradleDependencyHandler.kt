@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,13 +26,15 @@ import org.apache.maven.project.ProjectBuildingException
 import org.eclipse.aether.artifact.DefaultArtifact
 import org.eclipse.aether.repository.RemoteRepository
 
-import org.ossreviewtoolkit.analyzer.managers.utils.DependencyHandler
 import org.ossreviewtoolkit.analyzer.managers.utils.MavenSupport
+import org.ossreviewtoolkit.analyzer.managers.utils.identifier
+import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.PackageLinkage
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.createAndLogIssue
+import org.ossreviewtoolkit.model.utils.DependencyHandler
 import org.ossreviewtoolkit.utils.collectMessagesAsString
 import org.ossreviewtoolkit.utils.showStackTrace
 
@@ -44,13 +46,22 @@ class GradleDependencyHandler(
     val managerName: String,
 
     /** The helper object to resolve packages via Maven. */
-    private val maven: MavenSupport,
-
-    /** A list with repositories to use when resolving packages. */
-    private val repositories: List<RemoteRepository>
+    private val maven: MavenSupport
 ) : DependencyHandler<Dependency> {
-    override fun identifierFor(dependency: Dependency): String =
-        "${dependency.dependencyType()}:${dependency.groupId}:${dependency.artifactId}:${dependency.version}"
+    /**
+     * A list with repositories to use when resolving packages. This list must be set before using this handler for
+     * constructing the dependency graph of a project. As different projects may use different repositories, this
+     * property is writable.
+     */
+    var repositories = emptyList<RemoteRepository>()
+
+    override fun identifierFor(dependency: Dependency): Identifier =
+        Identifier(
+            type = dependency.dependencyType(),
+            namespace = dependency.groupId,
+            name = dependency.artifactId,
+            version = dependency.version
+        )
 
     override fun dependenciesFor(dependency: Dependency): Collection<Dependency> = dependency.dependencies
 
@@ -73,25 +84,26 @@ class GradleDependencyHandler(
             }
         )
 
-    override fun linkageFor(dependency: Dependency): PackageLinkage = dependency.linkage()
+    override fun linkageFor(dependency: Dependency): PackageLinkage =
+        if (dependency.isProjectDependency()) PackageLinkage.PROJECT_DYNAMIC else PackageLinkage.DYNAMIC
 
-    override fun createPackage(identifier: String, dependency: Dependency, issues: MutableList<OrtIssue>): Package? {
+    override fun createPackage(dependency: Dependency, issues: MutableList<OrtIssue>): Package? {
         // Only look for a package if there was no error resolving the dependency and it is no project dependency.
         if (dependency.error != null || dependency.isProjectDependency()) return null
 
-        return try {
-            val artifact = DefaultArtifact(
-                dependency.groupId, dependency.artifactId, dependency.classifier,
-                dependency.extension, dependency.version
-            )
+        val artifact = DefaultArtifact(
+            dependency.groupId, dependency.artifactId, dependency.classifier,
+            dependency.extension, dependency.version
+        )
 
+        return try {
             maven.parsePackage(artifact, repositories)
         } catch (e: ProjectBuildingException) {
             e.showStackTrace()
 
             issues += createAndLogIssue(
                 source = managerName,
-                message = "Could not get package information for dependency '$identifier': " +
+                message = "Could not get package information for dependency '${artifact.identifier()}': " +
                         e.collectMessagesAsString()
             )
 
@@ -111,16 +123,6 @@ class GradleDependencyHandler(
             pomFile?.let { "Maven" } ?: "Unknown"
         }
 }
-
-/**
- * Determine the [PackageLinkage] for this [Dependency].
- */
-private fun Dependency.linkage() =
-    if (isProjectDependency()) {
-        PackageLinkage.PROJECT_DYNAMIC
-    } else {
-        PackageLinkage.DYNAMIC
-    }
 
 /**
  * Return a flag whether this dependency references another project in the current build.

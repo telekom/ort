@@ -7,7 +7,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,8 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 val cliktVersion: String by project
 val config4kVersion: String by project
@@ -34,14 +36,21 @@ val sw360ClientVersion: String by project
 plugins {
     // Apply core plugins.
     application
+
+    // Apply third-party plugins.
+    id("com.github.johnrengelman.shadow")
 }
 
 application {
     applicationName = "ort"
-    mainClassName = "org.ossreviewtoolkit.OrtMainKt"
+    mainClassName = "org.ossreviewtoolkit.cli.OrtMainKt"
 }
 
-tasks.named<CreateStartScripts>("startScripts") {
+tasks.withType<ShadowJar> {
+    isZip64 = true
+}
+
+tasks.named<CreateStartScripts>("startScripts").configure {
     doLast {
         // Work around the command line length limit on Windows when passing the classpath to Java, see
         // https://github.com/gradle/gradle/issues/1989#issuecomment-395001392.
@@ -50,40 +59,12 @@ tasks.named<CreateStartScripts>("startScripts") {
     }
 }
 
-val fatJar by tasks.registering(Jar::class) {
-    description = "Creates a fat jar that includes all required dependencies."
-    group = "Build"
-
-    archiveBaseName.set(application.applicationName)
-
-    manifest.from(tasks.jar.get().manifest)
-    manifest {
-        attributes["Main-Class"] = application.mainClassName
-    }
-
-    isZip64 = true
-
-    val classpath = configurations.runtimeClasspath.get().filterNot {
-        it.isFile && it.extension == "pom"
-    }.map {
-        if (it.isDirectory) it else zipTree(it)
-    }
-
-    from(classpath) {
-        exclude("META-INF/*.DSA")
-        exclude("META-INF/*.RSA")
-        exclude("META-INF/*.SF")
-    }
-
-    with(tasks.jar.get())
-}
-
 repositories {
     // Need to repeat several custom repository definitions of other submodules here, see
     // https://github.com/gradle/gradle/issues/4106.
     exclusiveContent {
         forRepository {
-            maven("https://repo.gradle.org/gradle/libs-releases-local/")
+            maven("https://repo.gradle.org/artifactory/libs-releases-local/")
         }
 
         filter {
@@ -148,5 +129,4 @@ dependencies {
     funTestImplementation(sourceSets["test"].output)
 }
 
-configurations["funTestImplementation"].extendsFrom(configurations.testImplementation.get())
-configurations["funTestRuntime"].extendsFrom(configurations.testRuntime.get())
+configurations["funTestImplementation"].extendsFrom(configurations["testImplementation"])

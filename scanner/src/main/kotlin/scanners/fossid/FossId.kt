@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,6 +21,7 @@ package org.ossreviewtoolkit.scanner.scanners.fossid
 
 import java.io.File
 import java.io.IOException
+import java.net.Authenticator
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -28,6 +29,7 @@ import java.time.format.DateTimeFormatter
 import kotlin.time.measureTimedValue
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
 import org.ossreviewtoolkit.clients.fossid.FossIdRestService
@@ -41,24 +43,28 @@ import org.ossreviewtoolkit.clients.fossid.getProject
 import org.ossreviewtoolkit.clients.fossid.listIdentifiedFiles
 import org.ossreviewtoolkit.clients.fossid.listIgnoredFiles
 import org.ossreviewtoolkit.clients.fossid.listMarkedAsIdentifiedFiles
+import org.ossreviewtoolkit.clients.fossid.listPendingFiles
+import org.ossreviewtoolkit.clients.fossid.listScansForProject
 import org.ossreviewtoolkit.clients.fossid.model.Project
-import org.ossreviewtoolkit.clients.fossid.model.identification.ignored.IgnoredFile
-import org.ossreviewtoolkit.clients.fossid.model.identification.markedAsIdentified.MarkedAsIdentifiedFile
 import org.ossreviewtoolkit.clients.fossid.model.status.DownloadStatus
 import org.ossreviewtoolkit.clients.fossid.model.status.ScanState
 import org.ossreviewtoolkit.clients.fossid.runScan
-import org.ossreviewtoolkit.clients.fossid.toList
+import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.ScanSummary
+import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
+import org.ossreviewtoolkit.model.config.ScannerOptions
 import org.ossreviewtoolkit.scanner.AbstractScannerFactory
 import org.ossreviewtoolkit.scanner.RemoteScanner
 import org.ossreviewtoolkit.utils.OkHttpClientHelper
 import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.replaceCredentialsInUri
+import org.ossreviewtoolkit.utils.toUri
 
 import retrofit2.Retrofit
 import retrofit2.converter.jackson.JacksonConverterFactory
@@ -72,6 +78,10 @@ import retrofit2.converter.jackson.JacksonConverterFactory
  * * **"serverUrl":** The URL of the FossID server.
  * * **"user":** The user to connect to the FossID server.
  * * **"apiKey":** The API key of the user which connects to the FossID server.
+ * * **"packageNamespaceFilter":** If this optional filter is set, only packages having an identifier in given namespace
+ * will be scanned.
+ * * **"packageAuthorsFilter":** If this optional filter is set, only packages from a given author will be scanned.
+ * * **"addAuthenticationToUrl":** When set, ORT will add credentials from its Authenticator to the URLs sent to FossID.
  */
 class FossId(
     name: String,
@@ -85,10 +95,10 @@ class FossId(
 
     companion object {
         @JvmStatic
-        private val PROJECT_NAME_REGEX = Regex("""^.*\/([\w\-]+)(?:\.git)?$""")
+        private val PROJECT_NAME_REGEX = Regex("""^.*\/([\w.\-]+)(?:\.git)?$""")
 
         @JvmStatic
-        private val GIT_FETCH_DONE_REGEX = Regex("-> FETCH_HEAD")
+        private val GIT_FETCH_DONE_REGEX = Regex("-> FETCH_HEAD(?: Already up to date.)*$")
 
         @JvmStatic
         private val WAIT_INTERVAL_MS = 10000L
@@ -111,6 +121,33 @@ class FossId(
 
             return projectName
         }
+
+        /**
+         * This function fetches credentials for [repoUrl] and insert them between the URL scheme and the host. If no
+         * matching host is found by [Authenticator], the [repoUrl] is returned untouched.
+         */
+        private fun queryAuthenticator(repoUrl: String): String {
+            val repoUri = repoUrl.toUri().getOrElse {
+                log.warn { "Host cannot be extracted for $repoUrl." }
+                return repoUrl
+            }
+
+            log.info { "Requesting authenticator for host ${repoUri.host} ..." }
+
+            val creds = Authenticator.getDefault().requestPasswordAuthenticationInstance(
+                repoUri.host,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                Authenticator.RequestorType.SERVER
+            )
+            return creds?.let {
+                repoUrl.replaceCredentialsInUri("${creds.userName}:${String(creds.password)}")
+            } ?: repoUrl
+        }
     }
 
     private val serverUrl: String
@@ -120,9 +157,11 @@ class FossId(
     private val secretKeys = listOf("serverUrl", "apiKey", "user")
 
     private val service: FossIdRestService
+    private val packageNamespaceFilter: String
+    private val packageAuthorsFilter: String
+    private val addAuthenticationToUrl: Boolean
 
-    // TODO: Parse the version from the FossID login page.
-    override val version = ""
+    override val version: String
 
     override val configuration = ""
 
@@ -137,8 +176,13 @@ class FossId(
             ?: throw IllegalArgumentException("No FossId API Key configuration found.")
         user = fossIdScannerOptions["user"]
             ?: throw IllegalArgumentException("No FossId User configuration found.")
+        packageNamespaceFilter = fossIdScannerOptions["packageNamespaceFilter"].orEmpty()
+        packageAuthorsFilter = fossIdScannerOptions["packageAuthorsFilter"].orEmpty()
+        addAuthenticationToUrl = fossIdScannerOptions["addAuthenticationToUrl"].toBoolean()
 
         val client = OkHttpClientHelper.buildClient()
+
+        log.info { "FossID server URL is $serverUrl." }
 
         val retrofit = Retrofit.Builder()
             .client(client)
@@ -147,12 +191,40 @@ class FossId(
             .build()
 
         service = retrofit.create(FossIdRestService::class.java)
+
+        version = runBlocking {
+            parseVersion().orEmpty()
+        }
     }
 
-    override fun filterOptionsForResult(options: Map<String, String>) =
+    override fun filterOptionsForResult(options: ScannerOptions) =
         options.mapValues { (k, v) ->
             v.takeUnless { k in secretKeys }.orEmpty()
         }
+
+    /**
+     * Extract the version version from the login page.
+     * Example: &nbsp;&nbsp;&nbsp;cli.  3.1.16 (build 5634934d, RELEASE)
+     */
+    private suspend fun parseVersion(): String? {
+        // TODO: replace with an API call when FossID provides a function (starting at version 21.2).
+        val regex = Regex("^.*&nbsp;(cli. *[0-9. ]+\\(build[\\w, ]+\\)).*$")
+
+        val response = service.getLoginPage()
+
+        response.charStream().buffered().useLines { lines ->
+            lines.forEach { line ->
+                val matcher = regex.matchEntire(line)
+                if (matcher != null && matcher.groupValues.size == 2) {
+                    val version = matcher.groupValues[1]
+                    FossId.log.info { "Version from FossId Server is $version." }
+                    return version
+                }
+            }
+        }
+        log.warn { "Version from FossId Server cannot be found!" }
+        return null
+    }
 
     private suspend fun getProject(projectCode: String): Project? =
         service.getProject(user, apiKey, projectCode).run {
@@ -173,13 +245,30 @@ class FossId(
 
     override suspend fun scanPackages(
         packages: Collection<Package>,
-        outputDirectory: File,
-        downloadDirectory: File
+        outputDirectory: File
     ): Map<Package, List<ScanResult>> {
         val (results, duration) = measureTimedValue {
             val results = mutableMapOf<Package, MutableList<ScanResult>>()
 
-            packages.forEach { pkg: Package ->
+            log.info {
+                if (packageNamespaceFilter.isEmpty()) "No package namespace filter is set."
+                else "Package namespace filter is '$packageNamespaceFilter'."
+            }
+            log.info {
+                if (packageAuthorsFilter.isEmpty()) "No package authors filter is set."
+                else "Package authors filter is '$packageAuthorsFilter'."
+            }
+
+            val filteredPackages = packages
+                .filter { packageNamespaceFilter.isEmpty() || it.id.namespace == packageNamespaceFilter }
+                .filter { packageAuthorsFilter.isEmpty() || packageAuthorsFilter in it.authors }
+
+            if (filteredPackages.isEmpty()) {
+                log.warn { "There is no package to scan !" }
+                return results
+            }
+
+            filteredPackages.forEach { pkg ->
                 val startTime = Instant.now()
 
                 // TODO: Continue the processing of other packages and add an issue to the scan result.
@@ -196,17 +285,33 @@ class FossId(
                         .checkResponse("create project")
                 }
 
-                log.info { "Creating scan for URL $url and revision $revision ..." }
+                val scans = service.listScansForProject(user, apiKey, projectCode)
+                    .checkResponse("list scans for project").data
+                checkNotNull(scans)
 
-                val scanCode = createScan(projectCode, url, revision)
+                val existingScan = scans.sortedByDescending { it.id }.find { scan ->
+                    scan.gitBranch == revision && scan.gitRepoUrl == url
+                }
 
-                log.info { "Initiating download from Git repository ..." }
+                val scanCode = if (existingScan == null) {
+                    log.info { "No scan found for $url and revision $revision. Creating scan ..." }
 
-                service.downloadFromGit(user, apiKey, scanCode)
-                    .checkResponse("download data from Git", false)
+                    val newUrl = if (addAuthenticationToUrl) queryAuthenticator(url) else url
+
+                    val scanCode = createScan(projectCode, newUrl, revision)
+                    log.info { "Initiating data download ..." }
+                    service.downloadFromGit(user, apiKey, scanCode)
+                        .checkResponse("download data from Git", false)
+                    scanCode
+                } else {
+                    log.info { "Scan found for $url and revision $revision." }
+
+                    requireNotNull(existingScan.code) {
+                        "FossId returned a null scancode for an existing scan"
+                    }
+                }
 
                 checkScan(scanCode)
-
                 val rawResults = getRawResults(scanCode)
                 val resultsSummary = createResultSummary(startTime, rawResults)
 
@@ -216,7 +321,7 @@ class FossId(
             results
         }
 
-        log.info { "Scan has been performed. Total time was ${duration.inSeconds}s." }
+        log.info { "Scan has been performed. Total time was ${duration.inWholeSeconds}s." }
 
         return results
     }
@@ -333,28 +438,28 @@ class FossId(
      * Get the different kind of results from the scan with [scanCode]
      */
     private suspend fun getRawResults(scanCode: String): RawResults {
-        val responseIdentifiedFiles = service.listIdentifiedFiles(user, apiKey, scanCode)
-            .checkResponse("list identified files", false)
-
-        // TODO: Replace the return type of listIdentifiedFiles to Call<EntityPostResponseBody<Any>> and use toList().
-        val identifiedFiles = responseIdentifiedFiles.data?.values?.toList().orEmpty()
-
+        val identifiedFiles = service.listIdentifiedFiles(user, apiKey, scanCode)
+            .checkResponse("list identified files")
+            .data!!
         log.info { "${identifiedFiles.size} identified files have been returned for scan code $scanCode." }
 
-        val responseMarkedAsIdentified = service.listMarkedAsIdentifiedFiles(user, apiKey, scanCode)
-            .checkResponse("list marked as identified files", false)
-        val markedAsIdentifiedFiles = responseMarkedAsIdentified.toList(MarkedAsIdentifiedFile::class)
-
+        val markedAsIdentifiedFiles = service.listMarkedAsIdentifiedFiles(user, apiKey, scanCode)
+            .checkResponse("list marked as identified files")
+            .data!!
         log.info {
             "${markedAsIdentifiedFiles.size} marked as identified files have been returned for scan code $scanCode."
         }
 
         // The "match_type=ignore" info is already in the ScanResult, but here we also get the ignore reason.
-        val responseListIgnoredFiles = service.listIgnoredFiles(user, apiKey, scanCode)
-            .checkResponse("list ignored files", false)
+        val listIgnoredFiles = service.listIgnoredFiles(user, apiKey, scanCode)
+            .checkResponse("list ignored files")
+            .data!!
 
-        val listIgnoredFiles = responseListIgnoredFiles.toList(IgnoredFile::class)
-        return RawResults(identifiedFiles, markedAsIdentifiedFiles, listIgnoredFiles)
+        val pendingFiles = service.listPendingFiles(user, apiKey, scanCode)
+            .checkResponse("list pending files")
+            .data!!
+
+        return RawResults(identifiedFiles, markedAsIdentifiedFiles, listIgnoredFiles, pendingFiles)
     }
 
     /**
@@ -375,7 +480,9 @@ class FossId(
             licenseFindings = licenseFindings.toSortedSet(),
             copyrightFindings = copyrightFindings.toSortedSet(),
             // TODO: Maybe get issues from FossId (see has_failed_scan_files, get_failed_files and maybe get_scan_log).
-            issues = emptyList()
+            issues = rawResults.listPendingFiles.map {
+                OrtIssue(source = it, message = "pending", severity = Severity.HINT)
+            }
         )
 
         return ScanResult(UnknownProvenance, details, summary)

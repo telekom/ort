@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -51,7 +51,7 @@ object SpdxModelMapper {
              * Return the [FileFormat] for the given [extension], or `null` if there is none.
              */
             fun forExtension(extension: String): FileFormat =
-                extension.toLowerCase().let { lowerCaseExtension ->
+                extension.lowercase().let { lowerCaseExtension ->
                     enumValues<FileFormat>().find {
                         lowerCaseExtension in it.fileExtensions
                     } ?: throw IllegalArgumentException(

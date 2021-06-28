@@ -1,11 +1,12 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +18,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.commands
+package org.ossreviewtoolkit.cli.commands
 
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.ProgramResult
@@ -36,18 +37,27 @@ import com.github.ajalt.clikt.parameters.types.file
 
 import java.io.File
 
-import kotlin.time.measureTime
 import kotlin.time.measureTimedValue
 
-import org.ossreviewtoolkit.GlobalOptions
-import org.ossreviewtoolkit.GroupTypes.FileType
-import org.ossreviewtoolkit.GroupTypes.StringType
+import org.ossreviewtoolkit.analyzer.curation.FilePackageCurationProvider
+import org.ossreviewtoolkit.cli.GlobalOptions
+import org.ossreviewtoolkit.cli.GroupTypes.FileType
+import org.ossreviewtoolkit.cli.GroupTypes.StringType
+import org.ossreviewtoolkit.cli.concludeSeverityStats
+import org.ossreviewtoolkit.cli.utils.OPTION_GROUP_CONFIGURATION
+import org.ossreviewtoolkit.cli.utils.OPTION_GROUP_RULE
+import org.ossreviewtoolkit.cli.utils.PackageConfigurationOption
+import org.ossreviewtoolkit.cli.utils.configurationGroup
+import org.ossreviewtoolkit.cli.utils.createProvider
+import org.ossreviewtoolkit.cli.utils.inputGroup
+import org.ossreviewtoolkit.cli.utils.outputGroup
+import org.ossreviewtoolkit.cli.utils.readOrtResult
+import org.ossreviewtoolkit.cli.utils.writeOrtResult
 import org.ossreviewtoolkit.evaluator.Evaluator
 import org.ossreviewtoolkit.model.FileFormat
-import org.ossreviewtoolkit.model.OrtResult
-import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.config.CopyrightGarbage
 import org.ossreviewtoolkit.model.config.LicenseFilenamePatterns
+import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.createFileArchiver
 import org.ossreviewtoolkit.model.config.orEmpty
 import org.ossreviewtoolkit.model.licenses.DefaultLicenseInfoProvider
@@ -55,15 +65,12 @@ import org.ossreviewtoolkit.model.licenses.LicenseClassifications
 import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.licenses.orEmpty
 import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.model.readValueOrDefault
 import org.ossreviewtoolkit.model.utils.mergeLabels
-import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.utils.ORT_COPYRIGHT_GARBAGE_FILENAME
 import org.ossreviewtoolkit.utils.ORT_LICENSE_CLASSIFICATIONS_FILENAME
 import org.ossreviewtoolkit.utils.ORT_REPO_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.PackageConfigurationOption
-import org.ossreviewtoolkit.utils.createProvider
 import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.formatSizeInMib
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.ortConfigDirectory
 import org.ossreviewtoolkit.utils.perf
@@ -80,9 +87,8 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
 
     private val outputDir by option(
         "--output-dir", "-o",
-        help = "The directory to write the evaluation results as ORT result file(s) to, in the specified output " +
-                "format(s). If no output directory is specified, no ORT result file(s) are written and only the exit " +
-                "code signals a success or failure."
+        help = "The directory to write the ORT result file with evaluation results to.  If no output directory is " +
+                "specified, no ORT result file is written and only the exit code signals a success or failure."
     ).convert { it.expandTilde() }
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
@@ -119,7 +125,7 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
 
     private val licenseClassificationsFile by option(
         "--license-classifications-file",
-        help = "A file containing the license classificationsm which are passed as parameter to the rules script."
+        help = "A file containing the license classifications which are passed as parameter to the rules script."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
         .convert { it.absoluteFile.normalize() }
@@ -154,6 +160,15 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
         .convert { it.absoluteFile.normalize() }
         .configurationGroup()
 
+    private val packageCurationsDir by option(
+        "--package-curations-dir",
+        help = "A directory containing package curation data. This replaces all package curations contained in the " +
+                "given ORT result file with the ones present in the given directory."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .configurationGroup()
+
     private val repositoryConfigurationFile by option(
         "--repository-configuration-file",
         help = "A file containing the repository configuration. If set, the '$ORT_REPO_CONFIG_FILENAME' overrides " +
@@ -165,8 +180,8 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
 
     private val labels by option(
         "--label", "-l",
-        help = "Add a label to the ORT result. Can be used multiple times. Any existing label with the same key in " +
-                "the input ORT result is overwritten. For example: --label distribution=external"
+        help = "Set a label in the ORT result, overwriting any existing label of the same name. Can be used multiple " +
+                "times. For example: --label distribution=external"
     ).associate()
 
     private val checkSyntax by option(
@@ -231,79 +246,56 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
             }
         }
 
-        var (ortResultInput, readDuration) = measureTimedValue { ortFile?.readValue<OrtResult>() }
-
-        ortFile?.let { file ->
-            log.perf {
-                "Read ORT result from '${file.name}' (${file.formatSizeInMib}) in ${readDuration.inMilliseconds}ms."
-            }
+        val existingOrtFile = requireNotNull(ortFile) {
+            "The '--ort-file' option is required unless the '--check-syntax' option is used."
         }
+
+        var ortResultInput = readOrtResult(existingOrtFile)
 
         repositoryConfigurationFile?.let {
-            ortResultInput = ortResultInput?.replaceConfig(it.readValue())
+            val config = it.readValueOrDefault(RepositoryConfiguration())
+            ortResultInput = ortResultInput.replaceConfig(config)
         }
 
-        packageCurationsFile?.let {
-            ortResultInput = ortResultInput?.replacePackageCurations(it.readValue())
-        }
-
-        val finalOrtResult = requireNotNull(ortResultInput) {
-            "The '--ort-file' option is required unless the '--check-syntax' option is used."
+        val curations = FilePackageCurationProvider.from(packageCurationsFile, packageCurationsDir).packageCurations
+        if (curations.isNotEmpty()) {
+            ortResultInput = ortResultInput.replacePackageCurations(curations)
         }
 
         val packageConfigurationProvider = packageConfigurationOption.createProvider()
         val copyrightGarbage = copyrightGarbageFile.takeIf { it.isFile }?.readValue<CopyrightGarbage>().orEmpty()
 
+        val config = globalOptionsForSubcommands.config
         val licenseInfoResolver = LicenseInfoResolver(
-            provider = DefaultLicenseInfoProvider(finalOrtResult, packageConfigurationProvider),
+            provider = DefaultLicenseInfoProvider(ortResultInput, packageConfigurationProvider),
             copyrightGarbage = copyrightGarbage,
-            archiver = globalOptionsForSubcommands.config.scanner.archive.createFileArchiver(),
+            archiver = config.scanner.archive.createFileArchiver(),
             licenseFilenamePatterns = LicenseFilenamePatterns.getInstance()
         )
 
         val licenseClassifications =
             licenseClassificationsFile.takeIf { it.isFile }?.readValue<LicenseClassifications>().orEmpty()
-        val evaluator = Evaluator(finalOrtResult, licenseInfoResolver, licenseClassifications)
+        val evaluator = Evaluator(ortResultInput, licenseInfoResolver, licenseClassifications)
 
         val (evaluatorRun, duration) = measureTimedValue { evaluator.run(script) }
 
-        log.perf { "Executed the evaluator in ${duration.inMilliseconds}ms." }
+        log.perf { "Executed the evaluator in ${duration.inWholeMilliseconds}ms." }
 
         if (log.delegate.isErrorEnabled) {
             evaluatorRun.violations.forEach { violation ->
-                log.error(violation.toString())
+                log.error { violation.toString() }
             }
         }
 
         outputDir?.let { absoluteOutputDir ->
             // Note: This overwrites any existing EvaluatorRun from the input file.
-            val ortResultOutput = finalOrtResult.copy(evaluator = evaluatorRun).mergeLabels(labels)
+            val ortResultOutput = ortResultInput.copy(evaluator = evaluatorRun).mergeLabels(labels)
 
             absoluteOutputDir.safeMkdirs()
-
-            outputFiles.forEach { file ->
-                println("Writing evaluation result to '$file'.")
-                val writeDuration = measureTime {
-                    file.writeValue(ortResultOutput)
-                }
-
-                log.perf {
-                    "Wrote ORT result to '${file.name}' (${file.formatSizeInMib}) in ${writeDuration.inMilliseconds}ms."
-                }
-            }
+            writeOrtResult(ortResultOutput, outputFiles, "evaluation")
         }
 
         val counts = evaluatorRun.violations.groupingBy { it.severity }.eachCount()
-
-        val errorCount = counts[Severity.ERROR] ?: 0
-        val warningCount = counts[Severity.WARNING] ?: 0
-        val hintCount = counts[Severity.HINT] ?: 0
-
-        if (errorCount > 0 || warningCount > 0) {
-            println("Found $errorCount errors, $warningCount warnings, $hintCount hints.")
-            throw ProgramResult(2)
-        }
-
-        println("Found $hintCount hints only.")
+        concludeSeverityStats(counts, config.severeIssueThreshold, 2)
     }
 }

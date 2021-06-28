@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,14 +25,13 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
+import org.ossreviewtoolkit.helper.common.readOrtResult
+import org.ossreviewtoolkit.helper.common.writeOrtResult
 import org.ossreviewtoolkit.model.ArtifactProvenance
-import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.ScanSummary
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.utils.expandTilde
 
 internal class SubtractScanResultsCommand : CliktCommand(
@@ -41,7 +40,7 @@ internal class SubtractScanResultsCommand : CliktCommand(
 ) {
     private val lhsOrtFile by option(
         "--lhs-ort-file",
-        help = "The ORT result containing the left-hand-side scan result."
+        help = "The ORT result containing the left-hand side scan result."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
         .convert { it.absoluteFile.normalize() }
@@ -49,7 +48,7 @@ internal class SubtractScanResultsCommand : CliktCommand(
 
     private val rhsOrtFile by option(
         "--rhs-ort-file",
-        help = "The ORT result containing the left-hand-side scan result."
+        help = "The ORT result containing the right-hand side scan result."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
         .convert { it.absoluteFile.normalize() }
@@ -57,15 +56,15 @@ internal class SubtractScanResultsCommand : CliktCommand(
 
     private val outputOrtFile by option(
         "--output-ort-file",
-        help = "The ORT result containing the left-hand-side scan result."
+        help = "The file to write the output ORT result to."
     ).convert { it.expandTilde() }
         .file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
         .required()
 
     override fun run() {
-        val lhsOrtResult = lhsOrtFile.readValue<OrtResult>()
-        val rhsOrtResult = rhsOrtFile.readValue<OrtResult>()
+        val lhsOrtResult = readOrtResult(lhsOrtFile)
+        val rhsOrtResult = readOrtResult(rhsOrtFile)
 
         val rhsScanSummaries = rhsOrtResult.scanner!!.results.scanResults.flatMap { it.value }.associateBy(
             keySelector = { it.provenance.key() },
@@ -81,15 +80,15 @@ internal class SubtractScanResultsCommand : CliktCommand(
             }
         }
 
-       val result = lhsOrtResult.copy(
-           scanner = lhsOrtResult.scanner!!.copy(
-               results = lhsOrtResult.scanner!!.results.copy(
+        val result = lhsOrtResult.copy(
+            scanner = lhsOrtResult.scanner!!.copy(
+                results = lhsOrtResult.scanner!!.results.copy(
                     scanResults = scanResults
-               )
-           )
-       )
+                )
+            )
+        )
 
-       outputOrtFile.writeValue(result)
+        writeOrtResult(result, outputOrtFile)
     }
 }
 

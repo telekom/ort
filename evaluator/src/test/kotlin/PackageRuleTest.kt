@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -170,6 +170,67 @@ class PackageRuleTest : WordSpec() {
 
                     matcher.matches() shouldBe false
                 }
+            }
+        }
+
+        "hasVulnerability()" should {
+            "return true if any vulnerability is found" {
+                val rule = createPackageRule(packageWithVulnerabilities)
+                val matcher = rule.hasVulnerability()
+
+                matcher.matches() shouldBe true
+            }
+
+            "return false if no vulnerabilities are found" {
+                val rule = createPackageRule(packageWithOnlyDetectedLicense)
+                val matcher = rule.hasVulnerability()
+
+                matcher.matches() shouldBe false
+            }
+
+            "return true if a severity of a vulnerability is higher than the threshold" {
+                val rule = createPackageRule(packageWithVulnerabilities)
+                val matcher = rule.hasVulnerability("8.9", "CVSS3") { value, threshold ->
+                    value.toFloat().compareTo(threshold.toFloat())
+                }
+
+                matcher.matches() shouldBe true
+            }
+
+            "return false if a severity of a vulnerability is lower than the threshold" {
+                val rule = createPackageRule(packageWithVulnerabilities)
+                val matcher = rule.hasVulnerability("9.1", "CVSS3") { value, threshold ->
+                    value.toFloat().compareTo(threshold.toFloat())
+                }
+
+                matcher.matches() shouldBe false
+            }
+
+            "return true if a severity of a vulnerability is the same as the threshold" {
+                val rule = createPackageRule(packageWithVulnerabilities)
+                val matcher = rule.hasVulnerability("9.0", "CVSS3") { value, threshold ->
+                    value.toFloat().compareTo(threshold.toFloat())
+                }
+
+                matcher.matches() shouldBe true
+            }
+
+            "return true if a severity of a vulnerability is the same as the threshold without decimals" {
+                val rule = createPackageRule(packageWithVulnerabilities)
+                val matcher = rule.hasVulnerability("9", "CVSS3") { value, threshold ->
+                    value.toFloat().compareTo(threshold.toFloat())
+                }
+
+                matcher.matches() shouldBe true
+            }
+
+            "return false if no vulnerability is found for the scoringSystem" {
+                val rule = createPackageRule(packageWithVulnerabilities)
+                val matcher = rule.hasVulnerability("10.0", "fake-scoring-system") { value, threshold ->
+                    value.toFloat().compareTo(threshold.toFloat())
+                }
+
+                matcher.matches() shouldBe false
             }
         }
     }

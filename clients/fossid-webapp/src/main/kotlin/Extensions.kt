@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,8 +21,6 @@
 
 package org.ossreviewtoolkit.clients.fossid
 
-import kotlin.reflect.KClass
-
 private const val SCAN_GROUP = "scans"
 private const val PROJECT_GROUP = "projects"
 
@@ -30,7 +28,7 @@ private const val PROJECT_GROUP = "projects"
  * Verify that a request for the given [operation] was successful. [operation] is a free label describing the operation.
  * If [withDataCheck] is true, also the payload data is checked, otherwise that check is skipped.
  */
-fun <B : EntityPostResponseBody<T>, T> B?.checkResponse(operation: String, withDataCheck: Boolean = true): B {
+fun <B : EntityResponseBody<T>, T> B?.checkResponse(operation: String, withDataCheck: Boolean = true): B {
     // The null check is here to avoid the caller to wrap the call of this function in a null check.
     requireNotNull(this)
 
@@ -46,20 +44,6 @@ fun <B : EntityPostResponseBody<T>, T> B?.checkResponse(operation: String, withD
 
     return this
 }
-
-/**
- * The list operations in FossID have inconsistent return types depending on the amount of entities returned.
- * This function streamlines these entities to a list.
- */
-fun <T : Any> EntityPostResponseBody<Any>.toList(cls: KClass<T>): List<T> =
-    // the list  operation returns different json depending on the amount of scans
-    when (val data = data) {
-        is List<*> -> data.map { FossIdRestService.JSON_MAPPER.convertValue(it, cls.java) }
-        is Map<*, *> -> data.values.map { FossIdRestService.JSON_MAPPER.convertValue(it, cls.java) }
-        // the server returns "data: false" when there is no entry -> we streamline it to an empty list
-        is Boolean -> emptyList()
-        else -> error("Cannot process the returned values")
-    }
 
 /**
  * Get the project for the given [projectCode].
@@ -133,11 +117,13 @@ suspend fun FossIdRestService.createScan(
     )
 
 /**
- * Trigger a scan with the given [scanCode].
+ * Trigger a scan with the given [scanCode]. Additional [options] can be passed to FossID.
  *
  * The HTTP request is sent with [user] and [apiKey] as credentials.
  */
-suspend fun FossIdRestService.runScan(user: String, apiKey: String, scanCode: String) =
+suspend fun FossIdRestService.runScan(
+    user: String, apiKey: String, scanCode: String, vararg options: Pair<String, String>
+) =
     runScan(
         PostRequestBody(
             "run",
@@ -146,7 +132,8 @@ suspend fun FossIdRestService.runScan(user: String, apiKey: String, scanCode: St
             apiKey,
             "scan_code" to scanCode,
             "auto_identification_detect_declaration" to "1",
-            "auto_identification_detect_copyright" to "1"
+            "auto_identification_detect_copyright" to "1",
+            *options
         )
     )
 

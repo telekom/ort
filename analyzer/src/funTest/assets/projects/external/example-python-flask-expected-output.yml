@@ -20,16 +20,25 @@ project:
     dependencies:
     - id: "PyPI::flask:0.12"
       dependencies:
-      - id: "PyPI::click:7.1.2"
-      - id: "PyPI::itsdangerous:1.1.0"
+      - id: "PyPI::click:8.0.1"
+        dependencies:
+        - id: "PyPI::importlib-metadata:4.5.0"
+          dependencies:
+          - id: "PyPI::typing-extensions:3.10.0.0"
+          - id: "PyPI::zipp:3.4.1"
+      - id: "PyPI::itsdangerous:2.0.1"
       - id: "PyPI::jinja2:2.8.1"
         dependencies:
-        - id: "PyPI::markupsafe:1.1.1"
-      - id: "PyPI::werkzeug:1.0.1"
+        - id: "PyPI::markupsafe:2.0.1"
+      - id: "PyPI::werkzeug:2.0.1"
+        dependencies:
+        - id: "PyPI::dataclasses:0.8"
     - id: "PyPI::gunicorn:19.6.0"
 packages:
-- id: "PyPI::click:7.1.2"
-  purl: "pkg:pypi/click@7.1.2"
+- id: "PyPI::click:8.0.1"
+  purl: "pkg:pypi/click@8.0.1"
+  authors:
+  - "Armin Ronacher"
   declared_licenses:
   - "BSD License"
   - "BSD-3-Clause"
@@ -40,14 +49,14 @@ packages:
   description: "Composable command line interface toolkit"
   homepage_url: "https://palletsprojects.com/p/click/"
   binary_artifact:
-    url: "https://files.pythonhosted.org/packages/d2/3d/fa76db83bf75c4f8d338c2fd15c8d33fdd7ad23a9b5e57eb6c5de26b430e/click-7.1.2-py2.py3-none-any.whl"
+    url: "https://files.pythonhosted.org/packages/76/0a/b6c5f311e32aeb3b406e03c079ade51e905ea630fc19d1262a46249c1c86/click-8.0.1-py3-none-any.whl"
     hash:
-      value: "b4233221cacc473acd422a1d54ff4c41"
+      value: "b0ea4bceb2610bece94ded2424ce9448"
       algorithm: "MD5"
   source_artifact:
-    url: "https://files.pythonhosted.org/packages/27/6f/be940c8b1f1d69daceeb0032fee6c34d7bd70e3e649ccac0951500b4720e/click-7.1.2.tar.gz"
+    url: "https://files.pythonhosted.org/packages/21/83/308a74ca1104fe1e3197d31693a7a2db67c2d4e668f20f43a2fca491f9f7/click-8.0.1.tar.gz"
     hash:
-      value: "53692f62cb99a1a10c59248f1776d9c0"
+      value: "ff66f850b8eb4dc618b405d7fe22a0c2"
       algorithm: "MD5"
   vcs:
     type: ""
@@ -57,6 +66,40 @@ packages:
   vcs_processed:
     type: ""
     url: ""
+    revision: ""
+    path: ""
+- id: "PyPI::dataclasses:0.8"
+  purl: "pkg:pypi/dataclasses@0.8"
+  authors:
+  - "Eric V. Smith"
+  declared_licenses:
+  - "Apache"
+  - "Apache Software License"
+  declared_licenses_processed:
+    spdx_expression: "Apache-2.0"
+    mapped:
+      Apache: "Apache-2.0"
+      Apache Software License: "Apache-2.0"
+  description: "A backport of the dataclasses module for Python 3.6"
+  homepage_url: "https://github.com/ericvsmith/dataclasses"
+  binary_artifact:
+    url: "https://files.pythonhosted.org/packages/fe/ca/75fac5856ab5cfa51bbbcefa250182e50441074fdc3f803f6e76451fab43/dataclasses-0.8-py3-none-any.whl"
+    hash:
+      value: "0d6e5bb7adcc8fb0de3ef1ace1b32999"
+      algorithm: "MD5"
+  source_artifact:
+    url: "https://files.pythonhosted.org/packages/1f/12/7919c5d8b9c497f9180db15ea8ead6499812ea8264a6ae18766d93c59fe5/dataclasses-0.8.tar.gz"
+    hash:
+      value: "c9a52e322ada1406bfde9ebe3cdbbcca"
+      algorithm: "MD5"
+  vcs:
+    type: ""
+    url: ""
+    revision: ""
+    path: ""
+  vcs_processed:
+    type: "Git"
+    url: "https://github.com/ericvsmith/dataclasses.git"
     revision: ""
     path: ""
 - id: "PyPI::flask:0.12"
@@ -127,30 +170,60 @@ packages:
     url: ""
     revision: ""
     path: ""
-- id: "PyPI::itsdangerous:1.1.0"
-  purl: "pkg:pypi/itsdangerous@1.1.0"
+- id: "PyPI::importlib-metadata:4.5.0"
+  purl: "pkg:pypi/importlib-metadata@4.5.0"
+  authors:
+  - "Jason R. Coombs"
+  declared_licenses:
+  - "Apache Software License"
+  declared_licenses_processed:
+    spdx_expression: "Apache-2.0"
+    mapped:
+      Apache Software License: "Apache-2.0"
+  description: "Read metadata from Python packages"
+  homepage_url: "https://github.com/python/importlib_metadata"
+  binary_artifact:
+    url: "https://files.pythonhosted.org/packages/23/5d/f2151217058e7d5c5b4b584bc6052c2ae478c5a36b58a056364351613bfb/importlib_metadata-4.5.0-py3-none-any.whl"
+    hash:
+      value: "94631ad1786db262a0e13604b5b29600"
+      algorithm: "MD5"
+  source_artifact:
+    url: "https://files.pythonhosted.org/packages/1c/7f/fe573d2225d7e0ea4bd9e8673b2c7fc0b2b2b2f86b36f8c5fe75b77e59c4/importlib_metadata-4.5.0.tar.gz"
+    hash:
+      value: "5c8d33738417f5d47092df669367e2ea"
+      algorithm: "MD5"
+  vcs:
+    type: ""
+    url: ""
+    revision: ""
+    path: ""
+  vcs_processed:
+    type: "Git"
+    url: "https://github.com/python/importlib_metadata.git"
+    revision: ""
+    path: ""
+- id: "PyPI::itsdangerous:2.0.1"
+  purl: "pkg:pypi/itsdangerous@2.0.1"
   authors:
   - "Armin Ronacher"
   declared_licenses:
-  - "BSD"
   - "BSD License"
+  - "BSD-3-Clause"
   declared_licenses_processed:
     spdx_expression: "BSD-3-Clause"
-    mapped:
-      BSD: "BSD-3-Clause"
     unmapped:
     - "BSD License"
-  description: "Various helpers to pass data to untrusted environments and back."
+  description: "Safely pass data to untrusted environments and back."
   homepage_url: "https://palletsprojects.com/p/itsdangerous/"
   binary_artifact:
-    url: "https://files.pythonhosted.org/packages/76/ae/44b03b253d6fade317f32c24d100b3b35c2239807046a4c953c7b89fa49e/itsdangerous-1.1.0-py2.py3-none-any.whl"
+    url: "https://files.pythonhosted.org/packages/9c/96/26f935afba9cd6140216da5add223a0c465b99d0f112b68a4ca426441019/itsdangerous-2.0.1-py3-none-any.whl"
     hash:
-      value: "55179072b7f84ae38f16b3fdca33aa4f"
+      value: "5f220a8fb0b37b5ba8b436c618d5b987"
       algorithm: "MD5"
   source_artifact:
-    url: "https://files.pythonhosted.org/packages/68/1a/f27de07a8a304ad5fa817bbe383d1238ac4396da447fa11ed937039fa04b/itsdangerous-1.1.0.tar.gz"
+    url: "https://files.pythonhosted.org/packages/58/66/d6c5859dcac92b442626427a8c7a42322068c5cd5d4a463ce78b93f730b7/itsdangerous-2.0.1.tar.gz"
     hash:
-      value: "9b7f5afa7f1e3acfb7786eeca3d99307"
+      value: "996b9763d1b4bd0edd6eb86f0a490629"
       algorithm: "MD5"
   vcs:
     type: ""
@@ -198,8 +271,8 @@ packages:
     url: ""
     revision: ""
     path: ""
-- id: "PyPI::markupsafe:1.1.1"
-  purl: "pkg:pypi/markupsafe@1.1.1"
+- id: "PyPI::markupsafe:2.0.1"
+  purl: "pkg:pypi/markupsafe@2.0.1"
   authors:
   - "Armin Ronacher"
   declared_licenses:
@@ -212,14 +285,14 @@ packages:
   description: "Safely add untrusted strings to HTML/XML markup."
   homepage_url: "https://palletsprojects.com/p/markupsafe/"
   binary_artifact:
-    url: "https://files.pythonhosted.org/packages/6d/d2/0ccd2c0e2cd93b35e765d9b3205cd6602e6b202b522fc7997531353715b3/MarkupSafe-1.1.1-cp27-cp27m-macosx_10_6_intel.whl"
+    url: "https://files.pythonhosted.org/packages/27/c3/20f02d95e78756d59a4c02f179a6ee66e3283cc34e3051d436fd152d1e76/MarkupSafe-2.0.1-cp36-cp36m-macosx_10_9_x86_64.whl"
     hash:
-      value: "c937b3654640ee5864f2917bf24a7ad2"
+      value: "bbc36137aaabd877ede6ba8f4e040fb0"
       algorithm: "MD5"
   source_artifact:
-    url: "https://files.pythonhosted.org/packages/b9/2e/64db92e53b86efccfaea71321f597fa2e1b2bd3853d8ce658568f7a13094/MarkupSafe-1.1.1.tar.gz"
+    url: "https://files.pythonhosted.org/packages/bf/10/ff66fea6d1788c458663a84d88787bae15d45daa16f6b3ef33322a51fc7e/MarkupSafe-2.0.1.tar.gz"
     hash:
-      value: "43fd756864fe42063068e092e220c57b"
+      value: "892e0fefa3c488387e5cc0cad2daa523"
       algorithm: "MD5"
   vcs:
     type: ""
@@ -231,8 +304,42 @@ packages:
     url: ""
     revision: ""
     path: ""
-- id: "PyPI::werkzeug:1.0.1"
-  purl: "pkg:pypi/werkzeug@1.0.1"
+- id: "PyPI::typing-extensions:3.10.0.0"
+  purl: "pkg:pypi/typing-extensions@3.10.0.0"
+  authors:
+  - "Guido van Rossum, Jukka Lehtosalo, Łukasz Langa, Michael Lee"
+  declared_licenses:
+  - "PSF"
+  - "Python Software Foundation License"
+  declared_licenses_processed:
+    spdx_expression: "PSF-2.0"
+    mapped:
+      PSF: "PSF-2.0"
+      Python Software Foundation License: "PSF-2.0"
+  description: "Backported and Experimental Type Hints for Python 3.5+"
+  homepage_url: "https://github.com/python/typing/blob/master/typing_extensions/README.rst"
+  binary_artifact:
+    url: "https://files.pythonhosted.org/packages/dd/3a/b2cfe97bec9e7c317af222f0cee66a37b68bfa52e743c675bdc881ce1aeb/typing_extensions-3.10.0.0-py2-none-any.whl"
+    hash:
+      value: "19760404c4469cae06305e99a3f484c2"
+      algorithm: "MD5"
+  source_artifact:
+    url: "https://files.pythonhosted.org/packages/aa/55/62e2d4934c282a60b4243a950c9dbfa01ae7cac0e8d6c0b5315b87432c81/typing_extensions-3.10.0.0.tar.gz"
+    hash:
+      value: "9b5b33ae64c94479fa0862cf8ae89d58"
+      algorithm: "MD5"
+  vcs:
+    type: ""
+    url: ""
+    revision: ""
+    path: ""
+  vcs_processed:
+    type: "Git"
+    url: "https://github.com/python/typing.git"
+    revision: "master"
+    path: "typing_extensions/README.rst"
+- id: "PyPI::werkzeug:2.0.1"
+  purl: "pkg:pypi/werkzeug@2.0.1"
   authors:
   - "Armin Ronacher"
   declared_licenses:
@@ -245,14 +352,14 @@ packages:
   description: "The comprehensive WSGI web application library."
   homepage_url: "https://palletsprojects.com/p/werkzeug/"
   binary_artifact:
-    url: "https://files.pythonhosted.org/packages/cc/94/5f7079a0e00bd6863ef8f1da638721e9da21e5bacee597595b318f71d62e/Werkzeug-1.0.1-py2.py3-none-any.whl"
+    url: "https://files.pythonhosted.org/packages/bd/24/11c3ea5a7e866bf2d97f0501d0b4b1c9bbeade102bb4b588f0d2919a5212/Werkzeug-2.0.1-py3-none-any.whl"
     hash:
-      value: "ceaf2433ef66e2d7a3fbe43a4e44e4ca"
+      value: "203bffc79c50918f57350e8ca5446cc3"
       algorithm: "MD5"
   source_artifact:
-    url: "https://files.pythonhosted.org/packages/10/27/a33329150147594eff0ea4c33c2036c0eadd933141055be0ff911f7f8d04/Werkzeug-1.0.1.tar.gz"
+    url: "https://files.pythonhosted.org/packages/e3/bd/a49e5f756b2f29010b5be321fe02478660dbf8fefea3f078493c86011b5f/Werkzeug-2.0.1.tar.gz"
     hash:
-      value: "5d499cfdd30de5d9c946994783772efd"
+      value: "5c0d2ba09edd72dedf37bdc4a5fa0418"
       algorithm: "MD5"
   vcs:
     type: ""
@@ -262,5 +369,37 @@ packages:
   vcs_processed:
     type: ""
     url: ""
+    revision: ""
+    path: ""
+- id: "PyPI::zipp:3.4.1"
+  purl: "pkg:pypi/zipp@3.4.1"
+  authors:
+  - "Jason R. Coombs"
+  declared_licenses:
+  - "MIT License"
+  declared_licenses_processed:
+    spdx_expression: "MIT"
+    mapped:
+      MIT License: "MIT"
+  description: "Backport of pathlib-compatible object wrapper for zip files"
+  homepage_url: "https://github.com/jaraco/zipp"
+  binary_artifact:
+    url: "https://files.pythonhosted.org/packages/0f/8c/715c54e9e34c0c4820f616a913a7de3337d0cd79074dd1bed4dd840f16ae/zipp-3.4.1-py3-none-any.whl"
+    hash:
+      value: "483005e4371c4272901908cffc968ac2"
+      algorithm: "MD5"
+  source_artifact:
+    url: "https://files.pythonhosted.org/packages/38/f9/4fa6df2753ded1bcc1ce2fdd8046f78bd240ff7647f5c9bcf547c0df77e3/zipp-3.4.1.tar.gz"
+    hash:
+      value: "3d91c7ab73b62ac3674210df94df600a"
+      algorithm: "MD5"
+  vcs:
+    type: ""
+    url: ""
+    revision: ""
+    path: ""
+  vcs_processed:
+    type: "Git"
+    url: "https://github.com/jaraco/zipp.git"
     revision: ""
     path: ""

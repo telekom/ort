@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,12 +19,11 @@
 
 package org.ossreviewtoolkit.reporter.reporters
 
+import io.kotest.core.TestConfiguration
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.shouldBe
 
 import java.io.File
-
-import kotlin.io.path.createTempDirectory
 
 import org.ossreviewtoolkit.model.AnalyzerResult
 import org.ossreviewtoolkit.model.AnalyzerRun
@@ -45,8 +44,8 @@ import org.ossreviewtoolkit.model.config.ScopeExclude
 import org.ossreviewtoolkit.model.config.ScopeExcludeReason
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.utils.Environment
-import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.normalizeLineBreaks
+import org.ossreviewtoolkit.utils.test.createTestTempDir
 
 class GitLabLicenseModelReporterFunTest : WordSpec({
     "GitLabLicenseModelReporter" should {
@@ -70,11 +69,10 @@ class GitLabLicenseModelReporterFunTest : WordSpec({
 
 private fun expectedOutput(assetName: String): String = File("src/funTest/assets/$assetName").readText()
 
-private fun generateReport(ortResult: OrtResult, skipExcluded: Boolean): String =
+private fun TestConfiguration.generateReport(ortResult: OrtResult, skipExcluded: Boolean): String =
     GitLabLicenseModelReporter().generateReport(
         input = ReporterInput(ortResult = ortResult),
-        outputDir = createTempDirectory("$ORT_NAME-${GitLabLicenseModelReporterFunTest::class.simpleName}").toFile()
-            .apply { deleteOnExit() },
+        outputDir = createTestTempDir(),
         options = mapOf(GitLabLicenseModelReporter.OPTION_SKIP_EXCLUDED to skipExcluded.toString())
     ).single().readText().normalizeLineBreaks()
 

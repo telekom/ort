@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,11 +40,11 @@ plugins {
     id("at.bxm.svntools")
 }
 
-tasks.withType<AntlrTask> {
+tasks.withType<AntlrTask>().configureEach {
     arguments = arguments + listOf("-visitor")
 }
 
-tasks.withType<KotlinCompile> {
+tasks.withType<KotlinCompile>().configureEach {
     val antlrTasks = tasks.withType<AntlrTask>()
     dependsOn(antlrTasks)
 }
@@ -97,7 +97,7 @@ fun getLicenseHeader(fromYear: Int = 2017, toYear: Int = Year.now().value) =
     | * you may not use this file except in compliance with the License.
     | * You may obtain a copy of the License at
     | *
-    | *     http://www.apache.org/licenses/LICENSE-2.0
+    | *     https://www.apache.org/licenses/LICENSE-2.0
     | *
     | * Unless required by applicable law or agreed to in writing, software
     | * distributed under the License is distributed on an "AS IS" BASIS,

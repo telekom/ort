@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,8 +20,10 @@
 package org.ossreviewtoolkit.model.config
 
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.TestConfiguration
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.extensions.system.withEnvironment
+import io.kotest.matchers.collections.containExactly
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.beNull
@@ -33,11 +35,9 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import java.io.File
 import java.lang.IllegalArgumentException
 
-import kotlin.io.path.createTempFile
-
 import org.ossreviewtoolkit.model.SourceCodeOrigin
-import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.test.containExactly as containExactlyEntries
+import org.ossreviewtoolkit.utils.test.createTestTempFile
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class OrtConfigurationTest : WordSpec({
@@ -62,7 +62,8 @@ class OrtConfigurationTest : WordSpec({
             }
 
             ortConfig.downloader shouldNotBeNull {
-                sourceCodeOrigins shouldBe listOf(SourceCodeOrigin.VCS, SourceCodeOrigin.ARTIFACT)
+                includedLicenseCategories should containExactly("category-a", "category-b")
+                sourceCodeOrigins should containExactly(SourceCodeOrigin.VCS, SourceCodeOrigin.ARTIFACT)
             }
 
             with(ortConfig.scanner) {
@@ -75,10 +76,14 @@ class OrtConfigurationTest : WordSpec({
                     }
 
                     postgresStorage shouldNotBeNull {
-                        url shouldBe "url"
-                        schema shouldBe "schema"
-                        username shouldBe "user"
+                        url shouldBe "jdbc:postgresql://your-postgresql-server:5444/your-database"
+                        schema shouldBe "public"
+                        username shouldBe "username"
                         password shouldBe "password"
+                        sslmode shouldBe "required"
+                        sslcert shouldBe "/defaultdir/postgresql.crt"
+                        sslkey shouldBe "/defaultdir/postgresql.pk8"
+                        sslrootcert shouldBe "/defaultdir/root.crt"
                     }
                 }
 
@@ -102,7 +107,7 @@ class OrtConfigurationTest : WordSpec({
                     val postgresStorage = this["postgres"]
                     postgresStorage.shouldBeInstanceOf<PostgresStorageConfiguration>()
                     postgresStorage.url shouldBe "jdbc:postgresql://your-postgresql-server:5444/your-database"
-                    postgresStorage.schema shouldBe "schema"
+                    postgresStorage.schema shouldBe "public"
                     postgresStorage.username shouldBe "username"
                     postgresStorage.password shouldBe "password"
                     postgresStorage.sslmode shouldBe "required"
@@ -147,7 +152,7 @@ class OrtConfigurationTest : WordSpec({
                     storages {
                       postgresStorage {
                         url = "postgresql://your-postgresql-server:5444/your-database"
-                        schema = schema
+                        schema = "public"
                         username = username
                         password = password
                       }
@@ -223,7 +228,7 @@ class OrtConfigurationTest : WordSpec({
                     storages {
                       postgresStorage {
                         url = "postgresql://your-postgresql-server:5444/your-database"
-                        schema = schema
+                        schema = "public"
                         username = ${'$'}{POSTGRES_USERNAME}
                         password = ${'$'}{POSTGRES_PASSWORD}
                       }
@@ -252,7 +257,7 @@ class OrtConfigurationTest : WordSpec({
             val user = "user"
             val password = "password"
             val url = "url"
-            val schema = "schema"
+            val schema = "public"
             val env = mapOf(
                 "ort.scanner.storages.postgresStorage.username" to user,
                 "ort.scanner.storages.postgresStorage.url" to url,
@@ -279,8 +284,7 @@ class OrtConfigurationTest : WordSpec({
 /**
  * Create a test configuration with the [data] specified.
  */
-private fun createTestConfig(data: String): File =
-    createTempFile(ORT_NAME, ".conf").toFile().apply {
+private fun TestConfiguration.createTestConfig(data: String): File =
+    createTestTempFile(suffix = ".conf").apply {
         writeText(data)
-        deleteOnExit()
     }

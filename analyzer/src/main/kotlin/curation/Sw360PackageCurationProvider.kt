@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,6 +26,7 @@ import org.eclipse.sw360.clients.adapter.SW360Connection
 import org.eclipse.sw360.clients.adapter.SW360ConnectionFactory
 import org.eclipse.sw360.clients.config.SW360ClientConfig
 import org.eclipse.sw360.clients.rest.resource.attachments.SW360AttachmentType
+import org.eclipse.sw360.clients.rest.resource.licenses.SW360SparseLicense
 import org.eclipse.sw360.clients.rest.resource.releases.SW360ClearingState
 import org.eclipse.sw360.clients.rest.resource.releases.SW360Release
 import org.eclipse.sw360.http.HttpClientFactoryImpl
@@ -40,6 +41,8 @@ import org.ossreviewtoolkit.model.PackageCurationData
 import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.config.Sw360StorageConfiguration
 import org.ossreviewtoolkit.model.jsonMapper
+import org.ossreviewtoolkit.spdx.SpdxExpression
+import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
 
 /**
  * A [PackageCurationProvider] for curated package meta-data from the configured SW360 instance using the REST API.
@@ -62,8 +65,7 @@ class Sw360PackageCurationProvider(sw360Configuration: Sw360StorageConfiguration
                     PackageCuration(
                         id = pkgId,
                         data = PackageCurationData(
-                            declaredLicenses = sw360Release.embedded?.licenses
-                                ?.mapNotNullTo(sortedSetOf()) { it?.shortName },
+                            concludedLicense = sw360Release.embedded?.licenses.orEmpty().toSpdx(),
                             homepageUrl = getHomepageOfRelease(sw360Release).orEmpty(),
                             binaryArtifact = getAttachmentAsRemoteArtifact(sw360Release, SW360AttachmentType.BINARY)
                                 ?: RemoteArtifact.EMPTY,
@@ -113,3 +115,6 @@ class Sw360PackageCurationProvider(sw360Configuration: Sw360StorageConfiguration
         return SW360ConnectionFactory().newConnection(sw360ClientConfig)
     }
 }
+
+private fun Collection<SW360SparseLicense>.toSpdx(): SpdxExpression? =
+    DeclaredLicenseProcessor.process(mapTo(mutableSetOf()) { it.shortName }).spdxExpression

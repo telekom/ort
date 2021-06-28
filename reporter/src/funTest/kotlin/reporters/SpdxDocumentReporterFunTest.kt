@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,13 +19,12 @@
 
 package org.ossreviewtoolkit.reporter.reporters
 
+import io.kotest.core.TestConfiguration
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.shouldBe
 
 import java.io.File
 import java.time.Instant
-
-import kotlin.io.path.createTempDirectory
 
 import org.ossreviewtoolkit.model.AccessStatistics
 import org.ossreviewtoolkit.model.AnalyzerResult
@@ -67,8 +66,8 @@ import org.ossreviewtoolkit.spdx.SpdxModelMapper.fromYaml
 import org.ossreviewtoolkit.spdx.model.SpdxDocument
 import org.ossreviewtoolkit.spdx.toSpdx
 import org.ossreviewtoolkit.utils.Environment
-import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.normalizeLineBreaks
+import org.ossreviewtoolkit.utils.test.createTestTempDir
 import org.ossreviewtoolkit.utils.test.patchExpectedResult
 
 class SpdxDocumentReporterFunTest : WordSpec({
@@ -97,15 +96,13 @@ class SpdxDocumentReporterFunTest : WordSpec({
     }
 })
 
-private fun generateReport(ortResult: OrtResult, format: FileFormat): String {
+private fun TestConfiguration.generateReport(ortResult: OrtResult, format: FileFormat): String {
     val input = ReporterInput(
         ortResult = ortResult,
         licenseTextProvider = DefaultLicenseTextProvider()
     )
 
-    val outputDir = createTempDirectory("$ORT_NAME-${SpdxDocumentReporterFunTest::class.simpleName}").toFile().apply {
-        deleteOnExit()
-    }
+    val outputDir = createTestTempDir()
 
     val reportOptions = mapOf(
         SpdxDocumentReporter.OPTION_CREATION_INFO_COMMENT to "some creation info comment",
@@ -123,7 +120,7 @@ private fun patchExpectedResult(expectedResultFile: String, actualSpdxDocument: 
         File(expectedResultFile),
         mapOf(
             "<REPLACE_LICENSE_LIST_VERSION>" to SpdxLicense.LICENSE_LIST_VERSION.substringBefore("-"),
-            "<REPLACE_ORT_VERSION>" to Environment().ortVersion,
+            "<REPLACE_ORT_VERSION>" to Environment.ORT_VERSION,
             "<REPLACE_CREATION_DATE_AND_TIME>" to actualSpdxDocument.creationInfo.created.toString(),
             "<REPLACE_DOCUMENT_NAMESPACE>" to actualSpdxDocument.documentNamespace
         )
@@ -134,7 +131,6 @@ private fun createOrtResult(): OrtResult {
     val analyzedVcs = VcsInfo(
         type = VcsType.GIT,
         revision = "master",
-        resolvedRevision = "10203040",
         url = "https://github.com/path/first-project.git",
         path = ""
     )
@@ -213,7 +209,6 @@ private fun createOrtResult(): OrtResult {
                             vcs = VcsInfo(
                                 type = VcsType.GIT,
                                 revision = "master",
-                                resolvedRevision = "deadbeef",
                                 url = "ssh://git@github.com/path/first-package-repo.git",
                                 path = "project-path"
                             )
@@ -298,7 +293,7 @@ private fun createOrtResult(): OrtResult {
                                 startTime = Instant.MIN,
                                 endTime = Instant.MIN,
                                 fileCount = 10,
-                                packageVerificationCode = "1111222233334444555566667777888899990000",
+                                packageVerificationCode = "0000000000000000000000000000000000000000",
                                 licenseFindings = sortedSetOf(
                                     LicenseFinding(
                                         license = "Apache-2.0",
@@ -322,17 +317,17 @@ private fun createOrtResult(): OrtResult {
                                 vcsInfo = VcsInfo(
                                     type = VcsType.GIT,
                                     revision = "master",
-                                    resolvedRevision = "deadbeef",
                                     url = "ssh://git@github.com/path/first-package-repo.git",
                                     path = "project-path"
-                                )
+                                ),
+                                resolvedRevision = "deadbeef"
                             ),
                             scanner = ScannerDetails.EMPTY,
                             summary = ScanSummary(
                                 startTime = Instant.MIN,
                                 endTime = Instant.MIN,
                                 fileCount = 10,
-                                packageVerificationCode = "0000000000000000000011111111111111111111",
+                                packageVerificationCode = "0000000000000000000000000000000000000000",
                                 licenseFindings = sortedSetOf(
                                     LicenseFinding(
                                         license = "BSD-2-Clause",

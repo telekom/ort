@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,12 +25,9 @@ import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.collections.containExactly
 import io.kotest.matchers.collections.containExactlyInAnyOrder
 import io.kotest.matchers.collections.haveSize
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.beNull
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.contain
@@ -50,17 +47,16 @@ import org.apache.maven.project.ProjectBuildingException
 import org.eclipse.aether.artifact.DefaultArtifact
 import org.eclipse.aether.repository.RemoteRepository
 
-import org.ossreviewtoolkit.analyzer.managers.utils.DependencyGraphBuilder
 import org.ossreviewtoolkit.analyzer.managers.utils.MavenSupport
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.PackageReference
 import org.ossreviewtoolkit.model.RemoteArtifact
-import org.ossreviewtoolkit.model.RootDependencyIndex
 import org.ossreviewtoolkit.model.Scope
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.VcsInfo
+import org.ossreviewtoolkit.model.utils.DependencyGraphBuilder
 
 /**
  * A test class to test the integration of the [Gradle] package manager with [DependencyGraphBuilder]. This class
@@ -74,13 +70,13 @@ class GradleDependencyHandlerTest : WordSpec({
             val dep1 = createDependency("org.apache.commons", "commons-lang3", "3.11")
             val dep2 = createDependency("org.apache.commons", "commons-collections4", "4.4")
             val dep3 = createDependency("my-project", "my-module", "1.0", path = "subPath")
-            val builder = createGraphBuilder()
 
-            builder.addDependency(scope1, dep1)
-            builder.addDependency(scope1, dep3)
-            builder.addDependency(scope2, dep2)
-            builder.addDependency(scope2, dep1)
-            val graph = builder.build()
+            val graph = createGraphBuilder()
+                .addDependency(scope1, dep1)
+                .addDependency(scope1, dep3)
+                .addDependency(scope2, dep2)
+                .addDependency(scope2, dep1)
+                .build()
 
             graph.scopeRoots shouldHaveSize 3
             val scopes = graph.createScopes()
@@ -97,10 +93,11 @@ class GradleDependencyHandlerTest : WordSpec({
         "collect a dependency of type Maven" {
             val scope = "TheScope"
             val dep = createDependency("org.apache.commons", "commons-lang3", "3.10")
-            val builder = createGraphBuilder()
 
-            builder.addDependency(scope, dep)
-            val graph = builder.build()
+            val graph = createGraphBuilder()
+                .addDependency(scope, dep)
+                .build()
+
             val scopes = graph.createScopes()
 
             scopeDependencies(scopes, scope).single { it.id.type == "Maven" }
@@ -110,10 +107,11 @@ class GradleDependencyHandlerTest : WordSpec({
             val scope = "TheScope"
             val dep = createDependency("org.apache.commons", "commons-lang3", "3.10")
             every { dep.pomFile } returns null
-            val builder = createGraphBuilder()
 
-            builder.addDependency(scope, dep)
-            val graph = builder.build()
+            val graph = createGraphBuilder()
+                .addDependency(scope, dep)
+                .build()
+
             val scopes = graph.createScopes()
 
             scopeDependencies(scopes, scope).single { it.id.type == "Unknown" }
@@ -122,10 +120,11 @@ class GradleDependencyHandlerTest : WordSpec({
         "collect a project dependency" {
             val scope = "TheScope"
             val dep = createDependency("a-project", "a-module", "1.0", path = "p")
-            val builder = createGraphBuilder()
 
-            builder.addDependency(scope, dep)
-            val graph = builder.build()
+            val graph = createGraphBuilder()
+                .addDependency(scope, dep)
+                .build()
+
             val scopes = graph.createScopes()
 
             scopeDependencies(scopes, scope).single { it.id.type == NAME }
@@ -135,13 +134,14 @@ class GradleDependencyHandlerTest : WordSpec({
             val dep1 = createDependency("org.apache.commons", "commons-lang3", "3.11")
             val dep2 = createDependency("org.apache.commons", "commons-collections4", "4.4")
             val dep3 = createDependency("my-project", "my-module", "1.0", path = "foo")
-            val builder = createGraphBuilder()
 
-            builder.addDependency("s1", dep1)
-            builder.addDependency("s2", dep2)
-            builder.addDependency("s3", dep3)
+            val packageIds = createGraphBuilder()
+                .addDependency("s1", dep1)
+                .addDependency("s2", dep2)
+                .addDependency("s3", dep3)
+                .packages()
+                .map { it.id }
 
-            val packageIds = builder.packages().map { it.id }
             packageIds shouldContainExactlyInAnyOrder setOf(dep1.toId(), dep2.toId())
         }
 
@@ -158,15 +158,15 @@ class GradleDependencyHandlerTest : WordSpec({
             )
             val dep4 = createDependency("org.apache.commons", "commons-csv", "1.5", dependencies = listOf(dep1))
             val dep5 = createDependency("com.acme", "dep", "0.7", dependencies = listOf(dep3))
-            val builder = createGraphBuilder()
 
-            builder.addDependency(scope1, dep1)
-            builder.addDependency(scope2, dep1)
-            builder.addDependency(scope2, dep2)
-            builder.addDependency(scope1, dep5)
-            builder.addDependency(scope1, dep3)
-            builder.addDependency(scope2, dep4)
-            val graph = builder.build()
+            val graph = createGraphBuilder()
+                .addDependency(scope1, dep1)
+                .addDependency(scope2, dep1)
+                .addDependency(scope2, dep2)
+                .addDependency(scope1, dep5)
+                .addDependency(scope1, dep3)
+                .addDependency(scope2, dep4)
+                .build()
 
             graph.scopeRoots shouldHaveSize 2
             graph.scopeRoots.all { it.fragment == 0 } shouldBe true
@@ -206,11 +206,12 @@ class GradleDependencyHandlerTest : WordSpec({
                 dependencies = listOf(depConfig2)
             )
             val depLib = createDependency("com.business", "lib", "1", dependencies = listOf(depConfig1, depAcmeExclude))
-            val builder = createGraphBuilder()
 
-            builder.addDependency(scope, depAcme)
-            builder.addDependency(scope, depLib)
-            val graph = builder.build()
+            val graph = createGraphBuilder()
+                .addDependency(scope, depAcme)
+                .addDependency(scope, depLib)
+                .build()
+
             val scopeDependencies = scopeDependencies(graph.createScopes(), scope)
 
             scopeDependencies.identifiers() should containExactly(depAcme.toId(), depLib.toId())
@@ -244,12 +245,12 @@ class GradleDependencyHandlerTest : WordSpec({
                 "com.acme", "lib-exclude", "1.1",
                 dependencies = listOf(depConfig2)
             )
-            val builder = createGraphBuilder()
 
-            builder.addDependency(scope1, depLog)
-            builder.addDependency(scope1, depConfig1)
-            builder.addDependency(scope2, depAcmeExclude)
-            val graph = builder.build()
+            val graph = createGraphBuilder()
+                .addDependency(scope1, depLog)
+                .addDependency(scope1, depConfig1)
+                .addDependency(scope2, depAcmeExclude)
+                .build()
             val scopes = graph.createScopes()
 
             val scope1Dependencies = scopeDependencies(scopes, scope1)
@@ -268,31 +269,30 @@ class GradleDependencyHandlerTest : WordSpec({
                 .dependencies.findDependency(depLang)
         }
 
-        "support scopes without dependencies" {
-            val scope = "EmptyScope"
+        "support adding packages directly" {
+            val identifiers = listOf(
+                Identifier("Maven:org.apache.commons:commons-lang3:3.11"),
+                Identifier("Maven:commons-logging:commons-logging:1.2"),
+                Identifier("Maven:org.apache.commons:commons-configuration2:2.7")
+            )
+            val packages = identifiers.map { Package.EMPTY.copy(id = it) }
             val builder = createGraphBuilder()
 
-            builder.addScope(scope)
-            val graph = builder.build()
+            builder.addPackages(packages)
 
-            graph.scopeRoots.shouldBeEmpty()
-            graph.scopes.keys shouldContainExactly setOf(scope)
-            val scopeDependencies = graph.scopes[scope]
-            scopeDependencies.shouldNotBeNull()
-            scopeDependencies.shouldBeEmpty()
+            builder.packages() should containExactly(packages)
         }
 
-        "not override a scope's dependencies when adding it again" {
-            val scope = "compile"
-            val dep = createDependency("org.apache.commons", "commons-lang3", "3.11")
+        "use packages that have been added directly rather than creating them anew" {
+            val id = Identifier("Maven:org.apache.commons:commons-lang3:3.11")
+            val dependency = createDependency(id.namespace, id.name, id.version)
+            val pkg = Package.EMPTY.copy(id = id)
             val builder = createGraphBuilder()
-            builder.addDependency(scope, dep)
 
-            builder.addScope(scope)
-            val graph = builder.build()
-            val scopeDependencies = graph.scopes[scope]
-            scopeDependencies.shouldNotBeNull()
-            scopeDependencies should containExactly(RootDependencyIndex(0))
+            builder.addPackages(listOf(pkg))
+            builder.addDependency("compile", dependency)
+
+            builder.packages() should containExactly(pkg)
         }
     }
 
@@ -304,15 +304,15 @@ class GradleDependencyHandlerTest : WordSpec({
             val issues = mutableListOf<OrtIssue>()
 
             every { maven.parsePackage(any(), any(), any()) } throws exception
-            val handler = GradleDependencyHandler(NAME, maven, remoteRepositories)
+            val handler = GradleDependencyHandler(NAME, maven)
 
-            handler.createPackage(dep.toId().toCoordinates(), dep, issues) should beNull()
+            handler.createPackage(dep, issues) should beNull()
 
             issues should haveSize(1)
             with(issues.first()) {
                 source shouldBe NAME
                 severity shouldBe Severity.ERROR
-                message should contain(dep.toId().toCoordinates())
+                message should contain("${dep.groupId}:${dep.artifactId}:${dep.version}")
             }
         }
     }
@@ -353,7 +353,8 @@ private fun createDependency(
  * this class.
  */
 private fun createGraphBuilder(): DependencyGraphBuilder<Dependency> {
-    val dependencyHandler = GradleDependencyHandler(NAME, createMavenSupport(), remoteRepositories)
+    val dependencyHandler = GradleDependencyHandler(NAME, createMavenSupport())
+    dependencyHandler.repositories = remoteRepositories
     return DependencyGraphBuilder(dependencyHandler)
 }
 
@@ -422,16 +423,10 @@ private fun Collection<PackageReference>.findId(id: Identifier): PackageReferenc
     find { it.id == id } ?: throw IllegalArgumentException("Package with id $id is not contained in $this.")
 
 /**
- * Return the identifiers of the dependencies of this [PackageReference].
- */
-private fun PackageReference.dependencyIds(): List<Identifier> = dependencies.identifiers()
-
-/**
  * Check whether this [PackageReference] contains exactly the given [dependencies][expectedDependencies].
  */
 private fun PackageReference.checkDependencies(vararg expectedDependencies: Dependency): Set<PackageReference> {
-    dependencies shouldHaveSize expectedDependencies.size
     val ids = expectedDependencies.map { it.toId() }
-    dependencyIds() should containExactlyInAnyOrder(ids)
+    dependencies.identifiers() should containExactlyInAnyOrder(ids)
     return dependencies
 }

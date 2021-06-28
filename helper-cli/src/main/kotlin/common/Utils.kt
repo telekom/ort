@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,17 +21,13 @@
 
 package org.ossreviewtoolkit.helper.common
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator
+
 import java.io.File
-import java.io.IOException
 import java.nio.file.Paths
 
 import kotlin.io.path.createTempDirectory
-import kotlin.io.path.createTempFile
-
-import okhttp3.Request
-
-import okio.buffer
-import okio.sink
 
 import org.ossreviewtoolkit.analyzer.Analyzer
 import org.ossreviewtoolkit.analyzer.PackageManager
@@ -70,13 +66,14 @@ import org.ossreviewtoolkit.model.utils.PackageConfigurationProvider
 import org.ossreviewtoolkit.model.utils.SimplePackageConfigurationProvider
 import org.ossreviewtoolkit.model.utils.createLicenseInfoResolver
 import org.ossreviewtoolkit.model.writeValue
+import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.spdx.SpdxExpression
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
 import org.ossreviewtoolkit.utils.CopyrightStatementsProcessor
-import org.ossreviewtoolkit.utils.ORT_NAME
-import org.ossreviewtoolkit.utils.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.encodeOrUnknown
+import org.ossreviewtoolkit.utils.fileSystemEncode
 import org.ossreviewtoolkit.utils.isSymbolicLink
-import org.ossreviewtoolkit.utils.stripCredentialsFromUrl
+import org.ossreviewtoolkit.utils.replaceCredentialsInUri
 import org.ossreviewtoolkit.utils.withoutPrefix
 
 const val ORTH_NAME = "orth"
@@ -87,36 +84,6 @@ const val ORTH_NAME = "orth"
 internal typealias RepositoryPathExcludes = Map<String, List<PathExclude>>
 
 internal typealias RepositoryLicenseFindingCurations = Map<String, List<LicenseFindingCuration>>
-
-/**
- * Try to download the [url] and return the downloaded temporary file. The file is automatically deleted on exit. If the
- * download fails, throw an [IOException].
- */
-internal fun download(url: String): File {
-    val request = Request.Builder()
-        // Disable transparent gzip, otherwise we might end up writing a tar file to disk and expecting to
-        // find a tar.gz file, thus failing to unpack the archive.
-        // See https://github.com/square/okhttp/blob/parent-3.10.0/okhttp/src/main/java/okhttp3/internal/ \
-        // http/BridgeInterceptor.java#L79
-        .addHeader("Accept-Encoding", "identity")
-        .get()
-        .url(url)
-        .build()
-
-    OkHttpClientHelper.execute(request).use { response ->
-        val body = response.body
-        if (!response.isSuccessful || body == null) {
-            throw IOException(response.message)
-        }
-
-        // Use the filename from the request for the last redirect.
-        val tempFileName = response.request.url.pathSegments.last()
-        return createTempFile(ORT_NAME, tempFileName).toFile().also { tempFile ->
-            tempFile.sink().buffer().use { it.writeAll(body.source()) }
-            tempFile.deleteOnExit()
-        }
-    }
-}
 
 /**
  * Return all files underneath the given [directory].
@@ -139,7 +106,7 @@ internal fun findRepositoryPaths(directory: File): Map<String, Set<String>> {
     val result = mutableMapOf<String, MutableSet<String>>()
 
     findRepositories(directory).forEach { (path, vcs) ->
-        result.getOrPut(vcs.url.stripCredentialsFromUrl()) { mutableSetOf() } += path
+        result.getOrPut(vcs.url.replaceCredentialsInUri()) { mutableSetOf() } += path
     }
 
     return result
@@ -157,6 +124,14 @@ internal fun findRepositories(directory: File): Map<String, VcsInfo> {
 
     return ortResult.repository.nestedRepositories
 }
+
+/**
+ * Build the file for the split curations.
+ */
+internal fun getSplitCurationFile(parent: File, packageId: Identifier, fileExtension: String) =
+    parent.resolve(packageId.type.encodeOrUnknown())
+        .resolve(packageId.namespace.ifBlank { "_" }.fileSystemEncode())
+        .resolve("${packageId.name.encodeOrUnknown()}.$fileExtension")
 
 /**
  * Return an approximation for the Set-Cover Problem, see https://en.wikipedia.org/wiki/Set_cover_problem.
@@ -436,6 +411,30 @@ internal fun OrtResult.getRepositoryPathExcludes(): RepositoryPathExcludes {
 }
 
 /**
+ * Wrap this string on word boundaries with line breaks at the given [column].
+ */
+internal fun String.wrapAt(column: Int): String =
+    buildString {
+        var text = this@wrapAt
+
+        while (text.isNotEmpty()) {
+            val firstSpaceAfterColumnIndex = text.indexOf(' ', column)
+            val lastSpaceBeforeColumnIndex = text.lastIndexOf(' ', column - 1)
+            val wrapIndex = lastSpaceBeforeColumnIndex.takeUnless { it == -1 } ?: firstSpaceAfterColumnIndex
+
+            val line = if (wrapIndex != -1) {
+                text.substring(0, wrapIndex)
+            } else {
+                text
+            }
+
+            text = text.removePrefix(line).trimStart()
+
+            appendLine(line)
+        }
+    }.trimEnd()
+
+/**
  * Return all path excludes from [pathExcludes] represented as [RepositoryPathExcludes].
  */
 internal fun getPathExcludesByRepository(
@@ -470,10 +469,10 @@ internal fun OrtResult.getUnresolvedRuleViolations(): List<RuleViolation> {
 
 /**
  * Return a copy of this [OrtResult] with the [Repository.config] with the content of the given
- * [respositoryConfigurationFile].
+ * [repositoryConfigurationFile].
  */
-fun OrtResult.replaceConfig(respositoryConfigurationFile: File?): OrtResult =
-    respositoryConfigurationFile?.let {
+fun OrtResult.replaceConfig(repositoryConfigurationFile: File?): OrtResult =
+    repositoryConfigurationFile?.let {
         replaceConfig(it.readValue())
     } ?: this
 
@@ -829,14 +828,20 @@ internal fun PackageConfiguration.write(targetFile: File) {
     targetFile.writeValue(this)
 }
 
+internal fun createBlockYamlMapper(): ObjectMapper =
+    yamlMapper.copy()
+        .enable(YAMLGenerator.Feature.LITERAL_BLOCK_STYLE)
+        .disable(YAMLGenerator.Feature.SPLIT_LINES)
+        .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+
 internal fun importPathExcludes(sourceCodeDir: File, pathExcludesFile: File): List<PathExclude> {
     println("Analyzing $sourceCodeDir...")
     val repositoryPaths = findRepositoryPaths(sourceCodeDir)
-    println("Found ${repositoryPaths.size} repositories in ${repositoryPaths.values.sumBy { it.size }} locations.")
+    println("Found ${repositoryPaths.size} repositories in ${repositoryPaths.values.sumOf { it.size }} locations.")
 
     println("Loading $pathExcludesFile...")
     val pathExcludes = pathExcludesFile.readValue<RepositoryPathExcludes>()
-    println("Found ${pathExcludes.values.sumBy { it.size }} excludes for ${pathExcludes.size} repositories.")
+    println("Found ${pathExcludes.values.sumOf { it.size }} excludes for ${pathExcludes.size} repositories.")
 
     val result = mutableListOf<PathExclude>()
 
@@ -859,11 +864,11 @@ internal fun importLicenseFindingCurations(
 ): List<LicenseFindingCuration> {
     println("Analyzing $sourceCodeDir...")
     val repositoryPaths = findRepositoryPaths(sourceCodeDir)
-    println("Found ${repositoryPaths.size} repositories in ${repositoryPaths.values.sumBy { it.size }} locations.")
+    println("Found ${repositoryPaths.size} repositories in ${repositoryPaths.values.sumOf { it.size }} locations.")
 
     println("Loading $licenseFindingCurationsFile...")
     val curations = licenseFindingCurationsFile.readValue<RepositoryLicenseFindingCurations>()
-    println("Found ${curations.values.sumBy { it.size }} curations for ${curations.size} repositories.")
+    println("Found ${curations.values.sumOf { it.size }} curations for ${curations.size} repositories.")
 
     val result = mutableListOf<LicenseFindingCuration>()
 
@@ -887,3 +892,14 @@ internal fun OrtResult.getScanResultFor(packageConfiguration: PackageConfigurati
     getScanResultsForId(packageConfiguration.id).find { scanResult ->
         packageConfiguration.matches(packageConfiguration.id, scanResult.provenance)
     }
+
+/**
+ * Read [ortFile] into an [OrtResult] and return it. Make sure that information about project scopes is available
+ * (by calling [OrtResult.withResolvedScopes]), so that it can be processed.
+ */
+fun readOrtResult(ortFile: File): OrtResult = ortFile.readValue<OrtResult>().withResolvedScopes()
+
+/**
+ * Write the [ortResult] to [file].
+ */
+fun writeOrtResult(ortResult: OrtResult, file: File): Unit = file.writeValue(ortResult)

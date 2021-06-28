@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,10 +36,11 @@ import org.gradle.tooling.internal.consumer.DefaultGradleConnector
 
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
-import org.ossreviewtoolkit.analyzer.managers.utils.DependencyGraphBuilder
+import org.ossreviewtoolkit.analyzer.PackageManagerResult
 import org.ossreviewtoolkit.analyzer.managers.utils.MavenSupport
 import org.ossreviewtoolkit.analyzer.managers.utils.identifier
 import org.ossreviewtoolkit.downloader.VersionControlSystem
+import org.ossreviewtoolkit.model.DependencyGraph
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.Project
@@ -49,6 +50,7 @@ import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
+import org.ossreviewtoolkit.model.utils.DependencyGraphBuilder
 import org.ossreviewtoolkit.utils.Os
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.temporaryProperties
@@ -114,6 +116,11 @@ class Gradle(
     }
 
     private val maven = MavenSupport(GradleCacheReader())
+    private val dependencyHandler = GradleDependencyHandler(managerName, maven)
+    private val graphBuilder = DependencyGraphBuilder(dependencyHandler)
+
+    override fun createPackageManagerResult(projectResults: Map<File, List<ProjectAnalyzerResult>>) =
+        PackageManagerResult(projectResults, graphBuilder.build(), graphBuilder.packages())
 
     override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
         val gradleSystemProperties = mutableListOf<Pair<String, String>>()
@@ -217,37 +224,38 @@ class Gradle(
                     RemoteRepository.Builder(it, "default", it).build()
                 }
 
+                dependencyHandler.repositories = repositories
+
                 log.debug {
                     val projectName = dependencyTreeModel.name
                     "The Gradle project '$projectName' uses the following Maven repositories: $repositories"
                 }
 
-                val dependencyHandler = GradleDependencyHandler(managerName, maven, repositories)
-                val graphBuilder = DependencyGraphBuilder(dependencyHandler)
+                val projectId = Identifier(
+                    type = managerName,
+                    namespace = dependencyTreeModel.group,
+                    name = dependencyTreeModel.name,
+                    version = dependencyTreeModel.version
+                )
+
                 dependencyTreeModel.configurations.forEach { configuration ->
                     configuration.dependencies.forEach { dependency ->
-                        graphBuilder.addDependency(configuration.name, dependency)
+                        graphBuilder.addDependency(
+                            DependencyGraph.qualifyScope(projectId, configuration.name),
+                            dependency
+                        )
                     }
-
-                    // Make sure that scopes without dependencies are recorded.
-                    graphBuilder.addScope(configuration.name)
                 }
 
                 val project = Project(
-                    id = Identifier(
-                        type = managerName,
-                        namespace = dependencyTreeModel.group,
-                        name = dependencyTreeModel.name,
-                        version = dependencyTreeModel.version
-                    ),
+                    id = projectId,
                     definitionFilePath = VersionControlSystem.getPathInfo(definitionFile).path,
                     authors = sortedSetOf(),
                     declaredLicenses = sortedSetOf(),
                     vcs = VcsInfo.EMPTY,
                     vcsProcessed = processProjectVcs(definitionFile.parentFile),
                     homepageUrl = "",
-                    scopeDependencies = null,
-                    dependencyGraph = graphBuilder.build()
+                    scopeNames = dependencyTreeModel.configurations.map { it.name }.toSortedSet()
                 )
 
                 val issues = mutableListOf<OrtIssue>()
@@ -260,7 +268,7 @@ class Gradle(
                     createAndLogIssue(source = managerName, message = it, severity = Severity.WARNING)
                 }
 
-                listOf(ProjectAnalyzerResult(project, graphBuilder.packages().toSortedSet(), issues))
+                listOf(ProjectAnalyzerResult(project, sortedSetOf(), issues))
             }
         }
     }

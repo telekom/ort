@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -210,7 +210,7 @@ class Pub(
             else -> throw IllegalArgumentException("Unsupported operating system.")
         }
 
-        val url = "https://storage.googleapis.com/flutter_infra/releases/stable/$archive"
+        val url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/$archive"
 
         log.info { "Downloading flutter-$flutterVersion from $url... " }
 
@@ -398,8 +398,12 @@ class Pub(
         return analyzerResultCacheAndroid.getOrPut(packageName) {
             // Use the latest 5.x Gradle version as Flutter / its Android Gradle plugin does not support Gradle 6 yet.
             Gradle("Gradle", androidDir, analyzerConfig, repoConfig, GRADLE_VERSION)
-                .resolveDependencies(listOf(packageFile))
-                .getValue(packageFile)
+                .resolveDependencies(listOf(packageFile)).run {
+                    projectResults.getValue(packageFile).map { result ->
+                        val project = result.project.withResolvedScopes(dependencyGraph)
+                        result.copy(project = project, packages = sharedPackages.toSortedSet())
+                    }
+                }
         }
     }
 

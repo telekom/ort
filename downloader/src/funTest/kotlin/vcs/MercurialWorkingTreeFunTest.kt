@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,13 +28,10 @@ import io.kotest.matchers.shouldNotBe
 
 import java.io.File
 
-import kotlin.io.path.createTempDirectory
-
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.ortDataDirectory
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.test.createSpecTempDir
 import org.ossreviewtoolkit.utils.unpack
 
 class MercurialWorkingTreeFunTest : StringSpec() {
@@ -44,14 +41,10 @@ class MercurialWorkingTreeFunTest : StringSpec() {
     override fun beforeSpec(spec: Spec) {
         val zipFile = File("src/funTest/assets/lz4revlog-2018-01-03-hg.zip")
 
-        zipContentDir = createTempDirectory("$ORT_NAME-${javaClass.simpleName}").toFile()
+        zipContentDir = createSpecTempDir()
 
         println("Extracting '$zipFile' to '$zipContentDir'...")
         zipFile.unpack(zipContentDir)
-    }
-
-    override fun afterSpec(spec: Spec) {
-        zipContentDir.safeDeleteRecursively(force = true)
     }
 
     init {
@@ -78,7 +71,6 @@ class MercurialWorkingTreeFunTest : StringSpec() {
                 type = VcsType.MERCURIAL,
                 url = "https://bitbucket.org/facebook/lz4revlog",
                 revision = "422ca71c35132f1f55d20a13355708aec7669b50",
-                resolvedRevision = null,
                 path = ""
             )
             workingTree.getNested() should beEmpty()

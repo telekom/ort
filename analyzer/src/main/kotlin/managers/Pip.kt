@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -302,12 +302,15 @@ class Pip(
         }
 
         // Amend information from "setup.py" with that from "requirements.txt".
-        val projectName = when (Pair(setupName.isNotEmpty(), requirementsName.isNotEmpty())) {
-            Pair(true, false) -> setupName
+        val hasSetupName = setupName.isNotEmpty()
+        val hasRequirementsName = requirementsName.isNotEmpty()
+
+        val projectName = when {
+            hasSetupName && !hasRequirementsName -> setupName
             // In case of only a requirements file without further meta-data, use the relative path to the analyzer
             // root as a unique project name.
-            Pair(false, true) -> definitionFile.relativeTo(analysisRoot).invariantSeparatorsPath
-            Pair(true, true) -> "$setupName-requirements$requirementsSuffix"
+            !hasSetupName && hasRequirementsName -> definitionFile.relativeTo(analysisRoot).invariantSeparatorsPath
+            hasSetupName && hasRequirementsName -> "$setupName-requirements$requirementsSuffix"
             else -> throw IllegalArgumentException("Unable to determine a project name for '$definitionFile'.")
         }
         val projectVersion = setupVersion.takeIf { it.isNotEmpty() } ?: requirementsVersion
@@ -727,4 +730,4 @@ private fun Package.enrichWith(other: Package?): Package =
  * ASCII numbers, ., -, and _. The name should be lowercased with all runs
  * of the characters ., -, or _ replaced with a single - character."
  */
-private fun String.normalizePackageName(): String = replace(Regex("[-_.]+"), "-").toLowerCase()
+private fun String.normalizePackageName(): String = replace(Regex("[-_.]+"), "-").lowercase()

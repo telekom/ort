@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,10 +23,8 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.PrintStream
 
-import kotlin.io.path.createTempFile
-
 private fun redirectOutput(originalOutput: PrintStream, setOutput: (PrintStream) -> Unit, block: () -> Unit): String {
-    val tempFile = createTempFile(ORT_NAME, "redirect").toFile().apply { deleteOnExit() }
+    val tempFile = createOrtTempFile("redirect")
     val fileStream = FileOutputStream(tempFile)
 
     try {
@@ -38,7 +36,7 @@ private fun redirectOutput(originalOutput: PrintStream, setOutput: (PrintStream)
         setOutput(originalOutput)
     }
 
-    return tempFile.readText()
+    return tempFile.readText().also { tempFile.delete() }
 }
 
 /**

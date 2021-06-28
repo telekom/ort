@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@ import java.util.SortedSet
 
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
+import org.ossreviewtoolkit.downloader.VcsHost
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.Hash
 import org.ossreviewtoolkit.model.Identifier
@@ -40,12 +41,12 @@ import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.utils.CommandLineTool
 import org.ossreviewtoolkit.utils.Os
+import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.stashDirectories
+import org.ossreviewtoolkit.utils.withoutSuffix
 
 /**
- * The [Go Modules](https://github.com/golang/go/wiki/Modules) package manager for Go. The implementation is
- * experimental since it lacks resolving VCS locations and also the way source artifact URLs are crafted needs to proof
- * being useful. It seems favorable to adjust the implementation to only set VCS but not source artifact URLs.
+ * The [Go Modules](https://github.com/golang/go/wiki/Modules) package manager for Go.
  *
  * Note: The file `go.sum` is not a lockfile as go modules already allows for reproducible builds without that file.
  * Thus no logic for handling the [AnalyzerConfiguration.allowDynamicVersions] is needed.
@@ -90,35 +91,25 @@ class GoMod(
         val projectDir = definitionFile.parentFile
 
         stashDirectories(projectDir.resolve("vendor")).use {
-            val edges = getDependencyGraph(projectDir)
+            val fullGraph = getDependencyGraph(projectDir)
+            val projectId = fullGraph.projectId()
+
+            val graph = fullGraph.subgraph(getUsedPackages(fullGraph, projectDir, projectId))
             val vendorModules = getVendorModules(projectDir)
 
-            val projectName = edges.getNodes().filterTo(mutableSetOf()) {
-                it.version.isBlank()
-            }.let { idsWithoutVersion ->
-                require(idsWithoutVersion.size == 1) {
-                    "Expected exactly one unique package without version but got ${idsWithoutVersion.joinToString()}."
-                }
-
-                idsWithoutVersion.first()
-            }.name
+            val packageIds = graph.nodes() - projectId
+            val packages = packageIds.mapTo(sortedSetOf()) { createPackage(it) }
 
             val projectVcs = processProjectVcs(projectDir)
-
-            val packages = edges.getNodes().filter {
-                it.version.isNotBlank()
-            }.mapTo(sortedSetOf()) {
-                createPackage(it)
-            }
 
             val scopes = sortedSetOf(
                 Scope(
                     name = "all",
-                    dependencies = edges.toPackageReferenceForest { it.version.isBlank() }
+                    dependencies = graph.toPackageReferenceForest(projectId)
                 ),
                 Scope(
                     name = "vendor",
-                    dependencies = edges.toPackageReferenceForest { it.version.isBlank() || it !in vendorModules }
+                    dependencies = graph.subgraph(vendorModules + projectId).toPackageReferenceForest(projectId)
                 )
             )
 
@@ -128,7 +119,7 @@ class GoMod(
                         id = Identifier(
                             type = managerName,
                             namespace = "",
-                            name = projectName,
+                            name = projectId.name,
                             version = projectVcs.revision
                         ),
                         definitionFilePath = VersionControlSystem.getPathInfo(definitionFile).path,
@@ -157,7 +148,7 @@ class GoMod(
             }
             .toSet()
 
-    private fun getDependencyGraph(projectDir: File): Set<Edge> {
+    private fun getDependencyGraph(projectDir: File): Graph {
         val graph = run("mod", "graph", workingDir = projectDir).requireSuccess().stdout
 
         fun parsePackageEntry(entry: String) =
@@ -168,7 +159,7 @@ class GoMod(
                 version = entry.substringAfter('@', "")
             )
 
-        val result = mutableSetOf<Edge>()
+        val result = Graph()
         for (line in graph.lines()) {
             if (line.isBlank()) continue
 
@@ -178,22 +169,35 @@ class GoMod(
             val parent = parsePackageEntry(columns[0])
             val child = parsePackageEntry(columns[1])
 
-            result += Edge(parent, child)
+            result.addEdge(parent, child)
         }
 
         return result
     }
 
-    private fun createPackage(id: Identifier): Package {
-        val vcsFromId = if (id.name.startsWith("github.com")) {
-            VcsInfo(
-                type = VcsType.GIT,
-                url = "https://${id.name.removeSuffix("/")}.git",
-                revision = id.version
-            )
-        } else {
-            VcsInfo.EMPTY
+    /**
+     * Determine the set of packages that are actually used by the [main module][projectId] by running the _go mod why_
+     * command repeatedly in [projectDir].
+     */
+    private fun getUsedPackages(graph: Graph, projectDir: File, projectId: Identifier): Set<Identifier> {
+        val usedPackageNames = mutableSetOf(projectId.name)
+
+        graph.nodes().chunked(WHY_CHUNK_SIZE).forEach { ids ->
+            val pkgNames = ids.map { it.name }.toTypedArray()
+            usedPackageNames +=
+                parseWhyOutput(run(projectDir, "mod", "why", *pkgNames).requireSuccess().stdout)
         }
+
+        val usedPackages = graph.nodes().filter { it.name in usedPackageNames }
+        if (usedPackages.size < graph.size()) {
+            log.debug { "Removing ${graph.size() - usedPackages.size} unused packages from the dependency graph." }
+        }
+
+        return usedPackages.toSet()
+    }
+
+    private fun createPackage(id: Identifier): Package {
+        val vcsInfo = id.toVcsInfo().takeUnless { it.type == VcsType.UNKNOWN } ?: VcsInfo.EMPTY
 
         return Package(
             id = Identifier(managerName, "", id.name, id.version),
@@ -202,8 +206,12 @@ class GoMod(
             description = "",
             homepageUrl = "",
             binaryArtifact = RemoteArtifact.EMPTY,
-            sourceArtifact = getSourceArtifactForPackage(id),
-            vcs = vcsFromId
+            sourceArtifact = if (vcsInfo == VcsInfo.EMPTY) {
+                getSourceArtifactForPackage(id)
+            } else {
+                RemoteArtifact.EMPTY
+            },
+            vcs = vcsInfo
         )
     }
 
@@ -237,52 +245,126 @@ class GoMod(
     }
 }
 
-private data class Edge(
-    val source: Identifier,
-    val target: Identifier
-)
+/**
+ * A class to represent a graph with dependencies. This representation is basically an adjacency list implemented by a
+ * map whose keys are package identifiers and whose values are the identifiers of packages these packages depend on.
+ */
+private class Graph(private val nodeMap: MutableMap<Identifier, Set<Identifier>> = mutableMapOf()) {
+    /**
+     * Return a set with all nodes (i.e. package identifiers) contained in this graph.
+     */
+    fun nodes(): Set<Identifier> = nodeMap.keys
 
-private fun Collection<Edge>.getNodes(): Set<Identifier> = flatMap { listOf(it.source, it.target) }.toSet()
+    /**
+     * Return the size of this graph. This is the number of nodes it contains.
+     */
+    fun size() = nodeMap.size
 
-private fun Collection<Edge>.toPackageReferenceForest(
-    ignoreNode: (Identifier) -> Boolean = { false }
-): SortedSet<PackageReference> {
-    data class Node(
-        val id: Identifier,
-        val outgoingEdges: MutableSet<Identifier> = mutableSetOf(),
-        val incomingEdges: MutableSet<Identifier> = mutableSetOf()
-    )
+    /**
+     * Add an edge (i.e. a dependency relation) from [source] to [target] to this dependency graph. Add missing nodes if
+     * necessary.
+     */
+    fun addEdge(source: Identifier, target: Identifier) {
+        nodeMap.merge(source, setOf(target)) { set, _ -> set + target }
+        nodeMap.getOrPut(target) { emptySet() }
+    }
 
-    val nodes = mutableMapOf<Identifier, Node>()
-    fun addNode(id: Identifier): Node? = if (!ignoreNode(id)) nodes.getOrPut(id) { Node(id) } else null
+    /**
+     * Return a subgraph of this [Graph] that contains only nodes from the given set of [subNodes]. This can be used to
+     * construct graphs for specific scopes.
+     */
+    fun subgraph(subNodes: Set<Identifier>): Graph =
+        Graph(nodeMap.filter { it.key in subNodes }
+            .mapValuesTo(mutableMapOf()) { e -> e.value.filterTo(mutableSetOf()) { it in subNodes } })
 
-    forEach { edge ->
-        val source = addNode(edge.source)
-        val target = addNode(edge.target)
+    /**
+     * Search for the single package that represents the main project. This is the only package without a version.
+     * Fail if no single package with this criterion can be found.
+     */
+    fun projectId(): Identifier =
+        nodes().filter { it.version.isBlank() }.let { idsWithoutVersion ->
+            require(idsWithoutVersion.size == 1) {
+                "Expected exactly one unique package without version but got ${idsWithoutVersion.joinToString()}."
+            }
 
-        if (source != null && target != null) {
-            source.outgoingEdges += target.id
-            target.incomingEdges += source.id
+            idsWithoutVersion.first()
+        }
+
+    /**
+     * Convert this [Graph] to a set of [PackageReference]s that spawn the dependency trees of the direct dependencies
+     * of the given [root] package.
+     */
+    fun toPackageReferenceForest(root: Identifier): SortedSet<PackageReference> {
+        fun getPackageReference(id: Identifier, predecessorNodes: Set<Identifier> = mutableSetOf()): PackageReference {
+            val currentDependencies = dependencies(id) - predecessorNodes
+            val nextPredecessorNodes = predecessorNodes + currentDependencies
+
+            val dependencyReferences = currentDependencies.mapTo(sortedSetOf()) {
+                getPackageReference(it, nextPredecessorNodes)
+            }
+
+            return PackageReference(
+                id = id,
+                linkage = PackageLinkage.PROJECT_STATIC,
+                dependencies = dependencyReferences
+            )
+        }
+
+        val startNodes = dependencies(root)
+        return startNodes.mapTo(sortedSetOf()) { getPackageReference(it, startNodes) }
+    }
+
+    /**
+     * Return the identifiers of the direct dependencies of the package denoted by [id].
+     */
+    private fun dependencies(id: Identifier): Set<Identifier> = nodeMap[id].orEmpty()
+}
+
+// See https://golang.org/ref/mod#pseudo-versions.
+private val PSEUDO_VERSION_REGEX = "^v0.0.0-(?:[\\d]{14}-(?<sha1>[0-9a-f]+)$)".toRegex()
+
+/** Separator string indicating that data of a new package follows in the output of the go mod why command. */
+private const val PACKAGE_SEPARATOR = "# "
+
+/**
+ * Constant for the number of packages to pass to the _go mod why_ command in a single step. This value is chosen
+ * rather arbitrarily to keep the command's output to a reasonable size.
+ */
+private const val WHY_CHUNK_SIZE = 32
+
+private fun getRevision(version: String): String {
+    version.withoutSuffix("+incompatible")?.let { return getRevision(it) }
+
+    PSEUDO_VERSION_REGEX.find(version)?.let { matchResult ->
+        return matchResult.groups["sha1"]!!.value
+    }
+
+    return version
+}
+
+internal fun Identifier.toVcsInfo(): VcsInfo {
+    val vcsInfo = VcsHost.toVcsInfo("https://$name")
+    return vcsInfo.copy(revision = getRevision(version))
+}
+
+/**
+ * Parse the given [output] generated by the _go mod why_ command and the names of packages that are reported to be
+ * used by the main module.
+ * See https://golang.org/ref/mod#go-mod-why.
+ */
+internal fun parseWhyOutput(output: String): Set<String> {
+    val usedPackages = mutableSetOf<String>()
+    var currentPackage: String? = null
+
+    output.lineSequence().forEach { line ->
+        if (line.startsWith(PACKAGE_SEPARATOR)) {
+            currentPackage = line.substring(PACKAGE_SEPARATOR.length)
+        } else {
+            if (!line.startsWith('(') && line.isNotBlank()) {
+                currentPackage?.let { usedPackages += it }
+            }
         }
     }
 
-    fun getPackageReference(id: Identifier, predecessorNodes: Set<Identifier> = mutableSetOf()): PackageReference {
-        val node = nodes[id]!!
-
-        val dependencies = node.outgoingEdges.mapNotNull {
-            if (predecessorNodes.contains(it)) {
-                null
-            } else {
-                getPackageReference(it, predecessorNodes + id)
-            }
-        }.toSortedSet()
-
-        return PackageReference(
-            id = id,
-            linkage = PackageLinkage.PROJECT_STATIC,
-            dependencies = dependencies
-        )
-    }
-
-    return nodes.values.filter { it.incomingEdges.isEmpty() }.map { getPackageReference(it.id) }.toSortedSet()
+    return usedPackages
 }

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,8 +25,7 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
-import org.ossreviewtoolkit.model.OrtResult
-import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.helper.common.readOrtResult
 import org.ossreviewtoolkit.scanner.storages.FileBasedStorage
 import org.ossreviewtoolkit.utils.expandTilde
 import org.ossreviewtoolkit.utils.storage.LocalFileStorage
@@ -51,7 +50,7 @@ internal class ImportScanResultsCommand : CliktCommand(
         .required()
 
     override fun run() {
-        val ortResult = ortFile.readValue<OrtResult>()
+        val ortResult = readOrtResult(ortFile)
         val scanResultsStorage = FileBasedStorage(LocalFileStorage(scanResultsStorageDir))
         val ids = ortResult.getProjects().map { it.id } + ortResult.getPackages().map { it.pkg.id }
 

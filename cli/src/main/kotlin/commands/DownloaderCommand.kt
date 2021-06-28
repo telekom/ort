@@ -1,11 +1,12 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +18,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.commands
+package org.ossreviewtoolkit.cli.commands
 
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.ProgramResult
@@ -36,33 +37,39 @@ import com.github.ajalt.clikt.parameters.options.switch
 import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.file
 
-import java.io.File
-
-import kotlin.time.measureTimedValue
-
-import org.ossreviewtoolkit.GlobalOptions
-import org.ossreviewtoolkit.GroupTypes.FileType
-import org.ossreviewtoolkit.GroupTypes.StringType
+import org.ossreviewtoolkit.cli.GlobalOptions
+import org.ossreviewtoolkit.cli.GroupTypes.FileType
+import org.ossreviewtoolkit.cli.GroupTypes.StringType
+import org.ossreviewtoolkit.cli.utils.OPTION_GROUP_INPUT
+import org.ossreviewtoolkit.cli.utils.configurationGroup
+import org.ossreviewtoolkit.cli.utils.inputGroup
+import org.ossreviewtoolkit.cli.utils.outputGroup
+import org.ossreviewtoolkit.cli.utils.readOrtResult
 import org.ossreviewtoolkit.downloader.DownloadException
 import org.ossreviewtoolkit.downloader.Downloader
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.downloader.consolidateProjectPackagesByVcs
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
+import org.ossreviewtoolkit.model.licenses.LicenseCategorization
+import org.ossreviewtoolkit.model.licenses.LicenseClassifications
+import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
+import org.ossreviewtoolkit.model.licenses.LicenseView
+import org.ossreviewtoolkit.model.licenses.ResolvedLicenseInfo
 import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.spdx.VCS_DIRECTORIES
+import org.ossreviewtoolkit.model.utils.createLicenseInfoResolver
+import org.ossreviewtoolkit.spdx.model.LicenseChoice
 import org.ossreviewtoolkit.utils.ArchiveType
+import org.ossreviewtoolkit.utils.ORT_LICENSE_CLASSIFICATIONS_FILENAME
+import org.ossreviewtoolkit.utils.archive
 import org.ossreviewtoolkit.utils.collectMessagesAsString
 import org.ossreviewtoolkit.utils.encodeOrUnknown
 import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.formatSizeInMib
 import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.packZip
-import org.ossreviewtoolkit.utils.perf
+import org.ossreviewtoolkit.utils.ortConfigDirectory
 import org.ossreviewtoolkit.utils.safeDeleteRecursively
 import org.ossreviewtoolkit.utils.showStackTrace
 
@@ -104,6 +111,16 @@ class DownloaderCommand : CliktCommand(name = "download", help = "Fetch source c
         help = "The VCS path if '--project-url' points to a VCS. Ignored if '--ort-file' is also specified. " +
                 "(default: the empty root path)"
     ).default("").inputGroup()
+
+    private val licenseClassificationsFile by option(
+        "--license-classifications-file",
+        help = "A file containing the license classifications that are used to limit downloads if the included " +
+                "categories are specified in the 'ort.conf' file. If not specified, all packages are downloaded."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .default(ortConfigDirectory.resolve(ORT_LICENSE_CLASSIFICATIONS_FILENAME))
+        .configurationGroup()
 
     private val outputDir by option(
         "--output-dir", "-o",
@@ -180,12 +197,7 @@ class DownloaderCommand : CliktCommand(name = "download", help = "Fetch source c
         when (input) {
             is FileType -> {
                 val ortFile = (input as FileType).file
-                val (ortResult, duration) = measureTimedValue { ortFile.readValue<OrtResult>() }
-
-                log.perf {
-                    "Read ORT result from '${ortFile.name}' (${ortFile.formatSizeInMib}) in " +
-                            "${duration.inMilliseconds}ms."
-                }
+                val ortResult = readOrtResult(ortFile)
 
                 val analyzerResult = ortResult.analyzer?.result
 
@@ -208,7 +220,28 @@ class DownloaderCommand : CliktCommand(name = "download", help = "Fetch source c
                     }
                 }
 
-                val packageDownloadDirs = packages.associateWith { outputDir.resolve(it.id.toPath()) }
+                val includedLicenseCategories = globalOptionsForSubcommands.config.downloader.includedLicenseCategories
+
+                val packageDownloadDirs =
+                    if (includedLicenseCategories.isNotEmpty() && licenseClassificationsFile.isFile) {
+                        val licenseCategorizations =
+                            licenseClassificationsFile.readValue<LicenseClassifications>().categorizations
+                        val licenseInfoResolver = ortResult.createLicenseInfoResolver()
+
+                        packages.filter { pkg ->
+                            // A package is only downloaded if its license is part of a category that is part of the
+                            // DownloaderConfiguration's includedLicenseCategories.
+                            getLicenseCategoriesForPackage(
+                                pkg,
+                                licenseCategorizations,
+                                licenseInfoResolver,
+                                ortResult.getRepositoryLicenseChoices(),
+                                ortResult.getPackageLicenseChoices(pkg.id)
+                            ).any { it in includedLicenseCategories }
+                        }
+                    } else {
+                        packages
+                    }.associateWith { outputDir.resolve(it.id.toPath()) }
 
                 packageDownloadDirs.forEach { (pkg, dir) ->
                     try {
@@ -218,7 +251,17 @@ class DownloaderCommand : CliktCommand(name = "download", help = "Fetch source c
                             allowMovingRevisions
                         )
 
-                        if (archiveMode == ArchiveMode.ENTITY && archive(pkg, dir)) {
+                        if (archiveMode == ArchiveMode.ENTITY) {
+                            val zipFile = outputDir.resolve("${pkg.id.toPath("-")}.zip")
+
+                            log.info { "Archiving directory '$dir' to '$zipFile'." }
+                            val result = archive(dir, zipFile,
+                                "${pkg.id.name.encodeOrUnknown()}/${pkg.id.version.encodeOrUnknown()}/")
+
+                            result.exceptionOrNull()?.let {
+                                log.error { "Could not archive '$dir': ${it.collectMessagesAsString()}" }
+                            }
+
                             dir.safeDeleteRecursively(baseDirectory = outputDir)
                         }
                     } catch (e: DownloadException) {
@@ -232,7 +275,16 @@ class DownloaderCommand : CliktCommand(name = "download", help = "Fetch source c
                     }
                 }
 
-                if (archiveMode == ArchiveMode.BUNDLE && archiveAll()) {
+                if (archiveMode == ArchiveMode.BUNDLE) {
+                    val zipFile = outputDir.resolve("archive.zip")
+
+                    log.info { "Archiving directory '$outputDir' to '$zipFile'." }
+                    val result = archive(outputDir, zipFile)
+
+                    result.exceptionOrNull()?.let {
+                        log.error { "Could not archive '$outputDir': ${it.collectMessagesAsString()}" }
+                    }
+
                     packageDownloadDirs.forEach { (_, dir) ->
                         dir.safeDeleteRecursively(baseDirectory = outputDir)
                     }
@@ -294,39 +346,25 @@ class DownloaderCommand : CliktCommand(name = "download", help = "Fetch source c
         }
     }
 
-    private fun archive(pkg: Package, inputDir: File): Boolean {
-        val zipFile = File(outputDir, "${pkg.id.toPath("-")}.zip")
+    /**
+     * Retrieve the license categories for the [package][pkg] based on its [effective license]
+     * [ResolvedLicenseInfo.effectiveLicense].
+     */
+    private fun getLicenseCategoriesForPackage(
+        pkg: Package,
+        licenseCategorizations: List<LicenseCategorization>,
+        licenseInfoResolver: LicenseInfoResolver,
+        vararg licenseChoices: List<LicenseChoice>
+    ): Set<String> {
+        val resolvedLicenseInfo = licenseInfoResolver.resolveLicenseInfo(pkg.id)
+        val effectiveLicenses = resolvedLicenseInfo.effectiveLicense(
+            LicenseView.ALL,
+            *licenseChoices
+        )?.decompose().orEmpty()
 
-        log.info { "Archiving directory '$inputDir' to '$zipFile'." }
-
-        return runCatching {
-            inputDir.packZip(
-                zipFile,
-                "${pkg.id.name.encodeOrUnknown()}/${pkg.id.version.encodeOrUnknown()}/",
-                directoryFilter = { it.name !in VCS_DIRECTORIES }
-            )
-        }.onFailure {
-            it.showStackTrace()
-
-            log.error { "Could not archive '$inputDir': ${it.collectMessagesAsString()}" }
-        }.isSuccess
-    }
-
-    private fun archiveAll(): Boolean {
-        val zipFile = outputDir.resolve("archive.zip")
-
-        log.info { "Archiving directory '$outputDir' to '$zipFile'." }
-
-        return runCatching {
-            outputDir.packZip(
-                zipFile,
-                directoryFilter = { it.name !in VCS_DIRECTORIES },
-                fileFilter = { it != zipFile }
-            )
-        }.onFailure {
-            it.showStackTrace()
-
-            log.error { "Could not archive '$outputDir': ${it.collectMessagesAsString()}" }
-        }.isSuccess
+        return licenseCategorizations
+            .filter { it.id in effectiveLicenses }
+            .flatMap { it.categories }
+            .toSet()
     }
 }

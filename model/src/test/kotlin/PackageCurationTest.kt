@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,7 +40,7 @@ class PackageCurationTest : WordSpec({
                     version = "1.3"
                 ),
                 authors = sortedSetOf(),
-                declaredLicenses = sortedSetOf(),
+                declaredLicenses = sortedSetOf("license a", "license b"),
                 description = "",
                 homepageUrl = "",
                 binaryArtifact = RemoteArtifact.EMPTY,
@@ -54,7 +54,6 @@ class PackageCurationTest : WordSpec({
                 id = pkg.id,
                 data = PackageCurationData(
                     authors = sortedSetOf("author 1", "author 2"),
-                    declaredLicenses = sortedSetOf("license a", "license b"),
                     declaredLicenseMapping = mapOf("license a" to "Apache-2.0".toSpdx()),
                     concludedLicense = "license1 OR license2".toSpdx(),
                     description = "description",
@@ -71,7 +70,6 @@ class PackageCurationTest : WordSpec({
                         type = VcsType.GIT,
                         url = "http://url.git",
                         revision = "revision",
-                        resolvedRevision = "resolvedRevision",
                         path = "path"
                     ),
                     isMetaDataOnly = true,
@@ -84,7 +82,7 @@ class PackageCurationTest : WordSpec({
             with(curatedPkg.pkg) {
                 id.toCoordinates() shouldBe pkg.id.toCoordinates()
                 authors shouldBe curation.data.authors
-                declaredLicenses shouldBe curation.data.declaredLicenses
+                declaredLicenses shouldBe pkg.declaredLicenses
                 declaredLicensesProcessed.spdxExpression shouldBe "Apache-2.0".toSpdx()
                 declaredLicensesProcessed.unmapped should containExactlyInAnyOrder("license b")
                 concludedLicense shouldBe curation.data.concludedLicense
@@ -120,7 +118,6 @@ class PackageCurationTest : WordSpec({
                     type = VcsType.GIT,
                     url = "http://url.git",
                     revision = "revision",
-                    resolvedRevision = "resolvedRevision",
                     path = "path"
                 ),
                 isMetaDataOnly = false,
@@ -152,7 +149,6 @@ class PackageCurationTest : WordSpec({
                     type = pkg.vcs.type,
                     url = curation.data.vcs!!.url!!,
                     revision = pkg.vcs.revision,
-                    resolvedRevision = pkg.vcs.resolvedRevision,
                     path = pkg.vcs.path
                 )
                 isMetaDataOnly shouldBe false

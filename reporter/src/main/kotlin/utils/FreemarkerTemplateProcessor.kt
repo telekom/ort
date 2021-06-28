@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,12 +21,11 @@ package org.ossreviewtoolkit.reporter.utils
 
 import freemarker.cache.ClassTemplateLoader
 import freemarker.template.Configuration
+import freemarker.template.DefaultObjectWrapper
 import freemarker.template.TemplateExceptionHandler
 
 import java.io.File
 import java.util.SortedMap
-
-import kotlin.reflect.full.memberProperties
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.LicenseSource
@@ -35,19 +34,19 @@ import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.RuleViolation
 import org.ossreviewtoolkit.model.ScanResult
+import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.TextLocation
-import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.Vulnerability
+import org.ossreviewtoolkit.model.VulnerabilityReference
+import org.ossreviewtoolkit.model.config.VulnerabilityResolution
 import org.ossreviewtoolkit.model.licenses.DefaultLicenseInfoProvider
-import org.ossreviewtoolkit.model.licenses.LicenseClassifications
 import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.licenses.LicenseView
 import org.ossreviewtoolkit.model.licenses.ResolvedLicense
 import org.ossreviewtoolkit.model.licenses.ResolvedLicenseFileInfo
 import org.ossreviewtoolkit.model.licenses.ResolvedLicenseInfo
 import org.ossreviewtoolkit.model.licenses.filterExcluded
-import org.ossreviewtoolkit.model.utils.ResolutionProvider
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.spdx.SpdxConstants
@@ -120,8 +119,10 @@ class FreemarkerTemplateProcessor(
             "packages" to packages,
             "ortResult" to input.ortResult,
             "licenseTextProvider" to input.licenseTextProvider,
-            "helper" to TemplateHelper(input.ortResult, input.licenseClassifications, input.resolutionProvider),
-            "projectsAsPackages" to projectsAsPackages
+            "LicenseView" to LicenseView,
+            "helper" to TemplateHelper(input),
+            "projectsAsPackages" to projectsAsPackages,
+            "vulnerabilityReference" to VulnerabilityReference
         )
 
         val freemarkerConfig = Configuration(Configuration.VERSION_2_3_30).apply {
@@ -135,6 +136,8 @@ class FreemarkerTemplateProcessor(
                 "templates/$templatesResourceDirectory"
             )
             wrapUncheckedExceptions = true
+
+            setSharedVariable("statics", (objectWrapper as DefaultObjectWrapper).staticModels)
         }
 
         val templatePaths = options[OPTION_TEMPLATE_PATH]?.split(',').orEmpty()
@@ -230,11 +233,7 @@ class FreemarkerTemplateProcessor(
     /**
      * A collection of helper functions for the Freemarker templates.
      */
-    class TemplateHelper(
-        private val ortResult: OrtResult,
-        private val licenseClassifications: LicenseClassifications,
-        private val resolutionProvider: ResolutionProvider
-    ) {
+    class TemplateHelper(private val input: ReporterInput) {
         /**
          * Return [packages] that are a dependency of at least one of the provided [projects][projectIds].
          */
@@ -243,7 +242,7 @@ class FreemarkerTemplateProcessor(
             packages: Collection<PackageModel>,
             projectIds: Collection<Identifier>
         ): List<PackageModel> {
-            val dependencies = projectIds.mapNotNull { ortResult.getProject(it) }
+            val dependencies = projectIds.mapNotNull { input.ortResult.getProject(it) }
                 .flatMapTo(mutableSetOf()) { it.collectDependencies() }
 
             return packages.filter { pkg -> pkg.id in dependencies }
@@ -252,17 +251,8 @@ class FreemarkerTemplateProcessor(
         @Suppress("UNUSED") // This function is used in the templates.
         fun filterForCategory(licenses: Collection<ResolvedLicense>, category: String): List<ResolvedLicense> =
             licenses.filter { resolvedLicense ->
-                licenseClassifications[resolvedLicense.license]?.contains(category) ?: true
+                input.licenseClassifications[resolvedLicense.license]?.contains(category) ?: true
             }
-
-        /**
-         * Return a [LicenseView] constant by name to make them easily available to the Freemarker templates.
-         */
-        @Suppress("UNUSED") // This function is used in the templates.
-        fun licenseView(name: String): LicenseView =
-            LicenseView.Companion::class.memberProperties
-                .first { it.name == name }
-                .get(LicenseView.Companion) as LicenseView
 
         /**
          * Merge the [ResolvedLicense]s of multiple [models] and filter them using [licenseView] and
@@ -294,7 +284,7 @@ class FreemarkerTemplateProcessor(
          * Return a list of [ResolvedLicense]s where all duplicate entries for a single license in [licenses] are
          * merged. The returned list is sorted by license identifier.
          */
-        // This function is used in the templates and needs to be public.
+        @Suppress("MemberVisibilityCanBePrivate") // This function is used in the templates.
         fun mergeResolvedLicenses(licenses: List<ResolvedLicense>): List<ResolvedLicense> =
             licenses.groupBy { it.license }
                 .map { (_, licenses) -> licenses.merge() }
@@ -303,25 +293,30 @@ class FreemarkerTemplateProcessor(
         /**
          * Return true if and only if the given [license] is not one of the special cases _NONE_ or _NOASSERTION_.
          */
-        @Suppress("WEAKER_ACCESS") // This function is used in the templates.
+        @Suppress("MemberVisibilityCanBePrivate") // This function is used in the templates.
         fun isLicensePresent(license: ResolvedLicense): Boolean = SpdxConstants.isPresent(license.license.toString())
 
         /**
-         * Return `true` if there are any unresolved [OrtIssue]s, or `false` otherwise.
+         * Return `true` if there are any unresolved [OrtIssue]s whose severity is equal to or greater than the
+         * [threshold], or `false` otherwise.
          */
+        @JvmOverloads
         @Suppress("UNUSED") // This function is used in the templates.
-        fun hasUnresolvedIssues() =
-            ortResult.collectIssues().values.flatten().any { issue ->
-                resolutionProvider.getIssueResolutionsFor(issue).isEmpty()
+        fun hasUnresolvedIssues(threshold: Severity = input.ortConfig.severeIssueThreshold) =
+            input.ortResult.collectIssues().values.flatten().any { issue ->
+                issue.severity >= threshold && input.resolutionProvider.getIssueResolutionsFor(issue).isEmpty()
             }
 
         /**
-         * Return `true` if there are any unresolved [RuleViolation]s, or `false` otherwise.
+         * Return `true` if there are any unresolved [RuleViolation]s whose severity is equal to or greater than the
+         * [threshold], or `false` otherwise.
          */
+        @JvmOverloads
         @Suppress("UNUSED") // This function is used in the templates.
-        fun hasUnresolvedRuleViolations() =
-            ortResult.evaluator?.violations?.any { violation ->
-                resolutionProvider.getRuleViolationResolutionsFor(violation).isEmpty()
+        fun hasUnresolvedRuleViolations(threshold: Severity = input.ortConfig.severeIssueThreshold) =
+            input.ortResult.evaluator?.violations?.any { violation ->
+                violation.severity >= threshold && input.resolutionProvider.getRuleViolationResolutionsFor(violation)
+                    .isEmpty()
             } ?: false
 
         /**
@@ -329,7 +324,7 @@ class FreemarkerTemplateProcessor(
          */
         @Suppress("UNUSED") // This function is used in the templates.
         fun filterForUnresolvedVulnerabilities(vulnerabilities: List<Vulnerability>): List<Vulnerability> =
-                vulnerabilities.filter { resolutionProvider.getVulnerabilityResolutionsFor(it).isEmpty() }
+                vulnerabilities.filter { input.resolutionProvider.getVulnerabilityResolutionsFor(it).isEmpty() }
     }
 }
 
@@ -361,12 +356,12 @@ internal fun OrtResult.deduplicateProjectScanResults(targetProjects: Set<Identif
     val excludePaths = mutableSetOf<String>()
 
     targetProjects.forEach { id ->
-        val repositoryPath = getRepositoryPath(getProject(id)!!.vcsProcessed)
 
         getScanResultsForId(id).forEach { scanResult ->
-            val vcsInfo = (scanResult.provenance as? RepositoryProvenance)?.vcsInfo
-            val vcsPath = vcsInfo?.path.orEmpty()
-            val isGitRepo = vcsInfo?.type == VcsType.GIT_REPO
+            val provenance = scanResult.provenance as RepositoryProvenance
+            val vcsPath = provenance.vcsInfo.path
+            val isGitRepo = provenance.vcsInfo.type == VcsType.GIT_REPO
+            val repositoryPath = getRepositoryPath(provenance)
 
             val findingPaths = with(scanResult.summary) {
                 copyrightFindings.mapTo(mutableSetOf()) { it.location.path } + licenseFindings.map { it.location.path }
@@ -384,7 +379,7 @@ internal fun OrtResult.deduplicateProjectScanResults(targetProjects: Set<Identif
         } else {
             results.map { scanResult ->
                 val summary = scanResult.summary
-                val repositoryPath = getRepositoryPath((scanResult.provenance as RepositoryProvenance).vcsInfo)
+                val repositoryPath = getRepositoryPath(scanResult.provenance as RepositoryProvenance)
                 fun TextLocation.isExcluded() = "$repositoryPath$path" !in excludePaths
 
                 val copyrightFindings = summary.copyrightFindings.filterTo(sortedSetOf()) { it.location.isExcluded() }
@@ -404,13 +399,13 @@ internal fun OrtResult.deduplicateProjectScanResults(targetProjects: Set<Identif
 }
 
 /**
- * Return the path where the repository given by [vcsInfo] is linked into the source tree.
+ * Return the path where the repository given by [provenance] is linked into the source tree.
  */
-private fun OrtResult.getRepositoryPath(vcsInfo: VcsInfo): String {
-    repository.nestedRepositories.forEach { (path, provenance) ->
-        if (vcsInfo.type == provenance.type
-            && vcsInfo.url == provenance.url
-            && vcsInfo.revision == vcsInfo.resolvedRevision) {
+private fun OrtResult.getRepositoryPath(provenance: RepositoryProvenance): String {
+    repository.nestedRepositories.forEach { (path, vcsInfo) ->
+        if (vcsInfo.type == provenance.vcsInfo.type
+            && vcsInfo.url == provenance.vcsInfo.url
+            && vcsInfo.revision == provenance.resolvedRevision) {
             return "/$path/"
         }
     }

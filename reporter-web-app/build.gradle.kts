@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -45,7 +45,7 @@ tasks.addRule("Pattern: yarn<Command>") {
     if (taskName.startsWith("yarn")) {
         val command = taskName.removePrefix("yarn").decapitalize()
 
-        tasks.register<Exec>(taskName) {
+        tasks.register<Exec>(taskName).configure {
             // Execute the Yarn version downloaded by Gradle using the NodeJs version downloaded by Gradle.
             commandLine = listOf(nodeExecutable.path, yarnJs.path, command)
             outputs.cacheIf { true }
@@ -74,10 +74,8 @@ tasks {
 
         dependsOn("yarnInstall")
 
-        inputs.dir("config")
         inputs.dir("node_modules")
         inputs.dir("public")
-        inputs.dir("scripts")
         inputs.dir("src")
 
         outputs.dir("build")
@@ -95,15 +93,15 @@ tasks {
  * Resemble the Java plugin tasks for convenience.
  */
 
-tasks.register("build") {
+tasks.register("build").configure {
     dependsOn(listOf("yarnBuild", "yarnLint"))
 }
 
-tasks.register("check") {
+tasks.register("check").configure {
     dependsOn("yarnLint")
 }
 
-tasks.register<Delete>("clean") {
+tasks.register<Delete>("clean").configure {
     delete("build")
     delete("node_modules")
     delete("yarn-error.log")

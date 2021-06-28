@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -70,8 +70,7 @@ private fun ClearlyDefinedService.SourceLocation.toCoordinates(): ClearlyDefined
 /**
  * Convert a [VcsInfo] to a [VcsInfoCurationData] object.
  */
-private fun VcsInfo.toVcsInfoCurationData(): VcsInfoCurationData =
-    VcsInfoCurationData(type, url, revision, resolvedRevision, path)
+private fun VcsInfo.toVcsInfoCurationData(): VcsInfoCurationData = VcsInfoCurationData(type, url, revision, path)
 
 /**
  * Generate the coordinates for ClearlyDefined based on the [id], the [vcs], and a [sourceArtifact].
@@ -226,7 +225,8 @@ class ClearlyDefinedStorage(
                                 url = sourceLocation.url.orEmpty(),
                                 revision = sourceLocation.revision,
                                 path = sourceLocation.path.orEmpty()
-                            )
+                            ),
+                            resolvedRevision = sourceLocation.revision
                         )
                     }
 

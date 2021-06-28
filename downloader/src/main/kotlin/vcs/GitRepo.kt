@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,7 +46,7 @@ import org.ossreviewtoolkit.utils.withoutPrefix
 /**
  * The branch of git-repo to use. This allows to override git-repo's default of using the "stable" branch.
  */
-private const val GIT_REPO_BRANCH = "stable"
+private const val GIT_REPO_BRANCH = "v2.13.8"
 
 /**
  * The minimal manifest structure as used by the wrapping "manifest.xml" file as of repo version 2.4. For the full
@@ -118,7 +118,7 @@ class GitRepo : VersionControlSystem(), CommandLineTool {
                 }
 
                 override fun getNested(): Map<String, VcsInfo> {
-                    val paths = runRepoCommand(workingDir, "list", "-p").stdout.lines().filter { it.isNotBlank() }
+                    val paths = runRepo(workingDir, "list", "-p").stdout.lines().filter { it.isNotBlank() }
                     val nested = mutableMapOf<String, VcsInfo>()
 
                     paths.forEach { path ->
@@ -152,7 +152,7 @@ class GitRepo : VersionControlSystem(), CommandLineTool {
         }
 
         // Clone all projects instead of only those in the "default" group until we support specifying groups.
-        runRepoCommand(
+        runRepo(
             targetDir,
             "init", "--groups=all", "--no-repo-verify",
             "--no-clone-bundle", "--repo-branch=$GIT_REPO_BRANCH",
@@ -169,13 +169,13 @@ class GitRepo : VersionControlSystem(), CommandLineTool {
         revision: String,
         path: String,
         recursive: Boolean
-    ): Boolean {
+    ): Result<String> {
         val manifestRevision = revision.takeUnless { it.isBlank() } ?: "master"
         val manifestPath = path.takeUnless { it.isBlank() } ?: "default.xml"
 
-        return try {
+        return runCatching {
             // Switching manifest branches / revisions requires running "init" again.
-            runRepoCommand(workingTree.workingDir, "init", "-b", manifestRevision, "-m", manifestPath)
+            runRepo(workingTree.workingDir, "init", "-b", manifestRevision, "-m", manifestPath)
 
             // Repo allows to checkout Git repositories to nested directories. If a manifest is badly configured, a
             // nested Git checkout overwrites files in a directory of the upper-level Git repository. However, we still
@@ -186,31 +186,29 @@ class GitRepo : VersionControlSystem(), CommandLineTool {
                 syncArgs += "--fetch-submodules"
             }
 
-            runRepoCommand(workingTree.workingDir, *syncArgs.toTypedArray())
+            runRepo(workingTree.workingDir, *syncArgs.toTypedArray())
 
-            log.debug { runRepoCommand(workingTree.workingDir, "info").stdout }
-
-            true
-        } catch (e: IOException) {
-            e.showStackTrace()
+            log.debug { runRepo(workingTree.workingDir, "info").stdout }
+        }.onFailure {
+            it.showStackTrace()
 
             log.warn {
                 "Failed to sync the working tree to revision '$manifestRevision' using manifest '$manifestPath': " +
-                        e.collectMessagesAsString()
+                        it.collectMessagesAsString()
             }
-
-            false
+        }.map {
+            revision
         }
     }
 
-    private fun runRepoCommand(targetDir: File, vararg args: String) =
+    private fun runRepo(targetDir: File, vararg args: String) =
         if (Os.isWindows) {
-            val repo = getPathFromEnvironment("repo") ?: throw IOException("'repo' not found in PATH.")
+            val repo = getPathFromEnvironment(command()) ?: throw IOException("'repo' not found in PATH.")
 
             // On Windows, the script itself is not executable, so we need to explicitly specify Python as the
             // interpreter. As of repo version 2.4, Python 3.6 is required also on Windows.
             ProcessCapture(targetDir, "py", "-3", repo.absolutePath, *args).requireSuccess()
         } else {
-            ProcessCapture(targetDir, "repo", *args).requireSuccess()
+            run(targetDir, *args)
         }
 }

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -63,20 +63,6 @@ class OrtAuthenticatorTest : WordSpec({
             authentication shouldNotBeNull {
                 userName shouldBe "foo"
                 password shouldBe "bar".toCharArray()
-            }
-        }
-
-        "prefer machine-specific entries over the default" {
-            val authentication = getNetrcAuthentication("""
-                default login foo password bar
-                machine github.com
-                login git
-                password hub
-            """.trimIndent(), "github.com")
-
-            authentication shouldNotBeNull {
-                userName shouldBe "git"
-                password shouldBe "hub".toCharArray()
             }
         }
 

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,8 +27,8 @@ import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
 import org.ossreviewtoolkit.helper.common.getScanIssues
+import org.ossreviewtoolkit.helper.common.readOrtResult
 import org.ossreviewtoolkit.helper.common.replaceConfig
-import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.IssueResolution
 import org.ossreviewtoolkit.model.config.IssueResolutionReason
 import org.ossreviewtoolkit.model.config.Resolutions
@@ -68,7 +68,7 @@ internal class GenerateTimeoutErrorResolutionsCommand : CliktCommand(
     ).flag()
 
     override fun run() {
-        val ortResult = ortFile.readValue<OrtResult>().replaceConfig(repositoryConfigurationFile)
+        val ortResult = readOrtResult(ortFile).replaceConfig(repositoryConfigurationFile)
 
         val resolutionProvider = DefaultResolutionProvider().apply {
             var resolutions = Resolutions()

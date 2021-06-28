@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -53,6 +53,7 @@ class PackageManagerTest : WordSpec({
             managedFilesByName["Bundler"] should containExactly(projectDir.resolve("Gemfile"))
             managedFilesByName["Cargo"] should containExactly(projectDir.resolve("Cargo.toml"))
             managedFilesByName["Carthage"] should containExactly(projectDir.resolve("Cartfile.resolved"))
+            managedFilesByName["CocoaPods"] should containExactly(projectDir.resolve("Podfile"))
             managedFilesByName["Composer"] should containExactly(projectDir.resolve("composer.json"))
             managedFilesByName["Conan"] should containExactly(projectDir.resolve("conanfile.py"))
             managedFilesByName["DotNet"] should containExactly(projectDir.resolve("test.csproj"))

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -50,7 +50,6 @@ import org.ossreviewtoolkit.utils.normalizeVcsUrl
 import org.ossreviewtoolkit.utils.showStackTrace
 
 typealias ManagedProjectFiles = Map<PackageManagerFactory, List<File>>
-typealias ResolutionResult = MutableMap<File, List<ProjectAnalyzerResult>>
 
 /**
  * A class representing a package manager that handles software dependencies. The package manager is referred to by its
@@ -205,11 +204,20 @@ abstract class PackageManager(
     protected open fun afterResolution(definitionFiles: List<File>) {}
 
     /**
+     * Generate the final result to be returned by this package manager. This function is called at the very end of the
+     * execution of this package manager (after [afterResolution]) with the [projectResults] created for the single
+     * definition files that have been processed. It can be overridden by sub classes to add additional data to the
+     * result. This base implementation produces a result that contains only the passed in map with project results.
+     */
+    protected open fun createPackageManagerResult(projectResults: Map<File, List<ProjectAnalyzerResult>>):
+            PackageManagerResult = PackageManagerResult(projectResults)
+
+    /**
      * Return a tree of resolved dependencies (not necessarily declared dependencies, in case conflicts were resolved)
      * for all [definitionFiles] which were found by searching the [analysisRoot] directory. By convention, the
      * [definitionFiles] must be absolute.
      */
-    open fun resolveDependencies(definitionFiles: List<File>): ResolutionResult {
+    open fun resolveDependencies(definitionFiles: List<File>): PackageManagerResult {
         definitionFiles.forEach { definitionFile ->
             requireNotNull(definitionFile.relativeToOrNull(analysisRoot)) {
                 "'$definitionFile' must be an absolute path below '$analysisRoot'."
@@ -230,40 +238,39 @@ abstract class PackageManager(
                 } catch (e: Exception) {
                     e.showStackTrace()
 
+                    val relativePath = definitionFile.relativeTo(analysisRoot).invariantSeparatorsPath
+
                     // In case of Maven we might be able to do better than inferring the name from the path.
                     val id = if (e is ProjectBuildingException && e.projectId?.isEmpty() == false) {
                         Identifier("Maven:${e.projectId}")
                     } else {
-                        val relativePath = definitionFile.absoluteFile.relativeTo(analysisRoot).invariantSeparatorsPath
                         Identifier.EMPTY.copy(type = managerName, name = relativePath)
                     }
 
-                    val errorProject = Project.EMPTY.copy(
+                    val projectWithIssues = Project.EMPTY.copy(
                         id = id,
                         definitionFilePath = VersionControlSystem.getPathInfo(definitionFile).path,
                         vcsProcessed = processProjectVcs(definitionFile.parentFile)
                     )
 
-                    val errors = listOf(
+                    val issues = listOf(
                         createAndLogIssue(
                             source = managerName,
-                            message = "Resolving dependencies for '${definitionFile.name}' failed with: " +
+                            message = "Resolving $managerName dependencies for '$relativePath' failed with: " +
                                     e.collectMessagesAsString()
                         )
                     )
 
-                    result[definitionFile] = listOf(ProjectAnalyzerResult(errorProject, sortedSetOf(), errors))
+                    result[definitionFile] = listOf(ProjectAnalyzerResult(projectWithIssues, sortedSetOf(), issues))
                 }
             }
 
-            log.info {
-                "Resolving $managerName dependencies for '${definitionFile.name}' took ${duration.inSeconds}s."
-            }
+            log.info { "Resolving $managerName dependencies for '$definitionFile' took ${duration.inWholeSeconds}s." }
         }
 
         afterResolution(definitionFiles)
 
-        return result
+        return createPackageManagerResult(result)
     }
 
     /**

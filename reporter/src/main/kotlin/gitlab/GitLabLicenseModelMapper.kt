@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -118,7 +118,7 @@ private fun Identifier.toPackageManagerName(): String =
         "NuGet" -> "nuget"
         "PIP" -> "pip"
         "Yarn" -> "yarn"
-        else -> type.toLowerCase().also {
+        else -> type.lowercase().also {
             log.info { "No mapping defined for package manager '$type', guessing '$it'." }
         }
     }

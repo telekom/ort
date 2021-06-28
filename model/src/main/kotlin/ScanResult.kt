@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -47,22 +47,16 @@ data class ScanResult(
      * Filter all detected licenses and copyrights from the [summary] which are underneath [path], and set the [path]
      * for [provenance]. Findings which [RootLicenseMatcher] assigns as root license files for [path] are also kept.
      */
-    fun filterByPath(path: String): ScanResult {
-        if (path.isBlank()) return this
-
-        val summary = summary.filterByPath(path)
-
-        return if (provenance is RepositoryProvenance) {
-            val vcsProvenance = provenance.copy(
-                vcsInfo = provenance.vcsInfo.copy(path = path),
-                originalVcsInfo = provenance.originalVcsInfo?.copy(path = path)
-            )
-
-            ScanResult(vcsProvenance, scanner, summary)
-        } else {
-            ScanResult(provenance, scanner, summary)
-        }
-    }
+    fun filterByPath(path: String): ScanResult =
+        takeIf { path.isBlank() } ?: ScanResult(
+            provenance = if (provenance is RepositoryProvenance) {
+                provenance.copy(vcsInfo = provenance.vcsInfo.copy(path = path))
+            } else {
+                provenance
+            },
+            scanner = scanner,
+            summary = summary.filterByPath(path),
+        )
 
     /**
      * Return a [ScanResult] whose [summary] contains only findings from the [provenance]'s [VcsInfo.path].

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit
+package org.ossreviewtoolkit.cli
 
 import com.github.ajalt.clikt.core.MutuallyExclusiveGroupException
 import com.github.ajalt.clikt.core.ProgramResult
@@ -25,22 +25,26 @@ import com.github.ajalt.clikt.core.ProgramResult
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.core.test.TestCase
-import io.kotest.core.test.TestResult
-import io.kotest.matchers.nulls.beNull
+import io.kotest.matchers.collections.beEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNot
 
 import java.io.File
 
-import kotlin.io.path.createTempDirectory
-
+import org.ossreviewtoolkit.cli.commands.AdvisorCommand
+import org.ossreviewtoolkit.cli.utils.readOrtResult
 import org.ossreviewtoolkit.downloader.VersionControlSystem
-import org.ossreviewtoolkit.utils.ORT_NAME
+import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.model.OrtResult
+import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.utils.normalizeVcsUrl
 import org.ossreviewtoolkit.utils.redirectStdout
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.test.convertToDependencyGraph
+import org.ossreviewtoolkit.utils.test.createTestTempDir
 import org.ossreviewtoolkit.utils.test.patchActualResult
 import org.ossreviewtoolkit.utils.test.patchExpectedResult
+import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 /**
  * A test for the main entry point of the application.
@@ -54,11 +58,7 @@ class OrtMainFunTest : StringSpec() {
     private lateinit var outputDir: File
 
     override fun beforeTest(testCase: TestCase) {
-        outputDir = createTempDirectory("$ORT_NAME-${javaClass.simpleName}").toFile()
-    }
-
-    override fun afterTest(testCase: TestCase, result: TestResult) {
-        outputDir.safeDeleteRecursively(force = true)
+        outputDir = createTestTempDir()
     }
 
     init {
@@ -115,11 +115,13 @@ class OrtMainFunTest : StringSpec() {
 
         "Analyzer creates correct output" {
             val analyzerOutputDir = outputDir.resolve("merged-results")
-            val expectedResult = patchExpectedResult(
-                projectDir.resolve("gradle-all-dependencies-expected-result.yml"),
-                url = vcsUrl,
-                revision = vcsRevision,
-                urlProcessed = normalizeVcsUrl(vcsUrl)
+            val expectedResult = convertToDependencyGraph(
+                patchExpectedResult(
+                    projectDir.resolve("gradle-all-dependencies-expected-result.yml"),
+                    url = vcsUrl,
+                    revision = vcsRevision,
+                    urlProcessed = normalizeVcsUrl(vcsUrl)
+                )
             )
 
             runMain(
@@ -128,18 +130,22 @@ class OrtMainFunTest : StringSpec() {
                 "-i", projectDir.resolve("gradle").absolutePath,
                 "-o", analyzerOutputDir.path
             )
-            val analyzerResult = analyzerOutputDir.resolve("analyzer-result.yml").readText()
 
-            patchActualResult(analyzerResult, patchStartAndEndTime = true) shouldBe expectedResult
+            val analyzerResult = analyzerOutputDir.resolve("analyzer-result.yml").readValue<OrtResult>()
+            val resolvedResult = analyzerResult.withResolvedScopes()
+
+            patchActualResult(resolvedResult, patchStartAndEndTime = true) shouldBe expectedResult
         }
 
         "Package curation data file is applied correctly" {
             val analyzerOutputDir = outputDir.resolve("curations")
-            val expectedResult = patchExpectedResult(
-                projectDir.resolve("gradle-all-dependencies-expected-result-with-curations.yml"),
-                url = vcsUrl,
-                revision = vcsRevision,
-                urlProcessed = normalizeVcsUrl(vcsUrl)
+            val expectedResult = convertToDependencyGraph(
+                patchExpectedResult(
+                    projectDir.resolve("gradle-all-dependencies-expected-result-with-curations.yml"),
+                    url = vcsUrl,
+                    revision = vcsRevision,
+                    urlProcessed = normalizeVcsUrl(vcsUrl)
+                )
             )
 
             runMain(
@@ -149,9 +155,11 @@ class OrtMainFunTest : StringSpec() {
                 "-o", analyzerOutputDir.path,
                 "--package-curations-file", projectDir.resolve("gradle/curations.yml").toString()
             )
-            val analyzerResult = analyzerOutputDir.resolve("analyzer-result.yml").readText()
 
-            patchActualResult(analyzerResult, patchStartAndEndTime = true) shouldBe expectedResult
+            val analyzerResult = analyzerOutputDir.resolve("analyzer-result.yml").readValue<OrtResult>()
+            val resolvedResult = analyzerResult.withResolvedScopes()
+
+            patchActualResult(resolvedResult, patchStartAndEndTime = true) shouldBe expectedResult
         }
 
         "Passing mutually exclusive evaluator options fails" {
@@ -165,11 +173,21 @@ class OrtMainFunTest : StringSpec() {
             }
         }
 
-        "Requirements are listed correctly" {
-            val stdout = runMain("requirements")
-            val errorLogs = stdout.find { it.contains(" ERROR ") }
+        "Commands load OrtResults with resolved scopes" {
+            val cmd = AdvisorCommand()
+            val resultFile = File("src/funTest/assets/analyzer-result-with-dependency-graph.yml")
 
-            errorLogs should beNull()
+            val result = cmd.readOrtResult(resultFile)
+
+            result.analyzer?.result shouldNotBeNull {
+                dependencyGraphs.keys should beEmpty()
+            }
+
+            val project = result.getProject(Identifier("Maven:com.vdurmont:semver4j:3.1.0"))
+
+            project shouldNotBeNull {
+                scopes shouldNot beEmpty()
+            }
         }
     }
 

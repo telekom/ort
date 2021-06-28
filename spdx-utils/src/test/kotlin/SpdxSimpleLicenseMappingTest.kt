@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -76,12 +76,12 @@ class SpdxSimpleLicenseMappingTest : WordSpec({
 
         "be case-insensitive" {
             SpdxSimpleLicenseMapping.customLicenseIds.asSequence().forAll { (key, license) ->
-                SpdxSimpleLicenseMapping.map(key.toLowerCase(), mapDeprecated = false) shouldBe license
-                SpdxSimpleLicenseMapping.map(key.toUpperCase(), mapDeprecated = false) shouldBe license
-                SpdxSimpleLicenseMapping.map(key.toLowerCase().capitalize(), mapDeprecated = false) shouldBe license
-                SpdxSimpleLicenseMapping.map(key.toLowerCase(), mapDeprecated = true) shouldBe license
-                SpdxSimpleLicenseMapping.map(key.toUpperCase(), mapDeprecated = true) shouldBe license
-                SpdxSimpleLicenseMapping.map(key.toLowerCase().capitalize(), mapDeprecated = true) shouldBe license
+                SpdxSimpleLicenseMapping.map(key.lowercase(), mapDeprecated = false) shouldBe license
+                SpdxSimpleLicenseMapping.map(key.uppercase(), mapDeprecated = false) shouldBe license
+                SpdxSimpleLicenseMapping.map(key.titlecase(), mapDeprecated = false) shouldBe license
+                SpdxSimpleLicenseMapping.map(key.lowercase(), mapDeprecated = true) shouldBe license
+                SpdxSimpleLicenseMapping.map(key.uppercase(), mapDeprecated = true) shouldBe license
+                SpdxSimpleLicenseMapping.map(key.titlecase(), mapDeprecated = true) shouldBe license
             }
         }
     }

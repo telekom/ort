@@ -1,6 +1,7 @@
-# syntax = docker/dockerfile:experimental
+# syntax=docker/dockerfile:1.2
 
 # Copyright (C) 2020 Bosch Software Innovations GmbH
+# Copyright (C) 2021 Alliander N.V.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -67,17 +68,16 @@ ENV \
     GOPATH=$HOME/go
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    PATH="$PATH:$HOME/.local/bin:$GOPATH/bin:/opt/go/bin"
+    PATH="$PATH:$HOME/.local/bin:$GOPATH/bin:/opt/go/bin:$GEM_PATH/bin"
 
 # Apt install commands.
 RUN --mount=type=cache,target=/var/cache/apt --mount=type=cache,target=/var/lib/apt \
     apt-get update && \
     apt-get install -y --no-install-recommends gnupg software-properties-common && \
-    echo 'Acquire::https::dl.bintray.com::Verify-Peer "false";' | tee -a /etc/apt/apt.conf.d/00sbt && \
-    echo "deb https://dl.bintray.com/sbt/debian /" | tee -a /etc/apt/sources.list.d/sbt.list && \
+    echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee -a /etc/apt/sources.list.d/sbt.list && \
     curl -ksS "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | apt-key adv --import - && \
     curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
-    add-apt-repository ppa:git-core/ppa && \
+    add-apt-repository -y ppa:git-core/ppa && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         # Install general tools required by this Dockerfile.
@@ -110,6 +110,7 @@ RUN --mount=type=cache,target=/var/cache/apt --mount=type=cache,target=/var/lib/
         python3-dev \
         python3-pip \
         python3-setuptools \
+        ruby-dev \
         sbt=$SBT_VERSION \
     && \
     rm -rf /var/lib/apt/lists/*
@@ -149,6 +150,14 @@ RUN /opt/ort/bin/import_proxy_certs.sh && \
         SDK_MANAGER_PROXY_OPTIONS="--proxy=http --proxy_host=${PROXY_HOST_AND_PORT%:*} --proxy_port=${PROXY_HOST_AND_PORT##*:}"; \
     fi && \
     yes | $ANDROID_HOME/cmdline-tools/bin/sdkmanager $SDK_MANAGER_PROXY_OPTIONS --sdk_root=$ANDROID_HOME "platform-tools" && \
+    # Install 'CocoaPods'. As https://github.com/CocoaPods/CocoaPods/pull/10609 is needed but not yet released.
+    curl -ksSL https://github.com/CocoaPods/CocoaPods/archive/9461b346aeb8cba6df71fd4e71661688138ec21b.tar.gz | \
+          tar -zxC . && \
+          cd CocoaPods-9461b346aeb8cba6df71fd4e71661688138ec21b && \
+          gem build cocoapods.gemspec && \
+          gem install cocoapods-1.10.1.gem && \
+          cd .. && \
+          rm -rf CocoaPods-9461b346aeb8cba6df71fd4e71661688138ec21b && \
     # Add scanners (in versions known to work).
     curl -ksSL https://github.com/nexB/scancode-toolkit/archive/v$SCANCODE_VERSION.tar.gz | \
         tar -zxC /usr/local && \

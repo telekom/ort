@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +33,7 @@ import org.ossreviewtoolkit.utils.CommandLineTool
 import org.ossreviewtoolkit.utils.collectMessagesAsString
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.showStackTrace
+import org.ossreviewtoolkit.utils.uppercaseFirstChar
 
 abstract class VersionControlSystem {
     companion object {
@@ -137,7 +138,7 @@ abstract class VersionControlSystem {
             LicenseFilenamePatterns.getInstance().allLicenseFilenames.generateCapitalizationVariants().map { "**/$it" }
 
         private fun Collection<String>.generateCapitalizationVariants() =
-            flatMap { listOf(it, it.toUpperCase(), it.capitalize()) }
+            flatMap { listOf(it, it.uppercase(), it.uppercaseFirstChar()) }
     }
 
     /**
@@ -220,7 +221,9 @@ abstract class VersionControlSystem {
         // revision candidates instead of a single revision.
         val revisionCandidates = mutableSetOf<String>()
 
-        try {
+        val emptyRevisionCandidatesException = DownloadException("Unable to determine a revision to checkout.")
+
+        runCatching {
             pkg.vcsProcessed.revision.also {
                 if (it.isNotBlank() && (allowMovingRevisions || isFixedRevision(workingTree, it))) {
                     if (revisionCandidates.add(it)) {
@@ -230,16 +233,18 @@ abstract class VersionControlSystem {
                     }
                 }
             }
-        } catch (e: IOException) {
-            e.showStackTrace()
+        }.onFailure {
+            it.showStackTrace()
 
             log.info {
-                "Meta-data has invalid $type revision '${pkg.vcsProcessed.revision}': ${e.collectMessagesAsString()}"
+                "Meta-data has invalid $type revision '${pkg.vcsProcessed.revision}': ${it.collectMessagesAsString()}"
             }
+
+            emptyRevisionCandidatesException.addSuppressed(it)
         }
 
         fun addGuessedRevision(project: String, version: String): Boolean =
-            try {
+            runCatching {
                 workingTree.guessRevisionName(project, version).also {
                     if (revisionCandidates.add(it)) {
                         log.info {
@@ -248,34 +253,48 @@ abstract class VersionControlSystem {
                         }
                     }
                 }
-
-                true
-            } catch (e: IOException) {
-                e.showStackTrace()
+            }.onFailure {
+                it.showStackTrace()
 
                 log.info {
                     "No $type revision for package '$project' and version '$version' found: " +
-                            e.collectMessagesAsString()
+                            it.collectMessagesAsString()
                 }
 
-                false
+                emptyRevisionCandidatesException.addSuppressed(it)
+            }.isSuccess
+
+        if (!addGuessedRevision(pkg.id.name, pkg.id.version)) {
+            when {
+                pkg.id.type == "NPM" && pkg.id.namespace.isNotEmpty() -> {
+                    // Fallback for Lerna workspaces when scoped packages combined with independent versioning are used,
+                    // e.g. support Git tag of the format "@organisation/my-component@x.x.x".
+                    addGuessedRevision("${pkg.id.namespace}/${pkg.id.name}", pkg.id.version)
+                }
+
+                pkg.id.type == "GoMod" && pkg.vcsProcessed.path.isNotEmpty() -> {
+                    // Fallback for GoMod packages from mono repos which use the tag format described in
+                    // https://golang.org/ref/mod#vcs-version.
+                    val tag = "${pkg.vcsProcessed.path}/${pkg.id.version}"
+
+                    if (tag in workingTree.listRemoteTags()) revisionCandidates += tag
+                }
             }
-
-        if (!addGuessedRevision(pkg.id.name, pkg.id.version) && pkg.id.type == "NPM" && pkg.id.namespace.isNotEmpty()) {
-            // Fallback for Lerna workspaces when scoped packages combined with independent versioning are used, e.g.
-            // support Git tag of the format "@organisation/my-component@x.x.x".
-            addGuessedRevision("${pkg.id.namespace}/${pkg.id.name}", pkg.id.version)
         }
 
-        if (revisionCandidates.isEmpty()) {
-            throw DownloadException("Unable to determine a revision to checkout.")
+        if (revisionCandidates.isEmpty()) throw emptyRevisionCandidatesException
+
+        val results = mutableListOf<Result<String>>()
+
+        revisionCandidates.forEachIndexed { index, revision ->
+            log.info { "Trying revision candidate '$revision' (${index + 1} of ${revisionCandidates.size})..." }
+            results += updateWorkingTree(workingTree, revision, pkg.vcsProcessed.path, recursive)
+            if (results.last().isSuccess) return@forEachIndexed
         }
 
-        var i = 0
-        val workingTreeRevision = revisionCandidates.find { revision ->
-            log.info { "Trying revision candidate '$revision' (${++i} of ${revisionCandidates.size})..." }
-            updateWorkingTree(workingTree, revision, pkg.vcsProcessed.path, recursive)
-        } ?: throw DownloadException("$type failed to download from URL '${pkg.vcsProcessed.url}'.")
+        val workingTreeRevision = results.last().getOrElse {
+            throw DownloadException("$type failed to download from URL '${pkg.vcsProcessed.url}'.", it)
+        }
 
         pkg.vcsProcessed.path.let {
             if (it.isNotBlank() && !workingTree.workingDir.resolve(it).exists()) {
@@ -302,15 +321,15 @@ abstract class VersionControlSystem {
 
     /**
      * Update the [working tree][workingTree] by checking out the given [revision], optionally limited to the given
-     * [path] and [recursively][recursive] updating any nested working trees. Return true on success and false
-     * otherwise.
+     * [path] and [recursively][recursive] updating any nested working trees. Return a [Result] that encapsulates the
+     * originally requested [revision] on success, or the occurred exception on failure.
      */
     abstract fun updateWorkingTree(
         workingTree: WorkingTree,
         revision: String,
         path: String = "",
         recursive: Boolean = false
-    ): Boolean
+    ): Result<String>
 
     /**
      * Check whether the given [revision] is likely to name a fixed revision that does not move.

@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,7 +26,6 @@ import java.nio.file.Paths
 
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.hasRevisionFragment
 import org.ossreviewtoolkit.utils.normalizeVcsUrl
 import org.ossreviewtoolkit.utils.toUri
 
@@ -38,7 +37,7 @@ enum class VcsHost(
     /**
      * The hostname of VCS host.
      */
-    private val hostname: String,
+    protected val hostname: String,
 
     /**
      * The VCS types the host supports.
@@ -87,6 +86,9 @@ enum class VcsHost(
                     }
                 }
             }
+
+        override fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
+            "https://$hostname/$userOrOrg/$project/get/${vcsInfo.revision}.tar.gz"
     },
 
     /**
@@ -112,8 +114,6 @@ enum class VcsHost(
                         // Just treat all the extra components as a path.
                         path = (sequenceOf(extra) + pathIterator.asSequence()).joinToString("/")
                     }
-                } else {
-                    if (projectUrl.hasRevisionFragment()) revision = projectUrl.fragment
                 }
 
                 VcsInfo(VcsType.GIT, baseUrl, revision, path = path)
@@ -121,6 +121,9 @@ enum class VcsHost(
 
         override fun toPermalinkInternal(vcsInfo: VcsInfo, startLine: Int, endLine: Int) =
             toGitPermalink(URI(vcsInfo.url), vcsInfo.revision, vcsInfo.path, startLine, endLine, "#L", "-L")
+
+        override fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
+            "https://$hostname/$userOrOrg/$project/archive/${vcsInfo.revision}.tar.gz"
     },
 
     /**
@@ -152,8 +155,6 @@ enum class VcsHost(
                         // Just treat all the extra components as a path.
                         path = (sequenceOf(extra) + pathIterator.asSequence()).joinToString("/")
                     }
-                } else {
-                    if (projectUrl.hasRevisionFragment()) revision = projectUrl.fragment
                 }
 
                 VcsInfo(VcsType.GIT, baseUrl, revision, path = path)
@@ -161,6 +162,9 @@ enum class VcsHost(
 
         override fun toPermalinkInternal(vcsInfo: VcsInfo, startLine: Int, endLine: Int) =
             toGitPermalink(URI(vcsInfo.url), vcsInfo.revision, vcsInfo.path, startLine, endLine, "#L", "-")
+
+        override fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
+            "https://$hostname/$userOrOrg/$project/-/archive/${vcsInfo.revision}/$project-${vcsInfo.revision}.tar.gz"
     },
 
     SOURCEHUT("sr.ht", VcsType.GIT, VcsType.MERCURIAL) {
@@ -235,6 +239,10 @@ enum class VcsHost(
 
                 else -> ""
             }
+
+        override fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
+            "https://${vcsInfo.type.toString().lowercase()}.$hostname/~$userOrOrg/$project/archive/" +
+                    "${vcsInfo.revision}.tar.gz"
     };
 
     companion object {
@@ -243,53 +251,87 @@ enum class VcsHost(
         private val GIT_REVISION_FRAGMENT = Regex("git.+#[a-fA-F0-9]{7,}")
 
         /**
+         * Return the [VcsHost] for a [vcsUrl].
+         */
+        fun toVcsHost(vcsUrl: URI): VcsHost? = values().find { host -> host.isApplicable(vcsUrl) }
+
+        /**
          * Return all [VcsInfo] that can be parsed from [projectUrl] without actually making a network request.
          */
         fun toVcsInfo(projectUrl: String): VcsInfo {
-            val vcs = projectUrl.toUri { toVcsHost(it)?.toVcsInfoInternal(it) }.getOrNull()
-            if (vcs != null) return vcs
+            val vcsInfoFromHost = projectUrl.toUri { toVcsHost(it)?.toVcsInfoInternal(it) }.getOrNull()
 
             // Fall back to generic URL detection for unknown VCS hosts.
             val svnBranchOrTagMatch = SVN_BRANCH_OR_TAG_PATTERN.matchEntire(projectUrl)
             val svnTrunkMatch = SVN_TRUNK_PATTERN.matchEntire(projectUrl)
 
-            return when {
-                svnBranchOrTagMatch != null -> {
-                    VcsInfo(
-                        type = VcsType.SUBVERSION,
-                        url = svnBranchOrTagMatch.groupValues[1],
-                        revision = "${svnBranchOrTagMatch.groupValues[2]}/${svnBranchOrTagMatch.groupValues[3]}",
-                        path = svnBranchOrTagMatch.groupValues[4]
-                    )
-                }
+            val vcsInfoFromUrl = when {
+                svnBranchOrTagMatch != null -> VcsInfo(
+                    type = VcsType.SUBVERSION,
+                    url = svnBranchOrTagMatch.groupValues[1],
+                    revision = "${svnBranchOrTagMatch.groupValues[2]}/${svnBranchOrTagMatch.groupValues[3]}",
+                    path = svnBranchOrTagMatch.groupValues[4]
+                )
 
-                svnTrunkMatch != null -> {
-                    VcsInfo(
-                        type = VcsType.SUBVERSION,
-                        url = svnTrunkMatch.groupValues[1],
-                        revision = svnTrunkMatch.groupValues[2],
-                        path = svnTrunkMatch.groupValues[3]
-                    )
-                }
+                svnTrunkMatch != null -> VcsInfo(
+                    type = VcsType.SUBVERSION,
+                    url = svnTrunkMatch.groupValues[1],
+                    revision = svnTrunkMatch.groupValues[2],
+                    path = svnTrunkMatch.groupValues[3]
+                )
 
-                projectUrl.endsWith(".git") -> {
-                    VcsInfo(VcsType.GIT, normalizeVcsUrl(projectUrl), "", null, "")
-                }
+                projectUrl.endsWith(".git") -> VcsInfo(
+                    type = VcsType.GIT,
+                    url = normalizeVcsUrl(projectUrl),
+                    revision = ""
+                )
 
                 projectUrl.contains(".git/") -> {
                     val url = normalizeVcsUrl(projectUrl.substringBefore(".git/"))
                     val path = projectUrl.substringAfter(".git/")
-                    VcsInfo(VcsType.GIT, "$url.git", "", null, path)
+
+                    VcsInfo(
+                        type = VcsType.GIT,
+                        url = "$url.git",
+                        revision = "",
+                        path = path
+                    )
                 }
 
                 projectUrl.contains(".git#") || GIT_REVISION_FRAGMENT.matches(projectUrl) -> {
                     val url = normalizeVcsUrl(projectUrl.substringBeforeLast('#'))
                     val revision = projectUrl.substringAfterLast('#')
-                    VcsInfo(VcsType.GIT, url, revision, null, "")
+
+                    VcsInfo(
+                        type = VcsType.GIT,
+                        url = url,
+                        revision = revision,
+                    )
                 }
 
-                else -> VcsInfo(VcsType.UNKNOWN, projectUrl, "")
+                else -> VcsInfo(
+                    type = VcsType.UNKNOWN,
+                    url = projectUrl,
+                    revision = ""
+                )
             }
+
+            return vcsInfoFromHost?.merge(vcsInfoFromUrl) ?: vcsInfoFromUrl
+        }
+
+        /**
+         * Return the download URL to an archive generated for the referenced [vcsInfo], or null if no download URL can
+         * be determined.
+         */
+        fun toArchiveDownloadUrl(vcsInfo: VcsInfo): String? {
+            val normalizedVcsInfo = vcsInfo.normalize()
+            val host = values().find { it.isApplicable(normalizedVcsInfo) } ?: return null
+
+            return normalizedVcsInfo.url.toUri {
+                val userOrOrg = host.getUserOrOrgInternal(it) ?: return@toUri null
+                val project = host.getProjectInternal(it) ?: return@toUri null
+                host.toArchiveDownloadUrlInternal(userOrOrg, project, normalizedVcsInfo)
+            }.getOrNull()
         }
 
         /**
@@ -301,11 +343,6 @@ enum class VcsHost(
             return values().find { host -> host.isApplicable(vcsInfo) }
                 ?.toPermalinkInternal(vcsInfo.normalize(), startLine, endLine)
         }
-
-        /**
-         * Return the [VcsHost] for a [vcsUrl].
-         */
-        fun toVcsHost(vcsUrl: URI): VcsHost? = values().find { host -> host.isApplicable(vcsUrl) }
     }
 
     private val supportedTypes = supportedTypes.asList()
@@ -350,6 +387,23 @@ enum class VcsHost(
     protected abstract fun toVcsInfoInternal(projectUrl: URI): VcsInfo
 
     /**
+     * Return the download URL to an archive generated for the referenced [vcsInfo], or null if no download URL can be
+     * determined.
+     */
+    fun toArchiveDownloadUrl(vcsInfo: VcsInfo): String? {
+        val normalizedVcsInfo = vcsInfo.normalize()
+        if (!isApplicable(normalizedVcsInfo)) return null
+
+        return normalizedVcsInfo.url.toUri {
+            val userOrOrg = getUserOrOrgInternal(it) ?: return@toUri null
+            val project = getProjectInternal(it) ?: return@toUri null
+            toArchiveDownloadUrlInternal(userOrOrg, project, normalizedVcsInfo)
+        }.getOrNull()
+    }
+
+    abstract fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo): String
+
+    /**
      * Return the host-specific permanent link to browse the code location described by [vcsInfo] with optional
      * highlighting of [startLine] to [endLine].
      */
@@ -376,7 +430,7 @@ private fun projectUrlToUserOrOrgAndProject(projectUrl: URI): Pair<String, Strin
 
         if (pathIterator.hasNext()) {
             val project = pathIterator.next()
-            return Pair(userOrOrg.toString(), project.toString())
+            return Pair(userOrOrg.toString(), project.toString().removeSuffix(".git"))
         }
     }
 

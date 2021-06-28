@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -70,7 +70,7 @@ class PubFunTest : WordSpec() {
                 }
             }
 
-            "Resolve dependencies for a project with flutter correctly" {
+            "resolve dependencies for a project with flutter correctly" {
                 val workingDir = projectsDir.resolve("project-with-flutter")
                 val packageFile = workingDir.resolve("pubspec.yaml")
                 val expectedResultFile = projectsDir.parentFile.resolve("pub-expected-output-project-with-flutter.yml")
@@ -89,7 +89,7 @@ class PubFunTest : WordSpec() {
                 patchActualResult(result.toYaml()) shouldBe expectedResult
             }
 
-            "Resolve dependencies for a project with dependencies without a static version" {
+            "resolve dependencies for a project with dependencies without a static version" {
                 val workingDir = projectsDir.resolve("any-version")
                 val packageFile = workingDir.resolve("pubspec.yaml")
                 val expectedResultFile = projectsDir.parentFile.resolve("pub-expected-output-any-version.yml")
@@ -108,7 +108,7 @@ class PubFunTest : WordSpec() {
                 result.toYaml() shouldBe expectedResult
             }
 
-            "Error is shown when no lockfile is present" {
+            "show an error if no lockfile is present" {
                 val workingDir = projectsDir.resolve("no-lockfile")
                 val packageFile = workingDir.resolve("pubspec.yaml")
 

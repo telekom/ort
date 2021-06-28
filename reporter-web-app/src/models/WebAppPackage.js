@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -201,9 +201,11 @@ class WebAppPackage {
             }
 
             if (obj.findings && webAppOrtResult) {
-                for (let i = 0, len = obj.findings.length; i < len; i++) {
-                    this.#findings.push(new WebAppFinding(obj.findings[i], webAppOrtResult));
-                }
+                setTimeout(() => {
+                    for (let i = 0, len = obj.findings.length; i < len; i++) {
+                        this.#findings.push(new WebAppFinding(obj.findings[i], webAppOrtResult));
+                    }
+                }, 0);
             }
 
             if (obj.is_project || obj.isProject) {

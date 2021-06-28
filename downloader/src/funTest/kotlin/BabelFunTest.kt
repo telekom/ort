@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,13 +21,10 @@ package org.ossreviewtoolkit.downloader
 
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.core.test.TestCase
-import io.kotest.core.test.TestResult
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeTypeOf
 
 import java.io.File
-
-import kotlin.io.path.createTempDirectory
 
 import org.ossreviewtoolkit.model.Hash
 import org.ossreviewtoolkit.model.Identifier
@@ -37,20 +34,15 @@ import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
-import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.normalizeVcsUrl
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.test.createTestTempDir
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class BabelFunTest : StringSpec() {
     private lateinit var outputDir: File
 
     override fun beforeTest(testCase: TestCase) {
-        outputDir = createTempDirectory("$ORT_NAME-${javaClass.simpleName}").toFile()
-    }
-
-    override fun afterTest(testCase: TestCase, result: TestResult) {
-        outputDir.safeDeleteRecursively(force = true)
+        outputDir = createTestTempDir()
     }
 
     init {
@@ -90,8 +82,8 @@ class BabelFunTest : StringSpec() {
                 vcsInfo.type shouldBe pkg.vcsProcessed.type
                 vcsInfo.url shouldBe pkg.vcsProcessed.url
                 vcsInfo.revision shouldBe "master"
-                vcsInfo.resolvedRevision shouldBe "cee4cde53e4f452d89229986b9368ecdb41e00da"
                 vcsInfo.path shouldBe pkg.vcsProcessed.path
+                resolvedRevision shouldBe "cee4cde53e4f452d89229986b9368ecdb41e00da"
             }
 
             workingTree shouldNotBeNull {

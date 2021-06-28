@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.commands
+package org.ossreviewtoolkit.cli.commands
 
 import com.github.ajalt.clikt.core.BadParameterValue
 import com.github.ajalt.clikt.core.CliktCommand
@@ -37,14 +37,16 @@ import com.github.ajalt.clikt.parameters.options.split
 import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.file
 
-import kotlin.time.measureTime
-
-import org.ossreviewtoolkit.GlobalOptions
+import org.ossreviewtoolkit.cli.GlobalOptions
+import org.ossreviewtoolkit.cli.concludeSeverityStats
+import org.ossreviewtoolkit.cli.utils.OPTION_GROUP_INPUT
+import org.ossreviewtoolkit.cli.utils.outputGroup
+import org.ossreviewtoolkit.cli.utils.readOrtResult
+import org.ossreviewtoolkit.cli.utils.writeOrtResult
 import org.ossreviewtoolkit.model.FileFormat
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.model.utils.mergeLabels
-import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.scanner.LocalScanner
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
 import org.ossreviewtoolkit.scanner.Scanner
@@ -52,9 +54,6 @@ import org.ossreviewtoolkit.scanner.scanners.scancode.ScanCode
 import org.ossreviewtoolkit.scanner.storages.FileBasedStorage
 import org.ossreviewtoolkit.scanner.storages.SCAN_RESULTS_FILE_NAME
 import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.formatSizeInMib
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.perf
 import org.ossreviewtoolkit.utils.safeMkdirs
 import org.ossreviewtoolkit.utils.storage.LocalFileStorage
 
@@ -78,7 +77,7 @@ class ScannerCommand : CliktCommand(name = "scan", help = "Run external license 
 
     private val outputDir by option(
         "--output-dir", "-o",
-        help = "The directory to write the scan results as ORT result file(s) to, in the specified output format(s)."
+        help = "The directory to write the ORT result file with scan results to."
     ).convert { it.expandTilde() }
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
@@ -90,19 +89,10 @@ class ScannerCommand : CliktCommand(name = "scan", help = "Run external license 
         help = "The list of output formats to be used for the ORT result file(s)."
     ).enum<FileFormat>().split(",").default(listOf(FileFormat.YAML)).outputGroup()
 
-    private val downloadDir by option(
-        "--download-dir",
-        help = "The output directory for downloaded source code. (default: <output-dir>/downloads)"
-    ).convert { it.expandTilde() }
-        .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
-        .convert { it.absoluteFile.normalize() }
-        .outputGroup()
-
     private val labels by option(
         "--label", "-l",
-        help = "Add a label to the ORT result. Can be used multiple times. If an ORT result is used as input for the" +
-                "scanner, any existing label with the same key is overwritten. For example: " +
-                "--label distribution=external"
+        help = "Set a label in the ORT result, overwriting any existing label of the same name. Can be used multiple " +
+                "times. For example: --label distribution=external"
     ).associate()
 
     private val scannerFactory by option(
@@ -165,20 +155,12 @@ class ScannerCommand : CliktCommand(name = "scan", help = "Run external license 
             }
         }
 
-        require(downloadDir?.exists() != true) {
-            "The download directory '$downloadDir' must not exist yet."
-        }
-
         val config = globalOptionsForSubcommands.config
         val scanner = configureScanner(config.scanner, config.downloader)
 
         val ortResult = if (input.isFile) {
-            scanner.scanOrtResult(
-                ortFile = input,
-                outputDirectory = nativeOutputDir,
-                downloadDirectory = downloadDir ?: outputDir.resolve("downloads"),
-                skipExcluded = skipExcluded
-            )
+            val ortResult = readOrtResult(input)
+            scanner.scanOrtResult(ortResult, nativeOutputDir, skipExcluded)
         } else {
             require(scanner is LocalScanner) {
                 "To scan local files the chosen scanner must be a local scanner."
@@ -191,15 +173,7 @@ class ScannerCommand : CliktCommand(name = "scan", help = "Run external license 
         }.mergeLabels(labels)
 
         outputDir.safeMkdirs()
-
-        outputFiles.forEach { file ->
-            println("Writing scan result to '$file'.")
-            val duration = measureTime { file.writeValue(ortResult) }
-
-            log.perf {
-                "Wrote ORT result to '${file.name}' (${file.formatSizeInMib}) in ${duration.inMilliseconds}ms."
-            }
-        }
+        writeOrtResult(ortResult, outputFiles, "scan")
 
         val scanResults = ortResult.scanner?.results
 
@@ -208,9 +182,7 @@ class ScannerCommand : CliktCommand(name = "scan", help = "Run external license 
             throw ProgramResult(1)
         }
 
-        if (scanResults.hasIssues) {
-            println("The scan result contains issues.")
-            throw ProgramResult(2)
-        }
+        val counts = scanResults.collectIssues().flatMap { it.value }.groupingBy { it.severity }.eachCount()
+        concludeSeverityStats(counts, config.severeIssueThreshold, 2)
     }
 }

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,8 +24,6 @@ import java.lang.IllegalArgumentException
 import java.time.Instant
 import java.util.ServiceLoader
 
-import kotlin.time.measureTimedValue
-
 import kotlinx.coroutines.runBlocking
 
 import org.ossreviewtoolkit.downloader.consolidateProjectPackagesByVcs
@@ -37,13 +35,10 @@ import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.ScannerRun
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
-import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.model.config.ScannerOptions
 import org.ossreviewtoolkit.model.utils.filterByProject
-import org.ossreviewtoolkit.spdx.SpdxLicense
 import org.ossreviewtoolkit.utils.Environment
-import org.ossreviewtoolkit.utils.formatSizeInMib
 import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.perf
 
 const val TOOL_NAME = "scanner"
 
@@ -66,52 +61,16 @@ abstract class Scanner(
     }
 
     /**
-     * Scan the [packages] and store the scan results in [outputDirectory]. The [downloadDirectory] is used to download
-     * the source code to for scanning. [ScanResult]s are returned associated by the [Package]. The map may contain
-     * multiple results for the same [Package] if the storage contains more than one result for the specification of
-     * this scanner.
+     * Scan the [Project]s and [Package]s specified in [ortResult] and store the scan results in [outputDirectory].
+     * Return scan results as an [OrtResult].
      */
-    protected abstract suspend fun scanPackages(
-        packages: Collection<Package>,
-        outputDirectory: File,
-        downloadDirectory: File
-    ): Map<Package, List<ScanResult>>
-
-    /**
-     * Filter the options specific to this scanner that will be included into the result, e.g. to perform obfuscation of
-     * credentials.
-     */
-    protected open fun filterOptionsForResult(options: Map<String, String>) = options
-
-    /**
-     * Return the scanner-specific SPDX idstring for the given [license].
-     */
-    fun getSpdxLicenseIdString(license: String) =
-        SpdxLicense.forId(license)?.id ?: "LicenseRef-$scannerName-$license"
-
-    /**
-     * Scan the [Project]s and [Package]s specified in [ortFile] and store the scan results in [outputDirectory].
-     * The [downloadDirectory] is used to download the source code to for scanning. Return scan results as an
-     * [OrtResult].
-     */
-    fun scanOrtResult(
-        ortFile: File,
-        outputDirectory: File,
-        downloadDirectory: File,
-        skipExcluded: Boolean = false
-    ): OrtResult {
+    fun scanOrtResult(ortResult: OrtResult, outputDirectory: File, skipExcluded: Boolean = false): OrtResult {
         val startTime = Instant.now()
-
-        val (ortResult, duration) = measureTimedValue { ortFile.readValue<OrtResult>() }
-
-        log.perf {
-            "Read ORT result from '${ortFile.name}' (${ortFile.formatSizeInMib}) in ${duration.inMilliseconds}ms."
-        }
 
         if (ortResult.analyzer == null) {
             log.warn {
-                "Cannot run the scanner as the provided ORT result file '${ortFile.canonicalPath}' does not contain " +
-                        "an analyzer result. No result will be added."
+                "Cannot run the scanner as the provided ORT result does not contain an analyzer result. " +
+                        "No result will be added."
             }
 
             return ortResult
@@ -141,7 +100,7 @@ abstract class Scanner(
         }
 
         val scanResults = runBlocking {
-            scanPackages(packagesToScan, outputDirectory, downloadDirectory).mapKeys { it.key.id }
+            scanPackages(packagesToScan, outputDirectory).mapKeys { it.key.id }
         }.toSortedMap()
 
         // Add scan results from de-duplicated project packages to result.
@@ -178,4 +137,20 @@ abstract class Scanner(
         // Note: This overwrites any existing ScannerRun from the input file.
         return ortResult.copy(scanner = scannerRun)
     }
+
+    /**
+     * Scan the [packages] and store the scan results in [outputDirectory]. [ScanResult]s are returned associated by
+     * [Package]. The map may contain multiple results for the same [Package] if the storage contains more than one
+     * result for the specification of this scanner.
+     */
+    protected abstract suspend fun scanPackages(
+        packages: Collection<Package>,
+        outputDirectory: File
+    ): Map<Package, List<ScanResult>>
+
+    /**
+     * Filter the options specific to this scanner that will be included into the result, e.g. to perform obfuscation of
+     * credentials.
+     */
+    protected open fun filterOptionsForResult(options: ScannerOptions) = options
 }

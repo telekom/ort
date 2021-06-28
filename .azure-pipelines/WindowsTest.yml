@@ -1,6 +1,7 @@
 jobs:
 - job: WindowsTest
   pool:
+    # See https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md.
     vmImage: windows-2019
   steps:
   - task: UsePythonVersion@0
@@ -26,9 +27,9 @@ jobs:
   # Gradle build cache, see: https://docs.microsoft.com/en-us/azure/devops/pipelines/release/caching?view=azure-devops
   - task: Cache@2
     inputs:
-      key: '"$(Agent.OS)" | test | gradle-caches | gradle.properties, settings.gradle.kts, **/build.gradle.kts'
+      key: '"$(Agent.OS)" | test | gradle-caches | v1 | gradle.properties, settings.gradle.kts, **/build.gradle.kts'
       restoreKeys: |
-        "$(Agent.OS)" | test | gradle-caches
+        "$(Agent.OS)" | test | gradle-caches | v1
       path: $(GRADLE_USER_HOME)/caches
     displayName: Cache Gradle Caches
 
@@ -58,21 +59,6 @@ jobs:
         "$(Agent.OS)" | test | ort-data
       path: $(ORT_DATA_DIR)
     displayName: Cache ORT Data Dir
-
-  # Check requirements.
-  # Enable this task to check installed requirements, e.g. after upgrading the required version of a system
-  # dependency.
-  - task: Gradle@2
-    displayName: Check Requirements
-    continueOnError: true
-    enabled: false # TODO: Make this a Pipeline parameter to be able to activate it in the UI.
-    inputs:
-      gradleWrapperFile: gradlew.bat
-      options: --no-daemon -x reporter-web-app:yarnBuild
-      tasks: 'cli:run --args="requirements"'
-      javaHomeOption: JDKVersion
-      jdkVersionOption: 1.11
-      gradleOptions: -Xmx4096m
 
   # Build and test.
   - task: Gradle@2

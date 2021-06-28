@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -42,15 +42,13 @@ import org.ossreviewtoolkit.reporter.utils.ReportTableModel.ResolvableViolation
 import org.ossreviewtoolkit.reporter.utils.ReportTableModel.SummaryRow
 import org.ossreviewtoolkit.reporter.utils.ReportTableModel.SummaryTable
 
-private val VIOLATION_COMPARATOR = compareBy<ResolvableViolation>(
-    { it.isResolved },
-    { it.violation.severity },
-    { it.violation.rule },
-    { it.violation.pkg },
-    { it.violation.license.toString() },
-    { it.violation.message },
-    { it.resolutionDescription }
-)
+private val VIOLATION_COMPARATOR = compareBy<ResolvableViolation> { it.isResolved }
+    .thenByDescending { it.violation.severity }
+    .thenBy { it.violation.rule }
+    .thenBy { it.violation.pkg }
+    .thenBy { it.violation.license.toString() }
+    .thenBy { it.violation.message }
+    .thenBy { it.resolutionDescription }
 
 private fun Collection<ResolvableIssue>.filterUnresolved() = filter { !it.isResolved }
 
@@ -115,7 +113,7 @@ class ReportTableModelMapper(
         val summaryRows = mutableMapOf<Identifier, SummaryRow>()
 
         val analyzerResult = ortResult.analyzer?.result
-        val analyzerIssuesForPackages = ortResult.getPackages().associateBy({ it.pkg.id }, { it.pkg.collectIssues() })
+        val analyzerIssuesForPackages = ortResult.getPackages().associateBy({ it.pkg.id }, { it.collectIssues() })
         val scanRecord = ortResult.scanner?.results
         val excludes = ortResult.getExcludes()
 
@@ -159,7 +157,7 @@ class ReportTableModelMapper(
                         LicenseView.CONCLUDED_OR_DECLARED_AND_DETECTED,
                         ortResult.getPackageLicenseChoices(id),
                         ortResult.getRepositoryLicenseChoices()
-                    ),
+                    )?.sort(),
                     analyzerIssues = analyzerIssues.map { it.toResolvableIssue() },
                     scanIssues = scanIssues.map { it.toResolvableIssue() }
                 ).also { row ->

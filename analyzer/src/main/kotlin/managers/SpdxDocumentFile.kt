@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,8 @@
 @file:Suppress("TooManyFunctions")
 
 package org.ossreviewtoolkit.analyzer.managers
+
+import com.fasterxml.jackson.module.kotlin.readValue
 
 import java.io.File
 import java.net.URI
@@ -43,14 +45,18 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
+import org.ossreviewtoolkit.model.utils.toPurl
 import org.ossreviewtoolkit.spdx.SpdxConstants
 import org.ossreviewtoolkit.spdx.SpdxExpression
 import org.ossreviewtoolkit.spdx.SpdxModelMapper
 import org.ossreviewtoolkit.spdx.model.SpdxDocument
 import org.ossreviewtoolkit.spdx.model.SpdxExternalDocumentReference
+import org.ossreviewtoolkit.spdx.model.SpdxExternalReference
 import org.ossreviewtoolkit.spdx.model.SpdxPackage
 import org.ossreviewtoolkit.spdx.model.SpdxRelationship
 import org.ossreviewtoolkit.spdx.toSpdx
+import org.ossreviewtoolkit.utils.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.withoutPrefix
 
 private const val DEFAULT_SCOPE_NAME = "default"
@@ -86,115 +92,82 @@ private fun SpdxDocument.isProject(): Boolean = projectPackage() != null
  * defined.
  */
 internal fun SpdxDocument.projectPackage(): SpdxPackage? =
+    // An SpdxDocument that describes a project must have at least 2 packages, one for the project itself, and another
+    // one for at least one dependency package.
     packages.takeIf { it.size > 1 || (it.size == 1 && externalDocumentRefs.isNotEmpty()) }
-        ?.find { it.packageFilename.isEmpty() || it.packageFilename == "." }
+        // The package that describes a project must have an "empty" package filename (as the "filename" is the project
+        // directory itself).
+        ?.singleOrNull { it.packageFilename.isEmpty() || it.packageFilename == "." }
 
 /**
- * Return the organization from an "originator", "supplier", or "annotator" string, or null if no organization is
- * specified.
+ * Get the [SpdxPackage] from the [SpdxExternalDocumentReference] that the [packageId] refers to, where [workingDir] is
+ * used to resolve local relative URIs to files.
  */
-private fun String.extractOrganization(): String? =
-    lineSequence().mapNotNull { line ->
-        line.withoutPrefix(SpdxConstants.ORGANIZATION)
-    }.firstOrNull()
+internal fun SpdxExternalDocumentReference.getSpdxPackage(packageId: String, workingDir: File): SpdxPackage {
+    val externalSpdxDocument = resolveExternalDocumentReference(this, workingDir)
 
-/**
- * Map a "not preset" SPDX value, i.e. NONE or NOASSERTION, to an empty string.
- */
-private fun String.mapNotPresentToEmpty(): String = takeUnless { SpdxConstants.isNotPresent(it) }.orEmpty()
-
-/**
- * Get the [SpdxPackage] for the given [externalDocumentReference], where [workingDir] is used to resolve local
- * relative URIs to files.
- */
-private fun getSpdxPackageForDocumentRef(
-    externalDocumentReference: SpdxExternalDocumentReference,
-    workingDir: File
-): SpdxPackage {
-    val externalSpdxDocument = resolveExternalDocumentReference(externalDocumentReference, workingDir)
-    val spdxDocument = SpdxModelMapper.read<SpdxDocument>(externalSpdxDocument)
-
-    if (spdxDocument.isProject()) {
-        throw IllegalArgumentException("${externalDocumentReference.externalDocumentId} refers to a file that " +
-                "contains more than a single package. This is currently not supported yet.")
+    if (externalSpdxDocument.isProject()) {
+        throw IllegalArgumentException("$externalDocumentId refers to a file that contains more than a single " +
+                "package. This is currently not supported yet.")
     }
 
-    val spdxPackage = spdxDocument.packages.single()
-    return spdxPackage.copy(packageFilename = externalSpdxDocument.parentFile.absolutePath)
-}
+    val spdxPackage = externalSpdxDocument.packages.find { it.spdxId == packageId }
+        ?: throw IllegalArgumentException("$packageId can not be found in external document $externalDocumentId.")
 
-/**
- * Return [File] referred to by [SpdxExternalDocumentReference.spdxDocument].
- */
-private fun resolveExternalDocumentReference(
-    externalDocumentReference: SpdxExternalDocumentReference,
-    workingDir: File
-): File {
-    val uri = runCatching { URI(externalDocumentReference.spdxDocument) }.getOrElse {
-        throw IllegalArgumentException("'${externalDocumentReference.spdxDocument}' identified by " +
-                "${externalDocumentReference.externalDocumentId} is not a valid URI. }")
-    }
-
-    if (uri.scheme.equals("file", ignoreCase = true) || !uri.isAbsolute) {
-        val referencedFile = workingDir.resolve(uri.path)
-        return referencedFile.takeIf { it.isFile }
-            ?: throw IllegalArgumentException("The local file URI '$uri' does not point to an existing file. ")
-    }
-
-    throw IllegalArgumentException("Only URIs to local files are supported for now, but '$uri' is none.")
+    return spdxPackage.copy(packageFilename = workingDir.resolve(URI(spdxDocument).path).parentFile.absolutePath)
 }
 
 /**
  * Return the concluded license to be used in ORT's data model, which expects a not present value to be null instead
  * of NONE or NOASSERTION.
  */
-private fun getConcludedLicense(pkg: SpdxPackage): SpdxExpression? =
-    pkg.licenseConcluded.takeIf { SpdxConstants.isPresent(it) }?.toSpdx()
+private fun SpdxPackage.getConcludedLicense(): SpdxExpression? =
+    licenseConcluded.takeIf { SpdxConstants.isPresent(it) }?.toSpdx()
 
 /**
- * Return a [RemoteArtifact] for the binary artifact that the [pkg]'s [downloadLocation][SpdxPackage.downloadLocation]
- * points to. If the download location is a "not present" value, or if it points to a source artifact or a VCS location
+ * Return a [RemoteArtifact] for the binary artifact that the [downloadLocation][SpdxPackage.downloadLocation] points
+ * to. If the download location is a "not present" value, or if it points to a source artifact or a VCS location
  * instead, return null.
  */
-internal fun getBinaryArtifact(pkg: SpdxPackage): RemoteArtifact? =
-    getRemoteArtifact(pkg).takeUnless {
+internal fun SpdxPackage.getBinaryArtifact(): RemoteArtifact? =
+    getRemoteArtifact().takeUnless {
         // Note: The "FilesAnalyzed" field "Indicates whether the file content of this package has been available for or
         // subjected to analysis when creating the SPDX document". It does not indicate whether files were actually
         // analyzed.
         // If files were available, do *not* consider this do be a *binary* artifact.
-        pkg.filesAnalyzed
+        filesAnalyzed
     }
 
 /**
- * Return a [RemoteArtifact] for the source artifact that the [pkg]'s [downloadLocation][SpdxPackage.downloadLocation]
- * points to. If the download location is a "not present" value, or if it points to a binary artifact or a VCS location
+ * Return a [RemoteArtifact] for the source artifact that the [downloadLocation][SpdxPackage.downloadLocation] points
+ * to. If the download location is a "not present" value, or if it points to a binary artifact or a VCS location
  * instead, return null.
  */
-internal fun getSourceArtifact(pkg: SpdxPackage): RemoteArtifact? =
-    getRemoteArtifact(pkg).takeIf {
+internal fun SpdxPackage.getSourceArtifact(): RemoteArtifact? =
+    getRemoteArtifact().takeIf {
         // Note: The "FilesAnalyzed" field "Indicates whether the file content of this package has been available for or
         // subjected to analysis when creating the SPDX document". It does not indicate whether files were actually
         // analyzed.
         // If files were available, *do* consider this do be a *source* artifact.
-        pkg.filesAnalyzed
+        filesAnalyzed
     }
 
-private fun getRemoteArtifact(pkg: SpdxPackage): RemoteArtifact? =
+private fun SpdxPackage.getRemoteArtifact(): RemoteArtifact? =
     when {
-        SpdxConstants.isNotPresent(pkg.downloadLocation) -> null
-        SPDX_VCS_PREFIXES.any { (prefix, _) -> pkg.downloadLocation.startsWith(prefix) } -> null
-        else -> RemoteArtifact(pkg.downloadLocation, Hash.NONE)
+        SpdxConstants.isNotPresent(downloadLocation) -> null
+        SPDX_VCS_PREFIXES.any { (prefix, _) -> downloadLocation.startsWith(prefix) } -> null
+        else -> RemoteArtifact(downloadLocation, Hash.NONE)
     }
 
 /**
- * Return the [VcsInfo] contained in [pkg]'s [downloadLocation][SpdxPackage.downloadLocation], or null if the download
+ * Return the [VcsInfo] contained in the [downloadLocation][SpdxPackage.downloadLocation], or null if the download
  * location is a "not present" value / does not point to a VCS location.
  */
-internal fun getVcsInfo(pkg: SpdxPackage): VcsInfo? {
-    if (SpdxConstants.isNotPresent(pkg.downloadLocation)) return null
+internal fun SpdxPackage.getVcsInfo(): VcsInfo? {
+    if (SpdxConstants.isNotPresent(downloadLocation)) return null
 
     return SPDX_VCS_PREFIXES.mapNotNull { (prefix, vcsType) ->
-        pkg.downloadLocation.withoutPrefix(prefix)?.let { url ->
+        downloadLocation.withoutPrefix(prefix)?.let { url ->
             var vcsUrl = url
 
             val vcsPath = vcsUrl.substringAfterLast('#', "")
@@ -209,6 +182,33 @@ internal fun getVcsInfo(pkg: SpdxPackage): VcsInfo? {
 }
 
 /**
+ * Return the location of the first [external reference][SpdxExternalReference] of the given [type] in this
+ * [SpdxPackage], or null if there is no such reference.
+ */
+private fun SpdxPackage.locateExternalReference(type: SpdxExternalReference.Type): String? =
+    externalRefs.find { it.referenceType == type }?.referenceLocator
+
+/**
+ * Return the organization from an "originator", "supplier", or "annotator" string, or null if no organization is
+ * specified.
+ */
+private fun String.extractOrganization(): String? =
+    lineSequence().mapNotNull { line ->
+        line.withoutPrefix(SpdxConstants.ORGANIZATION)
+    }.firstOrNull()
+
+/**
+ * Return whether the string has the format of an [SpdxExternalDocumentReference], with or without an additional
+ * package id.
+ */
+private fun String.isExternalDocumentReferenceId(): Boolean = startsWith(SpdxConstants.DOCUMENT_REF_PREFIX)
+
+/**
+ * Map a "not preset" SPDX value, i.e. NONE or NOASSERTION, to an empty string.
+ */
+private fun String.mapNotPresentToEmpty(): String = takeUnless { SpdxConstants.isNotPresent(it) }.orEmpty()
+
+/**
  * Return the [PackageLinkage] between [dependency] and [dependant] as specified in [relationships]. If no
  * relationship is found, return [PackageLinkage.DYNAMIC].
  */
@@ -219,7 +219,13 @@ private fun getLinkageForDependency(
 ): PackageLinkage =
     relationships.mapNotNull { relation ->
         SPDX_LINKAGE_RELATIONSHIPS[relation.relationshipType]?.takeIf {
-            relation.relatedSpdxElement == dependency.spdxId && relation.spdxElementId == dependant
+            val relationId = if (relation.relatedSpdxElement.isExternalDocumentReferenceId()) {
+                relation.relatedSpdxElement.substringAfter(":")
+            } else {
+                relation.relatedSpdxElement
+            }
+
+            relationId == dependency.spdxId && relation.spdxElementId == dependant
         }
     }.takeUnless { it.isEmpty() }?.single() ?: PackageLinkage.DYNAMIC
 
@@ -239,6 +245,36 @@ private fun hasDependsOnRelationship(
 
     return relation in SPDX_LINKAGE_RELATIONSHIPS && !hasScopeRelationship
 }
+
+/**
+ * Return [File] referred to by [SpdxExternalDocumentReference.spdxDocument].
+ */
+private fun resolveExternalDocumentReference(
+    externalDocumentReference: SpdxExternalDocumentReference,
+    workingDir: File
+): SpdxDocument {
+    val uri = runCatching { URI(externalDocumentReference.spdxDocument) }.getOrElse {
+        throw IllegalArgumentException("'${externalDocumentReference.spdxDocument}' identified by " +
+                "${externalDocumentReference.externalDocumentId} is not a valid URI. }")
+    }
+
+    if (uri.scheme.equals("file", ignoreCase = true) || !uri.isAbsolute) {
+        val referencedFile = workingDir.resolve(uri.path)
+        val spdxFile = referencedFile.takeIf { it.isFile }
+            ?: throw IllegalArgumentException("The local file URI '$uri' does not point to an existing file.")
+        return SpdxModelMapper.read(spdxFile)
+    }
+
+    return requestSpdxDocument(uri)
+}
+
+/**
+ * Returns [SpdxDocument] downloaded from a given [URI], if it can be found.
+ */
+private fun requestSpdxDocument(uri: URI): SpdxDocument =
+    OkHttpClientHelper.downloadText(uri.toString()).map {
+        SpdxModelMapper.FileFormat.forFile(File(uri.path)).mapper.readValue<SpdxDocument>(it)
+    }.getOrThrow()
 
 /**
  * A "fake" package manager implementation that uses SPDX documents as definition files to declare projects and describe
@@ -282,21 +318,24 @@ class SpdxDocumentFile(
 
         // If the VCS information cannot be determined from the download location, fall back to try getting it from the
         // VCS working tree itself.
-        val vcs = getVcsInfo(this) ?: run {
+        val vcs = getVcsInfo() ?: run {
             val packageDir = workingDir.resolve(packageFilename)
             VersionControlSystem.forDirectory(packageDir)?.getInfo()
         } ?: VcsInfo.EMPTY
 
+        val id = toIdentifier()
+
         return Package(
-            id = toIdentifier(),
+            id = id,
+            purl = locateExternalReference(SpdxExternalReference.Type.Purl) ?: id.toPurl(),
             // TODO: Find a way to track authors.
             authors = sortedSetOf(),
             declaredLicenses = sortedSetOf(licenseDeclared),
-            concludedLicense = getConcludedLicense(this),
+            concludedLicense = getConcludedLicense(),
             description = packageDescription,
             homepageUrl = homepage.mapNotPresentToEmpty(),
-            binaryArtifact = getBinaryArtifact(this) ?: RemoteArtifact.EMPTY,
-            sourceArtifact = getSourceArtifact(this) ?: RemoteArtifact.EMPTY,
+            binaryArtifact = getBinaryArtifact() ?: RemoteArtifact.EMPTY,
+            sourceArtifact = getSourceArtifact() ?: RemoteArtifact.EMPTY,
             vcs = vcs
         )
     }
@@ -316,7 +355,7 @@ class SpdxDocumentFile(
         )
 
         return packageForExternalDocumentId.getOrPut(externalDocumentReference.externalDocumentId) {
-            getSpdxPackageForDocumentRef(externalDocumentReference, workingDir)
+            externalDocumentReference.getSpdxPackage(identifier.substringAfter(":"), workingDir)
         }
     }
 
@@ -419,7 +458,7 @@ class SpdxDocumentFile(
     ): Scope? =
         getDependencies(projectPackage, spdxDocument, workingDir, packages, relation).takeUnless { it.isEmpty() }?.let {
             Scope(
-                name = relation.name.removeSuffix("_DEPENDENCY_OF").toLowerCase(),
+                name = relation.name.removeSuffix("_DEPENDENCY_OF").lowercase(),
                 dependencies = it
             )
         }
@@ -431,7 +470,14 @@ class SpdxDocumentFile(
             // Distinguish whether we have a project-style SPDX document that describes a project and its dependencies,
             // or a package-style SPDX document that describes a single (dependency-)package.
             spdxDocument.isProject()
-        }.keys.toList()
+        }.keys.toList().also { remainingFiles ->
+            val discardedFiles = definitionFiles - remainingFiles
+            if (discardedFiles.isNotEmpty()) {
+                log.info {
+                    "Discarded the following non-project SPDX files: ${discardedFiles.joinToString { "'$it'" }}"
+                }
+            }
+        }
 
     override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
         val workingDir = definitionFile.parentFile
@@ -442,6 +488,11 @@ class SpdxDocumentFile(
         // Guard against direct callers passing SPDX documents that do not describe a project.
         val projectPackage = requireNotNull(spdxDocument.projectPackage()) {
             "The SPDX document file at '$definitionFile' does not describe a project."
+        }
+
+        log.info {
+            "File '$definitionFile' contains SPDX document '${spdxDocument.name}' which describes project " +
+                    "'${projectPackage.name}'."
         }
 
         val packages = mutableSetOf<Package>()

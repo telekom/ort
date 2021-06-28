@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +19,6 @@
 
 package org.ossreviewtoolkit.model
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 
 import java.util.SortedSet
@@ -39,7 +38,6 @@ import org.ossreviewtoolkit.utils.ProcessedDeclaredLicense
  * dependency resolution process. For example, if multiple versions of the same package are used in a project, the build
  * system might decide to align on a single version of that package.
  */
-@JsonIgnoreProperties(value = ["purl"], allowGetters = true)
 data class Package(
     /**
      * The unique identifier of this package. The [id]'s type is the name of the package type or protocol (e.g. "Maven"
@@ -164,7 +162,6 @@ data class Package(
 
         return PackageCurationData(
             authors = authors.takeIf { it != other.authors },
-            declaredLicenses = declaredLicenses.takeIf { it != other.declaredLicenses },
             description = description.takeIf { it != other.description },
             homepageUrl = homepageUrl.takeIf { it != other.homepageUrl },
             binaryArtifact = binaryArtifact.takeIf { it != other.binaryArtifact },
@@ -173,19 +170,6 @@ data class Package(
             isMetaDataOnly = isMetaDataOnly.takeIf { it != other.isMetaDataOnly }
         )
     }
-
-    /**
-     * Check if this package contains any erroneous data.
-     */
-    fun collectIssues(): List<OrtIssue> =
-        declaredLicensesProcessed.unmapped.map { unmappedLicense ->
-            OrtIssue(
-                severity = Severity.WARNING,
-                source = id.toCoordinates(),
-                message = "The declared license '$unmappedLicense' could not be mapped to a valid license or " +
-                        "parsed as an SPDX expression."
-            )
-        }
 
     /**
      * Create a [CuratedPackage] from this package with an empty list of applied curations.

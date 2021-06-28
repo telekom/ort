@@ -123,14 +123,7 @@ analyzer:
             url: "ssh://git@github.com/hamcrest/JavaHamcrest.git"
             revision: ""
             path: ""
-        curations:
-          - base:
-              declared_licenses:
-                - "New BSD License"
-            curation:
-              declared_licenses:
-                - "BSD-3-Clause"
-              comment: "Provided by ClearlyDefined."
+        curations: []
       - package:
           id: "Maven:org.mockito:mockito-all:1.10.19"
           purl: "pkg:maven/org.mockito/mockito-all@1.10.19"
@@ -160,14 +153,7 @@ analyzer:
             url: ""
             revision: ""
             path: ""
-        curations:
-          - base:
-              declared_licenses:
-                - "The MIT License"
-            curation:
-              declared_licenses:
-                - "MIT"
-              comment: "Provided by ClearlyDefined."
+        curations: []
     has_issues: false
 scanner:
   start_time: "2020-10-26T20:00:50.163356Z"
@@ -206,18 +192,12 @@ scanner:
       - id: "Maven:com.vdurmont:semver4j:3.1.0"
         results:
           - provenance:
-              download_time: "2020-09-30T09:27:08.894485Z"
               vcs_info:
                 type: "Git"
                 url: "https://github.com/vdurmont/semver4j.git"
                 revision: "7653e418d610ffcd2811bcb55fd72d00d420950b"
-                resolved_revision: "7653e418d610ffcd2811bcb55fd72d00d420950b"
                 path: ""
-              original_vcs_info:
-                type: "Git"
-                url: "https://github.com/vdurmont/semver4j.git"
-                revision: "7653e418d610ffcd2811bcb55fd72d00d420950b"
-                path: ""
+              resolved_revision: "7653e418d610ffcd2811bcb55fd72d00d420950b"
             scanner:
               name: "ScanCode"
               version: "3.2.1-rc2"
@@ -258,18 +238,12 @@ scanner:
       - id: "Maven:junit:junit:4.12"
         results:
           - provenance:
-              download_time: "2020-09-30T09:28:22.219996Z"
               vcs_info:
                 type: "Git"
                 url: "https://github.com/junit-team/junit.git"
                 revision: "r4.12"
-                resolved_revision: "64155f8a9babcfcf4263cf4d08253a1556e75481"
                 path: ""
-              original_vcs_info:
-                type: "Git"
-                url: "https://github.com/junit-team/junit.git"
-                revision: "r4.12"
-                path: ""
+              resolved_revision: "64155f8a9babcfcf4263cf4d08253a1556e75481"
             scanner:
               name: "ScanCode"
               version: "3.2.1-rc2"
@@ -340,5 +314,39 @@ scanner:
     storage_stats:
       num_reads: 4
       num_hits: 4
+    has_issues: false
+advisor:
+  start_time: "2021-04-29T14:54:16.562951Z"
+  end_time: "2021-04-29T14:54:18.969210Z"
+  environment:
+    ort_version: "7fcbb3b"
+    java_version: "11.0.8"
+    os: "Linux"
+    processors: 4
+    max_memory: 12884901888
+    variables:
+      JAVA_HOME: "/opt/java/openjdk"
+      ANDROID_HOME: "/opt/android-sdk"
+      GOPATH: "/go"
+    tool_versions: {}
+  config:
+    nexus_iq:
+      server_url: "https://oss-review-toolkit.org"
+      browse_url: "https://oss-review-toolkit.org"
+      username: "user"
+  results:
+    advisor_results:
+      Maven:junit:junit:4.12:
+      - vulnerabilities:
+        - id: "CVE-2020-15250"
+          references:
+          - url: "http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-15250"
+            scoring_system: "CVSS2"
+            severity: "5.5"
+        advisor:
+          name: "NexusIQ"
+        summary:
+          start_time: "2021-04-29T14:54:17.322191Z"
+          end_time: "2021-04-29T14:54:18.966672Z"
     has_issues: false
 evaluator: null

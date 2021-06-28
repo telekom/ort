@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,7 +35,6 @@ import org.jetbrains.exposed.sql.Column
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils.createMissingTablesAndColumns
 import org.jetbrains.exposed.sql.SchemaUtils.withDataBaseLock
-import org.jetbrains.exposed.sql.transactions.transaction
 
 import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.KnownProvenance
@@ -43,6 +42,7 @@ import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.checkDatabaseEncoding
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.tableExists
+import org.ossreviewtoolkit.model.utils.DatabaseUtils.transaction
 import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.log
 
@@ -55,8 +55,9 @@ class PostgresFileArchiverStorage(
      */
     dataSource: DataSource
 ) : FileArchiverStorage {
-    init {
-        Database.connect(dataSource).apply { defaultFetchSize(1000) }
+    /** Stores the database connection used by this object. */
+    val database = Database.connect(dataSource).apply {
+        defaultFetchSize(1000)
 
         transaction {
             withDataBaseLock {
@@ -71,12 +72,12 @@ class PostgresFileArchiverStorage(
     }
 
     override fun hasArchive(provenance: KnownProvenance): Boolean =
-        transaction {
+        database.transaction {
             queryFileArchive(provenance)
         } != null
 
     override fun addArchive(provenance: KnownProvenance, zipFile: File) =
-        transaction {
+        database.transaction {
             if (queryFileArchive(provenance) == null) {
                 try {
                     FileArchive.new {
@@ -93,7 +94,7 @@ class PostgresFileArchiverStorage(
         }
 
     override fun getArchive(provenance: KnownProvenance): File? {
-        val fileArchive = transaction {
+        val fileArchive = database.transaction {
             queryFileArchive(provenance)
         } ?: return null
 
@@ -130,7 +131,7 @@ private fun KnownProvenance.storageKey(): String =
             // of the storage key. However, for Git-Repo that path must be part of the storage key because it denotes
             // the Git-Repo manifest location rather than the path to be (sparse) checked out.
             val path = vcsInfo.path.takeIf { vcsInfo.type == VcsType.GIT_REPO }.orEmpty()
-            "vcs|${vcsInfo.type}|${vcsInfo.url}|${vcsInfo.resolvedRevision}|$path"
+            "vcs|${vcsInfo.type}|${vcsInfo.url}|$resolvedRevision|$path"
         }
     }
 

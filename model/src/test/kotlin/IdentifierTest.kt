@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +24,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.inspectors.forAll
+import io.kotest.matchers.collections.containExactly
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
@@ -67,6 +68,18 @@ class IdentifierTest : WordSpec({
             mapping.entries.forAll { (stringRepresentation, identifier) ->
                 Identifier(stringRepresentation) shouldBe identifier
             }
+        }
+
+        "be sorted as expected" {
+            val ids = listOf(
+                Identifier("Maven:org.springframework.boot:spring-boot-actuator"),
+                Identifier("Maven:org.springframework.boot:spring-boot")
+            )
+
+            ids.sorted() should containExactly(
+                Identifier("Maven:org.springframework.boot:spring-boot"),
+                Identifier("Maven:org.springframework.boot:spring-boot-actuator")
+            )
         }
 
         "be serialized correctly" {
@@ -127,7 +140,7 @@ class IdentifierTest : WordSpec({
         "ignore case in type" {
             val purl = Identifier("MaVeN", "namespace", "name", "version").toPurl()
 
-            purl shouldBe purl.toLowerCase()
+            purl shouldBe purl.lowercase()
         }
 
         "use given type if it is not a known package manager" {

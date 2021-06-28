@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -54,11 +54,9 @@ import org.ossreviewtoolkit.model.config.LicenseChoices
 import org.ossreviewtoolkit.model.config.PackageLicenseChoice
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
-import org.ossreviewtoolkit.model.licenses.LicenseClassifications
 import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.licenses.ResolvedLicense
 import org.ossreviewtoolkit.model.licenses.ResolvedLicenseInfo
-import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.spdx.SpdxConstants
 import org.ossreviewtoolkit.spdx.SpdxExpression
@@ -77,7 +75,7 @@ private fun scanResults(
 
     return listOf(
         ScanResult(
-            provenance = RepositoryProvenance(vcsInfo = vcsInfo),
+            provenance = RepositoryProvenance(vcsInfo = vcsInfo, resolvedRevision = vcsInfo.revision),
             scanner = ScannerDetails(name = "scanner", version = "1.0", configuration = ""),
             summary = ScanSummary(
                 startTime = Instant.EPOCH,
@@ -95,15 +93,13 @@ private val PROJECT_VCS_INFO = VcsInfo(
     type = VcsType.GIT_REPO,
     url = "ssh://git@host/manifests/repo",
     path = "path/to/manifest.xml",
-    revision = "deadbeaf44444444333333332222222211111111",
-    resolvedRevision = "deadbeaf44444444333333332222222211111111"
+    revision = "deadbeaf44444444333333332222222211111111"
 )
 private val NESTED_VCS_INFO = VcsInfo(
     type = VcsType.GIT,
     url = "ssh://git@host/project/repo",
     path = "",
-    revision = "0000000000000000000000000000000000000000",
-    resolvedRevision = "0000000000000000000000000000000000000000"
+    revision = "0000000000000000000000000000000000000000"
 )
 
 private val ORT_RESULT = OrtResult(
@@ -277,11 +273,7 @@ class FreeMarkerTemplateProcessorTest : WordSpec({
             val pkg2 = FreemarkerTemplateProcessor.PackageModel(projects[1].id, input)
             val pkg3 = FreemarkerTemplateProcessor.PackageModel(projects[2].id, input)
 
-            val result = FreemarkerTemplateProcessor.TemplateHelper(
-                OrtResult.EMPTY,
-                LicenseClassifications(),
-                DefaultResolutionProvider()
-            ).mergeLicenses(listOf(pkg1, pkg2, pkg3))
+            val result = FreemarkerTemplateProcessor.TemplateHelper(input).mergeLicenses(listOf(pkg1, pkg2, pkg3))
 
             result should haveSize(2)
             with(result[0]) {
@@ -316,11 +308,7 @@ class FreeMarkerTemplateProcessorTest : WordSpec({
             val pkg1 = FreemarkerTemplateProcessor.PackageModel(projects[0].id, input)
             val pkg2 = FreemarkerTemplateProcessor.PackageModel(projects[1].id, input)
 
-            val result = FreemarkerTemplateProcessor.TemplateHelper(
-                OrtResult.EMPTY,
-                LicenseClassifications(),
-                DefaultResolutionProvider()
-            ).mergeLicenses(listOf(pkg1, pkg2))
+            val result = FreemarkerTemplateProcessor.TemplateHelper(input).mergeLicenses(listOf(pkg1, pkg2))
 
             result should haveSize(1)
             result.first().license.toString() shouldBe "MIT"
@@ -347,11 +335,8 @@ class FreeMarkerTemplateProcessorTest : WordSpec({
             val pkg1 = FreemarkerTemplateProcessor.PackageModel(projects[0].id, input)
             val pkg2 = FreemarkerTemplateProcessor.PackageModel(projects[1].id, input)
 
-            val result = FreemarkerTemplateProcessor.TemplateHelper(
-                OrtResult.EMPTY,
-                LicenseClassifications(),
-                DefaultResolutionProvider()
-            ).mergeLicenses(listOf(pkg1, pkg2), omitNotPresent = true)
+            val result = FreemarkerTemplateProcessor.TemplateHelper(input)
+                .mergeLicenses(listOf(pkg1, pkg2), omitNotPresent = true)
 
             result should haveSize(1)
             result.first().license.toString() shouldBe "MIT"
@@ -389,11 +374,7 @@ class FreeMarkerTemplateProcessorTest : WordSpec({
             val input = ReporterInput(ortResult, licenseInfoResolver = resolver)
             val pkg = FreemarkerTemplateProcessor.PackageModel(projects[1].id, input)
 
-            val result = FreemarkerTemplateProcessor.TemplateHelper(
-                OrtResult.EMPTY,
-                LicenseClassifications(),
-                DefaultResolutionProvider()
-            ).mergeLicenses(listOf(pkg))
+            val result = FreemarkerTemplateProcessor.TemplateHelper(input).mergeLicenses(listOf(pkg))
 
             result should haveSize(1)
             with(result[0]) {

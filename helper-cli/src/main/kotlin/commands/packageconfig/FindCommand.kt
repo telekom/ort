@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,10 +25,10 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
+import org.ossreviewtoolkit.model.FileFormat
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.config.PackageConfiguration
 import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.model.utils.SimplePackageConfigurationProvider.Companion.findPackageConfigurationFiles
 import org.ossreviewtoolkit.utils.expandTilde
 
 internal class FindCommand : CliktCommand(
@@ -51,7 +51,7 @@ internal class FindCommand : CliktCommand(
 
     override fun run() {
         // TODO: There could be multiple package configurations matching the given identifier which is not handled.
-        findPackageConfigurationFiles(packageConfigurationDir).find {
+        FileFormat.findFilesWithKnownExtensions(packageConfigurationDir).find {
             it.readValue<PackageConfiguration>().id == packageId
         }?.let {
             println(it.absolutePath)

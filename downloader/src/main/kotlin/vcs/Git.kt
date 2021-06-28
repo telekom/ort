@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,6 +37,7 @@ import org.eclipse.jgit.api.LsRemoteCommand
 import org.eclipse.jgit.api.errors.GitAPIException
 import org.eclipse.jgit.lib.SymbolicRef
 import org.eclipse.jgit.transport.JschConfigSessionFactory
+import org.eclipse.jgit.transport.NetRCCredentialsProvider
 import org.eclipse.jgit.transport.OpenSshConfig
 import org.eclipse.jgit.transport.SshSessionFactory
 import org.eclipse.jgit.transport.URIish
@@ -52,7 +53,6 @@ import org.ossreviewtoolkit.utils.installAuthenticatorAndProxySelector
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.safeMkdirs
 import org.ossreviewtoolkit.utils.showStackTrace
-import org.ossreviewtoolkit.utils.withoutPrefix
 
 // TODO: Make this configurable.
 const val GIT_HISTORY_DEPTH = 50
@@ -61,6 +61,11 @@ class Git : VersionControlSystem(), CommandLineTool {
     companion object {
         init {
             installAuthenticatorAndProxySelector()
+
+            // While the OrtAuthenticator already provides .netrc parsing, JGit will complain with a confusing "no
+            // CredentialsProvider registered" message if authentication fails. Avoid that by installing JGit's own
+            // .netrc credential provider in addition to ORT's authenticator.
+            NetRCCredentialsProvider.install()
 
             val sessionFactory = object : JschConfigSessionFactory() {
                 @Suppress("EmptyFunctionBlock")
@@ -161,78 +166,73 @@ class Git : VersionControlSystem(), CommandLineTool {
         return getWorkingTree(targetDir)
     }
 
-    override fun updateWorkingTree(workingTree: WorkingTree, revision: String, path: String, recursive: Boolean) =
-        updateWorkingTreeWithoutSubmodules(workingTree, revision) && (!recursive || updateSubmodules(workingTree))
+    override fun updateWorkingTree(
+        workingTree: WorkingTree,
+        revision: String,
+        path: String,
+        recursive: Boolean
+    ): Result<String> =
+        updateWorkingTreeWithoutSubmodules(workingTree, revision).mapCatching {
+            // In case this throws the exception gets encapsulated as a failure.
+            if (recursive) updateSubmodules(workingTree)
 
-    private fun updateWorkingTreeWithoutSubmodules(workingTree: WorkingTree, revision: String): Boolean {
-        try {
+            revision
+        }
+
+    private fun updateWorkingTreeWithoutSubmodules(workingTree: WorkingTree, revision: String): Result<String> =
+        runCatching {
             log.info { "Trying to fetch only revision '$revision' with depth limited to $GIT_HISTORY_DEPTH." }
-            val fetch = run(workingTree.workingDir, "fetch", "--depth", "$GIT_HISTORY_DEPTH", "origin", revision)
+            workingTree.runGit("fetch", "--depth", "$GIT_HISTORY_DEPTH", "origin", revision)
 
             // The documentation for git-fetch states that "By default, any tag that points into the histories being
             // fetched is also fetched", but that is not true for shallow fetches of a tag; then the tag itself is
-            // not fetched. So create it manually afterwards.
-            val tag = fetch.stderr.lineSequence().mapNotNull {
-                it.withoutPrefix(" * tag ")?.substringBefore("->")?.trim()
-            }.firstOrNull()
-
-            if (revision == tag) {
-                run(workingTree.workingDir, "tag", revision, "FETCH_HEAD")
+            // not fetched. So create the local tag manually afterwards.
+            if (revision in workingTree.listRemoteTags()) {
+                workingTree.runGit("tag", "-f", revision, "FETCH_HEAD")
             }
 
-            return run(workingTree.workingDir, "checkout", revision).isSuccess
-        } catch (e: IOException) {
-            e.showStackTrace()
+            workingTree.runGit("checkout", revision)
+        }.onFailure {
+            it.showStackTrace()
 
             log.warn {
-                "Could not fetch only revision '$revision': ${e.collectMessagesAsString()}\n" +
+                "Could not fetch only revision '$revision': ${it.collectMessagesAsString()}\n" +
                         "Falling back to fetching all refs."
             }
-        }
+        }.recoverCatching {
+            log.info { "Falling back to fetching all refs with depth limited to $GIT_HISTORY_DEPTH." }
 
-        // Fall back to fetching all refs with limited depth of history.
-        try {
-            log.info { "Trying to fetch all refs with depth limited to $GIT_HISTORY_DEPTH." }
-            run(workingTree.workingDir, "fetch", "--depth", GIT_HISTORY_DEPTH.toString(), "--tags", "origin")
-            return run(workingTree.workingDir, "checkout", revision).isSuccess
-        } catch (e: IOException) {
-            e.showStackTrace()
+            workingTree.runGit("fetch", "--depth", GIT_HISTORY_DEPTH.toString(), "--tags", "origin")
+            workingTree.runGit("checkout", revision).isSuccess
+        }.onFailure {
+            it.showStackTrace()
 
             log.warn {
-                "Could not fetch with only a depth of $GIT_HISTORY_DEPTH: ${e.collectMessagesAsString()}\n" +
+                "Could not fetch with only a depth of $GIT_HISTORY_DEPTH: ${it.collectMessagesAsString()}\n" +
                         "Falling back to fetching everything."
             }
-        }
-
-        // Fall back to fetching everything.
-        return try {
-            log.info { "Trying to fetch everything including tags." }
+        }.recoverCatching {
+            log.info { "Falling back to fetch everything including tags." }
 
             if (workingTree.isShallow()) {
-                run(workingTree.workingDir, "fetch", "--unshallow", "--tags", "origin")
+                workingTree.runGit("fetch", "--unshallow", "--tags", "origin")
             } else {
-                run(workingTree.workingDir, "fetch", "--tags", "origin")
+                workingTree.runGit("fetch", "--tags", "origin")
             }
 
-            run(workingTree.workingDir, "checkout", revision).isSuccess
-        } catch (e: IOException) {
-            e.showStackTrace()
+            workingTree.runGit("checkout", revision)
+        }.onFailure {
+            it.showStackTrace()
 
-            log.warn { "Failed to fetch everything: ${e.collectMessagesAsString()}" }
-
-            false
+            log.warn { "Failed to fetch everything: ${it.collectMessagesAsString()}" }
+        }.map {
+            revision
         }
+
+    private fun updateSubmodules(workingTree: WorkingTree) {
+        if (!workingTree.workingDir.resolve(".gitmodules").isFile) return
+        workingTree.runGit("submodule", "update", "--init", "--recursive")
     }
 
-    private fun updateSubmodules(workingTree: WorkingTree) =
-        try {
-            !workingTree.workingDir.resolve(".gitmodules").isFile
-                    || run(workingTree.workingDir, "submodule", "update", "--init", "--recursive").isSuccess
-        } catch (e: IOException) {
-            e.showStackTrace()
-
-            log.warn { "Failed to update submodules: ${e.collectMessagesAsString()}" }
-
-            false
-        }
+    private fun WorkingTree.runGit(vararg args: String) = run(*args, workingDir = workingDir)
 }

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -69,6 +69,40 @@ open class PackageRule(
     override fun runInternal() {
         licenseRules.forEach { it.evaluate() }
     }
+
+    /**
+     * A [RuleMatcher] that checks whether any vulnerability was found for the [package][pkg].
+     */
+    fun hasVulnerability(): RuleMatcher {
+        return object : RuleMatcher {
+            override val description = "hasVulnerability()"
+
+            override fun matches() = ruleSet.ortResult.advisor
+                ?.results
+                ?.getVulnerabilities(pkg.id)
+                ?.isNotEmpty()
+                ?: false
+        }
+    }
+
+    /**
+     * A [RuleMatcher] that checks whether any vulnerability for the [package][pkg] has a score that equals or is
+     * greater than [threshold] according to the [scoringSystem] and the belonging [severityComparator].
+     */
+    fun hasVulnerability(threshold: String, scoringSystem: String, severityComparator: Comparator<String>) =
+        object : RuleMatcher {
+            override val description = "hasVulnerability($threshold, $scoringSystem)"
+
+            override fun matches() = ruleSet.ortResult.advisor
+                ?.results
+                ?.getVulnerabilities(pkg.id)
+                ?.flatMap { it.references }
+                ?.filter { reference -> reference.scoringSystem == scoringSystem }
+                ?.mapNotNull { reference -> reference.severity }
+                ?.map { severity -> severityComparator.compare(severity, threshold) }
+                ?.any { it >= 0 }
+                ?: false
+        }
 
     /**
      * A [RuleMatcher] that checks if the [package][pkg] has any concluded, declared, or detected license.

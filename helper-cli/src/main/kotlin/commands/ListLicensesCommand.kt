@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,15 +43,14 @@ import org.ossreviewtoolkit.helper.common.fetchScannedSources
 import org.ossreviewtoolkit.helper.common.getLicenseFindingsById
 import org.ossreviewtoolkit.helper.common.getPackageOrProject
 import org.ossreviewtoolkit.helper.common.getViolatedRulesByLicense
+import org.ossreviewtoolkit.helper.common.readOrtResult
 import org.ossreviewtoolkit.helper.common.replaceConfig
 import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.TextLocation
-import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
 import org.ossreviewtoolkit.utils.expandTilde
 
@@ -89,7 +88,7 @@ internal class ListLicensesCommand : CliktCommand(
     private val offendingSeverity by option(
         "--offending-severity",
         help = "Set the severities to use filtering enabled by --offending-only, specified as comma-separated " +
-                "values. Allowed values: ERROR,WARNING,HINT."
+                "values."
     ).enum<Severity>().split(",").default(enumValues<Severity>().asList())
 
     private val omitExcluded by option(
@@ -155,7 +154,7 @@ internal class ListLicensesCommand : CliktCommand(
     }.default(emptyList())
 
     override fun run() {
-        val ortResult = ortFile.readValue<OrtResult>().replaceConfig(repositoryConfigurationFile)
+        val ortResult = readOrtResult(ortFile).replaceConfig(repositoryConfigurationFile)
 
         if (ortResult.getPackageOrProject(packageId) == null) {
             throw UsageError("Could not find the package for the given id '${packageId.toCoordinates()}'.")
@@ -312,7 +311,7 @@ private fun Provenance.writeValueAsString(): String =
     when (this) {
         is ArtifactProvenance -> "url=${sourceArtifact.url}, hash=${sourceArtifact.hash.value}"
         is RepositoryProvenance -> {
-            "type=${vcsInfo.type}, url=${vcsInfo.url}, path=${vcsInfo.path}, revision=${vcsInfo.resolvedRevision}"
+            "type=${vcsInfo.type}, url=${vcsInfo.url}, path=${vcsInfo.path}, revision=$resolvedRevision"
         }
         else -> throw IllegalArgumentException("Provenance must have either a non-null source artifact or VCS info.")
     }

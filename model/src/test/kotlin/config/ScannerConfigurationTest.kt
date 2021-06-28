@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,7 @@
 package org.ossreviewtoolkit.model.config
 
 import io.kotest.core.spec.style.WordSpec
+import io.kotest.inspectors.forAll
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.beNull
 import io.kotest.matchers.should
@@ -27,33 +28,34 @@ import io.kotest.matchers.shouldBe
 
 import java.io.File
 
-import kotlin.io.path.createTempFile
-
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.writeValue
+import org.ossreviewtoolkit.utils.test.createTestTempFile
 
 class ScannerConfigurationTest : WordSpec({
     "ScannerConfiguration" should {
         "support a serialization round-trip via an ObjectMapper" {
-            val refConfig = File("src/main/resources/reference.conf")
-            val ortConfig = OrtConfiguration.load(file = refConfig)
-            val file = createTempFile(suffix = ".yml").toFile().apply { deleteOnExit() }
+            val ortConfig = OrtConfiguration.load(file = File("src/main/resources/reference.conf"))
+            val rereadOrtConfig = createTestTempFile(suffix = ".yml").run {
+                writeValue(ortConfig)
+                readValue<OrtConfiguration>()
+            }
 
-            file.writeValue(ortConfig.scanner)
-            val loadedConfig = file.readValue<ScannerConfiguration>()
+            val actualScannerConfig = rereadOrtConfig.scanner
+            val actualStorages = actualScannerConfig.storages.orEmpty()
+            val expectedScannerConfig = ortConfig.scanner
+            val expectedStorages = expectedScannerConfig.storages.orEmpty()
 
             // Note: loadedConfig cannot be directly compared to the original one, as there have been some changes:
             // Relative paths have been normalized, passwords do not get serialized, etc.
-            loadedConfig.storageReaders shouldBe ortConfig.scanner.storageReaders
-            loadedConfig.storageWriters shouldBe ortConfig.scanner.storageWriters
-            loadedConfig.archive?.fileStorage?.httpFileStorage should beNull()
+            actualScannerConfig.storageReaders shouldBe expectedScannerConfig.storageReaders
+            actualScannerConfig.storageWriters shouldBe expectedScannerConfig.storageWriters
+            actualScannerConfig.archive?.fileStorage?.httpFileStorage should beNull()
 
-            val loadedStorages = loadedConfig.storages.orEmpty()
-            val orgStorages = ortConfig.scanner.storages.orEmpty()
-            loadedStorages.keys shouldContainExactly orgStorages.keys
-            loadedStorages.forEach { e ->
-                val orgStorage = orgStorages[e.key] ?: this
-                e.value::class shouldBe orgStorage::class
+            actualStorages.keys shouldContainExactly expectedStorages.keys
+            actualStorages.entries.forAll { (storageKey, storage) ->
+                val orgStorage = expectedStorages.getOrDefault(storageKey, this)
+                storage::class shouldBe orgStorage::class
             }
         }
     }

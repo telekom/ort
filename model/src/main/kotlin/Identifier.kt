@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -61,6 +61,9 @@ data class Identifier(
             name = "",
             version = ""
         )
+
+        private val COMPARATOR = compareBy<Identifier> { it.type }.thenBy { it.namespace }.thenBy { it.name }
+            .thenBy { it.version }
     }
 
     private constructor(components: List<String>) : this(
@@ -77,23 +80,25 @@ data class Identifier(
     @JsonCreator
     constructor(identifier: String) : this(identifier.split(':', limit = 4))
 
-    private val components = listOf(type, namespace, name, version)
+    private val sanitizedComponents = listOf(type, namespace, name, version).map { component ->
+            component.trim().filterNot { it < ' ' }
+    }
 
     init {
-        require(components.none { ":" in it }) {
+        require(sanitizedComponents.none { ":" in it }) {
             "An identifier's properties must not contain ':' because that character is used as a separator in the " +
                     "string representation: type='$type', namespace='$namespace', name='$name', version='$version'."
         }
     }
 
-    override fun compareTo(other: Identifier) = toCoordinates().compareTo(other.toCoordinates())
+    override fun compareTo(other: Identifier) = COMPARATOR.compare(this, other)
 
     /**
      * Return whether this [Identifier] is likely to belong any of the organizations mentioned in [names].
      */
     fun isFromOrg(vararg names: String) =
         names.any { name ->
-            val lowerName = name.toLowerCase()
+            val lowerName = name.lowercase()
             val vendorNamespace = when (type) {
                 "NPM" -> "@$lowerName"
                 "Gradle", "Maven", "SBT" -> "(com|io|net|org)\\.$lowerName(\\..+)?"
@@ -106,15 +111,13 @@ data class Identifier(
     /**
      * Create Maven-like coordinates based on the properties of the [Identifier].
      */
-    // TODO: We probably want to already sanitize the individual properties, also in other classes, but Kotlin does not
-    //       seem to offer a generic / elegant way to do so.
     @JsonValue
-    fun toCoordinates() = components.joinToString(":") { component -> component.trim().filterNot { it < ' ' } }
+    fun toCoordinates() = sanitizedComponents.joinToString(":")
 
     /**
      * Create a file system path based on the properties of the [Identifier]. All properties are encoded using
      * [encodeOr] with [emptyValue] as parameter.
      */
     fun toPath(separator: String = "/", emptyValue: String = "unknown"): String =
-        components.joinToString(separator) { it.encodeOr(emptyValue) }
+        sanitizedComponents.joinToString(separator) { it.encodeOr(emptyValue) }
 }

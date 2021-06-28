@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,13 +28,10 @@ import io.kotest.matchers.shouldNotBe
 
 import java.io.File
 
-import kotlin.io.path.createTempDirectory
-
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.ortDataDirectory
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.test.createSpecTempDir
 import org.ossreviewtoolkit.utils.unpack
 
 class SubversionWorkingTreeFunTest : StringSpec() {
@@ -44,16 +41,10 @@ class SubversionWorkingTreeFunTest : StringSpec() {
     override fun beforeSpec(spec: Spec) {
         val zipFile = File("src/funTest/assets/docutils-2018-01-03-svn-trunk.zip")
 
-        zipContentDir = createTempDirectory("$ORT_NAME-${javaClass.simpleName}").toFile()
+        zipContentDir = createSpecTempDir()
 
         print("Extracting '$zipFile' to '$zipContentDir'... ")
         zipFile.unpack(zipContentDir)
-        println("done.")
-    }
-
-    override fun afterSpec(spec: Spec) {
-        print("Deleting '$zipContentDir'... ")
-        zipContentDir.safeDeleteRecursively(force = true)
         println("done.")
     }
 
@@ -81,7 +72,6 @@ class SubversionWorkingTreeFunTest : StringSpec() {
                 type = VcsType.SUBVERSION,
                 url = "https://svn.code.sf.net/p/docutils/code/trunk/docutils",
                 revision = "8207",
-                resolvedRevision = null,
                 path = ""
             )
             workingTree.getNested() should beEmpty()

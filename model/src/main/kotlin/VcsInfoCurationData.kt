@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,12 +40,6 @@ data class VcsInfoCurationData(
      * The VCS-specific revision (tag, branch, SHA1) that the version of the package maps to.
      */
     val revision: String? = null,
-
-    /**
-     * The VCS-specific revision resolved during downloading from the VCS. In contrast to [revision] this must not
-     * contain symbolic names like branches or tags.
-     */
-    val resolvedRevision: String? = null,
 
     /**
      * The path inside the VCS to take into account, if any. The actual meaning depends on the VCS type. For

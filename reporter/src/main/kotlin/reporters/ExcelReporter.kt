@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -274,7 +274,7 @@ class ExcelReporter : Reporter {
                     }
             }
 
-            val scopesLines = row.scopes.size + row.scopes.toList().sumBy { it.second.size } +
+            val scopesLines = row.scopes.size + row.scopes.toList().sumOf { it.second.size } +
                     row.scopes.flatMap { it.value.values }.size
 
             val analyzerIssuesText = buildString {
@@ -473,7 +473,7 @@ private const val MAX_SENSITIVE_SHEET_NAME_LEN = 31
 
 internal fun createUniqueSheetName(workbook: XSSFWorkbook, name: String): String {
     fun isSheetNameTaken(workbook: XSSFWorkbook, name: String) =
-        name.toLowerCase() in Sequence { workbook.sheetIterator() }.map { it.sheetName.toLowerCase() }
+        name.lowercase() in Sequence { workbook.sheetIterator() }.map { it.sheetName.lowercase() }
 
     var uniqueName = WorkbookUtil.createSafeSheetName(name)
     var i = 0

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,28 +34,23 @@ import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.utils.log
 
-private fun findGitOrSubmoduleDir(workingDir: File): Repository {
-    // First try to open an existing working tree exactly at the given directory. This also works for submodules which
-    // since Git 1.7.8 do not have their own ".git" directory anymore in favor of a ".git" file.
-    FileRepositoryBuilder().setWorkTree(workingDir).setMustExist(true).runCatching {
-        build()
-    }.onSuccess {
-        return it
-    }
-
-    // Fall back to searching for a .git directory upwards in the directory tree.
-    FileRepositoryBuilder().findGitDir(workingDir).runCatching {
-        build()
-    }.onSuccess {
-        return it
-    }
-
-    // Finally, fall back to treating the directory as a working tree that is yet to be created.
-    return FileRepositoryBuilder().setWorkTree(workingDir).build()
+private fun findGitOrSubmoduleDir(workingDirOrFile: File): Repository {
+    val workingDir = (workingDirOrFile.takeIf { it.isDirectory } ?: workingDirOrFile.parentFile).absoluteFile
+    return runCatching {
+        // First try to open an existing working tree exactly at the given directory. This also works for submodules
+        // which since Git 1.7.8 do not have their own ".git" directory anymore in favor of a ".git" file.
+        FileRepositoryBuilder().setWorkTree(workingDir).setMustExist(true).build()
+    }.recoverCatching {
+        // Fall back to searching for a .git directory upwards in the directory tree.
+        FileRepositoryBuilder().findGitDir(workingDir).build()
+    }.recoverCatching {
+        // Finally, fall back to treating the directory as a working tree that is yet to be created.
+        FileRepositoryBuilder().setWorkTree(workingDir).build()
+    }.getOrThrow()
 }
 
 open class GitWorkingTree(workingDir: File, vcsType: VcsType) : WorkingTree(workingDir, vcsType) {
-    private val repo = findGitOrSubmoduleDir(workingDir.absoluteFile)
+    private val repo = findGitOrSubmoduleDir(workingDir)
 
     override fun isValid(): Boolean = repo.objectDatabase?.exists() == true
 

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,19 +19,18 @@
 
 package org.ossreviewtoolkit.reporter.reporters
 
+import io.kotest.core.TestConfiguration
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.shouldBe
 
 import java.io.File
 
-import kotlin.io.path.createTempDirectory
-
 import org.ossreviewtoolkit.model.FileFormat
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.utils.ORT_NAME
 import org.ossreviewtoolkit.utils.normalizeLineBreaks
+import org.ossreviewtoolkit.utils.test.createTestTempDir
 import org.ossreviewtoolkit.utils.test.readOrtResult
 
 class EvaluatedModelReporterFunTest : WordSpec({
@@ -57,16 +56,14 @@ class EvaluatedModelReporterFunTest : WordSpec({
     }
 })
 
-private fun generateReport(ortResult: OrtResult, options: Map<String, String> = emptyMap()): String {
+private fun TestConfiguration.generateReport(ortResult: OrtResult, options: Map<String, String> = emptyMap()): String {
     val input = ReporterInput(
         ortResult = ortResult,
         resolutionProvider = DefaultResolutionProvider().add(ortResult.getResolutions()),
         howToFixTextProvider = { "Some how to fix text." }
     )
 
-    val outputDir = createTempDirectory("$ORT_NAME-${EvaluatedModelReporterFunTest::class.simpleName}").toFile().apply {
-        deleteOnExit()
-    }
+    val outputDir = createTestTempDir()
 
     return EvaluatedModelReporter().generateReport(input, outputDir, options).single().readText()
 }

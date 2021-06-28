@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -178,7 +178,7 @@ class Subversion : VersionControlSystem() {
     }
 
     override fun updateWorkingTree(workingTree: WorkingTree, revision: String, path: String, recursive: Boolean) =
-        try {
+        runCatching {
             revision.toLongOrNull()?.let { numericRevision ->
                 // This code path updates the working tree to a numeric revision.
                 val svnRevision = SVNRevision.create(numericRevision)
@@ -226,15 +226,15 @@ class Subversion : VersionControlSystem() {
             }
 
             true
-        } catch (e: SVNException) {
-            e.showStackTrace()
+        }.onFailure {
+            it.showStackTrace()
 
             log.warn {
                 "Failed to update the $type working tree at '${workingTree.workingDir}' to revision '$revision':\n" +
-                        e.collectMessagesAsString()
+                        it.collectMessagesAsString()
             }
-
-            false
+        }.map {
+            revision
         }
 }
 

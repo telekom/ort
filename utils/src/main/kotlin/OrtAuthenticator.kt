@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -127,31 +127,20 @@ fun getNetrcAuthentication(contents: String, machine: String): PasswordAuthentic
 
     val iterator = lines.joinToString(" ").split(Regex("\\s+")).iterator()
 
+    var machineFound = false
     var login: String? = null
     var password: String? = null
-    var currentMachine: String? = null
-    val credentialsPerMachine = mutableMapOf<String, Pair<String, String>>()
 
     while (iterator.hasNext()) {
         when (iterator.next()) {
-            "machine" -> currentMachine = iterator.next()
-            "login" -> login = iterator.next()
-            "password" -> password = iterator.next()
-            "default" -> currentMachine = "default"
+            "machine" -> machineFound = iterator.hasNext() && iterator.next() == machine
+            "login" -> login = if (machineFound && iterator.hasNext()) iterator.next() else null
+            "password" -> password = if (machineFound && iterator.hasNext()) iterator.next() else null
+            "default" -> machineFound = true
         }
 
-        if (currentMachine != null && login != null && password != null) {
-            credentialsPerMachine[currentMachine] = login to password
-        }
+        if (login != null && password != null) return PasswordAuthentication(login, password.toCharArray())
     }
 
-    credentialsPerMachine[machine]?.let {
-        OrtAuthenticator.log.debug { "Found .netrc entry for $machine." }
-        return PasswordAuthentication(it.first, it.second.toCharArray())
-    }
-
-    return credentialsPerMachine["default"]?.let {
-        OrtAuthenticator.log.debug { "Using default .netrc entry for $machine." }
-        PasswordAuthentication(it.first, it.second.toCharArray())
-    }
+    return null
 }

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -324,9 +324,9 @@ class Composer(
     private fun parseVcsInfo(packageInfo: JsonNode) =
         packageInfo["source"]?.let {
             VcsInfo(
-                VcsType(it["type"].textValueOrEmpty()),
-                it["url"].textValueOrEmpty(),
-                it["reference"].textValueOrEmpty()
+                type = VcsType(it["type"].textValueOrEmpty()),
+                url = it["url"].textValueOrEmpty(),
+                revision = it["reference"].textValueOrEmpty()
             )
         } ?: VcsInfo.EMPTY
 
@@ -356,6 +356,6 @@ class Composer(
 
         // The "install" command creates a "composer.lock" file (if not yet present) except for projects without any
         // dependencies, see https://getcomposer.org/doc/01-basic-usage.md#installing-without-composer-lock.
-        run(workingDir, "install")
+        run(workingDir, "install", "--ignore-platform-reqs")
     }
 }

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,12 +37,11 @@ class ScanResultContainerTest : WordSpec() {
     private val downloadTime2 = Instant.EPOCH + Duration.ofDays(2)
 
     private val provenance1 = ArtifactProvenance(
-        downloadTime = downloadTime1,
         sourceArtifact = RemoteArtifact("url", Hash.create("hash"))
     )
     private val provenance2 = RepositoryProvenance(
-        downloadTime = downloadTime2,
-        vcsInfo = VcsInfo(VcsType("type"), "url", "revision", "resolvedRevision", "path")
+        vcsInfo = VcsInfo(VcsType("type"), "url", "revision", "path"),
+        resolvedRevision = "resolvedRevision"
     )
 
     private val scannerDetails1 = ScannerDetails("name 1", "version 1", "config 1")

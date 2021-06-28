@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,14 +46,14 @@ data class DependencyGraph(
      * A list with the identifiers of the packages that appear in the dependency graph. This list is used to resolve
      * the numeric indices contained in the [DependencyReference] objects.
      */
-    val packages: List<String>,
+    val packages: List<Identifier>,
 
     /**
      * Stores the dependency graph as a list of root nodes for the direct dependencies referenced by scopes. Starting
      * with these nodes, the whole graph can be traversed. The nodes are constructed from the direct dependencies
      * declared by scopes that cannot be reached via other paths in the dependency graph.
      */
-    val scopeRoots: Set<DependencyReference>,
+    val scopeRoots: SortedSet<DependencyReference>,
 
     /**
      * A mapping from scope names to the direct dependencies of the scopes. Based on this information, the set of
@@ -61,21 +61,74 @@ data class DependencyGraph(
      */
     val scopes: Map<String, List<RootDependencyIndex>>
 ) {
+    companion object {
+        /**
+         * A comparator for [DependencyReference] objects. Note that the concrete order does not really matter, it
+         * just has to be well-defined.
+         */
+        val DEPENDENCY_REFERENCE_COMPARATOR = compareBy<DependencyReference> { it.pkg }.thenBy { it.fragment }
+
+        /**
+         * Return a name for the given [scope][scopeName] that is qualified with parts of the identifier of the given
+         * [project]. This is used to ensure that the scope names are unique when constructing a dependency graph from
+         * multiple projects.
+         */
+        fun qualifyScope(project: Project, scopeName: String): String =
+            qualifyScope(project.id, scopeName)
+
+        /**
+         * Return a name for the given [scope][scopeName] that is qualified with parts of the given [projectId]. This
+         * is used to ensure that the scope names are unique when constructing a dependency graph from multiple
+         * projects.
+         */
+        fun qualifyScope(projectId: Identifier, scopeName: String): String =
+            "${projectId.namespace}:${projectId.name}:${projectId.version}:$scopeName"
+
+        /**
+         * Extract the plain (un-qualified) scope name from the given qualified [scopeName]. If the passed in
+         * [scopeName] is not qualified, return it unchanged.
+         */
+        fun unqualifyScope(scopeName: String): String =
+            // To handle the case that the scope contains the separator character, cut off the parts for the
+            // namespace, the name, and the version.
+            scopeName.split(':', limit = 4).getOrElse(3) { scopeName }
+    }
+
+    /**
+     * Stores a mapping from dependency indices to [PackageReference] objects. This is needed when converting the
+     * data of this object to the classical layout of dependency information. The structure is created once and then
+     * used to convert parts of this graph.
+     */
+    private val referenceMapping: Map<String, PackageReference> by lazy { constructReferenceMapping() }
+
     /**
      * Transform the data stored in this object to the classical layout of dependency information, which is a set of
      * [Scope]s referencing the packages they depend on.
      */
-    fun createScopes(): SortedSet<Scope> {
-        val refMapping = constructReferenceMapping()
+    fun createScopes(): SortedSet<Scope> = createScopesFor(scopes, unqualify = false)
 
-        return scopes.mapTo(sortedSetOf()) { entry ->
+    /**
+     * Transform a subset of the data stored in this object to the classical layout of dependency information. This is
+     * analogous to [createScopes], but only the provided [scopeNames] are taken into account. If [unqualify] is
+     * *true*, remove qualifiers from scope names before constructing the [Scope]s.
+     */
+    fun createScopes(scopeNames: Set<String>, unqualify: Boolean = true): SortedSet<Scope> =
+        createScopesFor(scopes.filterKeys { it in scopeNames }, unqualify)
+
+    /**
+     * Convert the given [map] with scope information to a set of [Scope]s. [Optionally][unqualify] remove qualifiers
+     * from scope names.
+     */
+    private fun createScopesFor(map: Map<String, List<RootDependencyIndex>>, unqualify: Boolean): SortedSet<Scope> =
+        map.mapTo(sortedSetOf()) { entry ->
             val dependencies = entry.value.mapTo(sortedSetOf()) { index ->
-                refMapping[index.toKey()] ?: throw IllegalStateException("Could not resolve dependency index $index.")
+                referenceMapping[index.toKey()]
+                    ?: throw IllegalStateException("Could not resolve dependency index $index.")
             }
 
-            Scope(entry.key, dependencies)
+            val scopeName = if (unqualify) unqualifyScope(entry.key) else entry.key
+            Scope(scopeName, dependencies)
         }
-    }
 
     /**
      * Construct a mapping from dependency indices to [PackageReference] objects. Based on this mapping, the
@@ -106,12 +159,33 @@ data class DependencyGraph(
             }
 
             PackageReference(
-                id = Identifier(packages[ref.pkg]),
+                id = packages[ref.pkg],
                 dependencies = dependencies,
                 linkage = ref.linkage,
                 issues = ref.issues
             )
         }
+    }
+
+    /**
+     * Return a map of all de-duplicated [OrtIssue]s associated by [Identifier].
+     */
+    fun collectIssues(): Map<Identifier, Set<OrtIssue>> {
+        val collectedIssues = mutableMapOf<Identifier, MutableSet<OrtIssue>>()
+
+        fun addIssues(ref: DependencyReference) {
+            if (ref.issues.isNotEmpty()) {
+                collectedIssues.getOrPut(packages[ref.pkg]) { mutableSetOf() } += ref.issues
+            }
+
+            ref.dependencies.forEach { addIssues(it) }
+        }
+
+        for (ref in scopeRoots) {
+            addIssues(ref)
+        }
+
+        return collectedIssues
     }
 }
 

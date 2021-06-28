@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,12 +20,9 @@
 import React from 'react';
 import { connect } from 'react-redux';
 import {
-    Button,
     Collapse,
     Dropdown,
-    Input,
     Menu,
-    Space,
     Table,
     Tooltip
 } from 'antd';
@@ -35,8 +32,7 @@ import {
     EyeInvisibleOutlined,
     FileAddOutlined,
     FileExcelOutlined,
-    LaptopOutlined,
-    SearchOutlined
+    LaptopOutlined
 } from '@ant-design/icons';
 import PropTypes from 'prop-types';
 import {
@@ -57,6 +53,7 @@ import PackageLicenses from './PackageLicenses';
 import PackagePaths from './PackagePaths';
 import PathExcludesTable from './PathExcludesTable';
 import ScopeExcludesTable from './ScopeExcludesTable';
+import { getColumnSearchProps } from './Shared';
 
 const { Panel } = Collapse;
 
@@ -71,65 +68,19 @@ class TableView extends React.Component {
             payload: {
                 columnKey: e.key
             },
-            type: 'TABLE::COLUMNS_PACKAGES_TABLE_TOGGLE'
+            type: 'TABLE::CHANGE_COLUMNS_PACKAGES_TABLE'
         });
     }
 
-    getColumnSearchProps = (dataIndex, filteredInfo) => ({
-        filterDropdown: ({
-            setSelectedKeys, selectedKeys, confirm, clearFilters
-        }) => (
-            <div style={{ padding: 8 }}>
-                <Input
-                    ref={(node) => {
-                        this.searchInput = node;
-                    }}
-                    placeholder="Search..."
-                    value={selectedKeys[0]}
-                    onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
-                    onPressEnter={() => confirm()}
-                    style={{ width: 188, marginBottom: 8, display: 'block' }}
-                />
-                <Space>
-                    <Button
-                        onClick={() => clearFilters()}
-                        size="small"
-                        style={{ width: 90 }}
-                    >
-                        Reset
-                    </Button>
-                    <Button
-                        icon={<SearchOutlined />}
-                        onClick={() => confirm()}
-                        size="small"
-                        style={{ width: 90 }}
-                        type="primary"
-                    >
-                        Search
-                    </Button>
-                </Space>
-            </div>
-        ),
-        filterIcon: (filtered) => <SearchOutlined style={{ color: filtered ? '#1890ff' : undefined }} />,
-        filteredValue: filteredInfo ? filteredInfo[dataIndex] : '',
-        onFilter: (value, record) => (record[dataIndex]
-            ? record[dataIndex].toString().toLowerCase().includes(value.toLowerCase())
-            : false),
-        onFilterDropdownVisibleChange: (visible) => {
-            if (visible) {
-                setTimeout(() => this.searchInput.select());
-            }
-        }
-    });
-
     render() {
+        console.log('this.props', this.props);
         const {
             tableView: {
-                filter: {
+                columns: {
                     filteredInfo,
-                    sortedInfo
-                },
-                showColumnKeys
+                    sortedInfo,
+                    showKeys
+                }
             },
             tableDeclaredLicensesSelections,
             tableDeclaredLicensesProcessedSelections,
@@ -208,13 +159,13 @@ class TableView extends React.Component {
             sorter: (a, b) => a.id.localeCompare(b.id),
             sortOrder: sortedInfo.field === 'id' && sortedInfo.order,
             title: 'Package',
-            ...this.getColumnSearchProps('id', filteredInfo)
+            ...getColumnSearchProps('id', filteredInfo, this)
         });
 
         if (webAppOrtResult.hasScopes()) {
             toggleColumnMenuItems.push({ text: 'Scopes', value: 'scopeIndexes' });
 
-            if (showColumnKeys.includes('scopeIndexes')) {
+            if (showKeys.includes('scopeIndexes')) {
                 columns.push({
                     align: 'left',
                     dataIndex: 'scopeIndexes',
@@ -235,7 +186,7 @@ class TableView extends React.Component {
         if (webAppOrtResult.hasLevels()) {
             toggleColumnMenuItems.push({ text: 'Levels', value: 'levels' });
 
-            if (showColumnKeys.includes('levels')) {
+            if (showKeys.includes('levels')) {
                 columns.push({
                     align: 'center',
                     dataIndex: 'levels',
@@ -258,7 +209,7 @@ class TableView extends React.Component {
         if (webAppOrtResult.hasConcludedLicenses()) {
             toggleColumnMenuItems.push({ text: 'Concluded License', value: 'concludedLicense' });
 
-            if (showColumnKeys.includes('concludedLicense')) {
+            if (showKeys.includes('concludedLicense')) {
                 columns.push({
                     align: 'left',
                     dataIndex: 'concludedLicense',
@@ -279,7 +230,7 @@ class TableView extends React.Component {
         if (webAppOrtResult.hasDeclaredLicensesProcessed()) {
             toggleColumnMenuItems.push({ text: 'Declared Licenses', value: 'declaredLicensesProcessed' });
 
-            if (showColumnKeys.includes('declaredLicensesProcessed')) {
+            if (showKeys.includes('declaredLicensesProcessed')) {
                 columns.push({
                     align: 'left',
                     dataIndex: 'declaredLicensesMapped',
@@ -305,7 +256,7 @@ class TableView extends React.Component {
         if (webAppOrtResult.hasDeclaredLicenses()) {
             toggleColumnMenuItems.push({ text: 'Unprocessed Declared Licenses', value: 'declaredLicenses' });
 
-            if (showColumnKeys.includes('declaredLicenses')) {
+            if (showKeys.includes('declaredLicenses')) {
                 columns.push({
                     align: 'left',
                     dataIndex: 'declaredLicenses',
@@ -330,7 +281,7 @@ class TableView extends React.Component {
         if (webAppOrtResult.hasDetectedLicenses()) {
             toggleColumnMenuItems.push({ text: 'Detected Licenses', value: 'detectedLicensesProcessed' });
 
-            if (showColumnKeys.includes('detectedLicensesProcessed')) {
+            if (showKeys.includes('detectedLicensesProcessed')) {
                 columns.push({
                     align: 'left',
                     dataIndex: 'detectedLicensesProcessed',
@@ -352,7 +303,7 @@ class TableView extends React.Component {
         }
 
         toggleColumnMenuItems.push({ text: 'Homepage', value: 'homepageUrl' });
-        if (showColumnKeys.includes('homepageUrl')) {
+        if (showKeys.includes('homepageUrl')) {
             columns.push({
                 align: 'left',
                 dataIndex: 'homepageUrl',
@@ -366,12 +317,12 @@ class TableView extends React.Component {
                 sortOrder: sortedInfo.field === 'homepageUrl' && sortedInfo.order,
                 textWrap: 'word-break',
                 title: 'Homepage',
-                ...this.getColumnSearchProps('Homepage', filteredInfo)
+                ...getColumnSearchProps('Homepage', filteredInfo, this)
             });
         }
 
         toggleColumnMenuItems.push({ text: 'Repository', value: 'vcsProcessedUrl' });
-        if (showColumnKeys.includes('vcsProcessedUrl')) {
+        if (showKeys.includes('vcsProcessedUrl')) {
             columns.push({
                 align: 'left',
                 dataIndex: 'vcsProcessedUrl',
@@ -385,12 +336,12 @@ class TableView extends React.Component {
                 sortOrder: sortedInfo.field === 'vcsProcessedUrl' && sortedInfo.order,
                 textWrap: 'word-break',
                 title: 'Repository',
-                ...this.getColumnSearchProps('vcsProcessedUrl', filteredInfo)
+                ...getColumnSearchProps('vcsProcessedUrl', filteredInfo, this)
             });
         }
 
         toggleColumnMenuItems.push({ text: 'Project', value: 'projectIndexes' });
-        if (showColumnKeys.includes('projectIndexes')) {
+        if (showKeys.includes('projectIndexes')) {
             columns.push({
                 align: 'left',
                 dataIndex: 'projectIndexes',
@@ -422,20 +373,20 @@ class TableView extends React.Component {
                 <div className="ort-table-buttons">
                     <Dropdown.Button
                         onClick={() => {
-                            store.dispatch({ type: 'TABLE::CLEAR_FILTERS_TABLE' });
+                            store.dispatch({ type: 'TABLE::RESET_COLUMNS_TABLE' });
                         }}
                         overlay={(
                             <Menu
                                 className="ort-table-toggle-columns"
                                 onClick={this.onClickToggleColumnsMenu}
-                                selectedKeys={showColumnKeys}
+                                selectedKeys={showKeys}
                             >
                                 {
                                     toggleColumnMenuItems.map(
                                         (item) => (
                                             <Menu.Item key={item.value}>
                                                 {
-                                                    showColumnKeys.includes(item.value)
+                                                    showKeys.includes(item.value)
                                                         ? <EyeOutlined />
                                                         : <EyeInvisibleOutlined />
                                                 }
@@ -523,11 +474,11 @@ class TableView extends React.Component {
                         store.dispatch({
                             type: 'TABLE::CHANGE_PACKAGES_TABLE',
                             payload: {
-                                filter: {
+                                columns: {
                                     filteredInfo: filters,
-                                    sortedInfo: sorter
-                                },
-                                filterData: extra.currentDataSource
+                                    sortedInfo: sorter,
+                                    filterData: extra.currentDataSource
+                                }
                             }
                         });
                     }}

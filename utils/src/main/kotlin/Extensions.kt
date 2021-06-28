@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,6 +38,34 @@ import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.Locale
+
+/**
+ * Create a temporary directory with a name specific to ORT, and optional [infixes].
+ */
+fun createOrtTempDir(vararg infixes: String): File {
+    val prefix = listOfNotNull(ORT_NAME, *infixes).joinToString("-")
+    return kotlin.io.path.createTempDirectory(prefix).toFile()
+}
+
+/**
+ * Create a temporary directory with a name specific to ORT, the calling class, and optional [infixes].
+ */
+fun Any.createOrtTempDir(vararg infixes: String): File =
+    org.ossreviewtoolkit.utils.createOrtTempDir(javaClass.simpleName, *infixes)
+
+/**
+ * Create a temporary file with optionally specified [prefix] and [suffix] inside a directory with a name specific to
+ * ORT.
+ */
+fun createOrtTempFile(prefix: String? = null, suffix: String? = null): File =
+    kotlin.io.path.createTempFile(createOrtTempDir().toPath(), prefix, suffix).toFile()
+
+/**
+ * Create a temporary file with optionally specified [prefix] and [suffix] inside a directory with a name specific to
+ * ORT and the calling class.
+ */
+fun Any.createOrtTempFile(prefix: String? = null, suffix: String? = null): File =
+    kotlin.io.path.createTempFile(createOrtTempDir().toPath(), prefix, suffix).toFile()
 
 /**
  * Return a string of hexadecimal digits representing the bytes in the array.
@@ -334,11 +362,18 @@ fun String.percentEncode(): String =
         .replace("%7E", "~")
 
 /**
- * Strip any user name / password off the URL represented by this [String]. Return the unmodified [String] if it does
- * not represent a URL or if it does not include a user name.
+ * Replace any user name / password in the URI represented by this [String] with [userInfo]. If [userInfo] is null, the
+ * user name / password are stripped. Return the unmodified [String] if it does not represent a URI.
  */
-fun String.stripCredentialsFromUrl() =
-    toUri { URI(it.scheme, null, it.host, it.port, it.path, it.query, it.fragment).toString() }.getOrDefault(this)
+fun String.replaceCredentialsInUri(userInfo: String? = null) =
+    toUri {
+        URI(it.scheme, userInfo, it.host, it.port, it.path, it.query, it.fragment).toString()
+    }.getOrDefault(this)
+
+/**
+ * Return this string lower-cased except for the first character which is upper-cased.
+ */
+fun String.titlecase() = lowercase().uppercaseFirstChar()
 
 /**
  * Return a [Result] that indicates whether the conversion of this [String] to a [URI] was successful.
@@ -352,10 +387,22 @@ fun String.toUri() = runCatching { URI(this) }
 fun <R> String.toUri(transform: (URI) -> R) = toUri().mapCatching(transform)
 
 /**
+ * Return this string with the first character upper-cased.
+ */
+fun String.uppercaseFirstChar() =
+    replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+
+/**
  * If this string starts with [prefix], return the string without the prefix, otherwise return [missingPrefixValue].
  */
 fun String?.withoutPrefix(prefix: String, missingPrefixValue: () -> String? = { null }): String? =
     this?.removePrefix(prefix)?.takeIf { it != this } ?: missingPrefixValue()
+
+/**
+ * If this string ends with [suffix], return the string without the suffix, otherwise return [missingSuffixValue].
+ */
+fun String?.withoutSuffix(suffix: String, missingSuffixValue: () -> String? = { null }): String? =
+    this?.removeSuffix(suffix)?.takeIf { it != this } ?: missingSuffixValue()
 
 /**
  * Recursively collect the messages of this [Throwable] and all its causes.
@@ -384,8 +431,3 @@ fun Throwable.showStackTrace() {
     // https://discuss.kotlinlang.org/t/if-operator-in-function-expression/7227.
     if (printStackTrace) printStackTrace()
 }
-
-/**
- * Check whether the URI has a fragment that looks like a VCS revision.
- */
-fun URI.hasRevisionFragment() = fragment?.let { Regex("[a-fA-F0-9]{7,}$").matches(it) } == true

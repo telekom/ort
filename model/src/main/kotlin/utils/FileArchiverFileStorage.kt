@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -86,11 +86,11 @@ private fun KnownProvenance.hash(): String {
             // of the storage key. However, for Git-Repo that path must be part of the storage key because it denotes
             // the Git-Repo manifest location rather than the path to be (sparse) checked out.
             val path = vcsInfo.path.takeIf { vcsInfo.type == VcsType.GIT_REPO }.orEmpty()
-            "${vcsInfo.type}${vcsInfo.url}${vcsInfo.resolvedRevision}$path"
+            "${vcsInfo.type}${vcsInfo.url}${resolvedRevision}$path"
         }
     }
 
     return SHA1_DIGEST.digest(key.toByteArray()).toHexString()
 }
 
-private fun getArchivePath(provenance: KnownProvenance): String = "${provenance.hash()}/archive.zip"
+internal fun getArchivePath(provenance: KnownProvenance): String = "${provenance.hash()}/archive.zip"
