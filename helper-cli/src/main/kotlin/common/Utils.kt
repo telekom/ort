@@ -37,6 +37,7 @@ import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Package
+import org.ossreviewtoolkit.model.PackageCuration
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RemoteArtifact
@@ -74,6 +75,7 @@ import org.ossreviewtoolkit.utils.encodeOrUnknown
 import org.ossreviewtoolkit.utils.fileSystemEncode
 import org.ossreviewtoolkit.utils.isSymbolicLink
 import org.ossreviewtoolkit.utils.replaceCredentialsInUri
+import org.ossreviewtoolkit.utils.safeMkdirs
 import org.ossreviewtoolkit.utils.withoutPrefix
 
 const val ORTH_NAME = "orth"
@@ -828,7 +830,45 @@ internal fun PackageConfiguration.write(targetFile: File) {
     targetFile.writeValue(this)
 }
 
-internal fun createBlockYamlMapper(): ObjectMapper =
+// Wrap at column 120 minus 6 spaces of indentation.
+private const val COMMENT_WRAP_COLUMN = 120 - 6
+
+/**
+ * Return a copy of this [PackageCuration] with the comment formamtted.
+ */
+internal fun PackageCuration.formatComment(): PackageCuration {
+    val comment = data.comment ?: return this
+    val wrappedComment = comment.wrapAt(COMMENT_WRAP_COLUMN)
+    // Ensure at least a single "\n" is contained in the comment to force the YAML mapper to use block quotes.
+    val wrappedCommentWithLinebreak = "$wrappedComment\n"
+
+    return copy(data = data.copy(comment = wrappedCommentWithLinebreak))
+}
+
+/**
+ * Read a list of [PackageCuration]s from the given [file].
+ */
+internal fun readPackageCurations(file: File): List<PackageCuration> =
+    if (file.isFile) {
+        file.readValue()
+    } else {
+        emptyList()
+    }
+
+/**
+ * Serialize [PackageCuration] to the given [targetFile] as YAML.
+ */
+internal fun Collection<PackageCuration>.writeAsYaml(targetFile: File) {
+    targetFile.parentFile.safeMkdirs()
+
+    val yaml = createBlockYamlMapper()
+        .writerWithDefaultPrettyPrinter()
+        .writeValueAsString(this)
+
+    targetFile.writeText(yaml)
+}
+
+private fun createBlockYamlMapper(): ObjectMapper =
     yamlMapper.copy()
         .enable(YAMLGenerator.Feature.LITERAL_BLOCK_STYLE)
         .disable(YAMLGenerator.Feature.SPLIT_LINES)

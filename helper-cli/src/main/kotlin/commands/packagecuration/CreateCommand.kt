@@ -27,13 +27,14 @@ import com.github.ajalt.clikt.parameters.types.file
 
 import java.io.IOException
 
-import org.ossreviewtoolkit.helper.common.createBlockYamlMapper
+import org.ossreviewtoolkit.helper.common.formatComment
 import org.ossreviewtoolkit.helper.common.getSplitCurationFile
+import org.ossreviewtoolkit.helper.common.readPackageCurations
+import org.ossreviewtoolkit.helper.common.writeAsYaml
 import org.ossreviewtoolkit.model.FileFormat
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.PackageCuration
 import org.ossreviewtoolkit.model.PackageCurationData
-import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.utils.expandTilde
 
 internal class CreateCommand : CliktCommand(
@@ -56,28 +57,18 @@ internal class CreateCommand : CliktCommand(
     override fun run() {
         val outputFile = getSplitCurationFile(outputDir, packageId, FileFormat.YAML.fileExtension)
 
-        val curations = if (outputFile.isFile) {
-            outputFile.readValue<MutableSet<PackageCuration>>()
-        } else {
-            mutableSetOf()
-        }
+        val curations = readPackageCurations(outputFile).toMutableSet()
 
-        if (packageId in curations.map { it.id }) {
+        if (curations.any { it.id == packageId }) {
             println("Curation for ${packageId.toCoordinates()} already exists in '${outputFile.absolutePath}'.")
 
             return
         }
 
-        // A block comment without any text is not valid in YAML. Therefore add a dummy comment with a line break to
-        // force the YAML mapper to create a block comment.
-        curations += PackageCuration(packageId, PackageCurationData(comment = "Curation comment.\n"))
-
-        val mapper = createBlockYamlMapper()
-        val text = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(curations.sortedBy { it.id })
+        curations += PackageCuration(packageId, PackageCurationData(comment = "Curation comment")).formatComment()
 
         try {
-            outputFile.parentFile.mkdirs()
-            outputFile.writeText(text)
+            curations.sortedBy { it.id }.writeAsYaml(outputFile)
         } catch (e: IOException) {
             throw IOException("Failed to create '${outputFile.absoluteFile}'.", e)
         }
