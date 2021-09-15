@@ -22,21 +22,14 @@ package org.ossreviewtoolkit.model
 import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
-import com.fasterxml.jackson.databind.ser.std.StdSerializer
 
 import java.util.SortedMap
 import java.util.SortedSet
-
-import org.ossreviewtoolkit.model.utils.DependencyGraphConverter
 
 /**
  * A class that merges all information from individual [ProjectAnalyzerResult]s created for each found definition file.
  */
 @JsonIgnoreProperties(value = ["has_issues", /* Backwards-compatibility: */ "has_errors"], allowGetters = true)
-@JsonSerialize(using = AnalyzerResultSerializer::class)
 data class AnalyzerResult(
     /**
      * Sorted set of the projects, as they appear in the individual analyzer results.
@@ -84,16 +77,13 @@ data class AnalyzerResult(
     fun collectIssues(): Map<Identifier, Set<OrtIssue>> {
         val collectedIssues = issues.mapValuesTo(mutableMapOf()) { it.value.toMutableSet() }
 
-        projects.forEach { project ->
-            project.collectIssues().forEach { (id, issues) ->
+        // Collecting issues from projects is necessary only if they use the dependency tree format; otherwise, the
+        // issues can be retrieved from the graph. So, once analyzer results are created with dependency graphs
+        // exclusively, this step can be removed.
+        projects.filter { it.scopeDependencies != null }.forEach { project ->
+            val projectDependencies = project.scopeDependencies.orEmpty().asSequence().flatMap(Scope::dependencies)
+            DependencyNavigator.collectIssues(projectDependencies).forEach { (id, issues) ->
                 collectedIssues.getOrPut(id) { mutableSetOf() } += issues
-            }
-        }
-
-        packages.forEach { curatedPackage ->
-            val issues = curatedPackage.collectIssues()
-            if (issues.isNotEmpty()) {
-                collectedIssues.getOrPut(curatedPackage.pkg.id) { mutableSetOf() } += issues
             }
         }
 
@@ -126,32 +116,4 @@ data class AnalyzerResult(
         } else {
             this
         }
-}
-
-/**
- * A custom serializer for [AnalyzerResult] instances.
- *
- * This serializer makes sure that [AnalyzerResult]s always use the dependency graph representation when they are
- * serialized. This is achieved by processing the result by [DependencyGraphConverter] before it is written out.
- */
-private class AnalyzerResultSerializer : StdSerializer<AnalyzerResult>(AnalyzerResult::class.java) {
-    override fun serialize(result: AnalyzerResult, gen: JsonGenerator, provider: SerializerProvider?) {
-        val resultWithGraph = DependencyGraphConverter.convert(result)
-
-        gen.writeStartObject()
-
-        with(resultWithGraph) {
-            gen.writeObjectField("projects", projects)
-            gen.writeObjectField("packages", packages)
-
-            if (issues.isNotEmpty()) {
-                gen.writeObjectField("issues", issues)
-            }
-
-            gen.writeObjectField("dependency_graphs", dependencyGraphs)
-            gen.writeBooleanField("has_issues", hasIssues)
-        }
-
-        gen.writeEndObject()
-    }
 }

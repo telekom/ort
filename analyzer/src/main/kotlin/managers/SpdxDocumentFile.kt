@@ -21,8 +21,6 @@
 
 package org.ossreviewtoolkit.analyzer.managers
 
-import com.fasterxml.jackson.module.kotlin.readValue
-
 import java.io.File
 import java.net.URI
 import java.util.SortedSet
@@ -45,6 +43,7 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
+import org.ossreviewtoolkit.model.orEmpty
 import org.ossreviewtoolkit.model.utils.toPurl
 import org.ossreviewtoolkit.spdx.SpdxConstants
 import org.ossreviewtoolkit.spdx.SpdxExpression
@@ -56,9 +55,12 @@ import org.ossreviewtoolkit.spdx.model.SpdxPackage
 import org.ossreviewtoolkit.spdx.model.SpdxRelationship
 import org.ossreviewtoolkit.spdx.toSpdx
 import org.ossreviewtoolkit.utils.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.createOrtTempDir
 import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.safeDeleteRecursively
 import org.ossreviewtoolkit.utils.withoutPrefix
 
+private const val MANAGER_NAME = "SpdxDocumentFile"
 private const val DEFAULT_SCOPE_NAME = "default"
 
 private val SPDX_LINKAGE_RELATIONSHIPS = mapOf(
@@ -100,21 +102,82 @@ internal fun SpdxDocument.projectPackage(): SpdxPackage? =
         ?.singleOrNull { it.packageFilename.isEmpty() || it.packageFilename == "." }
 
 /**
- * Get the [SpdxPackage] from the [SpdxExternalDocumentReference] that the [packageId] refers to, where [workingDir] is
- * used to resolve local relative URIs to files.
+ * Get the [SpdxPackage] from the [SpdxExternalDocumentReference] that the [packageId] refers to, where [definitionFile]
+ * is used to resolve local relative URIs to files.
  */
-internal fun SpdxExternalDocumentReference.getSpdxPackage(packageId: String, workingDir: File): SpdxPackage {
-    val externalSpdxDocument = resolveExternalDocumentReference(this, workingDir)
+internal fun SpdxExternalDocumentReference.getSpdxPackage(
+    packageId: String,
+    definitionFile: File,
+    issues: MutableList<OrtIssue>
+): SpdxPackage? {
+    val externalSpdxDocument = resolve(definitionFile, issues) ?: return null
 
     if (externalSpdxDocument.isProject()) {
-        throw IllegalArgumentException("$externalDocumentId refers to a file that contains more than a single " +
-                "package. This is currently not supported yet.")
+        issues += createAndLogIssue(
+            source = MANAGER_NAME,
+            message = "$externalDocumentId refers to a file that contains more than a single package. This is " +
+                    "currently not supported."
+        )
+        return null
     }
 
-    val spdxPackage = externalSpdxDocument.packages.find { it.spdxId == packageId }
-        ?: throw IllegalArgumentException("$packageId can not be found in external document $externalDocumentId.")
+    val spdxPackage = externalSpdxDocument.packages.find { it.spdxId == packageId } ?: run {
+        issues += createAndLogIssue(
+            source = MANAGER_NAME,
+            message = "$packageId can not be found in external document $externalDocumentId."
+        )
+        return null
+    }
 
-    return spdxPackage.copy(packageFilename = workingDir.resolve(URI(spdxDocument).path).parentFile.absolutePath)
+    val spdxDocumentPath = URI(spdxDocument).path
+    return spdxPackage.copy(packageFilename = definitionFile.resolveSibling(spdxDocumentPath).parentFile.absolutePath)
+}
+
+/**
+ * Return the [SpdxDocument] this [SpdxExternalDocumentReference]'s [SpdxDocument] refers to.
+ */
+private fun SpdxExternalDocumentReference.resolve(definitionFile: File, issues: MutableList<OrtIssue>): SpdxDocument? {
+    val uri = runCatching { URI(spdxDocument) }.getOrElse {
+        issues += createAndLogIssue(
+            source = MANAGER_NAME,
+            message = "'$spdxDocument' identified by $externalDocumentId is not a valid URI. }"
+        )
+        return null
+    }
+
+    var tempDir: File? = null
+
+    val spdxFile = if (uri.scheme.equals("file", ignoreCase = true) || !uri.isAbsolute) {
+        val referencedFile = definitionFile.resolveSibling(uri.path).absoluteFile.normalize()
+        referencedFile.takeIf { it.isFile } ?: run {
+            issues += createAndLogIssue(
+                source = MANAGER_NAME,
+                message = "The file '$referencedFile' pointed to by URI '$uri' does not exist."
+            )
+            return null
+        }
+    } else {
+        tempDir = createOrtTempDir()
+        OkHttpClientHelper.downloadFile(uri.toString(), tempDir).getOrNull() ?: run {
+            tempDir.safeDeleteRecursively(force = true)
+            issues += createAndLogIssue(
+                source = MANAGER_NAME,
+                message = "Failed to download '$spdxDocument' from $uri."
+            )
+            return null
+        }
+    }
+
+    val hash = Hash.create(checksum.checksumValue, checksum.algorithm.name)
+    if (!hash.verify(spdxFile)) {
+        val referencedFile = tempDir?.let { uri } ?: spdxFile
+        issues += createAndLogIssue(
+            source = MANAGER_NAME,
+            message = "The file '$referencedFile' referred from '$definitionFile' does not match the expected $hash."
+        )
+    }
+
+    return SpdxModelMapper.read<SpdxDocument>(spdxFile).also { tempDir?.safeDeleteRecursively(force = true) }
 }
 
 /**
@@ -247,36 +310,6 @@ private fun hasDependsOnRelationship(
 }
 
 /**
- * Return [File] referred to by [SpdxExternalDocumentReference.spdxDocument].
- */
-private fun resolveExternalDocumentReference(
-    externalDocumentReference: SpdxExternalDocumentReference,
-    workingDir: File
-): SpdxDocument {
-    val uri = runCatching { URI(externalDocumentReference.spdxDocument) }.getOrElse {
-        throw IllegalArgumentException("'${externalDocumentReference.spdxDocument}' identified by " +
-                "${externalDocumentReference.externalDocumentId} is not a valid URI. }")
-    }
-
-    if (uri.scheme.equals("file", ignoreCase = true) || !uri.isAbsolute) {
-        val referencedFile = workingDir.resolve(uri.path)
-        val spdxFile = referencedFile.takeIf { it.isFile }
-            ?: throw IllegalArgumentException("The local file URI '$uri' does not point to an existing file.")
-        return SpdxModelMapper.read(spdxFile)
-    }
-
-    return requestSpdxDocument(uri)
-}
-
-/**
- * Returns [SpdxDocument] downloaded from a given [URI], if it can be found.
- */
-private fun requestSpdxDocument(uri: URI): SpdxDocument =
-    OkHttpClientHelper.downloadText(uri.toString()).map {
-        SpdxModelMapper.FileFormat.forFile(File(uri.path)).mapper.readValue<SpdxDocument>(it)
-    }.getOrThrow()
-
-/**
  * A "fake" package manager implementation that uses SPDX documents as definition files to declare projects and describe
  * packages. See https://github.com/spdx/spdx-spec/issues/439 for details.
  */
@@ -289,7 +322,7 @@ class SpdxDocumentFile(
     private val spdxDocumentForFile = mutableMapOf<File, SpdxDocument>()
     private val packageForExternalDocumentId = mutableMapOf<String, SpdxPackage>()
 
-    class Factory : AbstractPackageManagerFactory<SpdxDocumentFile>("SpdxDocumentFile") {
+    class Factory : AbstractPackageManagerFactory<SpdxDocumentFile>(MANAGER_NAME) {
         override val globsForDefinitionFiles = listOf("*.spdx.yml", "*.spdx.yaml", "*.spdx.json")
 
         override fun create(
@@ -313,15 +346,13 @@ class SpdxDocumentFile(
     /**
      * Create a [Package] out of this [SpdxPackage].
      */
-    private fun SpdxPackage.toPackage(workingDir: File): Package {
+    private fun SpdxPackage.toPackage(definitionFile: File): Package {
         val packageDescription = description.takeUnless { it.isEmpty() } ?: summary
 
-        // If the VCS information cannot be determined from the download location, fall back to try getting it from the
-        // VCS working tree itself.
-        val vcs = getVcsInfo() ?: run {
-            val packageDir = workingDir.resolve(packageFilename)
-            VersionControlSystem.forDirectory(packageDir)?.getInfo()
-        } ?: VcsInfo.EMPTY
+        // If the VCS information cannot be determined from the VCS working tree itself, fall back to try getting it
+        // from the download location.
+        val packageDir = definitionFile.resolveSibling(packageFilename)
+        val vcs = VersionControlSystem.forDirectory(packageDir)?.getInfo() ?: getVcsInfo().orEmpty()
 
         val id = toIdentifier()
 
@@ -334,63 +365,75 @@ class SpdxDocumentFile(
             concludedLicense = getConcludedLicense(),
             description = packageDescription,
             homepageUrl = homepage.mapNotPresentToEmpty(),
-            binaryArtifact = getBinaryArtifact() ?: RemoteArtifact.EMPTY,
-            sourceArtifact = getSourceArtifact() ?: RemoteArtifact.EMPTY,
+            binaryArtifact = getBinaryArtifact().orEmpty(),
+            sourceArtifact = getSourceArtifact().orEmpty(),
             vcs = vcs
         )
     }
 
     /**
-     * Get the [SpdxPackage] for the given [identifier] by resolving against packages an external document references
+     * Get the [SpdxPackage] for the given [identifier] by resolving against packages or external document references
      * contained in [doc].
      */
-    private fun getSpdxPackageForId(doc: SpdxDocument, identifier: String, workingDir: File): SpdxPackage {
+    private fun getSpdxPackageForId(
+        doc: SpdxDocument,
+        identifier: String,
+        definitionFile: File,
+        issues: MutableList<OrtIssue>
+    ): SpdxPackage? {
         doc.packages.find { it.spdxId == identifier }?.let { return it }
 
         val documentRef = identifier.substringBefore(":")
         val externalDocumentReference = doc.externalDocumentRefs.find {
             it.externalDocumentId == documentRef
-        } ?: throw IllegalArgumentException(
-            "No single package or externalDocumentRef with ID '$identifier' found."
-        )
+        } ?: run {
+            issues += createAndLogIssue(
+                source = MANAGER_NAME,
+                message = "ID '$identifier' could neither be resolved to a package nor to an externalDocumentRef."
+            )
+            return null
+        }
 
         return packageForExternalDocumentId.getOrPut(externalDocumentReference.externalDocumentId) {
-            externalDocumentReference.getSpdxPackage(identifier.substringAfter(":"), workingDir)
+            externalDocumentReference.getSpdxPackage(identifier.substringAfter(":"), definitionFile, issues)
+                ?: return null
         }
     }
 
     /**
      * Return the dependencies of [pkg] defined in [doc] of the [SpdxRelationship.Type.DEPENDENCY_OF] type. Identified
-     * dependencies are mapped to ORT [Package]s by taking [workingDir] into account for the [VcsInfo], and then added
-     * to [packages].
+     * dependencies are mapped to ORT [Package]s by taking the [definitionFile] into account for the [VcsInfo], and then
+     * added to [packages].
      */
     private fun getDependencies(
         pkg: SpdxPackage,
         doc: SpdxDocument,
-        workingDir: File,
+        definitionFile: File,
         packages: MutableSet<Package>
     ): SortedSet<PackageReference> =
-        getDependencies(pkg, doc, workingDir, packages, SpdxRelationship.Type.DEPENDENCY_OF) { target ->
-            val dependency = getSpdxPackageForId(doc, target, workingDir)
+        getDependencies(pkg, doc, definitionFile, packages, SpdxRelationship.Type.DEPENDENCY_OF) { target ->
+            val issues = mutableListOf<OrtIssue>()
+            getSpdxPackageForId(doc, target, definitionFile, issues)?.let { dependency ->
+                packages += dependency.toPackage(definitionFile)
 
-            packages += dependency.toPackage(workingDir)
-
-            PackageReference(
-                id = dependency.toIdentifier(),
-                dependencies = getDependencies(dependency, doc, workingDir, packages),
-                linkage = getLinkageForDependency(dependency, pkg.spdxId, doc.relationships)
-            )
+                PackageReference(
+                    id = dependency.toIdentifier(),
+                    dependencies = getDependencies(dependency, doc, definitionFile, packages),
+                    linkage = getLinkageForDependency(dependency, pkg.spdxId, doc.relationships),
+                    issues = issues
+                )
+            }
         }
 
     /**
      * Return the dependencies of [pkg] defined in [doc] of the given [dependencyOfRelation] type. Optionally, the
      * [SpdxRelationship.Type.DEPENDS_ON] type is handled by [dependsOnCase]. Identified dependencies are mapped to
-     * ORT [Package]s by taking [workingDir] into account for the [VcsInfo], and then added to [packages].
+     * ORT [Package]s by taking the [definitionFile] into account for the [VcsInfo], and then added to [packages].
      */
     private fun getDependencies(
         pkg: SpdxPackage,
         doc: SpdxDocument,
-        workingDir: File,
+        definitionFile: File,
         packages: MutableSet<Package>,
         dependencyOfRelation: SpdxRelationship.Type,
         dependsOnCase: (String) -> PackageReference? = { null }
@@ -408,22 +451,22 @@ class SpdxDocumentFile(
                         )
                     }
 
-                    val dependency = getSpdxPackageForId(doc, source, workingDir)
-
-                    packages += dependency.toPackage(workingDir)
-                    PackageReference(
-                        id = dependency.toIdentifier(),
-                        dependencies = getDependencies(
-                            dependency,
-                            doc,
-                            workingDir,
-                            packages,
-                            SpdxRelationship.Type.DEPENDENCY_OF,
-                            dependsOnCase
-                        ),
-                        issues = issues,
-                        linkage = getLinkageForDependency(dependency, target, doc.relationships)
-                    )
+                    getSpdxPackageForId(doc, source, definitionFile, issues)?.let { dependency ->
+                        packages += dependency.toPackage(definitionFile)
+                        PackageReference(
+                            id = dependency.toIdentifier(),
+                            dependencies = getDependencies(
+                                dependency,
+                                doc,
+                                definitionFile,
+                                packages,
+                                SpdxRelationship.Type.DEPENDENCY_OF,
+                                dependsOnCase
+                            ),
+                            issues = issues,
+                            linkage = getLinkageForDependency(dependency, target, doc.relationships)
+                        )
+                    }
                 }
 
                 // ...or on the source.
@@ -446,17 +489,19 @@ class SpdxDocumentFile(
 
     /**
      * Return a [Scope] created from the given type of [relation] for [projectPackage] in [spdxDocument], or `null` if
-     * there are no such relations. Identified dependencies are mapped to ORT [Package]s by taking [workingDir] into
-     * account for the [VcsInfo], and then added to [packages].
+     * there are no such relations. Identified dependencies are mapped to ORT [Package]s by taking the [definitionFile]
+     * into account for the [VcsInfo], and then added to [packages].
      */
     private fun createScope(
         spdxDocument: SpdxDocument,
         projectPackage: SpdxPackage,
         relation: SpdxRelationship.Type,
-        workingDir: File,
+        definitionFile: File,
         packages: MutableSet<Package>
     ): Scope? =
-        getDependencies(projectPackage, spdxDocument, workingDir, packages, relation).takeUnless { it.isEmpty() }?.let {
+        getDependencies(projectPackage, spdxDocument, definitionFile, packages, relation).takeUnless {
+            it.isEmpty()
+        }?.let {
             Scope(
                 name = relation.name.removeSuffix("_DEPENDENCY_OF").lowercase(),
                 dependencies = it
@@ -471,6 +516,9 @@ class SpdxDocumentFile(
             // or a package-style SPDX document that describes a single (dependency-)package.
             spdxDocument.isProject()
         }.keys.toList().also { remainingFiles ->
+            if (remainingFiles.isEmpty()) {
+                return definitionFiles
+            }
             val discardedFiles = definitionFiles - remainingFiles
             if (discardedFiles.isNotEmpty()) {
                 log.info {
@@ -480,14 +528,18 @@ class SpdxDocumentFile(
         }
 
     override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
-        val workingDir = definitionFile.parentFile
-
         // For direct callers of this function mapDefinitionFiles() did not populate the map before, so add a fallback.
         val spdxDocument = spdxDocumentForFile.getOrPut(definitionFile) { SpdxModelMapper.read(definitionFile) }
 
-        // Guard against direct callers passing SPDX documents that do not describe a project.
-        val projectPackage = requireNotNull(spdxDocument.projectPackage()) {
-            "The SPDX document file at '$definitionFile' does not describe a project."
+        val packages = mutableSetOf<Package>()
+        val scopes = sortedSetOf<Scope>()
+
+        val projectPackage = if (!spdxDocument.isProject()) {
+            spdxDocument.packages[0]
+        } else {
+            requireNotNull(spdxDocument.projectPackage()) {
+                "The SPDX document file at '$definitionFile' does not describe a project."
+            }
         }
 
         log.info {
@@ -495,15 +547,13 @@ class SpdxDocumentFile(
                     "'${projectPackage.name}'."
         }
 
-        val packages = mutableSetOf<Package>()
-
-        val scopes = SPDX_SCOPE_RELATIONSHIPS.mapNotNullTo(sortedSetOf()) { type ->
-            createScope(spdxDocument, projectPackage, type, workingDir, packages)
+        scopes += SPDX_SCOPE_RELATIONSHIPS.mapNotNullTo(sortedSetOf()) { type ->
+            createScope(spdxDocument, projectPackage, type, definitionFile, packages)
         }
 
         scopes += Scope(
             name = DEFAULT_SCOPE_NAME,
-            dependencies = getDependencies(projectPackage, spdxDocument, workingDir, packages)
+            dependencies = getDependencies(projectPackage, spdxDocument, definitionFile, packages)
         )
 
         val project = Project(
@@ -513,7 +563,7 @@ class SpdxDocumentFile(
             authors = sortedSetOf(),
             declaredLicenses = sortedSetOf(projectPackage.licenseDeclared),
             vcs = VcsInfo.EMPTY,
-            vcsProcessed = processProjectVcs(workingDir, VcsInfo.EMPTY, projectPackage.homepage),
+            vcsProcessed = processProjectVcs(definitionFile.parentFile, VcsInfo.EMPTY, projectPackage.homepage),
             homepageUrl = projectPackage.homepage.mapNotPresentToEmpty(),
             scopeDependencies = scopes
         )

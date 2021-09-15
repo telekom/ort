@@ -1,10 +1,12 @@
 # The `.ort.yml` file
 
 The items below can be configured by adding an `.ort.yml` file to the root of the source code repository.
+All configurations in this file apply only to this Project's context. Usually the global context is preferred for an
+increased degree of automation and local configurations should only be done if there are good reasons.
 
 * [excludes](#excludes) - Mark [files, directories](#excluding-paths) or [package manager scopes](#excluding-scopes) as
   not included in released artifacts.
-* [license finding curations](#curations) - Overwrite scan results to correct identified licenses.
+* [curations](#curations) - Overwrite package metadata, set a concluded license or correct license findings.
 * [resolutions](#resolutions) - Resolve any issues or policy rule violations.
 * [license choices](#License-Choices) - Select a license for packages which offer a license choice.
 
@@ -125,11 +127,11 @@ scopes defined in the examples below match the scopes in your project.
 
 ### When to Use Curations
 
-Project-specific curations should be used when you want to correct the licenses detected in the source code of the
-project. If you need to correct the license findings for a third-party dependency then add a curation to
-[curations.yml](config-file-curations-yml.md) or [package configuration](config-file-package-configuration-yml.md).
+License finding curations should be used when you want to correct the licenses detected in the source code of the
+project. To define curations on global level for third-party packages, please use 
+[curations](config-file-curations-yml.md) or [package configurations](config-file-package-configuration-yml.md).
 
-### Curating License Findings
+### Curating Project License Findings
 
 An `ort scan` result represents the detected licenses as a collection of license findings. A single `LicenseFinding` is
 represented as a tuple: `(license id, file path, start line, end line)`. Applying a `LicenseFindingCuration` changes the
@@ -151,16 +153,50 @@ curations:
     concluded_license: "Apache-2.0"
  ```
 
+For findings in third-party dependencies package-configurations can be used to replace findings:
+```yaml
+package_configurations:
+- id: 'Maven:com.example:package:1.2.3'
+  source_artifact_url: "https://repo.maven.apache.org/maven2/com/example/package/1.2.3/package-1.2.3-sources.jar"
+  license_finding_curations:
+  - path: "path/to/problematic/file.java"
+    start_lines: 22
+    line_count: 1
+    detected_license: "GPL-2.0-only"
+    reason: "CODE"
+    comment: "The scanner matches a variable named `gpl`."
+    concluded_license: "Apache-2.0"
+```
+
 For details of the specification, see 
 [LicenseFindingCuration.kt](../model/src/main/kotlin/config/LicenseFindingCuration.kt).
 The list of available options for `reason` are defined in
 [LicenseFindingCurationReason.kt](../model/src/main/kotlin/config/LicenseFindingCurationReason.kt).
 
+### Curating Metadata
+
+Package curations can be added if you want to correct metadata of third-party dependencies.
+
+The following example corrects the source-artifact URL of the package with the id `Maven:com.example:dummy:0.0.1`.
+
+e.g.:
+```yaml
+curations:
+  packages:
+  - id: "Maven:com.example:dummy:0.0.1"
+    comment: "An explanation why the curation is needed."
+    source_artifact:
+      url: "https://example.com/sources.zip"
+```
+
+For more information about package curations see
+[the documentation for the curations.yml file](config-file-curations-yml.md).
+
 ## Resolutions
 
 ### When to Use Resolutions
 
-Project-specific resolutions should be used if you are unable to solve an issue by other means.
+Resolutions should be used if you are unable to solve an issue by other means.
 
 If a resolution is not project-specific than add it to [resolutions.yml](./config-file-resolutions-yml.md) so that it is
 applied to each scan.

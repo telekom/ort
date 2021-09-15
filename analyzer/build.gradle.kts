@@ -28,6 +28,7 @@ val mockkVersion: String by project
 val semverVersion: String by project
 val sw360ClientVersion: String by project
 val toml4jVersion: String by project
+val wiremockVersion: String by project
 
 plugins {
     // Apply core plugins.
@@ -37,7 +38,7 @@ plugins {
 repositories {
     exclusiveContent {
         forRepository {
-            maven("https://repo.gradle.org/artifactory/libs-releases-local/")
+            maven("https://repo.gradle.org/gradle/libs-releases/")
         }
 
         filter {
@@ -82,5 +83,6 @@ dependencies {
     implementation("org.gradle:gradle-tooling-api:${gradle.gradleVersion}")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion")
 
+    testImplementation("com.github.tomakehurst:wiremock:$wiremockVersion")
     testImplementation("io.mockk:mockk:$mockkVersion")
 }

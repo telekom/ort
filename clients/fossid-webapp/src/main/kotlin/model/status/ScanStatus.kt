@@ -21,29 +21,59 @@ package org.ossreviewtoolkit.clients.fossid.model.status
 
 import com.fasterxml.jackson.annotation.JsonProperty
 
-data class ScanStatus(
-    val scanId: String,
-    val scanName: String,
-    val scanCode: String,
+/**
+ * An enumeration for the state of a FossID scan, as returned by the "check_status" operation.
+ */
+enum class ScanStatus {
+    /**
+     * FossID is automatically applying top matched component.
+     */
+    @JsonProperty("AUTO-ID")
+    AUTO_ID,
 
-    val pid: String?,
-    val type: ScanStatusType,
+    /**
+     * The scan has been completed.
+     */
+    FINISHED,
 
-    @JsonProperty("status")
-    val state: ScanState,
+    /**
+     * The scan has been stopped in the UI. The issue needs to be resolved manually and the scan restarted.
+     */
+    INTERRUPTED,
 
-    val isFinished: Int,
+    /**
+     * The scan has been created, but not started.
+     */
+    NEW,
 
-    val percentageDone: String,
+    /**
+     * The scan has not started yet.
+     */
+    @JsonProperty("NOT STARTED")
+    NOT_STARTED,
 
-    val comment: String,
-    @JsonProperty("comment_2")
-    val comment2: String,
-    @JsonProperty("comment_3")
-    val comment3: String,
+    /**
+     * The scan has been queued and is waiting for execution.
+     */
+    QUEUED,
 
-    @JsonProperty("started")
-    val startedAt: String?,
-    @JsonProperty("finished")
-    val finishedAt: String?
-)
+    /**
+     * The scan is running.
+     */
+    RUNNING,
+
+    /**
+     * The scan is running.
+     */
+    SCANNING,
+
+    /**
+     * The scan has started.
+     */
+    STARTED,
+
+    /**
+     * The scan is starting.
+     */
+    STARTING
+}

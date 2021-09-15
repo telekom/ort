@@ -20,6 +20,7 @@
 package org.ossreviewtoolkit.model
 
 import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 
@@ -34,6 +35,7 @@ import org.ossreviewtoolkit.utils.FileMatcher
 /**
  * A short summary of the scan results.
  */
+@JsonIgnoreProperties("file_count")
 data class ScanSummary(
     /**
      * The time when the scan started.
@@ -44,11 +46,6 @@ data class ScanSummary(
      * The time when the scan finished.
      */
     val endTime: Instant,
-
-    /**
-     * The number of scanned files.
-     */
-    val fileCount: Int,
 
     /**
      * The [SPDX package verification code](https://spdx.dev/spdx_specification_2_0_html#h.2p2csry), calculated from
@@ -97,13 +94,8 @@ data class ScanSummary(
 
         val licenseFindings = licenseFindings.filter { it.location.matchesPath() }.toSortedSet()
         val copyrightFindings = copyrightFindings.filter { it.location.matchesPath() }.toSortedSet()
-        val fileCount = mutableSetOf<String>().also { set ->
-            licenseFindings.mapTo(set) { it.location.path }
-            copyrightFindings.mapTo(set) { it.location.path }
-        }.size
 
         return copy(
-            fileCount = fileCount,
             licenseFindings = licenseFindings,
             copyrightFindings = copyrightFindings
         )

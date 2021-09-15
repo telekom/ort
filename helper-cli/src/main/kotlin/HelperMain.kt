@@ -32,6 +32,7 @@ import org.apache.logging.log4j.core.config.Configurator
 
 import org.ossreviewtoolkit.helper.commands.ExtractRepositoryConfigurationCommand
 import org.ossreviewtoolkit.helper.commands.GenerateTimeoutErrorResolutionsCommand
+import org.ossreviewtoolkit.helper.commands.GetPackageLicensesCommand
 import org.ossreviewtoolkit.helper.commands.ImportCopyrightGarbageCommand
 import org.ossreviewtoolkit.helper.commands.ImportScanResultsCommand
 import org.ossreviewtoolkit.helper.commands.ListCopyrightsCommand
@@ -49,6 +50,7 @@ import org.ossreviewtoolkit.helper.commands.VerifySourceArtifactCurationsCommand
 import org.ossreviewtoolkit.helper.commands.packageconfig.PackageConfigurationCommand
 import org.ossreviewtoolkit.helper.commands.packagecuration.PackageCurationsCommand
 import org.ossreviewtoolkit.helper.commands.repoconfig.RepositoryConfigurationCommand
+import org.ossreviewtoolkit.helper.commands.scanstorage.ScanStorageCommand
 import org.ossreviewtoolkit.helper.common.ORTH_NAME
 import org.ossreviewtoolkit.utils.printStackTrace
 
@@ -75,6 +77,7 @@ internal class HelperMain : CliktCommand(name = ORTH_NAME, epilog = "* denotes r
         subcommands(
             ExtractRepositoryConfigurationCommand(),
             GenerateTimeoutErrorResolutionsCommand(),
+            GetPackageLicensesCommand(),
             ImportCopyrightGarbageCommand(),
             ImportScanResultsCommand(),
             ListCopyrightsCommand(),
@@ -87,6 +90,7 @@ internal class HelperMain : CliktCommand(name = ORTH_NAME, epilog = "* denotes r
             PackageConfigurationCommand(),
             PackageCurationsCommand(),
             RepositoryConfigurationCommand(),
+            ScanStorageCommand(),
             SetDependencyRepresentationCommand(),
             SetLabelsCommand(),
             SubtractScanResultsCommand(),

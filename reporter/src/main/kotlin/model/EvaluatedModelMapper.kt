@@ -21,9 +21,9 @@
 package org.ossreviewtoolkit.reporter.model
 
 import org.ossreviewtoolkit.model.CuratedPackage
+import org.ossreviewtoolkit.model.DependencyNode
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
-import org.ossreviewtoolkit.model.PackageReference
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RemoteArtifact
@@ -31,11 +31,13 @@ import org.ossreviewtoolkit.model.RuleViolation
 import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.VcsInfo
+import org.ossreviewtoolkit.model.Vulnerability
 import org.ossreviewtoolkit.model.config.IssueResolution
 import org.ossreviewtoolkit.model.config.LicenseFindingCuration
 import org.ossreviewtoolkit.model.config.PathExclude
 import org.ossreviewtoolkit.model.config.RuleViolationResolution
 import org.ossreviewtoolkit.model.config.ScopeExclude
+import org.ossreviewtoolkit.model.config.VulnerabilityResolution
 import org.ossreviewtoolkit.model.utils.FindingCurationMatcher
 import org.ossreviewtoolkit.model.utils.FindingsMatcher
 import org.ossreviewtoolkit.model.utils.RootLicenseMatcher
@@ -63,6 +65,8 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
     private val scopeExcludes = mutableListOf<ScopeExclude>()
     private val ruleViolations = mutableListOf<EvaluatedRuleViolation>()
     private val ruleViolationResolutions = mutableListOf<RuleViolationResolution>()
+    private val vulnerabilities = mutableListOf<EvaluatedVulnerability>()
+    private val vulnerabilitiesResolutions = mutableListOf<VulnerabilityResolution>()
 
     private val curationsMatcher = FindingCurationMatcher()
     private val findingsMatcher = FindingsMatcher(RootLicenseMatcher(input.ortConfig.licenseFilePatterns))
@@ -92,6 +96,8 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
             addRuleViolation(ruleViolation)
         }
 
+        createVulnerabilities()
+
         input.ortResult.analyzer?.result?.projects?.forEach { project ->
             val pkg = packages.getValue(project.id)
             addDependencyTree(project, pkg)
@@ -115,6 +121,8 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
             dependencyTrees = dependencyTrees,
             ruleViolationResolutions = ruleViolationResolutions,
             ruleViolations = ruleViolations,
+            vulnerabilitiesResolutions = vulnerabilitiesResolutions,
+            vulnerabilities = vulnerabilities,
             statistics = StatisticsCalculator().getStatistics(
                 input.ortResult,
                 input.resolutionProvider,
@@ -138,7 +146,7 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
 
         input.ortResult.analyzer?.result?.projects?.forEach { project ->
             val pathExcludes = input.ortResult.getExcludes().findPathExcludes(project, input.ortResult)
-            val dependencies = project.collectDependencies()
+            val dependencies = input.ortResult.dependencyNavigator.projectDependencies(project)
             if (pathExcludes.isEmpty()) {
                 val info = packageExcludeInfo.getValue(project.id)
                 if (info.isExcluded) {
@@ -155,18 +163,18 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
                     }
                 }
             }
-            project.scopes.forEach { scope ->
-                val scopeExcludes = input.ortResult.getExcludes().findScopeExcludes(scope)
-                val scopeDependencies = scope.collectDependencies()
+
+            input.ortResult.dependencyNavigator.scopeDependencies(project).forEach { (scopeName, dependencies) ->
+                val scopeExcludes = input.ortResult.getExcludes().findScopeExcludes(scopeName)
                 if (scopeExcludes.isNotEmpty()) {
-                    scopeDependencies.forEach { id ->
+                    dependencies.forEach { id ->
                         val info = packageExcludeInfo.getOrPut(id) { PackageExcludeInfo(id, true) }
                         if (info.isExcluded) {
                             info.scopeExcludes += scopeExcludes
                         }
                     }
                 } else if (pathExcludes.isEmpty()) {
-                    scopeDependencies.forEach { id ->
+                    dependencies.forEach { id ->
                         val info = packageExcludeInfo.getOrPut(id) { PackageExcludeInfo(id, true) }
                         info.isExcluded = false
                         info.pathExcludes.clear()
@@ -179,13 +187,34 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
 
     private fun createScopes() {
         input.ortResult.getProjects().flatMap { project ->
-            project.scopes.map { it.name }
+            input.ortResult.dependencyNavigator.scopeNames(project)
         }.forEach { scope ->
             scopes[scope] = EvaluatedScope(
                 name = scope,
                 excludes = scopeExcludes.addIfRequired(input.ortResult.getExcludes().findScopeExcludes(scope))
             )
         }
+    }
+
+    private fun createVulnerabilities() {
+        input.ortResult.advisor
+            ?.results
+            ?.advisorResults
+            ?.flatMap { (id, results) ->
+                val pkg = packages[id] ?: createEmptyPackage(id)
+
+                results.flatMap { result ->
+                    result.vulnerabilities.map { vulnerability ->
+                        val resolutions = addResolutions(vulnerability)
+                        vulnerabilities += EvaluatedVulnerability(
+                            pkg = pkg,
+                            id = vulnerability.id,
+                            references = vulnerability.references,
+                            resolutions = resolutions
+                        )
+                    }
+                }
+            }
     }
 
     private fun TextLocation.getRelativePathToRoot(id: Identifier): String =
@@ -326,10 +355,6 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
             result += addIssues(analyzerIssues, EvaluatedOrtIssueType.ANALYZER, pkg, null, null)
         }
 
-        input.ortResult.getPackage(id)?.let {
-            result += addIssues(it.collectIssues(), EvaluatedOrtIssueType.ANALYZER, pkg, null, null)
-        }
-
         return result
     }
 
@@ -364,7 +389,6 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
             scanner = result.scanner,
             startTime = result.summary.startTime,
             endTime = result.summary.endTime,
-            fileCount = result.summary.fileCount,
             packageVerificationCode = result.summary.packageVerificationCode,
             issues = issues
         )
@@ -385,7 +409,7 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
     }
 
     private fun addDependencyTree(project: Project, pkg: EvaluatedPackage) {
-        fun PackageReference.toEvaluatedTreeNode(
+        fun DependencyNode.toEvaluatedTreeNode(
             scope: EvaluatedScope,
             path: List<EvaluatedPackage>
         ): DependencyTreeNode {
@@ -410,17 +434,19 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
                 linkage = linkage,
                 pkg = dependency,
                 scope = null,
-                children = dependencies.map { it.toEvaluatedTreeNode(scope, path + dependency) },
+                children = visitDependencies { dependencies ->
+                    dependencies.map { it.toEvaluatedTreeNode(scope, path + dependency) }.toList()
+                },
                 pathExcludes = emptyList(),
                 scopeExcludes = emptyList(),
                 issues = issues
             )
         }
 
-        val scopeTrees = project.scopes.map { scope ->
-            val subTrees = scope.dependencies.map {
-                it.toEvaluatedTreeNode(scopes.getValue(scope.name), mutableListOf())
-            }
+        val scopeTrees = input.ortResult.dependencyNavigator.scopeNames(project).map { scope ->
+            val subTrees = input.ortResult.dependencyNavigator.directDependencies(project, scope).map {
+                it.toEvaluatedTreeNode(scopes.getValue(scope), mutableListOf())
+            }.toList()
 
             val applicableScopeExcludes = input.ortResult.getExcludes().findScopeExcludes(scope)
             val evaluatedScopeExcludes = scopeExcludes.addIfRequired(applicableScopeExcludes)
@@ -428,7 +454,7 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
             DependencyTreeNode(
                 linkage = null,
                 pkg = null,
-                scope = scopes.getValue(scope.name),
+                scope = scopes.getValue(scope),
                 children = subTrees,
                 pathExcludes = emptyList(),
                 scopeExcludes = evaluatedScopeExcludes,
@@ -529,6 +555,12 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
         return ruleViolationResolutions.addIfRequired(matchingResolutions)
     }
 
+    private fun addResolutions(vulnerability: Vulnerability): List<VulnerabilityResolution> {
+        val matchingResolutions = input.resolutionProvider.getVulnerabilityResolutionsFor(vulnerability)
+
+        return vulnerabilitiesResolutions.addIfRequired(matchingResolutions)
+    }
+
     private fun addLicensesAndCopyrights(
         id: Identifier,
         scanResult: ScanResult,
@@ -592,14 +624,14 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
     }
 
     private fun addShortestPaths(project: Project) {
-        project.scopes.forEach { scope ->
-            scope.getShortestPaths().forEach { (id, path) ->
+        input.ortResult.dependencyNavigator.getShortestPaths(project).forEach { (scopeName, scopePaths) ->
+            scopePaths.forEach { (id, path) ->
                 val pkg = packages.getValue(id)
 
                 val packagePath = EvaluatedPackagePath(
                     pkg = pkg,
                     project = packages.getValue(project.id),
-                    scope = scopes.getValue(scope.name),
+                    scope = scopes.getValue(scopeName),
                     path = path.map { parentId -> packages.getValue(parentId) }
                 )
 

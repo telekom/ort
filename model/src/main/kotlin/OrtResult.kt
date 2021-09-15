@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +36,7 @@ import org.ossreviewtoolkit.model.config.orEmpty
 import org.ossreviewtoolkit.spdx.model.LicenseChoice
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.perf
-import org.ossreviewtoolkit.utils.zipWithDefault
+import org.ossreviewtoolkit.utils.zipWithCollections
 
 /**
  * The common output format for the analyzer and scanner. It contains information about the scanned repository, and the
@@ -95,6 +96,10 @@ data class OrtResult(
         )
     }
 
+    /** An object that can be used to navigate the dependency information contained in this result. */
+    @get:JsonIgnore
+    val dependencyNavigator: DependencyNavigator by lazy { createDependencyNavigator() }
+
     private data class ProjectEntry(val project: Project, val isExcluded: Boolean)
 
     /**
@@ -140,10 +145,8 @@ data class OrtResult(
             val includedDependencies = mutableSetOf<Identifier>()
 
             projects.forEach { project ->
-                project.scopes.forEach { scope ->
-                    val isScopeExcluded = getExcludes().isScopeExcluded(scope)
-
-                    val dependencies = scope.collectDependencies()
+                dependencyNavigator.scopeDependencies(project).forEach { (scopeName, dependencies) ->
+                    val isScopeExcluded = getExcludes().isScopeExcluded(scopeName)
                     allDependencies += dependencies
 
                     if (!isProjectExcluded(project.id) && !isScopeExcluded) {
@@ -181,12 +184,10 @@ data class OrtResult(
 
         getProjects().forEach { project ->
             if (project.id == id) {
-                dependencies += project.collectDependencies(maxLevel)
+                dependencies += dependencyNavigator.projectDependencies(project, maxLevel)
             }
 
-            project.findReferences(id).forEach { ref ->
-                dependencies += ref.collectDependencies(maxLevel)
-            }
+            dependencies += dependencyNavigator.packageDependencies(project, id, maxLevel)
         }
 
         return dependencies
@@ -200,10 +201,8 @@ data class OrtResult(
         val scannerIssues = scanner?.results?.collectIssues().orEmpty()
         val advisorIssues = advisor?.results?.collectIssues().orEmpty()
 
-        val analyzerAndScannerIssues =
-            analyzerIssues.zipWithDefault(scannerIssues, emptySet()) { left, right -> left + right }
-
-        return analyzerAndScannerIssues.zipWithDefault(advisorIssues, emptySet()) { left, right -> left + right }
+        val analyzerAndScannerIssues = analyzerIssues.zipWithCollections(scannerIssues)
+        return analyzerAndScannerIssues.zipWithCollections(advisorIssues)
     }
 
     /**
@@ -219,7 +218,7 @@ data class OrtResult(
             val allSubProjects = sortedSetOf<Identifier>()
 
             getProjects().forEach {
-                allSubProjects += it.collectSubProjects()
+                allSubProjects += dependencyNavigator.collectSubProjects(it)
             }
 
             projectsAndPackages -= allSubProjects
@@ -372,7 +371,7 @@ data class OrtResult(
      */
     @JsonIgnore
     fun getProjects(omitExcluded: Boolean = false): Set<Project> =
-        analyzer?.result?.withScopesResolved()?.projects.orEmpty().filterTo(mutableSetOf()) { project ->
+        analyzer?.result?.projects.orEmpty().filterTo(mutableSetOf()) { project ->
             !omitExcluded || !isExcluded(project.id)
         }
 
@@ -405,10 +404,30 @@ data class OrtResult(
     fun getAdvisorResultsForId(id: Identifier): List<AdvisorResult> = advisorResultsById[id].orEmpty()
 
     /**
-     * Return all [RuleViolation]s contained in this [OrtResult].
+     * Return all [RuleViolation]s contained in this [OrtResult]. Optionally exclude resolved violations with
+     * [omitResolved] and remove violations below the [minSeverity].
      */
     @JsonIgnore
-    fun getRuleViolations(): List<RuleViolation> = evaluator?.violations.orEmpty()
+    fun getRuleViolations(omitResolved: Boolean = false, minSeverity: Severity? = null): List<RuleViolation> {
+        val allViolations = evaluator?.violations.orEmpty()
+
+        val severeViolations = when (minSeverity) {
+            null -> allViolations
+            else -> allViolations.filter { it.severity >= minSeverity }
+        }
+
+        return if (omitResolved) {
+            val resolutions = getResolutions().ruleViolations
+
+            severeViolations.filter { violation ->
+                resolutions.none { resolution ->
+                    resolution.matches(violation)
+                }
+            }
+        } else {
+            severeViolations
+        }
+    }
 
     @JsonIgnore
     fun getExcludes(): Excludes = repository.config.excludes
@@ -463,4 +482,10 @@ data class OrtResult(
                 result = analyzer.result.withScopesResolved()
             )
         )
+
+    /**
+     * Create the [DependencyNavigator] for this [OrtResult]. The concrete navigator implementation depends on the
+     * format, in which dependency information is stored.
+     */
+    private fun createDependencyNavigator(): DependencyNavigator = CompatibilityDependencyNavigator.create(this)
 }

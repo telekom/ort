@@ -44,6 +44,7 @@ plugins {
     kotlin("jvm")
 
     id("com.github.ben-manes.versions")
+    id("com.github.gmazzo.buildconfig")
     id("io.gitlab.arturbosch.detekt")
     id("org.barfuin.gradle.taskinfo")
     id("org.jetbrains.dokka")
@@ -70,9 +71,9 @@ if (version == Project.DEFAULT_VERSION) {
 
 logger.quiet("Building ORT version $version.")
 
-// TODO: Replace this with Gradle's toolchain mechanism [1] once the Kotlin plugin supports it [2].
-// [1] https://blog.gradle.org/java-toolchains
-// [2] https://youtrack.jetbrains.com/issue/KT-43095
+// Note that Gradle's Java toolchain mechanism cannot be used here as that only applies to the Java version used in
+// compile tasks. But already ORT's build scripts, like the compilation of this file itself, depend on Java 11 due to
+// the Java target used by some plugins, see e.g. https://github.com/martoe/gradle-svntools-plugin#version-compatibility.
 val javaVersion = JavaVersion.current()
 if (!javaVersion.isCompatibleWith(JavaVersion.VERSION_11)) {
     throw GradleException("At least Java 11 is required, but Java $javaVersion is being used.")
@@ -112,6 +113,7 @@ allprojects {
         mavenCentral()
     }
 
+    apply(plugin = "com.github.gmazzo.buildconfig")
     apply(plugin = "io.gitlab.arturbosch.detekt")
 
     // Note: Kotlin DSL cannot directly access configurations that are created by applying a plugin in the very same
@@ -279,13 +281,17 @@ subprojects {
                 isEnabled = enabled
             }
 
-            systemProperties = listOf(
+            val testSystemProperties = mutableListOf("gradle.build.dir" to project.buildDir.path)
+
+            listOf(
                 "kotest.assertions.multi-line-diff",
                 "kotest.tags.include",
                 "kotest.tags.exclude"
-            ).associateWith { System.getProperty(it) } + mapOf(
-                "gradle.build.dir" to project.buildDir
-            )
+            ).mapNotNullTo(testSystemProperties) { key ->
+                System.getProperty(key)?.let { key to it }
+            }
+
+            systemProperties = testSystemProperties.toMap()
 
             testLogging {
                 events = setOf(TestLogEvent.STARTED, TestLogEvent.PASSED, TestLogEvent.SKIPPED, TestLogEvent.FAILED)

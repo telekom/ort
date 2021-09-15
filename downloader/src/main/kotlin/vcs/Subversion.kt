@@ -24,7 +24,6 @@ import java.io.File
 import java.net.Authenticator
 import java.net.InetSocketAddress
 import java.net.URI
-import java.net.URL
 import java.nio.file.Paths
 
 import org.ossreviewtoolkit.downloader.DownloadException
@@ -258,10 +257,13 @@ private class OrtSVNAuthenticationManager : DefaultSVNAuthenticationManager(
                 previousAuth: SVNAuthentication?,
                 authMayBeStored: Boolean
             ): SVNAuthentication? {
-                val url = URL(svnurl.toString())
-
-                val auth = Authenticator.getDefault()?.requestPasswordAuthenticationInstance(
-                    svnurl.host, null, svnurl.port, svnurl.protocol, null, null, url, Authenticator.RequestorType.SERVER
+                val auth = Authenticator.requestPasswordAuthentication(
+                    /* host = */ svnurl.host,
+                    /* addr = */ null,
+                    /* port = */ svnurl.port,
+                    /* protocol = */ svnurl.protocol,
+                    /* prompt = */ null,
+                    /* scheme = */ null
                 ) ?: return null
 
                 return SVNPasswordAuthentication.newInstance(

@@ -209,7 +209,7 @@ abstract class LocalScanner(
 
         val remainingPackages = packages.filterTo(mutableListOf()) { pkg ->
             !pkg.isMetaDataOnly.also {
-                if (it) LocalScanner.log.info { "Skipping '${pkg.id.toCoordinates()}' as it is meta data only." }
+                if (it) LocalScanner.log.info { "Skipping '${pkg.id.toCoordinates()}' as it is metadata only." }
             }
         }
 
@@ -294,7 +294,6 @@ abstract class LocalScanner(
             summary = ScanSummary(
                 startTime = now,
                 endTime = now,
-                fileCount = 0,
                 packageVerificationCode = "",
                 licenseFindings = sortedSetOf(),
                 copyrightFindings = sortedSetOf(),
@@ -372,7 +371,6 @@ abstract class LocalScanner(
                 ScanSummary(
                     startTime = now,
                     endTime = now,
-                    fileCount = 0,
                     packageVerificationCode = "",
                     licenseFindings = sortedSetOf(),
                     copyrightFindings = sortedSetOf(),
@@ -479,7 +477,6 @@ abstract class LocalScanner(
             ScanSummary(
                 startTime = now,
                 endTime = now,
-                fileCount = 0,
                 packageVerificationCode = "",
                 licenseFindings = sortedSetOf(),
                 copyrightFindings = sortedSetOf(),
@@ -511,7 +508,7 @@ abstract class LocalScanner(
     /**
      * Return the scanner's raw result in a JSON representation.
      */
-    internal abstract fun getRawResult(resultsFile: File): JsonNode
+    abstract fun getRawResult(resultsFile: File): JsonNode
 
     /**
      * Return the invariant relative path of the [scanned file][scannedFilename] with respect to the

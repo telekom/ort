@@ -40,6 +40,7 @@ import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.analyzer.curation.ClearlyDefinedPackageCurationProvider
 import org.ossreviewtoolkit.analyzer.curation.FallbackPackageCurationProvider
 import org.ossreviewtoolkit.analyzer.curation.FilePackageCurationProvider
+import org.ossreviewtoolkit.analyzer.curation.SimplePackageCurationProvider
 import org.ossreviewtoolkit.analyzer.curation.Sw360PackageCurationProvider
 import org.ossreviewtoolkit.cli.GlobalOptions
 import org.ossreviewtoolkit.cli.concludeSeverityStats
@@ -55,7 +56,6 @@ import org.ossreviewtoolkit.utils.ORT_PACKAGE_CURATIONS_DIRNAME
 import org.ossreviewtoolkit.utils.ORT_PACKAGE_CURATIONS_FILENAME
 import org.ossreviewtoolkit.utils.ORT_REPO_CONFIG_FILENAME
 import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.ortConfigDirectory
 import org.ossreviewtoolkit.utils.safeMkdirs
 
@@ -152,8 +152,13 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
             }
         }
 
-        val configurationFiles = listOfNotNull(packageCurationsFile, packageCurationsDir, repositoryConfigurationFile)
-            .map { it.absolutePath }
+        val actualRepositoryConfigurationFile = (repositoryConfigurationFile
+            ?: inputDir.resolve(ORT_REPO_CONFIG_FILENAME)).takeIf { it.isFile }
+
+        val configurationFiles = listOfNotNull(
+            packageCurationsFile, packageCurationsDir, actualRepositoryConfigurationFile
+        ).map { it.absolutePath }
+
         println("The following configuration files and directories are used:")
         println("\t" + configurationFiles.joinToString("\n\t"))
 
@@ -166,9 +171,14 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
         val config = globalOptionsForSubcommands.config
         val analyzer = Analyzer(config.analyzer)
 
+        val repositoryConfiguration = actualRepositoryConfigurationFile?.readValueOrNull() ?: RepositoryConfiguration()
+
         val curationProvider = FallbackPackageCurationProvider(
             listOfNotNull(
-                FilePackageCurationProvider.from(packageCurationsFile, packageCurationsDir),
+                SimplePackageCurationProvider(
+                    FilePackageCurationProvider.from(packageCurationsFile, packageCurationsDir).packageCurations +
+                            repositoryConfiguration.curations.packages
+                ),
                 config.analyzer.sw360Configuration?.let {
                     Sw360PackageCurationProvider(it).takeIf { useSw360Curations }
                 },
@@ -176,19 +186,14 @@ class AnalyzerCommand : CliktCommand(name = "analyze", help = "Determine depende
             )
         )
 
-        val actualRepositoryConfigurationFile = repositoryConfigurationFile
-            ?: inputDir.resolve(ORT_REPO_CONFIG_FILENAME)
-
-        val repositoryConfiguration = actualRepositoryConfigurationFile.takeIf { it.isFile }?.let {
-            log.info { "Using configuration file '${it.absolutePath}'." }
-            it.readValueOrNull()
-        } ?: RepositoryConfiguration()
-
         val ortResult = analyzer.analyze(
             inputDir, distinctPackageManagers, curationProvider, repositoryConfiguration
         ).mergeLabels(labels)
 
-        println("Found ${ortResult.getProjects().size} project(s) in total.")
+        val analyzedProjects = ortResult.getProjects()
+        val countPerType = analyzedProjects.groupingBy { it.id.type }.eachCount()
+        val projectCountDetails = countPerType.toSortedMap().map { (type, count) -> "$type ($count)" }.joinToString()
+        println("Found ${analyzedProjects.size} project(s): $projectCountDetails")
 
         outputDir.safeMkdirs()
         writeOrtResult(ortResult, outputFiles, "analyzer")

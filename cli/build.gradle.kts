@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
  * Copyright (C) 2019 Bosch Software Innovations GmbH
- * Copyright (C) 2020 Bosch.IO GmbH
+ * Copyright (C) 2020-2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
+import java.nio.charset.Charset
+
 val cliktVersion: String by project
 val config4kVersion: String by project
 val exposedVersion: String by project
@@ -32,6 +34,7 @@ val log4jCoreVersion: String by project
 val postgresVersion: String by project
 val reflectionsVersion: String by project
 val sw360ClientVersion: String by project
+val greenMailVersion: String by project
 
 plugins {
     // Apply core plugins.
@@ -54,8 +57,13 @@ tasks.named<CreateStartScripts>("startScripts").configure {
     doLast {
         // Work around the command line length limit on Windows when passing the classpath to Java, see
         // https://github.com/gradle/gradle/issues/1989#issuecomment-395001392.
-        windowsScript.writeText(windowsScript.readText().replace(Regex("set CLASSPATH=.*"),
-            "set CLASSPATH=%APP_HOME%\\\\lib\\\\*"))
+        val windowsScriptText = windowsScript.readText(Charset.defaultCharset())
+        windowsScript.writeText(windowsScriptText.replace(Regex("set CLASSPATH=%APP_HOME%\\\\lib\\\\.*"),
+            "set CLASSPATH=%APP_HOME%\\\\lib\\\\*;%APP_HOME%\\\\plugin\\\\*"))
+
+        val unixScriptText = unixScript.readText(Charset.defaultCharset())
+        unixScript.writeText(unixScriptText.replace(Regex("CLASSPATH=\\\$APP_HOME/lib/.*"),
+            "CLASSPATH=\\\$APP_HOME/lib/*:\\\$APP_HOME/plugin/*"))
     }
 }
 
@@ -64,7 +72,7 @@ repositories {
     // https://github.com/gradle/gradle/issues/4106.
     exclusiveContent {
         forRepository {
-            maven("https://repo.gradle.org/artifactory/libs-releases-local/")
+            maven("https://repo.gradle.org/gradle/libs-releases/")
         }
 
         filter {
@@ -92,6 +100,15 @@ repositories {
             includeGroup("com.github.everit-org.json-schema")
         }
     }
+    exclusiveContent {
+        forRepository {
+            maven("https://packages.atlassian.com/maven-external")
+        }
+
+        filter {
+            includeGroupByRegex("com\\.atlassian\\..*")
+        }
+    }
 }
 
 dependencies {
@@ -100,6 +117,7 @@ dependencies {
     implementation(project(":downloader"))
     implementation(project(":evaluator"))
     implementation(project(":model"))
+    implementation(project(":notifier"))
     implementation(project(":reporter"))
     implementation(project(":scanner"))
     implementation(project(":utils"))
@@ -122,6 +140,7 @@ dependencies {
 
     testImplementation(project(":test-utils"))
 
+    testImplementation("com.icegreen:greenmail:$greenMailVersion")
     testImplementation("io.kotest:kotest-runner-junit5:$kotestVersion")
     testImplementation("io.kotest:kotest-assertions-core:$kotestVersion")
 

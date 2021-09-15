@@ -22,6 +22,7 @@ package org.ossreviewtoolkit.analyzer
 import com.fasterxml.jackson.module.kotlin.readValue
 
 import io.kotest.core.spec.style.WordSpec
+import io.kotest.matchers.collections.containExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -46,6 +47,7 @@ class AnalyzerResultBuilderTest : WordSpec() {
     private val issue2 = OrtIssue(source = "source-2", message = "message-2")
     private val issue3 = OrtIssue(source = "source-3", message = "message-3")
     private val issue4 = OrtIssue(source = "source-4", message = "message-4")
+    private val issue5 = OrtIssue(source = "source-5", message = "message-5")
 
     private val package1 = Package.EMPTY.copy(id = Identifier("type-1", "namespace-1", "package-1", "version-1"))
     private val package2 = Package.EMPTY.copy(id = Identifier("type-2", "namespace-2", "package-2", "version-2"))
@@ -78,7 +80,7 @@ class AnalyzerResultBuilderTest : WordSpec() {
 
     private val depRef1 = DependencyReference(0)
     private val depRef2 = DependencyReference(1)
-    private val depRef3 = DependencyReference(0)
+    private val depRef3 = DependencyReference(0, issues = listOf(issue5))
 
     private val scopeMapping1 = mapOf(
         DependencyGraph.qualifyScope(project1, "scope-1") to listOf(RootDependencyIndex(0)),
@@ -119,7 +121,7 @@ class AnalyzerResultBuilderTest : WordSpec() {
                 val serializedMergedResults = yamlMapper.writeValueAsString(mergedResults)
                 val deserializedMergedResults = yamlMapper.readValue<AnalyzerResult>(serializedMergedResults)
 
-                deserializedMergedResults.withScopesResolved() shouldBe mergedResults
+                deserializedMergedResults shouldBe mergedResults
             }
 
             "be serialized and deserialized correctly with a dependency graph" {
@@ -137,7 +139,7 @@ class AnalyzerResultBuilderTest : WordSpec() {
                 val serializedResult = yamlMapper.writeValueAsString(result)
                 val deserializedResult = yamlMapper.readValue<AnalyzerResult>(serializedResult)
 
-                deserializedResult.withScopesResolved() shouldBe result.withScopesResolved()
+                deserializedResult shouldBe result
             }
 
             "not change its representation when serialized again" {
@@ -174,6 +176,25 @@ class AnalyzerResultBuilderTest : WordSpec() {
 
                 resultTree["has_issues"].asBoolean() shouldBe true
             }
+
+            "be serialized and deserialized correctly with an empty dependency graph" {
+                val emptyGraph = DependencyGraph(packages = emptyList(), scopes = emptyMap())
+                val p1 = project1.copy(scopeDependencies = null, scopeNames = sortedSetOf("scope1"))
+                val p2 = project2.copy(scopeDependencies = null, scopeNames = sortedSetOf("scope3"))
+                val result = AnalyzerResult(
+                    projects = sortedSetOf(p1, p2, project3),
+                    packages = sortedSetOf(),
+                    dependencyGraphs = sortedMapOf(
+                        project1.id.type to graph1,
+                        project2.id.type to emptyGraph
+                    )
+                )
+
+                val serializedResult = yamlMapper.writeValueAsString(result)
+                val deserializedResult = yamlMapper.readValue<AnalyzerResult>(serializedResult)
+
+                deserializedResult.withScopesResolved() shouldBe result.withScopesResolved()
+            }
         }
 
         "collectIssues" should {
@@ -181,11 +202,12 @@ class AnalyzerResultBuilderTest : WordSpec() {
                 val analyzerResult = AnalyzerResultBuilder()
                     .addResult(analyzerResult1)
                     .addResult(analyzerResult2)
+                    .addDependencyGraph("foo", graph2)
                     .build()
 
                 analyzerResult.collectIssues() should containExactly(
                     package1.id to setOf(issue1),
-                    package3.id to setOf(issue2),
+                    package3.id to setOf(issue2, issue5),
                     project1.id to setOf(issue3, issue4),
                     project2.id to setOf(issue4)
                 )
@@ -198,6 +220,7 @@ class AnalyzerResultBuilderTest : WordSpec() {
                     .addResult(analyzerResult1)
                     .addResult(analyzerResult2)
                     .build()
+                    .withScopesResolved()
 
                 analyzerResult.withScopesResolved() should beTheSameInstanceAs(analyzerResult)
             }
@@ -254,6 +277,15 @@ class AnalyzerResultBuilderTest : WordSpec() {
                 )
                 mergedResults.issues shouldBe
                         sortedMapOf(project1.id to analyzerResult1.issues, project2.id to analyzerResult2.issues)
+            }
+
+            "convert to the dependency graph representation when building" {
+                val mergedResults = AnalyzerResultBuilder()
+                    .addResult(analyzerResult1)
+                    .addResult(analyzerResult2)
+                    .build()
+
+                mergedResults.dependencyGraphs.keys should containExactlyInAnyOrder("type-1", "type-2")
             }
         }
     }

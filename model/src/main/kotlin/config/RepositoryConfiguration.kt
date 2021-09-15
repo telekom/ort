@@ -48,6 +48,12 @@ data class RepositoryConfiguration(
     val curations: Curations = Curations(),
 
     /**
+     * Defines configurations for this repository.
+     */
+    @JsonInclude(value = JsonInclude.Include.NON_EMPTY)
+    val packageConfigurations: List<PackageConfiguration> = emptyList(),
+
+    /**
      * Defines license choices within this repository.
      */
     @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = LicenseChoiceFilter::class)
@@ -63,16 +69,16 @@ private class ExcludesFilter {
 @Suppress("EqualsOrHashCode", "EqualsWithHashCodeExist") // The class is not supposed to be used with hashing.
 private class ResolutionsFilter {
     override fun equals(other: Any?): Boolean =
-        other is Resolutions
-                && other.issues.isEmpty()
-                && other.ruleViolations.isEmpty()
-                && other.vulnerabilities.isEmpty()
+        other is Resolutions &&
+                other.issues.isEmpty() &&
+                other.ruleViolations.isEmpty() &&
+                other.vulnerabilities.isEmpty()
 }
 
 @Suppress("EqualsOrHashCode", "EqualsWithHashCodeExist") // The class is not supposed to be used with hashing.
 private class CurationsFilter {
     override fun equals(other: Any?): Boolean =
-        if (other is Curations) other.licenseFindings.isEmpty() else false
+        other is Curations && other.licenseFindings.isEmpty() && other.packages.isEmpty()
 }
 
 @Suppress("EqualsOrHashCode", "EqualsWithHashCodeExist") // The class is not supposed to be used with hashing.

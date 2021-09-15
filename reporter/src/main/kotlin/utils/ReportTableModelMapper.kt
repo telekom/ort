@@ -19,18 +19,18 @@
 
 package org.ossreviewtoolkit.reporter.utils
 
+import org.ossreviewtoolkit.model.DependencyNavigator
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.LicenseSource
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Project
-import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.RuleViolation
-import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.config.Excludes
 import org.ossreviewtoolkit.model.config.ScopeExclude
 import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.licenses.LicenseView
+import org.ossreviewtoolkit.model.orEmpty
 import org.ossreviewtoolkit.model.utils.ResolutionProvider
 import org.ossreviewtoolkit.reporter.HowToFixTextProvider
 import org.ossreviewtoolkit.reporter.utils.ReportTableModel.DependencyRow
@@ -52,13 +52,16 @@ private val VIOLATION_COMPARATOR = compareBy<ResolvableViolation> { it.isResolve
 
 private fun Collection<ResolvableIssue>.filterUnresolved() = filter { !it.isResolved }
 
-private fun Project.getScopesForDependencies(excludes: Excludes): Map<Identifier, Map<String, List<ScopeExclude>>> {
+private fun Project.getScopesForDependencies(
+    excludes: Excludes,
+    navigator: DependencyNavigator
+): Map<Identifier, Map<String, List<ScopeExclude>>> {
     val result = mutableMapOf<Identifier, MutableMap<String, List<ScopeExclude>>>()
 
-    scopes.forEach { scope ->
-        scope.collectDependencies().forEach { dependency ->
+    navigator.scopeDependencies(this).forEach { (scopeName, dependencies) ->
+        dependencies.forEach { dependency ->
             result.getOrPut(dependency) { mutableMapOf() }
-                .getOrPut(scope.name) { excludes.findScopeExcludes(scope.name) }
+                .getOrPut(scopeName) { excludes.findScopeExcludes(scopeName) }
         }
     }
 
@@ -113,18 +116,17 @@ class ReportTableModelMapper(
         val summaryRows = mutableMapOf<Identifier, SummaryRow>()
 
         val analyzerResult = ortResult.analyzer?.result
-        val analyzerIssuesForPackages = ortResult.getPackages().associateBy({ it.pkg.id }, { it.collectIssues() })
         val scanRecord = ortResult.scanner?.results
         val excludes = ortResult.getExcludes()
 
         val projectTables = analyzerResult?.projects?.associateWith { project ->
-            val scopesForDependencies = project.getScopesForDependencies(excludes)
+            val scopesForDependencies = project.getScopesForDependencies(excludes, ortResult.dependencyNavigator)
             val pathExcludes = excludes.findPathExcludes(project, ortResult)
 
             val allIds = sortedSetOf(project.id)
-            allIds += project.collectDependencies()
+            allIds += ortResult.dependencyNavigator.projectDependencies(project)
 
-            val projectIssues = project.collectIssues()
+            val projectIssues = ortResult.dependencyNavigator.projectIssues(project)
             val tableRows = allIds.map { id ->
                 val scanResult = scanRecord?.scanResults?.get(id)
 
@@ -136,8 +138,7 @@ class ReportTableModelMapper(
                 val detectedLicenses = resolvedLicenseInfo.filter { LicenseSource.DETECTED in it.sources }
                     .sortedBy { it.license.toString() }
 
-                val analyzerIssues = projectIssues[id].orEmpty() + analyzerResult.issues[id].orEmpty() +
-                        analyzerIssuesForPackages[id].orEmpty()
+                val analyzerIssues = projectIssues[id].orEmpty() + analyzerResult.issues[id].orEmpty()
 
                 val scanIssues = scanResult?.flatMapTo(mutableSetOf()) {
                     it.summary.issues
@@ -147,8 +148,8 @@ class ReportTableModelMapper(
 
                 DependencyRow(
                     id = id,
-                    sourceArtifact = packageForId?.sourceArtifact ?: RemoteArtifact.EMPTY,
-                    vcsInfo = packageForId?.vcsProcessed ?: VcsInfo.EMPTY,
+                    sourceArtifact = packageForId?.sourceArtifact.orEmpty(),
+                    vcsInfo = packageForId?.vcsProcessed.orEmpty(),
                     scopes = scopesForDependencies[id].orEmpty().toSortedMap(),
                     concludedLicense = concludedLicense,
                     declaredLicenses = declaredLicenses,

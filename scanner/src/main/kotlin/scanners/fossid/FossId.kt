@@ -23,21 +23,17 @@ import java.io.File
 import java.io.IOException
 import java.net.Authenticator
 import java.time.Instant
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 import kotlin.time.measureTimedValue
 
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
-import org.ossreviewtoolkit.clients.fossid.FossIdRestService
 import org.ossreviewtoolkit.clients.fossid.checkDownloadStatus
 import org.ossreviewtoolkit.clients.fossid.checkResponse
-import org.ossreviewtoolkit.clients.fossid.checkScanStatus
 import org.ossreviewtoolkit.clients.fossid.createProject
 import org.ossreviewtoolkit.clients.fossid.createScan
+import org.ossreviewtoolkit.clients.fossid.deleteScan
 import org.ossreviewtoolkit.clients.fossid.downloadFromGit
 import org.ossreviewtoolkit.clients.fossid.getProject
 import org.ossreviewtoolkit.clients.fossid.listIdentifiedFiles
@@ -46,11 +42,14 @@ import org.ossreviewtoolkit.clients.fossid.listMarkedAsIdentifiedFiles
 import org.ossreviewtoolkit.clients.fossid.listPendingFiles
 import org.ossreviewtoolkit.clients.fossid.listScansForProject
 import org.ossreviewtoolkit.clients.fossid.model.Project
+import org.ossreviewtoolkit.clients.fossid.model.Scan
 import org.ossreviewtoolkit.clients.fossid.model.status.DownloadStatus
-import org.ossreviewtoolkit.clients.fossid.model.status.ScanState
+import org.ossreviewtoolkit.clients.fossid.model.status.ScanStatus
 import org.ossreviewtoolkit.clients.fossid.runScan
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.Package
+import org.ossreviewtoolkit.model.Provenance
+import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.ScanSummary
 import org.ossreviewtoolkit.model.Severity
@@ -59,38 +58,30 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.model.config.ScannerOptions
+import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.scanner.AbstractScannerFactory
 import org.ossreviewtoolkit.scanner.RemoteScanner
-import org.ossreviewtoolkit.utils.OkHttpClientHelper
+import org.ossreviewtoolkit.spdx.enumSetOf
 import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.replaceCredentialsInUri
+import org.ossreviewtoolkit.utils.showStackTrace
 import org.ossreviewtoolkit.utils.toUri
-
-import retrofit2.Retrofit
-import retrofit2.converter.jackson.JacksonConverterFactory
 
 /**
  * A wrapper for [FossID](https://fossid.com/).
  *
- * This scanner can be configured in [ScannerConfiguration.options] using the key "FossId". It offers the following
- * configuration options:
- *
- * * **"serverUrl":** The URL of the FossID server.
- * * **"user":** The user to connect to the FossID server.
- * * **"apiKey":** The API key of the user which connects to the FossID server.
- * * **"packageNamespaceFilter":** If this optional filter is set, only packages having an identifier in given namespace
- * will be scanned.
- * * **"packageAuthorsFilter":** If this optional filter is set, only packages from a given author will be scanned.
- * * **"addAuthenticationToUrl":** When set, ORT will add credentials from its Authenticator to the URLs sent to FossID.
+ * This scanner can be configured in [ScannerConfiguration.options]. For the options available and their documentation
+ * refer to [FossIdConfig].
  */
-class FossId(
+class FossId internal constructor(
     name: String,
     scannerConfig: ScannerConfiguration,
-    downloaderConfig: DownloaderConfiguration
+    downloaderConfig: DownloaderConfiguration,
+    private val config: FossIdConfig
 ) : RemoteScanner(name, scannerConfig, downloaderConfig) {
     class Factory : AbstractScannerFactory<FossId>("FossId") {
         override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
-            FossId(scannerName, scannerConfig, downloaderConfig)
+            FossId(scannerName, scannerConfig, downloaderConfig, FossIdConfig.create(scannerConfig))
     }
 
     companion object {
@@ -104,7 +95,13 @@ class FossId(
         private val WAIT_INTERVAL_MS = 10000L
 
         @JvmStatic
-        private val WAIT_REPETITION = 50
+        private val WAIT_REPETITION = 360
+
+        /**
+         * The scan states for which a scan can be triggered.
+         */
+        @JvmStatic
+        private val SCAN_STATE_FOR_TRIGGER = enumSetOf(ScanStatus.NOT_STARTED, ScanStatus.NEW)
 
         /**
          * Convert a Git repository URL to a valid project name, e.g.
@@ -117,10 +114,20 @@ class FossId(
 
             val projectName = projectNameMatcher.groupValues[1]
 
-            log.info { "Found project name in '$projectName' in URL '$gitRepoUrl'." }
+            log.info { "Found project name '$projectName' in URL '$gitRepoUrl'." }
 
             return projectName
         }
+
+        /**
+         * Generate a list of pairs to be passed as parameters when starting a new delta scan for [existingScanCode].
+         */
+        internal fun deltaScanRunParameters(existingScanCode: String): Array<Pair<String, String>> =
+            arrayOf(
+                "reuse_identification" to "1",
+                "identification_reuse_type" to "specific_scan",
+                "specific_code" to existingScanCode
+            )
 
         /**
          * This function fetches credentials for [repoUrl] and insert them between the URL scheme and the host. If no
@@ -128,21 +135,19 @@ class FossId(
          */
         private fun queryAuthenticator(repoUrl: String): String {
             val repoUri = repoUrl.toUri().getOrElse {
-                log.warn { "Host cannot be extracted for $repoUrl." }
+                log.warn { "The repository URL '$repoUrl' is not valid." }
                 return repoUrl
             }
 
-            log.info { "Requesting authenticator for host ${repoUri.host} ..." }
+            log.info { "Requesting authentication for host ${repoUri.host} ..." }
 
-            val creds = Authenticator.getDefault().requestPasswordAuthenticationInstance(
-                repoUri.host,
-                null,
-                0,
-                null,
-                null,
-                null,
-                null,
-                Authenticator.RequestorType.SERVER
+            val creds = Authenticator.requestPasswordAuthentication(
+                /* host = */ repoUri.host,
+                /* addr = */ null,
+                /* port = */ repoUri.port,
+                /* protocol = */ repoUri.scheme,
+                /* prompt = */ null,
+                /* scheme = */ null
             )
             return creds?.let {
                 repoUrl.replaceCredentialsInUri("${creds.userName}:${String(creds.password)}")
@@ -150,84 +155,43 @@ class FossId(
         }
     }
 
-    private val serverUrl: String
-    private val apiKey: String
-    private val user: String
+    /**
+     * The qualifier of a scan when delta scans are enabled.
+     */
+    internal enum class DeltaTag {
+        /**
+         * Qualifier used when there is no scan and the first one is created.
+         */
+        ORIGIN,
+
+        /**
+         * Qualifier used for all the scans after the first one.
+         */
+        DELTA
+    }
 
     private val secretKeys = listOf("serverUrl", "apiKey", "user")
+    private val namingProvider = config.createNamingProvider()
 
-    private val service: FossIdRestService
-    private val packageNamespaceFilter: String
-    private val packageAuthorsFilter: String
-    private val addAuthenticationToUrl: Boolean
+    // A list of all scans created in an ORT run, to be able to delete them in case of error.
+    // The reasoning is that either all these scans are successful, either none is created at all (clean slate).
+    // A use case is that an ORT run is created regularly e.g. nightly, and we want to have exactly the same amount
+    // of scans for each package.
+    private val createdScans = mutableSetOf<String>()
 
-    override val version: String
+    private val service = config.createService()
+
+    override val version: String = service.version
 
     override val configuration = ""
-
-    init {
-        val fossIdScannerOptions = scannerConfig.options?.get("FossId")
-
-        requireNotNull(fossIdScannerOptions) { "No FossId Scanner configuration found." }
-
-        serverUrl = fossIdScannerOptions["serverUrl"]
-            ?: throw IllegalArgumentException("No FossId server URL configuration found.")
-        apiKey = fossIdScannerOptions["apiKey"]
-            ?: throw IllegalArgumentException("No FossId API Key configuration found.")
-        user = fossIdScannerOptions["user"]
-            ?: throw IllegalArgumentException("No FossId User configuration found.")
-        packageNamespaceFilter = fossIdScannerOptions["packageNamespaceFilter"].orEmpty()
-        packageAuthorsFilter = fossIdScannerOptions["packageAuthorsFilter"].orEmpty()
-        addAuthenticationToUrl = fossIdScannerOptions["addAuthenticationToUrl"].toBoolean()
-
-        val client = OkHttpClientHelper.buildClient()
-
-        log.info { "FossID server URL is $serverUrl." }
-
-        val retrofit = Retrofit.Builder()
-            .client(client)
-            .baseUrl(serverUrl)
-            .addConverterFactory(JacksonConverterFactory.create(FossIdRestService.JSON_MAPPER))
-            .build()
-
-        service = retrofit.create(FossIdRestService::class.java)
-
-        version = runBlocking {
-            parseVersion().orEmpty()
-        }
-    }
 
     override fun filterOptionsForResult(options: ScannerOptions) =
         options.mapValues { (k, v) ->
             v.takeUnless { k in secretKeys }.orEmpty()
         }
 
-    /**
-     * Extract the version version from the login page.
-     * Example: &nbsp;&nbsp;&nbsp;cli.  3.1.16 (build 5634934d, RELEASE)
-     */
-    private suspend fun parseVersion(): String? {
-        // TODO: replace with an API call when FossID provides a function (starting at version 21.2).
-        val regex = Regex("^.*&nbsp;(cli. *[0-9. ]+\\(build[\\w, ]+\\)).*$")
-
-        val response = service.getLoginPage()
-
-        response.charStream().buffered().useLines { lines ->
-            lines.forEach { line ->
-                val matcher = regex.matchEntire(line)
-                if (matcher != null && matcher.groupValues.size == 2) {
-                    val version = matcher.groupValues[1]
-                    FossId.log.info { "Version from FossId Server is $version." }
-                    return version
-                }
-            }
-        }
-        log.warn { "Version from FossId Server cannot be found!" }
-        return null
-    }
-
     private suspend fun getProject(projectCode: String): Project? =
-        service.getProject(user, apiKey, projectCode).run {
+        service.getProject(config.user, config.apiKey, projectCode).run {
             when {
                 error == null && data != null -> {
                     FossId.log.info { "Project '$projectCode' exists." }
@@ -251,71 +215,135 @@ class FossId(
             val results = mutableMapOf<Package, MutableList<ScanResult>>()
 
             log.info {
-                if (packageNamespaceFilter.isEmpty()) "No package namespace filter is set."
-                else "Package namespace filter is '$packageNamespaceFilter'."
+                if (config.packageNamespaceFilter.isEmpty()) "No package namespace filter is set."
+                else "Package namespace filter is '${config.packageNamespaceFilter}'."
             }
             log.info {
-                if (packageAuthorsFilter.isEmpty()) "No package authors filter is set."
-                else "Package authors filter is '$packageAuthorsFilter'."
+                if (config.packageAuthorsFilter.isEmpty()) "No package authors filter is set."
+                else "Package authors filter is '${config.packageAuthorsFilter}'."
+            }
+
+            fun addPackageWithSingleIssue(pkg: Package, issue: OrtIssue, provenance: Provenance) {
+                val time = Instant.now()
+                val summary = ScanSummary(time, time, "", sortedSetOf(), sortedSetOf(), listOf(issue))
+                val scanResult = ScanResult(provenance, details, summary)
+                results.getOrPut(pkg) { mutableListOf() } += scanResult
             }
 
             val filteredPackages = packages
-                .filter { packageNamespaceFilter.isEmpty() || it.id.namespace == packageNamespaceFilter }
-                .filter { packageAuthorsFilter.isEmpty() || packageAuthorsFilter in it.authors }
+                .filter { config.packageNamespaceFilter.isEmpty() || it.id.namespace == config.packageNamespaceFilter }
+                .filter { config.packageAuthorsFilter.isEmpty() || config.packageAuthorsFilter in it.authors }
+                .partition { it.vcsProcessed.type == VcsType.GIT }
+                .let { (packagesInsideGit, packagesOutsideGit) ->
+                    packagesOutsideGit.forEach {
+                        val issue = createAndLogIssue(
+                            source = scannerName,
+                            message = "Package '${it.id.toCoordinates()}' uses VCS type '${it.vcsProcessed.type}', " +
+                                    "but only ${VcsType.GIT} is supported.",
+                            severity = Severity.WARNING
+                        )
+                        addPackageWithSingleIssue(it, issue, UnknownProvenance)
+                    }
+
+                    packagesInsideGit
+                }
+                .partition { it.vcsProcessed.revision.isEmpty() }
+                .let { (packagesWithoutRevisions, packagesWithRevisions) ->
+                    packagesWithoutRevisions.forEach {
+                        val issue = createAndLogIssue(
+                            source = scannerName,
+                            message = "Package '${it.id.toCoordinates()}' has an empty VCS revision and cannot be " +
+                                    "scanned.",
+                            severity = Severity.WARNING
+                        )
+                        addPackageWithSingleIssue(it, issue, UnknownProvenance)
+                    }
+
+                    packagesWithRevisions
+                }
+                .partition { it.vcsProcessed.path.isEmpty() }
+                .let { (packagesWithoutPaths, packagesWithPaths) ->
+                    packagesWithPaths.forEach {
+                        val issue = createAndLogIssue(
+                            source = scannerName,
+                            message = "Ignoring package '${it.id.toCoordinates()}' from ${it.vcsProcessed.url} as it " +
+                                    "has path '${it.vcsProcessed.path}' set and scanning cannot be limited to paths.",
+                            severity = Severity.WARNING
+                        )
+                        val provenance = RepositoryProvenance(it.vcsProcessed, it.vcsProcessed.revision)
+                        addPackageWithSingleIssue(it, issue, provenance)
+                    }
+
+                    packagesWithoutPaths
+                }
 
             if (filteredPackages.isEmpty()) {
-                log.warn { "There is no package to scan !" }
+                log.warn { "There is no package to scan." }
                 return results
             }
 
             filteredPackages.forEach { pkg ->
                 val startTime = Instant.now()
-
-                // TODO: Continue the processing of other packages and add an issue to the scan result.
-                require(pkg.vcsProcessed.type == VcsType.GIT) { "FossID only supports Git repositories." }
-
                 val url = pkg.vcsProcessed.url
-                val revision = pkg.vcsProcessed.revision.ifEmpty { "HEAD" }
-                val projectCode = convertGitUrlToProjectName(url)
+                val revision = pkg.vcsProcessed.revision
+                val projectName = convertGitUrlToProjectName(url)
+                val provenance = RepositoryProvenance(pkg.vcsProcessed, revision)
 
-                if (getProject(projectCode) == null) {
-                    log.info { "Creating project '$projectCode' ..." }
+                try {
+                    val projectCode = namingProvider.createProjectCode(projectName)
 
-                    service.createProject(user, apiKey, projectCode, projectCode)
-                        .checkResponse("create project")
-                }
+                    if (getProject(projectCode) == null) {
+                        log.info { "Creating project '$projectCode'..." }
 
-                val scans = service.listScansForProject(user, apiKey, projectCode)
-                    .checkResponse("list scans for project").data
-                checkNotNull(scans)
+                        service.createProject(config.user, config.apiKey, projectCode, projectCode)
+                            .checkResponse("create project")
+                    }
 
-                val existingScan = scans.sortedByDescending { it.id }.find { scan ->
-                    scan.gitBranch == revision && scan.gitRepoUrl == url
-                }
+                    val scans = service.listScansForProject(config.user, config.apiKey, projectCode)
+                        .checkResponse("list scans for project").data
+                    checkNotNull(scans)
 
-                val scanCode = if (existingScan == null) {
-                    log.info { "No scan found for $url and revision $revision. Creating scan ..." }
+                    val scanCode = if (config.deltaScans) {
+                        checkAndCreateDeltaScan(scans, url, revision, projectCode, projectName)
+                    } else {
+                        checkAndCreateScan(scans, url, revision, projectCode, projectName)
+                    }
 
-                    val newUrl = if (addAuthenticationToUrl) queryAuthenticator(url) else url
+                    if (config.waitForResult) {
+                        val rawResults = getRawResults(scanCode)
+                        val resultsSummary = createResultSummary(startTime, provenance, rawResults)
 
-                    val scanCode = createScan(projectCode, newUrl, revision)
-                    log.info { "Initiating data download ..." }
-                    service.downloadFromGit(user, apiKey, scanCode)
-                        .checkResponse("download data from Git", false)
-                    scanCode
-                } else {
-                    log.info { "Scan found for $url and revision $revision." }
+                        results.getOrPut(pkg) { mutableListOf() } += resultsSummary
+                    } else {
+                        val issue = createAndLogIssue(
+                            source = scannerName,
+                            message = "Package '${pkg.id.toCoordinates()}' has been scanned in asynchronous mode. " +
+                                    "Scan results need to be inspected on the server instance.",
+                            severity = Severity.HINT
+                        )
+                        val summary = ScanSummary(startTime, Instant.now(), "", sortedSetOf(), sortedSetOf(),
+                            listOf(issue))
 
-                    requireNotNull(existingScan.code) {
-                        "FossId returned a null scancode for an existing scan"
+                        val scanResult = ScanResult(provenance, details, summary)
+                        results.getOrPut(pkg) { mutableListOf() } += scanResult
+                    }
+                } catch (e: IllegalStateException) {
+                    e.showStackTrace()
+
+                    val issue = createAndLogIssue(
+                        source = scannerName,
+                        message = "Failed to scan package '${pkg.id.toCoordinates()}' from $url."
+                    )
+                    val summary = ScanSummary(startTime, Instant.now(), "", sortedSetOf(), sortedSetOf(), listOf(issue))
+
+                    val scanResult = ScanResult(provenance, details, summary)
+                    results.getOrPut(pkg) { mutableListOf() } += scanResult
+
+                    createdScans.forEach { code ->
+                        log.warn { "Deleting scan '$code' during exception cleanup." }
+                        deleteScan(code)
                     }
                 }
-
-                checkScan(scanCode)
-                val rawResults = getRawResults(scanCode)
-                val resultsSummary = createResultSummary(startTime, rawResults)
-
-                results.getOrPut(pkg) { mutableListOf() } += resultsSummary
             }
 
             results
@@ -327,13 +355,165 @@ class FossId(
     }
 
     /**
+     * Find the latest [Scan] in this list with a finished state. If necessary, wait for a scan to finish. Note that
+     * this function expects that [recentScansForRepository] has been applied to this list for the current
+     * repository.
+     */
+    private suspend fun List<Scan>.findLatestPendingOrFinishedScan(): Scan? =
+        find { scan ->
+            val scanCode = requireNotNull(scan.code) {
+                "The code for an existing scan must not be null."
+            }
+
+            val response = service.checkScanStatus(config.user, config.apiKey, scanCode)
+                .checkResponse("check scan status", false)
+            when (response.data?.status) {
+                ScanStatus.FINISHED -> true
+
+                null, ScanStatus.NOT_STARTED, ScanStatus.INTERRUPTED, ScanStatus.NEW -> false
+
+                ScanStatus.STARTED, ScanStatus.STARTING, ScanStatus.RUNNING, ScanStatus.SCANNING, ScanStatus.AUTO_ID,
+
+                ScanStatus.QUEUED -> {
+                    FossId.log.warn {
+                        "Found a previous scan which is still running. Will ignore the 'waitForResult' option and " +
+                                "wait..."
+                    }
+                    waitScanComplete(scanCode)
+                    true
+                }
+            }
+        }
+
+    /**
+     * Filter this list of [Scan]s for the repository defined by [url] and an optional [revision] and sort it by
+     * scan ID, so that the most recent scan comes first and the oldest scan comes last.
+     */
+    private fun List<Scan>.recentScansForRepository(
+        url: String,
+        revision: String? = null
+    ): List<Scan> = filter {
+        // The scans in the server contain the url with the credentials so we have to remove it for the
+        // comparison. If we don't, the scans won't be matched if the password changes!
+        val urlWithoutCredentials = it.gitRepoUrl?.replaceCredentialsInUri()
+        urlWithoutCredentials == url && (revision == null || (it.gitBranch == revision))
+    }.sortedByDescending { scan -> scan.id }
+
+    private suspend fun checkAndCreateScan(
+        scans: List<Scan>,
+        url: String,
+        revision: String,
+        projectCode: String,
+        projectName: String
+    ): String {
+        val existingScan = scans.recentScansForRepository(url, revision).findLatestPendingOrFinishedScan()
+
+        val scanCode = if (existingScan == null) {
+            log.info { "No scan found for $url and revision $revision. Creating scan..." }
+
+            val scanCode = namingProvider.createScanCode(projectName)
+            val newUrl = if (config.addAuthenticationToUrl) queryAuthenticator(url) else url
+            createScan(projectCode, scanCode, newUrl, revision)
+
+            log.info { "Initiating the download..." }
+            service.downloadFromGit(config.user, config.apiKey, scanCode)
+                .checkResponse("download data from Git", false)
+
+            scanCode
+        } else {
+            log.info { "Scan '${existingScan.code}' found for $url and revision $revision." }
+
+            requireNotNull(existingScan.code) {
+                "The code for an existing scan must not be null."
+            }
+        }
+        if (config.waitForResult) checkScan(scanCode)
+        return scanCode
+    }
+
+    private suspend fun checkAndCreateDeltaScan(
+        scans: List<Scan>,
+        url: String,
+        revision: String,
+        projectCode: String,
+        projectName: String
+    ): String {
+        // we ignore the revision because we want to do a delta scan
+        val recentScans = scans.recentScansForRepository(url)
+        val existingScan = recentScans.findLatestPendingOrFinishedScan()
+
+        val scanCode = if (existingScan == null) {
+            log.info { "No scan found for $url and revision $revision. Creating origin scan..." }
+            namingProvider.createScanCode(projectName, DeltaTag.ORIGIN)
+        } else {
+            log.info { "Scan found for $url and revision $revision. Creating delta scan..." }
+            namingProvider.createScanCode(projectName, DeltaTag.DELTA)
+        }
+
+        val newUrl = if (config.addAuthenticationToUrl) queryAuthenticator(url) else url
+        createScan(projectCode, scanCode, newUrl, revision)
+
+        log.info { "Initiating the download..." }
+        service.downloadFromGit(config.user, config.apiKey, scanCode)
+            .checkResponse("download data from Git", false)
+
+        if (existingScan == null) {
+            checkScan(scanCode)
+        } else {
+            val existingScanCode = requireNotNull(existingScan.code) {
+                "The code for an existing scan must not be null."
+            }
+
+            log.info { "Reusing identifications from scan '$existingScanCode'." }
+
+            // TODO: Change the logic of 'waitForResult' to wait for download results but not for scan results.
+            //  Hence we could trigger 'runScan' even when 'waitForResult' is set to false.
+            if (!config.waitForResult) {
+                log.info { "Ignoring unset 'waitForResult' because delta scans are requested." }
+            }
+
+            checkScan(scanCode, *deltaScanRunParameters(existingScanCode))
+
+            enforceDeltaScanLimit(recentScans)
+        }
+
+        return scanCode
+    }
+
+    /**
+     * Make sure that only the configured number of delta scans exists for the current package. Based on the list of
+     * [existingScans], delete older scans until the maximum number of delta scans is reached.
+     */
+    private suspend fun enforceDeltaScanLimit(existingScans: List<Scan>) {
+        log.info { "Will retain up to ${config.deltaScanLimit} delta scans." }
+
+        // The current scan needs to be counted as well, in addition to the already existing scans.
+        if (existingScans.size + 1 > config.deltaScanLimit) {
+            log.info { "Deleting ${existingScans.size + 1 - config.deltaScanLimit} older scans." }
+        }
+
+        // Drop the most recent scans to keep in order to iterate over the remaining ones to delete them.
+        existingScans.drop(config.deltaScanLimit - 1)
+            .forEach { scan ->
+                scan.code?.let { code ->
+                    log.info { "Deleting scan '$code' to enforce the maximum number of delta scans." }
+                    deleteScan(code)
+                }
+            }
+    }
+
+    /**
      * Create a new scan in the FossID server and return the scan code.
      */
-    private suspend fun createScan(projectCode: String, url: String, revision: String): String {
-        val formatter = DateTimeFormatter.ofPattern("'$projectCode'_yyyyMMdd_HHmmss")
-        val scanCode = formatter.format(LocalDateTime.now())
+    private suspend fun createScan(
+        projectCode: String,
+        scanCode: String,
+        url: String,
+        revision: String
+    ): String {
+        log.info { "Creating scan '$scanCode'..." }
 
-        val response = service.createScan(user, apiKey, projectCode, scanCode, url, revision)
+        val response = service.createScan(config.user, config.apiKey, projectCode, scanCode, url, revision)
             .checkResponse("create scan")
 
         val scanId = response.data?.get("scan_id")
@@ -341,24 +521,30 @@ class FossId(
         requireNotNull(scanId) { "Scan could not be created. The response was: ${response.message}." }
 
         log.info { "Scan has been created with ID $scanId." }
-
+        createdScans.add(scanCode)
         return scanCode
     }
 
     /**
      * Check the repository has been downloaded and the scan has completed. The latter will be triggered if needed.
      */
-    private suspend fun checkScan(scanCode: String) {
+    private suspend fun checkScan(scanCode: String, vararg runOptions: Pair<String, String>) {
         waitDownloadComplete(scanCode)
 
-        val response = service.checkScanStatus(user, apiKey, scanCode)
+        val response = service.checkScanStatus(config.user, config.apiKey, scanCode)
             .checkResponse("check scan status", false)
 
-        if (response.data?.state == ScanState.NOT_STARTED) {
+        if (response.data?.status in SCAN_STATE_FOR_TRIGGER) {
             log.info { "Triggering scan as it has not yet been started." }
 
-            service.runScan(user, apiKey, scanCode)
-                .checkResponse("trigger scan", false)
+            val scanResult = service.runScan(config.user, config.apiKey, scanCode, *runOptions)
+
+            // Scans that were added to the queue are interpreted as an error by FossID before version 2021.2.
+            // For older versions, `waitScanComplete()` is able to deal with queued scans. Therefore, not checking the
+            // response of queued scans.
+            if (version >= "2021.2" || scanResult.error != "Scan was added to queue.") {
+                scanResult.checkResponse("trigger scan", false)
+            }
 
             waitScanComplete(scanCode)
         }
@@ -382,9 +568,9 @@ class FossId(
      */
     private suspend fun waitDownloadComplete(scanCode: String) {
         val result = wait(WAIT_INTERVAL_MS * WAIT_REPETITION, WAIT_INTERVAL_MS) {
-            FossId.log.info { "Checking download status for scan code '$scanCode'." }
+            FossId.log.info { "Checking download status for scan '$scanCode'." }
 
-            val response = service.checkDownloadStatus(user, apiKey, scanCode)
+            val response = service.checkDownloadStatus(config.user, config.apiKey, scanCode)
                 .checkResponse("check download status")
 
             if (response.data == DownloadStatus.FINISHED) return@wait true
@@ -410,18 +596,17 @@ class FossId(
      */
     private suspend fun waitScanComplete(scanCode: String) {
         val result = wait(WAIT_INTERVAL_MS * WAIT_REPETITION, WAIT_INTERVAL_MS) {
-            FossId.log.info { "Waiting for scan='$scanCode' to complete." }
+            FossId.log.info { "Waiting for scan '$scanCode' to complete." }
 
-            val response = service.checkScanStatus(user, apiKey, scanCode)
+            val response = service.checkScanStatus(config.user, config.apiKey, scanCode)
                 .checkResponse("check scan status", false)
 
             response.data?.let {
-                if (it.state == ScanState.FINISHED) {
-                    FossId.log.info { "Scan finished with response: ${response.data?.comment}." }
+                if (it.status == ScanStatus.FINISHED) {
                     true
                 } else {
                     FossId.log.info {
-                        "Scan status for scan code '$scanCode' is '${response.data?.state}'. Waiting ..."
+                        "Scan status for scan '$scanCode' is '${response.data?.status}'. Waiting..."
                     }
 
                     false
@@ -435,29 +620,42 @@ class FossId(
     }
 
     /**
+     * Delete a scan with [scanCode].
+     */
+    private suspend fun deleteScan(scanCode: String) {
+        val response = service.deleteScan(config.user, config.apiKey, scanCode)
+        response.error?.let {
+            log.error { "Cannot delete scan '$scanCode': $it." }
+        }
+    }
+
+    /**
      * Get the different kind of results from the scan with [scanCode]
      */
     private suspend fun getRawResults(scanCode: String): RawResults {
-        val identifiedFiles = service.listIdentifiedFiles(user, apiKey, scanCode)
+        val identifiedFiles = service.listIdentifiedFiles(config.user, config.apiKey, scanCode)
             .checkResponse("list identified files")
             .data!!
-        log.info { "${identifiedFiles.size} identified files have been returned for scan code $scanCode." }
+        log.info { "${identifiedFiles.size} identified files have been returned for scan '$scanCode'." }
 
-        val markedAsIdentifiedFiles = service.listMarkedAsIdentifiedFiles(user, apiKey, scanCode)
+        val markedAsIdentifiedFiles = service.listMarkedAsIdentifiedFiles(config.user, config.apiKey, scanCode)
             .checkResponse("list marked as identified files")
             .data!!
         log.info {
-            "${markedAsIdentifiedFiles.size} marked as identified files have been returned for scan code $scanCode."
+            "${markedAsIdentifiedFiles.size} marked as identified files have been returned for scan '$scanCode'."
         }
 
         // The "match_type=ignore" info is already in the ScanResult, but here we also get the ignore reason.
-        val listIgnoredFiles = service.listIgnoredFiles(user, apiKey, scanCode)
+        val listIgnoredFiles = service.listIgnoredFiles(config.user, config.apiKey, scanCode)
             .checkResponse("list ignored files")
             .data!!
 
-        val pendingFiles = service.listPendingFiles(user, apiKey, scanCode)
+        val pendingFiles = service.listPendingFiles(config.user, config.apiKey, scanCode)
             .checkResponse("list pending files")
             .data!!
+        log.info {
+            "${pendingFiles.size} pending files have been returned for scan '$scanCode'."
+        }
 
         return RawResults(identifiedFiles, markedAsIdentifiedFiles, listIgnoredFiles, pendingFiles)
     }
@@ -465,17 +663,16 @@ class FossId(
     /**
      * Construct the [ScanSummary] for this FossId scan.
      */
-    private fun createResultSummary(startTime: Instant, rawResults: RawResults): ScanResult {
+    private fun createResultSummary(startTime: Instant, provenance: Provenance, rawResults: RawResults): ScanResult {
         val associate = rawResults.listIgnoredFiles.associateBy { it.path }
 
-        val (filesCount, licenseFindings, copyrightFindings) = rawResults.markedAsIdentifiedFiles.ifEmpty {
+        val (licenseFindings, copyrightFindings) = rawResults.markedAsIdentifiedFiles.ifEmpty {
             rawResults.identifiedFiles
         }.mapSummary(associate)
 
         val summary = ScanSummary(
             startTime = startTime,
             endTime = Instant.now(),
-            fileCount = filesCount,
             packageVerificationCode = "",
             licenseFindings = licenseFindings.toSortedSet(),
             copyrightFindings = copyrightFindings.toSortedSet(),
@@ -485,6 +682,6 @@ class FossId(
             }
         )
 
-        return ScanResult(UnknownProvenance, details, summary)
+        return ScanResult(provenance, details, summary)
     }
 }

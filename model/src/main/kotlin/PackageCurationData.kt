@@ -28,8 +28,8 @@ import org.ossreviewtoolkit.spdx.SpdxExpression
 import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
 
 /**
- * This class contains curation data for a package. It is used to amend the automatically detected meta data for a
- * package with corrections. This is required because the meta data provided by a package can be wrong (e.g. outdated
+ * This class contains curation data for a package. It is used to amend the automatically detected metadata for a
+ * package with corrections. This is required because the metadata provided by a package can be wrong (e.g. outdated
  * VCS data) or incomplete.
  */
 @JsonIgnoreProperties(value = [/* Backwards-compatibility: */ "declared_licenses"])
@@ -79,7 +79,7 @@ data class PackageCurationData(
     val vcs: VcsInfoCurationData? = null,
 
     /**
-     * Whether the package is meta data only.
+     * Whether the package is metadata only.
      */
     val isMetaDataOnly: Boolean? = null,
 
@@ -96,12 +96,8 @@ data class PackageCurationData(
     val declaredLicenseMapping: Map<String, SpdxExpression> = emptyMap()
 ) {
     /**
-     * Apply the curation data to the provided package, by overriding all values of the original package with non-null
-     * values of the curation data.
-     *
-     * @param base The package to curate.
-     *
-     * @return The curated package.
+     * Apply the curation data to the provided [base] package by overriding all values of the original package with
+     * non-null values of the curation data, and return the curated package.
      */
     fun apply(base: CuratedPackage): CuratedPackage = applyCurationToPackage(base, this)
 }

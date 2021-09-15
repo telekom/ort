@@ -21,7 +21,7 @@
 
 package org.ossreviewtoolkit.clients.fossid
 
-private const val SCAN_GROUP = "scans"
+internal const val SCAN_GROUP = "scans"
 private const val PROJECT_GROUP = "projects"
 
 /**
@@ -43,6 +43,26 @@ fun <B : EntityResponseBody<T>, T> B?.checkResponse(operation: String, withDataC
     }
 
     return this
+}
+
+/**
+ * Extract the version from the login page.
+ * Example: `<link rel='stylesheet' href='style/fossid.css?v=2021.2.2#7936'>`
+ */
+suspend fun FossIdRestService.getFossIdVersion(): String? {
+    // TODO: replace with an API call when FossID provides a function (starting at version 2021.2).
+    val regex = Regex("^.*fossid.css\\?v=([0-9.]+).*\$")
+
+    getLoginPage().charStream().buffered().useLines { lines ->
+        lines.forEach { line ->
+            val matcher = regex.matchEntire(line)
+            if (matcher != null && matcher.groupValues.size == 2) {
+                return matcher.groupValues[1]
+            }
+        }
+    }
+
+    return null
 }
 
 /**
@@ -168,16 +188,6 @@ suspend fun FossIdRestService.downloadFromGit(user: String, apiKey: String, scan
             apiKey,
             "scan_code" to scanCode
         )
-    )
-
-/**
- * Get the scan status for the given [scanCode].
- *
- * The HTTP request is sent with [user] and [apiKey] as credentials.
- */
-suspend fun FossIdRestService.checkScanStatus(user: String, apiKey: String, scanCode: String) =
-    checkScanStatus(
-        PostRequestBody("check_status", SCAN_GROUP, user, apiKey, "scan_code" to scanCode)
     )
 
 /**

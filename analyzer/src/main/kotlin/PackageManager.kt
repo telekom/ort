@@ -34,6 +34,7 @@ import org.apache.maven.project.ProjectBuildingException
 
 import org.ossreviewtoolkit.downloader.VcsHost
 import org.ossreviewtoolkit.downloader.VersionControlSystem
+import org.ossreviewtoolkit.model.DependencyGraph
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.ProjectAnalyzerResult
@@ -113,7 +114,7 @@ abstract class PackageManager(
                         return FileVisitResult.SKIP_SUBTREE
                     }
 
-                    val filesInDir = dirAsFile.walk().maxDepth(1).filter { it.isFile }.toList()
+                    val filesInDir = dirAsFile.walk().maxDepth(1).filter { it.isFile && it.length() > 0 }.toList()
 
                     packageManagers.forEach { manager ->
                         // Create a list of lists of matching files per glob.
@@ -163,7 +164,7 @@ abstract class PackageManager(
                 // Enrich (not overwrite) the normalized VCS information from the package...
                 val mergedVcs = normalizedVcsFromPackage.merge(fallbackVcs)
                 if (mergedVcs != normalizedVcsFromPackage) {
-                    // ... but if indeed meta data was enriched, overwrite the URL with the one from the fallback VCS
+                    // ... but if indeed metadata was enriched, overwrite the URL with the one from the fallback VCS
                     // information to ensure we get the correct base URL if additional VCS information (like a revision
                     // or path) has been split from the original URL.
                     return mergedVcs.copy(url = fallbackVcs.url)
@@ -175,7 +176,7 @@ abstract class PackageManager(
 
         /**
          * Enrich VCS information determined from the [project's directory][projectDir] with VCS information determined
-         * from the [project's meta data][vcsFromProject], if any, and from a [list of fallback URLs][fallbackUrls] (the
+         * from the [project's metadata][vcsFromProject], if any, and from a [list of fallback URLs][fallbackUrls] (the
          * first element that is recognized as a VCS URL is used).
          */
         fun processProjectVcs(
@@ -229,7 +230,9 @@ abstract class PackageManager(
         beforeResolution(definitionFiles)
 
         definitionFiles.forEach { definitionFile ->
-            log.info { "Resolving $managerName dependencies for '$definitionFile'..." }
+            val relativePath = definitionFile.relativeTo(analysisRoot).invariantSeparatorsPath
+
+            log.info { "Resolving $managerName dependencies for '$relativePath'..." }
 
             val duration = measureTime {
                 @Suppress("TooGenericExceptionCaught")
@@ -237,8 +240,6 @@ abstract class PackageManager(
                     result[definitionFile] = resolveDependencies(definitionFile)
                 } catch (e: Exception) {
                     e.showStackTrace()
-
-                    val relativePath = definitionFile.relativeTo(analysisRoot).invariantSeparatorsPath
 
                     // In case of Maven we might be able to do better than inferring the name from the path.
                     val id = if (e is ProjectBuildingException && e.projectId?.isEmpty() == false) {
@@ -250,7 +251,9 @@ abstract class PackageManager(
                     val projectWithIssues = Project.EMPTY.copy(
                         id = id,
                         definitionFilePath = VersionControlSystem.getPathInfo(definitionFile).path,
-                        vcsProcessed = processProjectVcs(definitionFile.parentFile)
+                        vcsProcessed = processProjectVcs(definitionFile.parentFile),
+                        scopeDependencies = null,
+                        scopeNames = sortedSetOf()
                     )
 
                     val issues = listOf(
@@ -265,12 +268,12 @@ abstract class PackageManager(
                 }
             }
 
-            log.info { "Resolving $managerName dependencies for '$definitionFile' took ${duration.inWholeSeconds}s." }
+            log.info { "Resolving $managerName dependencies for '$relativePath' took ${duration.inWholeSeconds}s." }
         }
 
         afterResolution(definitionFiles)
 
-        return createPackageManagerResult(result)
+        return createPackageManagerResult(result).addDependencyGraphIfMissing()
     }
 
     /**
@@ -299,3 +302,15 @@ abstract class PackageManager(
  */
 fun parseAuthorString(author: String?, vararg delimiters: Char = charArrayOf('<')): String? =
     author?.split(*delimiters, limit = 2)?.firstOrNull()?.trim()?.ifEmpty { null }
+
+private fun PackageManagerResult.addDependencyGraphIfMissing(): PackageManagerResult {
+    // If the condition is true, then [CompatibilityDependencyNavigator] constructs a [DependencyGraphNavigator].
+    // That construction throws an exception if there is no dependency graph available.
+    val isGraphRequired = projectResults.values.flatten().any { it.project.scopeNames != null }
+
+    return if (isGraphRequired && dependencyGraph == null) {
+        copy(dependencyGraph = DependencyGraph())
+    } else {
+        this
+    }
+}

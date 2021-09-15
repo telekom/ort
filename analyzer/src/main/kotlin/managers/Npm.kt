@@ -56,6 +56,7 @@ import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.jsonMapper
+import org.ossreviewtoolkit.model.orEmpty
 import org.ossreviewtoolkit.model.readJsonFile
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.utils.DependencyGraphBuilder
@@ -187,6 +188,7 @@ open class Npm(
          * Construct a [Package] by parsing its _package.json_ file and - if applicable - querying additional
          * content from the [npmRegistry]. Result is a [Pair] with the raw identifier and the new package.
          */
+        @Suppress("HttpUrlsUsage")
         internal fun parsePackage(packageFile: File, npmRegistry: String): Pair<String, Package> {
             val packageDir = packageFile.parentFile
 
@@ -231,7 +233,7 @@ open class Npm(
                 // as the trigger to get VcsInfo locally instead of querying the NPM registry.
                 log.debug { "Resolving the package info for '$identifier' locally from '$realPackageDir'." }
 
-                val vcsFromDirectory = VersionControlSystem.forDirectory(realPackageDir)?.getInfo() ?: VcsInfo.EMPTY
+                val vcsFromDirectory = VersionControlSystem.forDirectory(realPackageDir)?.getInfo().orEmpty()
                 vcsFromPackage = vcsFromPackage.merge(vcsFromDirectory)
             } else {
                 log.debug { "Resolving the package info for '$identifier' via NPM registry." }
@@ -244,15 +246,10 @@ open class Npm(
                         homepageUrl = versionInfo["homepage"].textValueOrEmpty()
 
                         versionInfo["dist"]?.let { dist ->
-                            downloadUrl = dist["tarball"].textValueOrEmpty().let { tarballUrl ->
-                                if (tarballUrl.startsWith("http://registry.npmjs.org/")) {
-                                    // Work around the issue described at
-                                    // https://npm.community/t/some-packages-have-dist-tarball-as-http-and-not-https/285/19.
-                                    "https://" + tarballUrl.removePrefix("http://")
-                                } else {
-                                    tarballUrl
-                                }
-                            }
+                            downloadUrl = dist["tarball"].textValueOrEmpty()
+                                // Work around the issue described at
+                                // https://npm.community/t/some-packages-have-dist-tarball-as-http-and-not-https/285/19.
+                                .replace("http://registry.npmjs.org/", "https://registry.npmjs.org/")
 
                             hash = Hash.create(dist["shasum"].textValueOrEmpty())
                         }
@@ -340,7 +337,7 @@ open class Npm(
 
     override fun command(workingDir: File?) = if (Os.isWindows) "npm.cmd" else "npm"
 
-    override fun getVersionRequirement(): Requirement = Requirement.buildNPM("5.7.* - 6.14.*")
+    override fun getVersionRequirement(): Requirement = Requirement.buildNPM("5.7.* - 7.20.*")
 
     override fun mapDefinitionFiles(definitionFiles: List<File>) = mapDefinitionFilesForNpm(definitionFiles).toList()
 
@@ -361,7 +358,7 @@ open class Npm(
         val workingDir = definitionFile.parentFile
 
         stashDirectories(workingDir.resolve("node_modules")).use {
-            // Actually installing the dependencies is the easiest way to get the meta-data of all transitive
+            // Actually installing the dependencies is the easiest way to get the metadata of all transitive
             // dependencies (i.e. their respective "package.json" files). As NPM uses a global cache, the same
             // dependency is only ever downloaded once.
             installDependencies(workingDir)

@@ -39,6 +39,7 @@ import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
+import org.ossreviewtoolkit.model.orEmpty
 import org.ossreviewtoolkit.utils.CommandLineTool
 import org.ossreviewtoolkit.utils.Os
 import org.ossreviewtoolkit.utils.log
@@ -197,7 +198,7 @@ class GoMod(
     }
 
     private fun createPackage(id: Identifier): Package {
-        val vcsInfo = id.toVcsInfo().takeUnless { it.type == VcsType.UNKNOWN } ?: VcsInfo.EMPTY
+        val vcsInfo = id.toVcsInfo().takeUnless { it.type == VcsType.UNKNOWN }.orEmpty()
 
         return Package(
             id = Identifier(managerName, "", id.name, id.version),
@@ -321,7 +322,7 @@ private class Graph(private val nodeMap: MutableMap<Identifier, Set<Identifier>>
 }
 
 // See https://golang.org/ref/mod#pseudo-versions.
-private val PSEUDO_VERSION_REGEX = "^v0.0.0-(?:[\\d]{14}-(?<sha1>[0-9a-f]+)$)".toRegex()
+private val PSEUDO_VERSION_REGEX = "^v0.0.0-[\\d]{14}-(?<sha1>[0-9a-f]+)$".toRegex()
 
 /** Separator string indicating that data of a new package follows in the output of the go mod why command. */
 private const val PACKAGE_SEPARATOR = "# "

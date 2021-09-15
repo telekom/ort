@@ -20,7 +20,11 @@
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
+import java.nio.charset.Charset
+
 val cliktVersion: String by project
+val exposedVersion: String by project
+val hikariVersion: String by project
 val jsltVersion: String by project
 val log4jCoreVersion: String by project
 
@@ -45,8 +49,13 @@ tasks.named<CreateStartScripts>("startScripts").configure {
     doLast {
         // Work around the command line length limit on Windows when passing the classpath to Java, see
         // https://github.com/gradle/gradle/issues/1989#issuecomment-395001392.
-        windowsScript.writeText(windowsScript.readText().replace(Regex("set CLASSPATH=.*"),
-            "set CLASSPATH=%APP_HOME%\\\\lib\\\\*"))
+        val windowsScriptText = windowsScript.readText(Charset.defaultCharset())
+        windowsScript.writeText(windowsScriptText.replace(Regex("set CLASSPATH=%APP_HOME%\\\\lib\\\\.*"),
+            "set CLASSPATH=%APP_HOME%\\\\lib\\\\*;%APP_HOME%\\\\plugin\\\\*"))
+
+        val unixScriptText = unixScript.readText(Charset.defaultCharset())
+        unixScript.writeText(unixScriptText.replace(Regex("CLASSPATH=\\\$APP_HOME/lib/.*"),
+            "CLASSPATH=\\\$APP_HOME/lib/*:\\\$APP_HOME/plugin/*"))
     }
 }
 
@@ -55,7 +64,7 @@ repositories {
     // https://github.com/gradle/gradle/issues/4106.
     exclusiveContent {
         forRepository {
-            maven("https://repo.gradle.org/artifactory/libs-releases-local/")
+            maven("https://repo.gradle.org/gradle/libs-releases/")
         }
 
         filter {
@@ -82,6 +91,8 @@ dependencies {
 
     implementation("com.github.ajalt.clikt:clikt:$cliktVersion")
     implementation("com.schibsted.spt.data:jslt:$jsltVersion")
+    implementation("com.zaxxer:HikariCP:$hikariVersion")
     implementation("org.apache.logging.log4j:log4j-core:$log4jCoreVersion")
     implementation("org.apache.logging.log4j:log4j-slf4j-impl:$log4jCoreVersion")
+    implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")
 }

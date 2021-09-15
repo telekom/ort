@@ -33,7 +33,7 @@ import org.ossreviewtoolkit.utils.ProcessedDeclaredLicense
 
 /**
  * A class describing a software project. A [Project] is very similar to a [Package] but contains some additional
- * meta-data like e.g. the [homepageUrl]. Most importantly, it defines the dependency scopes that refer to the actual
+ * metadata like e.g. the [homepageUrl]. Most importantly, it defines the dependency scopes that refer to the actual
  * packages.
  */
 @JsonIgnoreProperties(value = ["aliases", "purl"])
@@ -52,9 +52,6 @@ data class Project(
 
     /**
      * The list of authors declared for this package.
-     *
-     * TODO: The annotation can be removed after all package manager implementations have filled the field [authors]
-     *       accordingly.
      */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     val authors: SortedSet<String> = sortedSetOf(),
@@ -72,7 +69,7 @@ data class Project(
     val declaredLicensesProcessed: ProcessedDeclaredLicense = DeclaredLicenseProcessor.process(declaredLicenses),
 
     /**
-     * Original VCS-related information as defined in the [Project]'s meta-data.
+     * Original VCS-related information as defined in the [Project]'s metadata.
      */
     val vcs: VcsInfo,
 
@@ -147,53 +144,6 @@ data class Project(
                 scopeDependencies = graph!!.createScopes(qualifiedScopeNames()),
                 scopeNames = null
             )
-
-    /**
-     * Return the set of package [Identifier]s of all transitive dependencies of this [Project], up to and including a
-     * depth of [maxDepth] where counting starts at 0 (for the [Project] itself) and 1 are direct dependencies etc. A
-     * value below 0 means to not limit the depth. If the given [filterPredicate] is false for a specific
-     * [PackageReference] the corresponding [Identifier] is excluded from the result.
-     */
-    fun collectDependencies(
-        maxDepth: Int = -1,
-        filterPredicate: (PackageReference) -> Boolean = { true }
-    ): Set<Identifier> =
-        scopes.fold(mutableSetOf()) { refs, scope ->
-            refs.also { it += scope.collectDependencies(maxDepth, filterPredicate) }
-        }
-
-    /**
-     * Return a map of all de-duplicated [OrtIssue]s associated by [Identifier].
-     */
-    fun collectIssues(): Map<Identifier, Set<OrtIssue>> {
-        val collectedIssues = mutableMapOf<Identifier, MutableSet<OrtIssue>>()
-
-        fun addIssues(pkgRef: PackageReference) {
-            if (pkgRef.issues.isNotEmpty()) {
-                collectedIssues.getOrPut(pkgRef.id) { mutableSetOf() } += pkgRef.issues
-            }
-
-            pkgRef.dependencies.forEach { addIssues(it) }
-        }
-
-        for (scope in scopes) {
-            for (dependency in scope.dependencies) {
-                addIssues(dependency)
-            }
-        }
-
-        return collectedIssues
-    }
-
-    /**
-     * Return the set of [Identifier]s that refer to sub-projects of this [Project].
-     */
-    fun collectSubProjects(): SortedSet<Identifier> =
-        scopes.fold(sortedSetOf()) { refs, scope ->
-            refs.also {
-                it += scope.collectDependencies { ref -> ref.linkage in PackageLinkage.PROJECT_LINKAGE }
-            }
-        }
 
     /**
      * A comparison function to sort projects by their identifier.

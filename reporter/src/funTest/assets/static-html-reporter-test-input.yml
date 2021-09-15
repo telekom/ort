@@ -355,7 +355,6 @@ scanner:
         summary:
           start_time: "1970-01-01T00:00:00Z"
           end_time: "1970-01-01T00:00:00Z"
-          file_count: 0
           package_verification_code: "0000000000000000000000000000000000000000"
           licenses:
           - license: "LicenseRef-test-Apache-2.0-multi-line"
@@ -386,7 +385,7 @@ scanner:
               end_line: 20
           issues:
           - timestamp: "1970-01-01T00:00:00Z"
-            source: "FileCounter"
+            source: "Dummy"
             message: "DownloadException: No source artifact URL provided for 'Gradle:org.ossreviewtoolkit.gradle.example:lib:1.0.0'.\n\
               Caused by: DownloadException: No VCS URL provided for 'Gradle:org.ossreviewtoolkit.gradle.example:lib:1.0.0'.\
               \ Please make sure the published POM file includes the SCM connection,\
@@ -408,7 +407,6 @@ scanner:
         summary:
           start_time: "1970-01-01T00:00:00Z"
           end_time: "1970-01-01T00:00:00Z"
-          file_count: 0
           package_verification_code: "0000000000000000000000000000000000000000"
           licenses:
           - license: "Apache-2.0"
@@ -451,13 +449,12 @@ scanner:
               value: "a6c32b40bf3d76eca54e3c601e5d1470c86fcdfa"
               algorithm: "SHA-1"
         scanner:
-          name: "FileCounter"
+          name: "Dummy"
           version: "1.0"
           configuration: ""
         summary:
           start_time: "1970-01-01T00:00:00Z"
           end_time: "1970-01-01T00:00:00Z"
-          file_count: 234
           package_verification_code: "0000000000000000000000000000000000000000"
           licenses: []
           copyrights: []
@@ -470,13 +467,12 @@ scanner:
               value: "f7d878153e86a1cdddf6b37850e00a9f8bff726f"
               algorithm: "SHA-1"
         scanner:
-          name: "FileCounter"
+          name: "Dummy"
           version: "1.0"
           configuration: ""
         summary:
           start_time: "1970-01-01T00:00:00Z"
           end_time: "1970-01-01T00:00:00Z"
-          file_count: 168
           package_verification_code: "0000000000000000000000000000000000000000"
           licenses: []
           copyrights: []
@@ -489,13 +485,12 @@ scanner:
               value: "f0770f7f0472bf120ada47beecadce4056fbd20a"
               algorithm: "SHA-1"
         scanner:
-          name: "FileCounter"
+          name: "Dummy"
           version: "1.0"
           configuration: ""
         summary:
           start_time: "1970-01-01T00:00:00Z"
           end_time: "1970-01-01T00:00:00Z"
-          file_count: 80
           package_verification_code: "0000000000000000000000000000000000000000"
           licenses: []
           copyrights: []
@@ -508,13 +503,12 @@ scanner:
               value: "1dc37250fbc78e23a65a67fbbaf71d2e9cbc3c0b"
               algorithm: "SHA-1"
         scanner:
-          name: "FileCounter"
+          name: "Dummy"
           version: "1.0"
           configuration: ""
         summary:
           start_time: "1970-01-01T00:00:00Z"
           end_time: "1970-01-01T00:00:00Z"
-          file_count: 47
           package_verification_code: "0000000000000000000000000000000000000000"
           licenses: []
           copyrights: []
@@ -527,13 +521,12 @@ scanner:
               value: "3b5883b7a5a05b932c699760f0854ca565785a84"
               algorithm: "SHA-1"
         scanner:
-          name: "FileCounter"
+          name: "Dummy"
           version: "1.0"
           configuration: ""
         summary:
           start_time: "1970-01-01T00:00:00Z"
           end_time: "1970-01-01T00:00:00Z"
-          file_count: 42
           package_verification_code: "0000000000000000000000000000000000000000"
           licenses: [ ]
           copyrights: [ ]
@@ -541,6 +534,37 @@ scanner:
       num_reads: 5
       num_hits: 0
     has_issues: true
+advisor:
+  start_time: "1970-01-01T00:00:00Z"
+  end_time: "1970-01-01T00:00:00Z"
+  environment:
+    ort_version: "72463cc"
+    java_version: "1.8.0_181"
+    os: "Linux"
+    variables: {}
+    tool_versions: {}
+  config:
+    nexus_iq:
+      server_url: "https://rest-api-url-of-your-nexus-iq-server"
+      browse_url: "https://web-browsing-url-of-your-nexus-iq-server"
+      username: "username"
+    vulnerable_code:
+      server_url: "http://localhost:8000"
+  results:
+    advisor_results:
+      Ant:junit:junit:4.12:
+      - vulnerabilities:
+        - id: "VULCOID-VULNERABILITY_ID"
+          references:
+          - url: "https://registry.vulnerability-url/"
+            scoring_system: "SCORING_SYSTEM_NAME"
+            severity: "ERROR"
+        advisor:
+          name: "VulnerableCode"
+        summary:
+          start_time: "1970-01-01T00:00:00Z"
+          end_time: "1970-01-01T00:00:00Z"
+    has_issues: false
 evaluator:
   start_time: "1970-01-01T00:00:00Z"
   end_time: "1970-01-01T00:00:00Z"

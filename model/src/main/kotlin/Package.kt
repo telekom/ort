@@ -30,7 +30,7 @@ import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
 import org.ossreviewtoolkit.utils.ProcessedDeclaredLicense
 
 /**
- * A generic descriptor for a software package. It contains all relevant meta-data about a package like the name,
+ * A generic descriptor for a software package. It contains all relevant metadata about a package like the name,
  * version, and how to retrieve the package and its source code. It does not contain information about the package's
  * dependencies, however. This is because at this stage we would only be able to get the declared dependencies, whereas
  * we are interested in the resolved dependencies. Resolved dependencies might differ from declared dependencies due to
@@ -52,9 +52,6 @@ data class Package(
 
     /**
      * The list of authors declared for this package.
-     *
-     * TODO: The annotation can be removed after all package manager implementations have filled the field [authors]
-     *       accordingly.
      */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     val authors: SortedSet<String> = sortedSetOf(),
@@ -101,7 +98,7 @@ data class Package(
     val sourceArtifact: RemoteArtifact,
 
     /**
-     * Original VCS-related information as defined in the [Package]'s meta-data.
+     * Original VCS-related information as defined in the [Package]'s metadata.
      */
     val vcs: VcsInfo,
 
@@ -111,7 +108,7 @@ data class Package(
     val vcsProcessed: VcsInfo = vcs.normalize(),
 
     /**
-     * Indicates whether this [Package] is just meta data, like e.g. Maven BOM artifacts which only define constraints
+     * Indicates whether this [Package] is just metadata, like e.g. Maven BOM artifacts which only define constraints
      * for dependency versions.
      */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)

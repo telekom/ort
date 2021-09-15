@@ -35,13 +35,15 @@ import org.ossreviewtoolkit.spdx.model.SpdxDocument
  * as a future extension of this [SpdxDocumentReporter] or as a separate [Reporter].
  *
  * This reporter supports the following options:
- * - *creationInfo.comment*: Add the corresponding value as meta-data to the [SpdxDocument].
- * - *document.comment*: Add the corresponding value as meta-data to the [SpdxDocument].
+ * - *creationInfo.comment*: Add the corresponding value as metadata to the [SpdxDocument].
+ * - *document.comment*: Add the corresponding value as metadata to the [SpdxDocument].
  * - *document.name*: The name of the generated [SpdxDocument], defaults to "Unnamed document".
  * - *output.file.formats*: The list of [FileFormat]s to generate, defaults to [FileFormat.YAML].
  */
 class SpdxDocumentReporter : Reporter {
     companion object {
+        const val REPORT_BASE_FILENAME = "bom.spdx"
+
         const val OPTION_CREATION_INFO_COMMENT = "creationInfo.comment"
         const val OPTION_DOCUMENT_COMMENT = "document.comment"
         const val OPTION_DOCUMENT_NAME = "document.name"
@@ -78,7 +80,7 @@ class SpdxDocumentReporter : Reporter {
         return outputFileFormats.map { fileFormat ->
             val serializedDocument = fileFormat.mapper.writeValueAsString(spdxDocument)
 
-            outputDir.resolve("document.spdx.${fileFormat.fileExtension}").apply {
+            outputDir.resolve("$REPORT_BASE_FILENAME.${fileFormat.fileExtension}").apply {
                 bufferedWriter().use { it.write(serializedDocument) }
             }
         }

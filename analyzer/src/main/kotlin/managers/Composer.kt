@@ -44,6 +44,7 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
+import org.ossreviewtoolkit.model.orEmpty
 import org.ossreviewtoolkit.model.readJsonFile
 import org.ossreviewtoolkit.utils.CommandLineTool
 import org.ossreviewtoolkit.utils.Os
@@ -182,7 +183,7 @@ class Composer(
         dependencies.filterNot { packageName ->
             packageName in EXCLUDED_PACKAGES
                     || packageName.startsWith("ext-") // Exclude extensions to PHP itself.
-                    || packageName in virtualPackages // Exclude virtual packages as they have no meta-data.
+                    || packageName in virtualPackages // Exclude virtual packages as they have no metadata.
         }.forEach { packageName ->
             val packageInfo = packages[packageName]
                 ?: throw IOException("Could not find package info for $packageName")
@@ -321,20 +322,20 @@ class Composer(
             packageInfo["license"]?.mapNotNullTo(set) { it.textValue() }
         }
 
-    private fun parseVcsInfo(packageInfo: JsonNode) =
+    private fun parseVcsInfo(packageInfo: JsonNode): VcsInfo =
         packageInfo["source"]?.let {
             VcsInfo(
                 type = VcsType(it["type"].textValueOrEmpty()),
                 url = it["url"].textValueOrEmpty(),
                 revision = it["reference"].textValueOrEmpty()
             )
-        } ?: VcsInfo.EMPTY
+        }.orEmpty()
 
     private fun parseArtifact(packageInfo: JsonNode) =
         packageInfo["dist"]?.let {
             val shasum = it["shasum"].textValueOrEmpty()
             RemoteArtifact(it["url"].textValueOrEmpty(), Hash.create(shasum))
-        } ?: RemoteArtifact.EMPTY
+        }.orEmpty()
 
     private fun getRuntimeDependencies(packageName: String, lockFile: JsonNode): Sequence<String> {
         listOf("packages", "packages-dev").forEach {

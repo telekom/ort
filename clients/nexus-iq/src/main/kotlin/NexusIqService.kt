@@ -49,12 +49,6 @@ interface NexusIqService {
         const val CVSS3_SCORE = "CVSS3"
 
         /**
-         * A Sonatype-specific prefix for references of security issues. The prefix determines how some of the
-         * properties need to be interpreted, e.g. the severity value.
-         */
-        const val SONATYPE_PREFIX = "sonatype-"
-
-        /**
          * The mapper for JSON (de-)serialization used by this service.
          */
         val JSON_MAPPER = JsonMapper().registerKotlinModule()
@@ -111,16 +105,19 @@ interface NexusIqService {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     data class SecurityIssue(
+        val source: String,
         val reference: String,
         val severity: Float,
-        val url: URI?
+        val url: URI?,
+        val threatCategory: String
     ) {
+        // See https://guides.sonatype.com/iqserver/technical-guides/sonatype-vuln-data/#how-is-a-vulnerability-score-severity-calculated.
+        private val cvss3Sources = listOf("cve", "sonatype")
+
         /**
-         * Return an identifier for the scoring system used for this issue. According to the documentation, the
-         * prefix of the reference determines the scoring system. See
-         * https://guides.sonatype.com/iqserver/technical-guides/sonatype-vuln-data/#how-is-a-vulnerability-score-severity-calculated
+         * Return an identifier for the scoring system used for this issue.
          */
-        fun scoringSystem(): String = if (reference.startsWith(SONATYPE_PREFIX)) CVSS3_SCORE else CVSS2_SCORE
+        fun scoringSystem(): String = if (source in cvss3Sources) CVSS3_SCORE else CVSS2_SCORE
     }
 
     data class ComponentsWrapper(

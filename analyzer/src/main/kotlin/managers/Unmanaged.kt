@@ -55,10 +55,8 @@ class Unmanaged(
     }
 
     /**
-     * Return a [ProjectAnalyzerResult] for the [Project] contained in the [definitionFile] directory, but does not
-     * perform any dependency resolution.
-     *
-     * @param definitionFile The directory containing the unmanaged project.
+     * Return a list with a single [ProjectAnalyzerResult] for the "unmanaged" [Project] defined by the
+     * [definitionFile], which in this case is a directory. No dependency resolution is performed.
      */
     override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
         val vcsInfo = VersionControlSystem.getCloneInfo(definitionFile)
@@ -104,18 +102,11 @@ class Unmanaged(
             }
         }
 
-        val project = Project(
-            id = id,
-            definitionFilePath = "",
-            // TODO: Find a way to track authors.
-            authors = sortedSetOf(),
-            declaredLicenses = sortedSetOf(),
-            vcs = VcsInfo.EMPTY,
-            vcsProcessed = vcsInfo,
-            homepageUrl = "",
-            scopeDependencies = sortedSetOf()
+        return listOf(
+            ProjectAnalyzerResult(
+                project = Project.EMPTY.copy(id = id, vcsProcessed = vcsInfo),
+                packages = sortedSetOf()
+            )
         )
-
-        return listOf(ProjectAnalyzerResult(project, packages = sortedSetOf()))
     }
 }

@@ -76,7 +76,7 @@ object DependencyGraphConverter {
                 }
             }
 
-            graphs[type] = builder.build()
+            graphs[type] = builder.build(checkReferences = false)
         }
 
         return graphs
@@ -86,7 +86,8 @@ object DependencyGraphConverter {
      * Determine the projects in this [AnalyzerResult] that require a conversion. These are the projects that manage
      * their dependencies in a scope structure.
      */
-    private fun AnalyzerResult.projectsWithScopes(): List<Project> = projects.filter { it.scopeNames == null }
+    private fun AnalyzerResult.projectsWithScopes(): List<Project> =
+        projects.filter { it.scopeDependencies?.isNotEmpty() ?: false }
 
     /**
      * Convert the dependency representation used by this [Project] to the dependency graph format, i.e. a set of
@@ -112,5 +113,8 @@ object DependencyGraphConverter {
         override fun linkageFor(dependency: PackageReference): PackageLinkage = dependency.linkage
 
         override fun createPackage(dependency: PackageReference, issues: MutableList<OrtIssue>): Package? = null
+
+        override fun issuesForDependency(dependency: PackageReference): Collection<OrtIssue> =
+            dependency.issues
     }
 }

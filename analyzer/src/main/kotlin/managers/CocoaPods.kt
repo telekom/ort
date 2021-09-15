@@ -50,9 +50,11 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
+import org.ossreviewtoolkit.model.orEmpty
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.utils.CommandLineTool
+import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.stashDirectories
 import org.ossreviewtoolkit.utils.textValueOrEmpty
 
@@ -64,7 +66,7 @@ import org.ossreviewtoolkit.utils.textValueOrEmpty
  * on any platform. Note that obtaining the dependency tree from the 'pod' command without a lock file has Xcode
  * dependencies and is not supported by this class.
  *
- * The only interactions with the 'pod' command happen in order to obtain meta-data for dependencies. Therefore
+ * The only interactions with the 'pod' command happen in order to obtain metadata for dependencies. Therefore
  * 'pod spec which' gets executed, which works also under Linux.
  *
  * Note: This class depends on https://github.com/CocoaPods/CocoaPods/pull/10609 which is not yet released.
@@ -96,7 +98,7 @@ class CocoaPods(
     override fun beforeResolution(definitionFiles: List<File>) = checkVersion(analyzerConfig.ignoreToolVersions)
 
     override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
-        // CocoaPods originally used and may still use the Specs repository on GitHub [1] as package meta-data database.
+        // CocoaPods originally used and may still use the Specs repository on GitHub [1] as package metadata database.
         // Using [1] requires an initial clone which is slow to do and consumes already more than 5 GB on disk, see
         // also [2]. (Final) CDN support has been added in version 1.7.2 [3] to speed things up.
         //
@@ -109,7 +111,7 @@ class CocoaPods(
         // [3] https://blog.cocoapods.org/CocoaPods-1.7.2/
 
         return stashDirectories(File("~/.cocoapods/repos")).use {
-            run("repo", "add-cdn", "trunk", "https://cdn.cocoapods.org")
+            run("repo", "add-cdn", "trunk", "https://cdn.cocoapods.org", "--allow-root")
 
             try {
                 resolveDependenciesInternal(definitionFile)
@@ -169,8 +171,11 @@ class CocoaPods(
     }
 
     private fun getPackage(id: Identifier, workingDir: File): Package {
-        // TODO: Emit a warning / hint when no Podspec is found.
-        val podspec = getPodspec(id, workingDir) ?: return Package.EMPTY.copy(id = id)
+        val podspec = getPodspec(id, workingDir) ?: run {
+            log.warn { "Could not find a '.podspec' file for package '${id.toCoordinates()}'." }
+
+            return Package.EMPTY.copy(id = id)
+        }
 
         val vcs = podspec.source["git"]?.let { url ->
             VcsInfo(
@@ -178,7 +183,7 @@ class CocoaPods(
                 url = url,
                 revision = podspec.source["tag"].orEmpty()
             )
-        } ?: VcsInfo.EMPTY
+        }.orEmpty()
 
         return Package(
             id = id,
@@ -187,7 +192,7 @@ class CocoaPods(
             description = podspec.summary,
             homepageUrl = podspec.homepage,
             binaryArtifact = RemoteArtifact.EMPTY,
-            sourceArtifact = podspec.source["http"]?.let { RemoteArtifact(it, Hash.NONE) } ?: RemoteArtifact.EMPTY,
+            sourceArtifact = podspec.source["http"]?.let { RemoteArtifact(it, Hash.NONE) }.orEmpty(),
             vcs = vcs,
             vcsProcessed = processPackageVcs(vcs, podspec.homepage)
         )
