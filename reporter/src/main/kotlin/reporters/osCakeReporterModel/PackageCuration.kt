@@ -78,7 +78,8 @@ internal data class PackageCuration(
      * package with the given [pkgId].
      */
      private fun isApplicableIvyVersion(pkgId: Identifier) =
-        try {
+        @Suppress("SwallowedException")
+         try {
             val pkgIvyVersion = Semver(pkgId.version, Semver.SemverType.IVY)
             pkgIvyVersion.satisfies(id.version)
         } catch (e: SemverException) {

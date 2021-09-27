@@ -24,6 +24,7 @@ import java.io.File
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.model.Provenance
 
 /**
  * The class handles REUSE-compliant packages, gets a specific package [pack] and a map [scanDict],
@@ -43,7 +44,7 @@ internal class ModeREUSE(
     /**
      * The method combines data from the package with data from the scanner output
      */
-    override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File
+    override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance
     ) {
         scanDict[pack.id]?.forEach { _, fib ->
             val isInLicensesFolder = fib.path.startsWith(getLicensesFolderPrefix(pack.packageRoot))
@@ -52,7 +53,7 @@ internal class ModeREUSE(
                         " - will be ignored!", Level.WARN, pack.id, fib.path)
 
             // Phase I: inspect ./LICENSES/* folder
-            if (isInLicensesFolder) handleLicenses(fib, sourceCodeDir, tmpDirectory)
+            if (isInLicensesFolder) handleLicenses(fib, sourceCodeDir, tmpDirectory, getHash(provenance))
             // Phase II: handle files with ending  ".license" - should be binary files
             if (!isInLicensesFolder && fib.path.endsWith(".license")) handleBinaryFiles(fib)
             // Phase III: handle all other files
@@ -99,11 +100,11 @@ internal class ModeREUSE(
      * Copies the license files from the [sourceCodeDir] to the [createTempDir], creates a FileLicensing entry and
      * a reuseLicensing entry
      */
-    private fun handleLicenses(fib: FileInfoBlock, sourceCodeDir: String?, tmpDirectory: File) {
+    private fun handleLicenses(fib: FileInfoBlock, sourceCodeDir: String?, tmpDirectory: File, provHash: String) {
         // REUSE license files should only contain one single licenseTextEntry (by definition)
         fib.licenseTextEntries.filter { it.isLicenseText && fib.licenseTextEntries.size == 1 }.forEach {
             val pathFlat = createPathFlat(pack.id, fib.path)
-            val sourcePath = sourceCodeDir + "/" + pack.id.toPath("/") + "/" + fib.path
+            val sourcePath = sourceCodeDir + "/" + pack.id.toPath("/") + "/" + provHash + "/" + fib.path
             File(sourcePath).copyTo(File(tmpDirectory.path + "/" + pathFlat))
 
             FileLicensing(getPathName(pack, fib)).apply {
@@ -136,5 +137,16 @@ internal class ModeREUSE(
 
     override fun postActivities() {
         // nothing to do for REUSE projects
+    }
+
+    override fun needsSourceCode(
+        scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
+        pack: Pack
+    ): Boolean {
+        var rc = false
+        scanDict[pack.id]?.forEach { (_, fib) ->
+            rc = rc || fib.licenseTextEntries.any { it.isLicenseText && fib.licenseTextEntries.size == 1 }
+        }
+        return rc
     }
 }

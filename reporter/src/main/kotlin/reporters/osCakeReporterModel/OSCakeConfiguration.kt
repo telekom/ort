@@ -30,5 +30,9 @@ internal data class OSCakeConfiguration(
     /**
      * [curations] contains information about the folders where the curation files can be found.
      */
-    val curations: Map<String, String>? = null
+    val curations: Map<String, String>? = null,
+    /**
+     * [sourceCodesDir] folders where to find or save the source code.
+     */
+    val sourceCodesDir: String? = null
 )

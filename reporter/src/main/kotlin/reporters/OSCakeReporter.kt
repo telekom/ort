@@ -27,6 +27,7 @@ import com.sksamuel.hoplite.PropertySource
 import com.sksamuel.hoplite.fp.getOrElse
 
 import java.io.File
+import java.io.FileNotFoundException
 
 import kotlin.collections.HashMap
 
@@ -52,8 +53,8 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.REPORTER_LOGG
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.getLicensesFolderPrefix
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.isInstancedLicense
+import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.packZip
-import java.io.FileNotFoundException
 
 /**
  * A Reporter that creates the output for the Tdosca/OSCake projects
@@ -72,21 +73,23 @@ class OSCakeReporter : Reporter {
         // check configuration - cancel processing if necessary
         require(isValidFolder(options, "nativeScanResultsDir")) { "Value for 'nativeScanResultsDir' " +
                 "is not a valid folder!\n Add -O OSCake=nativeScanResultsDir=... to the commandline" }
-        require(isValidFolder(options, "sourceCodeDownloadDir")) { "Value for 'sourceCodeDownloadDir' is not a valid " +
-                "folder!\n Add -O OSCake=sourceCodeDownloadDir=... to the commandline" }
         require(isValidFile(options, "configFile")) {
             "Value for 'OSCakeConf' is not a valid " +
                     "configuration file!\n Add -O OSCake=configFile=... to the commandline"
         }
         osCakeConfiguration = getOSCakeConfiguration(options["configFile"])
         if (osCakeConfiguration.curations?.get("enabled").toBoolean()) {
-            require(isValidCurationFolder(osCakeConfiguration.curations?.get("fileStore"))) {
+            require(isValidFolder(osCakeConfiguration.curations?.get("fileStore"))) {
                 "Invalid or missing config entry found for \"curations.filestore\" in oscake.conf"
             }
-            require(isValidCurationFolder(osCakeConfiguration.curations?.get("directory"))) {
+            require(isValidFolder(osCakeConfiguration.curations?.get("directory"))) {
                 "Invalid or missing config entry found for \"curations.directory\" in oscake.conf"
             }
         }
+        require(isValidFolder(osCakeConfiguration.sourceCodesDir)) {
+            "Invalid or missing config entry found for \"sourceCodesDir\" in oscake.conf"
+        }
+
         // relay issues from ORT
         input.ortResult.analyzer?.result?.let {
             if (it.hasIssues)logger.log("Issue in ORT-ANALYZER - please check ORT-logfile or console output " +
@@ -99,7 +102,7 @@ class OSCakeReporter : Reporter {
 
         // start processing
         val scanDict = getNativeScanResults(input, options["nativeScanResultsDir"])
-        val osc = ingestAnalyzerOutput(input, scanDict, outputDir, options["sourceCodeDownloadDir"])
+        val osc = ingestAnalyzerOutput(input, scanDict, outputDir)
         // transform result into json output
         val objectMapper = ObjectMapper()
         val outputFile = outputDir.resolve(reportFilename)
@@ -122,13 +125,14 @@ class OSCakeReporter : Reporter {
     private fun ingestAnalyzerOutput(
         input: ReporterInput,
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
-        outputDir: File,
-        sourceCodeDir: String?
+        outputDir: File
     ): OSCakeRoot {
+        val pkgMap = mutableMapOf<Identifier, org.ossreviewtoolkit.model.Package>()
         val osc = OSCakeRoot(input.ortResult.getProjects().first().id.toCoordinates().toString())
-
         // prepare projects and packages
         input.ortResult.analyzer?.result?.projects?.forEach {
+            val pkg = it.toPackage()
+            pkgMap[pkg.id] = it.toPackage()
             Pack(it.id, it.vcsProcessed.url, input.ortResult.repository.vcs.path)
                 .apply {
                     declaredLicenses.add(it.declaredLicensesProcessed.spdxExpression.toString())
@@ -137,6 +141,8 @@ class OSCakeReporter : Reporter {
                 }
         }
         input.ortResult.analyzer?.result?.packages?.filter { !input.ortResult.isExcluded(it.pkg.id) }?.forEach {
+            val pkg = it.pkg
+            pkgMap[pkg.id] = it.pkg
             Pack(it.pkg.id, it.pkg.vcsProcessed.url, "")
                 .apply {
                     declaredLicenses.add(it.pkg.declaredLicensesProcessed.spdxExpression.toString())
@@ -151,8 +157,19 @@ class OSCakeReporter : Reporter {
             // makes sure that the "pack" is also in the scanResults-file and not only in the
             // "native-scan-results" (=scanDict)
             input.ortResult.scanner?.results?.scanResults?.containsKey(pack.id)?.let {
-                ModeSelector.getMode(pack, scanDict, osCakeConfiguration, input).apply {
-                    fetchInfosFromScanDictionary(sourceCodeDir, tmpDirectory)
+                ModeSelector.getMode(pack, scanDict, osCakeConfiguration, input, pkgMap).apply {
+                    // special case when packages with the same id but different provenances exist, only the
+                    // first is taken
+                    input.ortResult.scanner?.results?.scanResults?.get(pkgMap[pack.id]!!.id)?.let {
+                        if (it.size > 1) {
+                            log.warn("Package: $(pkg.id.toPath()) - has more than one provenance! " +
+                                    "Only the first one is taken into/from the sourcecode folder!")
+                            pack.hasIssues = true
+                        }
+                    }
+                    val provenance = input.ortResult.scanner?.results?.scanResults!![pack.id]!!.first().provenance
+                    downloadSourcesWhenNeeded(pack, scanDict, provenance)
+                    fetchInfosFromScanDictionary(osCakeConfiguration.sourceCodesDir, tmpDirectory, provenance)
                     postActivities()
                 }
             }
@@ -196,7 +213,7 @@ class OSCakeReporter : Reporter {
 
                         LicenseTextEntry().apply {
                             license = it.license.toString()
-                            //NOTE: 
+                            // NOTE:
 //                            if (it.license.toString().startsWith("LicenseRef-")) {
 //                                logger.log(
 //                                    "Changed <${it.license}> to <NOASSERTION> in package: " +
@@ -224,9 +241,8 @@ class OSCakeReporter : Reporter {
                         }
                     }
                     scanDict[key] = fileInfoBlockDict
-                }
-                catch(fileNotFound : FileNotFoundException){
-                    //if native scan results are not found for one package, we continue, but log an error
+                } catch (fileNotFound: FileNotFoundException) {
+                    // if native scan results are not found for one package, we continue, but log an error
                     logger.logger.error(fileNotFound)
                 }
             }
@@ -244,7 +260,8 @@ class OSCakeReporter : Reporter {
         val scanFile: File = File(filePath)
         if (!scanFile.exists()) {
             throw java.io.FileNotFoundException(
-                "Cannot find native scan result \"${scanFile.absolutePath}\". Recheck the path of option <-i> and the option for <nativeScanResultsDir>")
+                "Cannot find native scan result \"${scanFile.absolutePath}\". Recheck the path of option" +
+                        " <-i> and the option for <nativeScanResultsDir>")
         }
         var node: JsonNode = EMPTY_JSON_NODE
         if (scanFile.isFile && scanFile.length() > 0L) {
@@ -309,6 +326,6 @@ class OSCakeReporter : Reporter {
     internal fun isValidFile(map: Map<String, String>, optionName: String): Boolean =
         if (map[optionName] != null) File(map[optionName]).exists() && File(map[optionName]).isFile() else false
 
-    internal fun isValidCurationFolder(dir: String?): Boolean =
-        !(dir == null || !File(dir).exists() || !File(dir).isDirectory())
+    internal fun isValidFolder(dir: String?): Boolean =
+        !(dir == null || !File(dir).exists() || !File(dir).isDirectory)
 }

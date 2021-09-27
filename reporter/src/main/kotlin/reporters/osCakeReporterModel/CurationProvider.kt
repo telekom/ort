@@ -291,6 +291,7 @@ internal class CurationProvider(
         if (id.type == "Unmanaged") return ret
 
         if (id.name == "" || id.namespace == "" || id.type == "") return false
+        @Suppress("SwallowedException")
         if (id.version != "") {
             return try {
                 // set dummy version "1.1.1", in order to force the satisfies method to an exception in case that the

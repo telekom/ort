@@ -22,12 +22,19 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 import java.io.File
 import java.lang.StringBuilder
 import java.nio.file.FileSystems
+import java.security.MessageDigest
 
 import org.apache.logging.log4j.Level
 
+import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.model.Provenance
+import org.ossreviewtoolkit.model.RepositoryProvenance
+import org.ossreviewtoolkit.model.UnknownProvenance
+import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
+import org.ossreviewtoolkit.utils.toHexString
 
 internal const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
 internal const val REUSE_LICENSES_FOLDER = "LICENSES/"
@@ -192,4 +199,27 @@ internal fun List<String>.generateSuffixRegex(): String =
 internal fun String.getRidOfCommentSymbols(): String {
     val withoutPrefix = Regex(commentPrefixRegexList).replace(this.trim(), "")
     return if (withoutPrefix != this.trim()) Regex(commentSuffixRegexList).replace(withoutPrefix, "") else withoutPrefix
+}
+
+private val SHA1_DIGEST by lazy { MessageDigest.getInstance("SHA-1") }
+
+/**
+ * [getHash] produces a unique hascode of the provenance of a package mainly used to expand the path of
+ * a [Package] in a sourcecode directory.
+ * E.g. {sourceCodeDir}/Maven/joda-time/joda-time/2.10.8/39b1a3cc0a54d8b34737520bc066d2baee2fe2a4
+ */
+internal fun getHash(provenance: Provenance): String {
+    val key = when (provenance) {
+        is ArtifactProvenance -> "${provenance.sourceArtifact.url}${provenance.sourceArtifact.hash.value}"
+        is RepositoryProvenance -> {
+            // The content on the archives does not depend on the VCS path in general, thus that path must not be part
+            // of the storage key. However, for Git-Repo that path must be part of the storage key because it denotes
+            // the Git-Repo manifest location rather than the path to be (sparse) checked out.
+            val path = provenance.vcsInfo.path.takeIf { provenance.vcsInfo.type == VcsType.GIT_REPO }.orEmpty()
+            "${provenance.vcsInfo.type}${provenance.vcsInfo.url}${provenance.resolvedRevision}$path"
+        }
+        is UnknownProvenance -> "unknownProvenance"
+    }
+
+    return SHA1_DIGEST.digest(key.toByteArray()).toHexString()
 }
