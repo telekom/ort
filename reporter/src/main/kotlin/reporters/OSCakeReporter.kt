@@ -38,6 +38,8 @@ import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
+import org.ossreviewtoolkit.reporter.model.DependencyTreeNode
+import org.ossreviewtoolkit.reporter.model.EvaluatedModel
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
@@ -53,7 +55,6 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.REPORTER_LOGG
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.getLicensesFolderPrefix
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.isInstancedLicense
-import org.ossreviewtoolkit.utils.log
 import org.ossreviewtoolkit.utils.packZip
 
 /**
@@ -77,6 +78,9 @@ class OSCakeReporter : Reporter {
             "Value for 'OSCakeConf' is not a valid " +
                     "configuration file!\n Add -O OSCake=configFile=... to the commandline"
         }
+        val dependencyGranularity = if (options["dependency-granularity"]?.
+            toIntOrNull() != null) options["dependency-granularity"]!!.toInt() else Int.MAX_VALUE
+
         osCakeConfiguration = getOSCakeConfiguration(options["configFile"])
         if (osCakeConfiguration.curations?.get("enabled").toBoolean()) {
             require(isValidFolder(osCakeConfiguration.curations?.get("fileStore"))) {
@@ -102,7 +106,7 @@ class OSCakeReporter : Reporter {
 
         // start processing
         val scanDict = getNativeScanResults(input, options["nativeScanResultsDir"])
-        val osc = ingestAnalyzerOutput(input, scanDict, outputDir)
+        val osc = ingestAnalyzerOutput(input, scanDict, outputDir, dependencyGranularity)
         // transform result into json output
         val objectMapper = ObjectMapper()
         val outputFile = outputDir.resolve(reportFilename)
@@ -125,10 +129,14 @@ class OSCakeReporter : Reporter {
     private fun ingestAnalyzerOutput(
         input: ReporterInput,
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
-        outputDir: File
+        outputDir: File,
+        dependencyGranularity: Int
     ): OSCakeRoot {
         val pkgMap = mutableMapOf<Identifier, org.ossreviewtoolkit.model.Package>()
         val osc = OSCakeRoot(input.ortResult.getProjects().first().id.toCoordinates().toString())
+        // evaluated model contains a dependency tree of packages with its corresponding levels (=depth in the tree)
+        val evaluatedModel = EvaluatedModel.create(input)
+
         // prepare projects and packages
         input.ortResult.analyzer?.result?.projects?.forEach {
             val pkg = it.toPackage()
@@ -140,7 +148,15 @@ class OSCakeReporter : Reporter {
                     reuseCompliant = isREUSECompliant(this, scanDict)
                 }
         }
+
+        var cntLevelExcluded = 0
         input.ortResult.analyzer?.result?.packages?.filter { !input.ortResult.isExcluded(it.pkg.id) }?.forEach {
+            if (dependencyGranularity < Int.MAX_VALUE) {
+                if (!treeLevelIncluded(evaluatedModel.dependencyTrees, dependencyGranularity, it.pkg.id)) {
+                    cntLevelExcluded++
+                    return@forEach
+                }
+            }
             val pkg = it.pkg
             pkgMap[pkg.id] = it.pkg
             Pack(it.pkg.id, it.pkg.vcsProcessed.url, "")
@@ -150,6 +166,8 @@ class OSCakeReporter : Reporter {
                     reuseCompliant = isREUSECompliant(this, scanDict)
                 }
         }
+        if (cntLevelExcluded > 0) logger.log("Attention: 'dependency-granularity' is restricted to level:" +
+                " $dependencyGranularity via option! $cntLevelExcluded packages were excluded!", Level.WARN)
 
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
@@ -162,8 +180,8 @@ class OSCakeReporter : Reporter {
                     // first is taken
                     input.ortResult.scanner?.results?.scanResults?.get(pkgMap[pack.id]!!.id)?.let {
                         if (it.size > 1) {
-                            log.warn("Package: $(pkg.id.toPath()) - has more than one provenance! " +
-                                    "Only the first one is taken into/from the sourcecode folder!")
+                            logger.log("Package: $(pkg.id.toPath()) - has more than one provenance! " +
+                                    "Only the first one is taken into/from the sourcecode folder!", Level.WARN)
                             pack.hasIssues = true
                         }
                     }
@@ -316,6 +334,25 @@ class OSCakeReporter : Reporter {
             throw IllegalArgumentException(
                 "Failed to load configuration from ${failure.description()}")
         }
+    }
+
+    /**
+     * Recursive method [treeLevelIncluded] searches for a specific package represented by [Identifier] in the
+     * dependency trees. If the level is smaller or equal to [optionLevel] than the return value is set to true
+     */
+    private fun treeLevelIncluded(
+        dependencyTrees: List<DependencyTreeNode>,
+        optionLevel: Int,
+        id: Identifier
+    ): Boolean {
+        var rc = false
+        dependencyTrees.forEach { dependencyTreeNode ->
+            if (dependencyTreeNode.pkg != null && dependencyTreeNode.pkg.id == id) {
+                if (dependencyTreeNode.pkg.levels.any { it <= optionLevel }) rc = true
+            }
+            if (!rc) rc = treeLevelIncluded(dependencyTreeNode.children, optionLevel, id)
+        }
+        return rc
     }
 
     // checks if the value of the optionName in map is a valid directory
