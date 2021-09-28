@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,11 +32,11 @@ internal data class Project(@JsonIgnore val cid: String) {
      */
     var hasIssues: Boolean = false
     /**
-     * [complianceArtifactCollection] contains meta data about the project.
+     * [complianceArtifactCollection] contains metadata about the project.
      */
     val complianceArtifactCollection = ComplianceArtifactCollection(cid)
     /**
-     * [packs] is a list of packages [pack] which are part of the project.
+     * [packs] is a list of packages [Pack] which are part of the project.
      */
     @JsonProperty("complianceArtifactPackages") val packs: MutableList<Pack> = mutableListOf<Pack>()
 }
