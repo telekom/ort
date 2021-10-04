@@ -31,7 +31,7 @@ internal class OSCakeLoggerManager private constructor() {
         /**
          * The [logger] is a reference to the Apache log4j2.
          */
-        val logger: Logger = LogManager.getLogger()
+        private val logger: Logger = LogManager.getLogger()
 
         /**
          * [loggerMap] contains a map of different [OSCakeLogger]s.

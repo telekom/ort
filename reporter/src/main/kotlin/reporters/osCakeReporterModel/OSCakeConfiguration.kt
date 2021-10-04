@@ -20,13 +20,13 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 /**
-Wrapper class for the [OSCakeConfiguration] class - reads the file passed by option "OSCake=configFile=..:"
+Wrapper class for the [OSCakeConfiguration] class - reads the file passed by option "OSCake=configFile=...:"
  */
 internal data class OSCakeConfiguration(
     /**
      *  [scopePatterns] contains a list of glob patterns which are used to determine the corresponding [ScopeLevel].
      */
-    val scopePatterns: List<String> = mutableListOf<String>(),
+    val scopePatterns: List<String> = mutableListOf(),
     /**
      * [curations] contains information about the folders where the curation files can be found.
      */
@@ -34,5 +34,13 @@ internal data class OSCakeConfiguration(
     /**
      * [sourceCodesDir] folders where to find or save the source code.
      */
-    val sourceCodesDir: String? = null
+    val sourceCodesDir: String? = null,
+    /**
+     * [scanResultsCache] holds information on how to handle scan-results.
+     */
+    val scanResultsCache: Map<String, String>? = null,
+    /**
+     * [ortScanResultsDir] folder where ORT stores its native scan results.
+     */
+    val ortScanResultsDir: String? = null,
 )

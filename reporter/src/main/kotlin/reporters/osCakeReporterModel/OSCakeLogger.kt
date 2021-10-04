@@ -35,7 +35,7 @@ internal class OSCakeLogger(
     /**
      * [logger] is the reference to the Apache Logger.
      */
-    val logger: Logger
+    private val logger: Logger
 ) {
     /**
      * List of reported [OSCakeIssue]s.
@@ -50,10 +50,10 @@ internal class OSCakeLogger(
         var prefix = ""
         if (id != null) prefix += id
         if (fileScope != null) {
-            if (prefix == "") prefix += "FileScope: " + fileScope
-            else prefix += " - FileScope: " + fileScope
+            prefix += if (prefix == "") "FileScope: $fileScope"
+            else " - FileScope: $fileScope"
         }
         if (prefix != "") prefix = "[$prefix]: "
-        logger.log(level, source + ": " + prefix + msg)
+        logger.log(level, "$source: $prefix$msg")
     }
 }

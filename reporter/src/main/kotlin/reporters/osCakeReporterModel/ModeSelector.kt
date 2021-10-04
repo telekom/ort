@@ -21,6 +21,8 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import java.io.File
 
+import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.downloader.DownloadException
 import org.ossreviewtoolkit.downloader.Downloader
 import org.ossreviewtoolkit.model.Identifier
@@ -28,7 +30,6 @@ import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.utils.log
 
 /**
  * The [ModeSelector] implements a factory depending on the type of package and distinguishes between
@@ -58,11 +59,11 @@ internal abstract class ModeSelector {
     internal val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(REPORTER_LOGGER) }
 
     internal fun downloadSourcesWhenNeeded(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String,
-            FileInfoBlock>>, /* reporterInput: ReporterInput, */ scannerPackageProvenance: Provenance) {
+            FileInfoBlock>>, scannerPackageProvenance: Provenance) {
         if (!needsSourceCode(scanDict, pack)) return
         val pkg = pkgMap[pack.id]!!
 
-        val downloadDir = File(osCakeConfig.sourceCodesDir)
+        val downloadDir = File(osCakeConfig.sourceCodesDir!!)
         val downloaderConfig = DownloaderConfiguration()
 
         val provenanceHash = getHash(scannerPackageProvenance)
@@ -72,16 +73,17 @@ internal abstract class ModeSelector {
             val downloadDirectory = downloadDir.resolve(pkg.id.toPath()).resolve(provenanceHash)
             // Check if package has already been downloaded
             if (downloadDirectory.exists()) {
-                log.info { "No source code download necessary for Package: $(pkg!!.id.toPath())." }
+                logger.log("No source code download necessary for Package: ${pkg.id}.", Level.INFO)
                 return
             }
             val downloadProvenance = Downloader(downloaderConfig).download(pkg, downloadDirectory)
 
             if (downloadProvenance != scannerPackageProvenance) {
-                log.warn { "Mismatching provenance when creating missing source code for $(pkg!!.id.toPath())." }
+                logger.log("Mismatching provenance when creating missing source code for ${pkg.id}.",
+                    Level.WARN, pkg.id)
             }
         } catch (ex: DownloadException) {
-            log.error { "Error when downloading sources for Package: $(pkg!!.id.toPath())." }
+            logger.log("Error when downloading sources for Package: ${pkg.id}.", Level.WARN, pkg.id)
         }
     }
 

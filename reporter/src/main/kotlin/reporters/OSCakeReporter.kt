@@ -72,27 +72,14 @@ class OSCakeReporter : Reporter {
         options: Map<String, String>
     ): List<File> {
         // check configuration - cancel processing if necessary
-        require(isValidFolder(options, "nativeScanResultsDir")) { "Value for 'nativeScanResultsDir' " +
-                "is not a valid folder!\n Add -O OSCake=nativeScanResultsDir=... to the commandline" }
         require(isValidFile(options, "configFile")) {
-            "Value for 'OSCakeConf' is not a valid " +
-                    "configuration file!\n Add -O OSCake=configFile=... to the commandline"
+            "Value for 'OSCakeConf' is not a valid file!\n Add -O OSCake=configFile=... to the commandline"
         }
         val dependencyGranularity = if (options["dependency-granularity"]?.
             toIntOrNull() != null) options["dependency-granularity"]!!.toInt() else Int.MAX_VALUE
-
-        osCakeConfiguration = getOSCakeConfiguration(options["configFile"])
-        if (osCakeConfiguration.curations?.get("enabled").toBoolean()) {
-            require(isValidFolder(osCakeConfiguration.curations?.get("fileStore"))) {
-                "Invalid or missing config entry found for \"curations.filestore\" in oscake.conf"
-            }
-            require(isValidFolder(osCakeConfiguration.curations?.get("directory"))) {
-                "Invalid or missing config entry found for \"curations.directory\" in oscake.conf"
-            }
-        }
-        require(isValidFolder(osCakeConfiguration.sourceCodesDir)) {
-            "Invalid or missing config entry found for \"sourceCodesDir\" in oscake.conf"
-        }
+        val deleteOrtNativeScanResults = options.containsKey("--deleteOrtNativeScanResults")
+        val (ortScanResultsDir, scanResultsCacheEnabled, oscakeScanResultsDir) =
+            handleOSCakeConfig(options, deleteOrtNativeScanResults)
 
         // relay issues from ORT
         input.ortResult.analyzer?.result?.let {
@@ -105,8 +92,19 @@ class OSCakeReporter : Reporter {
         }
 
         // start processing
-        val scanDict = getNativeScanResults(input, options["nativeScanResultsDir"])
-        val osc = ingestAnalyzerOutput(input, scanDict, outputDir, dependencyGranularity)
+        val scanDict = getNativeScanResults(
+            input,
+            ortScanResultsDir,
+            scanResultsCacheEnabled,
+            oscakeScanResultsDir,
+            deleteOrtNativeScanResults
+        )
+        val osc = ingestAnalyzerOutput(
+            input,
+            scanDict,
+            outputDir,
+            dependencyGranularity
+        )
         // transform result into json output
         val objectMapper = ObjectMapper()
         val outputFile = outputDir.resolve(reportFilename)
@@ -118,6 +116,50 @@ class OSCakeReporter : Reporter {
             osCakeConfiguration, outputDir, reportFilename).manage()
 
         return listOf(outputFile)
+    }
+
+    /**
+     * [handleOSCakeConfig] contains logical checks and combinations of configuration entries set in osCakeConfiguration
+     */
+    private fun handleOSCakeConfig(
+        options: Map<String, String>,
+        deleteOrtNativeScanResults: Boolean
+    ): Triple<String?, Boolean, String?> {
+
+        osCakeConfiguration = getOSCakeConfiguration(options["configFile"]!!)
+        if (osCakeConfiguration.curations?.get("enabled").toBoolean()) {
+            require(isValidFolder(osCakeConfiguration.curations?.get("fileStore"))) {
+                "Invalid or missing config entry found for \"curations.filestore\" in oscake.conf"
+            }
+            require(isValidFolder(osCakeConfiguration.curations?.get("directory"))) {
+                "Invalid or missing config entry found for \"curations.directory\" in oscake.conf"
+            }
+        }
+        require(isValidFolder(osCakeConfiguration.sourceCodesDir)) {
+            "Invalid or missing config entry found for \"sourceCodesDir\" in oscake.conf"
+        }
+        val ortScanResultsDir = osCakeConfiguration.ortScanResultsDir
+
+        var scanResultsCacheEnabled = false
+        var oscakeScanResultsDir: String? = null
+        if (osCakeConfiguration.scanResultsCache?.get("enabled").toBoolean()) {
+            scanResultsCacheEnabled = true
+            osCakeConfiguration.scanResultsCache?.get("directory")?.let {
+                require(isValidFolder(it)) {
+                    "scanResultsCache in oscake.conf is enabled, but 'directory' is not a valid folder!"
+                }
+                oscakeScanResultsDir = it
+            }
+        } else {
+            require(isValidFolder(ortScanResultsDir)) { "Conf-value for 'nativeScanResultsDir' is not a valid folder!" }
+            if (deleteOrtNativeScanResults) {
+                logger.log(
+                    "Option \"--deleteOrtNativeScanResults\" ignored, because \"scanResultsCache\" in " +
+                            "oscake.conf does not exist or is not enabled!", Level.INFO
+                )
+            }
+        }
+        return Triple(ortScanResultsDir, scanResultsCacheEnabled, oscakeScanResultsDir)
     }
 
     /**
@@ -133,7 +175,7 @@ class OSCakeReporter : Reporter {
         dependencyGranularity: Int
     ): OSCakeRoot {
         val pkgMap = mutableMapOf<Identifier, org.ossreviewtoolkit.model.Package>()
-        val osc = OSCakeRoot(input.ortResult.getProjects().first().id.toCoordinates().toString())
+        val osc = OSCakeRoot(input.ortResult.getProjects().first().id.toCoordinates())
         // evaluated model contains a dependency tree of packages with its corresponding levels (=depth in the tree)
         val evaluatedModel = EvaluatedModel.create(input)
 
@@ -167,7 +209,7 @@ class OSCakeReporter : Reporter {
                 }
         }
         if (cntLevelExcluded > 0) logger.log("Attention: 'dependency-granularity' is restricted to level:" +
-                " $dependencyGranularity via option! $cntLevelExcluded packages were excluded!", Level.WARN)
+                " $dependencyGranularity via option! $cntLevelExcluded package(s) were excluded!", Level.WARN)
 
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
@@ -180,9 +222,8 @@ class OSCakeReporter : Reporter {
                     // first is taken
                     input.ortResult.scanner?.results?.scanResults?.get(pkgMap[pack.id]!!.id)?.let {
                         if (it.size > 1) {
-                            logger.log("Package: $(pkg.id.toPath()) - has more than one provenance! " +
-                                    "Only the first one is taken into/from the sourcecode folder!", Level.WARN)
-                            pack.hasIssues = true
+                            logger.log("Package: ${pack.id} - has more than one provenance! " +
+                                    "Only the first one is taken into/from the sourcecode folder!", Level.WARN, pack.id)
                         }
                     }
                     val provenance = input.ortResult.scanner?.results?.scanResults!![pack.id]!!.first().provenance
@@ -214,16 +255,28 @@ class OSCakeReporter : Reporter {
      * and the value (=[FileInfoBlock]). Each of the entries consists of a Hashmap based on the path of the existing
      * files and a list of [LicenseTextEntry]. The latter is updated with infos of the native scan result
      */
-    private fun getNativeScanResults(input: ReporterInput, nativeScanResultsDir: String?):
+    private fun getNativeScanResults(
+        input: ReporterInput,
+        ortScanResultsDir: String?,
+        scanResultsCacheEnabled: Boolean,
+        oscakeScanResultsDir: String?,
+        deleteOrtNativeScanResults: Boolean
+    ):
             MutableMap<Identifier, MutableMap<String, FileInfoBlock>> {
         val scanDict = mutableMapOf<Identifier, MutableMap<String, FileInfoBlock>>()
 
         input.ortResult.scanner?.results?.scanResults?.
-            filter { !input.ortResult.isExcluded(it.key) }?.forEach { key, pp ->
-            pp.forEach {
+            filter { !input.ortResult.isExcluded(it.key) }?.forEach { (key, pp) ->
+            if (pp.size > 1) logger.log("Package: $key - has more than one provenance! " +
+                            "Only the first one is taken!", Level.WARN, key)
+            pp.first().also {
+            // pp.forEach { it ->
                 try {
                     val fileInfoBlockDict = HashMap<String, FileInfoBlock>()
-                    val nsr = getNativeScanResultJson(key, nativeScanResultsDir)
+                    val nsr = getNativeScanResultJson(
+                        key,
+                        getScanResultsDir(key, ortScanResultsDir, scanResultsCacheEnabled, oscakeScanResultsDir)
+                    )
 
                     it.summary.licenseFindings.forEach {
                         val fileInfoBlock =
@@ -261,11 +314,42 @@ class OSCakeReporter : Reporter {
                     scanDict[key] = fileInfoBlockDict
                 } catch (fileNotFound: FileNotFoundException) {
                     // if native scan results are not found for one package, we continue, but log an error
-                    logger.logger.error(fileNotFound)
+                    logger.log(fileNotFound.message.toString(), Level.ERROR, key)
                 }
             }
         }
+        if (deleteOrtNativeScanResults && scanResultsCacheEnabled &&
+            ortScanResultsDir != null) File(ortScanResultsDir).deleteRecursively()
+
         return scanDict
+    }
+
+    private fun getScanResultsDir(
+        id: Identifier,
+        ortScanResultsDir: String?,
+        scanResultsCacheEnabled: Boolean,
+        oscakeScanResultsDir: String?
+    ): String? {
+        var path = ortScanResultsDir
+        if (!scanResultsCacheEnabled || oscakeScanResultsDir == null) return path
+
+        val subfolder = id.toPath()
+
+        if (ortScanResultsDir != null && File(ortScanResultsDir).exists()) {
+            File("$oscakeScanResultsDir/$subfolder").also {
+                if (it.exists()) it.deleteRecursively()
+                File("$ortScanResultsDir/$subfolder").copyRecursively(it)
+                path = "$oscakeScanResultsDir"
+            }
+        } else {
+            path = "$oscakeScanResultsDir"
+            if (ortScanResultsDir != null && !File("$oscakeScanResultsDir/$subfolder").exists()) {
+                logger.log("Scan results for $subfolder does not exist - neither in $ortScanResultsDir nor in " +
+                            "$oscakeScanResultsDir", Level.ERROR
+                )
+            }
+        }
+        return path
     }
 
     private fun getNativeScanResultJson(
@@ -275,9 +359,9 @@ class OSCakeReporter : Reporter {
         val subfolder = id.toPath()
         val filePath = "$nativeScanResultsDir/$subfolder/scan-results_ScanCode.json"
 
-        val scanFile: File = File(filePath)
+        val scanFile = File(filePath)
         if (!scanFile.exists()) {
-            throw java.io.FileNotFoundException(
+            throw FileNotFoundException(
                 "Cannot find native scan result \"${scanFile.absolutePath}\". Recheck the path of option" +
                         " <-i> and the option for <nativeScanResultsDir>")
         }
@@ -324,7 +408,7 @@ class OSCakeReporter : Reporter {
         tmpDirectory.deleteRecursively()
     }
 
-    private fun getOSCakeConfiguration(fileName: String?): OSCakeConfiguration {
+    private fun getOSCakeConfiguration(fileName: String): OSCakeConfiguration {
         val config = ConfigLoader.Builder()
             .addSource(PropertySource.file(File(fileName)))
             .build()
@@ -355,14 +439,11 @@ class OSCakeReporter : Reporter {
         return rc
     }
 
-    // checks if the value of the optionName in map is a valid directory
-    internal fun isValidFolder(map: Map<String, String>, optionName: String): Boolean =
-        if (map[optionName] != null) File(map[optionName]).exists() && File(map[optionName]).isDirectory() else false
-
     // checks if the value of the optionName in map is a valid file
-    internal fun isValidFile(map: Map<String, String>, optionName: String): Boolean =
-        if (map[optionName] != null) File(map[optionName]).exists() && File(map[optionName]).isFile() else false
+    private fun isValidFile(map: Map<String, String>, optionName: String): Boolean =
+        if (map[optionName] != null) File(map[optionName]!!).exists() &&
+                File(map[optionName]!!).isFile else false
 
-    internal fun isValidFolder(dir: String?): Boolean =
+    private fun isValidFolder(dir: String?): Boolean =
         !(dir == null || !File(dir).exists() || !File(dir).isDirectory)
 }

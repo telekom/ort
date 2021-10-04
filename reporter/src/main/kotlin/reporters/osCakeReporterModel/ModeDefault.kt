@@ -53,7 +53,7 @@ internal class ModeDefault(
     /**
      * The method creates [FileLicensing]s for each file containing license information. Depending on the
      * scopeLevel (FILE, DIR, or DEFAULT) additional Licensings are added to the dirLicensings or defaultLicensings
-     * lists. Information about copyrights is transferred from the [fib] to the [pack].
+     * lists. Information about copyrights is transferred from the fib (file info block) to the [pack].
      */
     override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance) {
         val provHash = getHash(provenance)
