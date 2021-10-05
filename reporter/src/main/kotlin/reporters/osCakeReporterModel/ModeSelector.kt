@@ -76,7 +76,10 @@ internal abstract class ModeSelector {
                 logger.log("No source code download necessary for Package: ${pkg.id}.", Level.INFO)
                 return
             }
+            else
+                logger.log("Source code for ${pkg.id} is being downloaded.", Level.INFO)
             val downloadProvenance = Downloader(downloaderConfig).download(pkg, downloadDirectory)
+            logger.log("Source code download for ${pkg.id} completed.", Level.INFO)
 
             if (downloadProvenance != scannerPackageProvenance) {
                 logger.log("Mismatching provenance when creating missing source code for ${pkg.id}.",

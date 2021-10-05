@@ -144,12 +144,11 @@ class OSCakeReporter : Reporter {
         var oscakeScanResultsDir: String? = null
         if (osCakeConfiguration.scanResultsCache?.get("enabled").toBoolean()) {
             scanResultsCacheEnabled = true
-            osCakeConfiguration.scanResultsCache?.get("directory")?.let {
-                require(isValidFolder(it)) {
-                    "scanResultsCache in oscake.conf is enabled, but 'directory' is not a valid folder!"
-                }
-                oscakeScanResultsDir = it
+            require(isValidFolder(osCakeConfiguration.scanResultsCache?.getOrDefault("directory", ""))) {
+                "scanResultsCache in oscake.conf is enabled, but 'scanResultsCache.directory' is not a valid folder " +
+                        "or 'scanResultsCache.directory' is missing in config!"
             }
+            oscakeScanResultsDir = osCakeConfiguration.scanResultsCache?.getOrDefault("directory", null)
         } else {
             require(isValidFolder(ortScanResultsDir)) { "Conf-value for 'nativeScanResultsDir' is not a valid folder!" }
             if (deleteOrtNativeScanResults) {
@@ -335,7 +334,7 @@ class OSCakeReporter : Reporter {
 
         val subfolder = id.toPath()
 
-        if (ortScanResultsDir != null && File(ortScanResultsDir).exists()) {
+        if (ortScanResultsDir != null && File(ortScanResultsDir).resolve(subfolder).exists()) {
             File("$oscakeScanResultsDir/$subfolder").also {
                 if (it.exists()) it.deleteRecursively()
                 File("$ortScanResultsDir/$subfolder").copyRecursively(it)
@@ -362,8 +361,8 @@ class OSCakeReporter : Reporter {
         val scanFile = File(filePath)
         if (!scanFile.exists()) {
             throw FileNotFoundException(
-                "Cannot find native scan result \"${scanFile.absolutePath}\". Recheck the path of option" +
-                        " <-i> and the option for <nativeScanResultsDir>")
+                "Cannot find native scan result \"${scanFile.absolutePath}\". Check configuration settings for " +
+                        " 'scanResultsCache' and/or 'ortScanResultsDir' ")
         }
         var node: JsonNode = EMPTY_JSON_NODE
         if (scanFile.isFile && scanFile.length() > 0L) {

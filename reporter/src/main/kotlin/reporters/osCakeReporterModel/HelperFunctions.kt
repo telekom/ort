@@ -78,7 +78,7 @@ internal fun isInstancedLicense(input: ReporterInput, license: String): Boolean 
         setOf<SpdxSingleLicenseExpression>()).map { it.simpleLicense().toString() }.contains(license)
 
 /**
- * If a file with [path] already exists, a suffix is prepared for uniqueness and the adapted path [ret] is returned.
+ * If a file with [path] already exists, a suffix is prepared for uniqueness and the adapted path is returned.
  */
 internal fun deduplicateFileName(path: String): String {
     var ret = path
@@ -101,7 +101,7 @@ internal fun createPathFlat(id: Identifier, path: String, fileExtension: String?
 
 /**
  * Depending on the [path] of the file and the name of the file (contained in list [scopePatterns]) the
- * [scopeLevel] is identified.
+ * [ScopeLevel] is identified.
  */
 internal fun getScopeLevel(path: String, packageRoot: String, scopePatterns: List<String>): ScopeLevel {
     var scopeLevel = ScopeLevel.FILE
