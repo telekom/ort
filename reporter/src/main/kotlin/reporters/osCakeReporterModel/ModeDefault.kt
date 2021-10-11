@@ -275,6 +275,9 @@ internal class ModeDefault(
         if (pack.defaultLicensings.size == 0) prepareEntryForScopeDefault(pack, reporterInput)
     }
 
+    /**
+     * decides if the source code is needed, e.g. for instanced licenses
+     */
     override fun needsSourceCode(
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
         pack: Pack

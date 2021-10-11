@@ -139,6 +139,9 @@ internal class ModeREUSE(
         // nothing to do for REUSE projects
     }
 
+    /**
+     * decides if the source code is needed, e.g. for instanced licenses
+     */
     override fun needsSourceCode(
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
         pack: Pack

@@ -165,7 +165,8 @@ class OSCakeReporter : Reporter {
      * Ingest analyzer output:
      *      1. create an entry for each project and included package which should be handled
      *      2. create a temporary folder to hold the identified files to archive
-     *      3. process the infos from the scanner
+     *      3. download sources when needed (e.g. for instanced licenes)
+     *      4. process the infos from the scanner
      */
     private fun ingestAnalyzerOutput(
         input: ReporterInput,
@@ -269,7 +270,6 @@ class OSCakeReporter : Reporter {
             if (pp.size > 1) logger.log("Package: $key - has more than one provenance! " +
                             "Only the first one is taken!", Level.WARN, key)
             pp.first().also {
-            // pp.forEach { it ->
                 try {
                     val fileInfoBlockDict = HashMap<String, FileInfoBlock>()
                     val nsr = getNativeScanResultJson(
@@ -323,6 +323,11 @@ class OSCakeReporter : Reporter {
         return scanDict
     }
 
+    /**
+     * if "ort-native-scan-results"[ortScanResultsDir] exists and [scanResultsCacheEnabled] is enabled, the package
+     * is copied to the "oscake-native-scan-results-cache" [oscakeScanResultsDir] and deleted from origin.
+     * Method returns the directory where to search for the scan results
+     */
     private fun getScanResultsDir(
         id: Identifier,
         ortScanResultsDir: String?,
@@ -351,6 +356,9 @@ class OSCakeReporter : Reporter {
         return path
     }
 
+    /**
+     * returns the json for the requested package [id]
+     */
     private fun getNativeScanResultJson(
         id: Identifier,
         nativeScanResultsDir: String?
@@ -374,11 +382,7 @@ class OSCakeReporter : Reporter {
 
     /**
      * Searches for specific infos (e.g. flag: is_license_text) in native scan results (represented in json)
-     * based on "path", "start_line", "end_line" and updates this information in the licenseTextEntry
-     *
-     * @param path
-     * @param licenseTextEntry
-     * @param node
+     * based on [path], "start_line", "end_line" and updates this information in the licenseTextEntry
      */
     private fun combineNativeScanResults(
         path: String,
@@ -407,6 +411,9 @@ class OSCakeReporter : Reporter {
         tmpDirectory.deleteRecursively()
     }
 
+    /**
+     * fetches the options which were passed via "-O OSCake=...=..."
+     */
     private fun getOSCakeConfiguration(fileName: String): OSCakeConfiguration {
         val config = ConfigLoader.Builder()
             .addSource(PropertySource.file(File(fileName)))
@@ -430,6 +437,7 @@ class OSCakeReporter : Reporter {
     ): Boolean {
         var rc = false
         dependencyTrees.forEach { dependencyTreeNode ->
+            // take only nodes for packages and not nodes for structuring (e.g. defining scopes)
             if (dependencyTreeNode.pkg != null && dependencyTreeNode.pkg.id == id) {
                 if (dependencyTreeNode.pkg.levels.any { it <= optionLevel }) rc = true
             }
@@ -438,11 +446,16 @@ class OSCakeReporter : Reporter {
         return rc
     }
 
-    // checks if the value of the optionName in map is a valid file
+    /**
+     * checks if the value of the optionName in map is a valid file
+     */
     private fun isValidFile(map: Map<String, String>, optionName: String): Boolean =
         if (map[optionName] != null) File(map[optionName]!!).exists() &&
                 File(map[optionName]!!).isFile else false
 
+    /**
+     * check if the given folder name is an existing directory
+     */
     private fun isValidFolder(dir: String?): Boolean =
         !(dir == null || !File(dir).exists() || !File(dir).isDirectory)
 }
