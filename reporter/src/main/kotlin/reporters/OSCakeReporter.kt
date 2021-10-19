@@ -45,6 +45,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CurationManag
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.LicenseTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ModeSelector
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfiguration
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
@@ -75,12 +76,7 @@ class OSCakeReporter : Reporter {
         require(isValidFile(options, "configFile")) {
             "Value for 'OSCakeConf' is not a valid file!\n Add -O OSCake=configFile=... to the commandline"
         }
-        val dependencyGranularity = if (options["dependency-granularity"]?.
-            toIntOrNull() != null) options["dependency-granularity"]!!.toInt() else Int.MAX_VALUE
-        val deleteOrtNativeScanResults = options.containsKey("--deleteOrtNativeScanResults")
-        val (ortScanResultsDir, scanResultsCacheEnabled, oscakeScanResultsDir) =
-            handleOSCakeConfig(options, deleteOrtNativeScanResults)
-
+        val cfg = handleOSCakeConfig(options)
         // relay issues from ORT
         input.ortResult.analyzer?.result?.let {
             if (it.hasIssues)logger.log("Issue in ORT-ANALYZER - please check ORT-logfile or console output " +
@@ -92,19 +88,9 @@ class OSCakeReporter : Reporter {
         }
 
         // start processing
-        val scanDict = getNativeScanResults(
-            input,
-            ortScanResultsDir,
-            scanResultsCacheEnabled,
-            oscakeScanResultsDir,
-            deleteOrtNativeScanResults
-        )
-        val osc = ingestAnalyzerOutput(
-            input,
-            scanDict,
-            outputDir,
-            dependencyGranularity
-        )
+        val scanDict = getNativeScanResults(input, cfg)
+        val osc = ingestAnalyzerOutput(input, scanDict, outputDir, cfg)
+
         // transform result into json output
         val objectMapper = ObjectMapper()
         val outputFile = outputDir.resolve(reportFilename)
@@ -121,11 +107,7 @@ class OSCakeReporter : Reporter {
     /**
      * [handleOSCakeConfig] contains logical checks and combinations of configuration entries set in osCakeConfiguration
      */
-    private fun handleOSCakeConfig(
-        options: Map<String, String>,
-        deleteOrtNativeScanResults: Boolean
-    ): Triple<String?, Boolean, String?> {
-
+    private fun handleOSCakeConfig(options: Map<String, String>): OSCakeConfigParams {
         osCakeConfiguration = getOSCakeConfiguration(options["configFile"]!!)
         if (osCakeConfiguration.curations?.get("enabled").toBoolean()) {
             require(isValidFolder(osCakeConfiguration.curations?.get("fileStore"))) {
@@ -142,6 +124,7 @@ class OSCakeReporter : Reporter {
 
         var scanResultsCacheEnabled = false
         var oscakeScanResultsDir: String? = null
+        val deleteOrtNativeScanResults = options.containsKey("--deleteOrtNativeScanResults")
         if (osCakeConfiguration.scanResultsCache?.get("enabled").toBoolean()) {
             scanResultsCacheEnabled = true
             require(isValidFolder(osCakeConfiguration.scanResultsCache?.getOrDefault("directory", ""))) {
@@ -158,7 +141,23 @@ class OSCakeReporter : Reporter {
                 )
             }
         }
-        return Triple(ortScanResultsDir, scanResultsCacheEnabled, oscakeScanResultsDir)
+        val onlyIncludePackagesMap: MutableMap<Identifier, Boolean> = mutableMapOf()
+        osCakeConfiguration.packageRestrictions?.let { packageRestriction ->
+            if (packageRestriction.enabled != null && packageRestriction.enabled) {
+                packageRestriction.onlyIncludePackages?.forEach {
+                    val id = Identifier(it)
+                    onlyIncludePackagesMap[id] = false
+                }
+            }
+        }
+        return OSCakeConfigParams(ortScanResultsDir,
+            scanResultsCacheEnabled,
+            oscakeScanResultsDir,
+            onlyIncludePackagesMap,
+            if (options["dependency-granularity"]?.
+                toIntOrNull() != null) options["dependency-granularity"]!!.toInt() else Int.MAX_VALUE,
+            deleteOrtNativeScanResults
+            )
     }
 
     /**
@@ -172,7 +171,7 @@ class OSCakeReporter : Reporter {
         input: ReporterInput,
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
         outputDir: File,
-        dependencyGranularity: Int
+        cfg: OSCakeConfigParams
     ): OSCakeRoot {
         val pkgMap = mutableMapOf<Identifier, org.ossreviewtoolkit.model.Package>()
         val osc = OSCakeRoot(input.ortResult.getProjects().first().id.toCoordinates())
@@ -180,7 +179,10 @@ class OSCakeReporter : Reporter {
         val evaluatedModel = EvaluatedModel.create(input)
 
         // prepare projects and packages
-        input.ortResult.analyzer?.result?.projects?.forEach {
+        input.ortResult.analyzer?.result?.projects?.
+            filter { cfg.onlyIncludePackages.isEmpty() ||
+                    (cfg.onlyIncludePackages.isNotEmpty() && cfg.onlyIncludePackages.contains(it.toPackage().id)) }?.
+        forEach {
             val pkg = it.toPackage()
             pkgMap[pkg.id] = it.toPackage()
             Pack(it.id, it.vcsProcessed.url, input.ortResult.repository.vcs.path)
@@ -192,9 +194,13 @@ class OSCakeReporter : Reporter {
         }
 
         var cntLevelExcluded = 0
-        input.ortResult.analyzer?.result?.packages?.filter { !input.ortResult.isExcluded(it.pkg.id) }?.forEach {
-            if (dependencyGranularity < Int.MAX_VALUE) {
-                if (!treeLevelIncluded(evaluatedModel.dependencyTrees, dependencyGranularity, it.pkg.id)) {
+        input.ortResult.analyzer?.result?.packages?.
+            filter { !input.ortResult.isExcluded(it.pkg.id) }?.
+            filter { cfg.onlyIncludePackages.isEmpty() ||
+                (cfg.onlyIncludePackages.isNotEmpty() && cfg.onlyIncludePackages.contains(it.pkg.id)) }?.
+        forEach {
+            if (cfg.dependencyGranularity < Int.MAX_VALUE && cfg.onlyIncludePackages.isEmpty()) {
+                if (!treeLevelIncluded(evaluatedModel.dependencyTrees, cfg.dependencyGranularity, it.pkg.id)) {
                     cntLevelExcluded++
                     return@forEach
                 }
@@ -209,7 +215,7 @@ class OSCakeReporter : Reporter {
                 }
         }
         if (cntLevelExcluded > 0) logger.log("Attention: 'dependency-granularity' is restricted to level:" +
-                " $dependencyGranularity via option! $cntLevelExcluded package(s) were excluded!", Level.WARN)
+                " ${cfg.dependencyGranularity} via option! $cntLevelExcluded package(s) were excluded!", Level.WARN)
 
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
@@ -239,6 +245,9 @@ class OSCakeReporter : Reporter {
 
         zipAndCleanUp(outputDir, tmpDirectory, osc.project.complianceArtifactCollection.archivePath)
 
+        cfg.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
+            logger.log("packageRestrictions are enabled, but the package [$identifier] was not found", Level.WARN)
+        }
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) handleOSCakeIssues(osc.project, logger)
 
         return osc
@@ -257,24 +266,26 @@ class OSCakeReporter : Reporter {
      */
     private fun getNativeScanResults(
         input: ReporterInput,
-        ortScanResultsDir: String?,
-        scanResultsCacheEnabled: Boolean,
-        oscakeScanResultsDir: String?,
-        deleteOrtNativeScanResults: Boolean
-    ):
-            MutableMap<Identifier, MutableMap<String, FileInfoBlock>> {
+        cfg: OSCakeConfigParams
+    ): MutableMap<Identifier, MutableMap<String, FileInfoBlock>> {
+
         val scanDict = mutableMapOf<Identifier, MutableMap<String, FileInfoBlock>>()
 
         input.ortResult.scanner?.results?.scanResults?.
-            filter { !input.ortResult.isExcluded(it.key) }?.forEach { (key, pp) ->
+            filter { !input.ortResult.isExcluded(it.key) }?.
+            filter { cfg.onlyIncludePackages.isEmpty() ||
+                    (cfg.onlyIncludePackages.isNotEmpty() && cfg.onlyIncludePackages.contains(it.key)) }?.
+            forEach { (key, pp) ->
             if (pp.size > 1) logger.log("Package: $key - has more than one provenance! " +
                             "Only the first one is taken!", Level.WARN, key)
+            if (cfg.onlyIncludePackages.isNotEmpty()) cfg.onlyIncludePackages[key] = true
             pp.first().also {
                 try {
                     val fileInfoBlockDict = HashMap<String, FileInfoBlock>()
                     val nsr = getNativeScanResultJson(
                         key,
-                        getScanResultsDir(key, ortScanResultsDir, scanResultsCacheEnabled, oscakeScanResultsDir)
+                        getScanResultsDir(key, cfg.ortScanResultsDir, cfg.scanResultsCacheEnabled,
+                            cfg.oscakeScanResultsDir)
                     )
 
                     it.summary.licenseFindings.forEach {
@@ -317,8 +328,8 @@ class OSCakeReporter : Reporter {
                 }
             }
         }
-        if (deleteOrtNativeScanResults && scanResultsCacheEnabled &&
-            ortScanResultsDir != null) File(ortScanResultsDir).deleteRecursively()
+        if (cfg.deleteOrtNativeScanResults && cfg.scanResultsCacheEnabled &&
+            cfg.ortScanResultsDir != null) File(cfg.ortScanResultsDir).deleteRecursively()
 
         return scanDict
     }

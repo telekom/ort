@@ -20,6 +20,7 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import java.io.File
+import java.io.FileNotFoundException
 import java.nio.file.FileSystems
 
 import org.apache.logging.log4j.Level
@@ -27,7 +28,6 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.reporter.ReporterInput
-import java.io.FileNotFoundException
 
 /**
  * The class handles non-REUSE-compliant packages, gets a specific package [pack] and a map [scanDict],
@@ -64,10 +64,12 @@ internal class ModeDefault(
          *          - create a fileLicensing entry
          * (Info: "default", "dir" scope depends on the matching of filenames against "scopePatterns" in oscake.conf)
          */
+        @Suppress("SwallowedException")
         try {
             scanDict[pack.id]?.forEach { fileName, fib ->
                 val scopeLevel = getScopeLevel(fileName, pack.packageRoot, osCakeConfiguration.scopePatterns)
-                if ((scopeLevel == ScopeLevel.DIR || scopeLevel == ScopeLevel.DEFAULT) && fib.licenseTextEntries.size > 0) {
+                if ((scopeLevel == ScopeLevel.DIR || scopeLevel == ScopeLevel.DEFAULT) &&
+                    fib.licenseTextEntries.size > 0) {
                     val pathFlat = createPathFlat(pack.id, fib.path)
                     File(sourceCodeDir + "/" + pack.id.toPath("/") + "/" + provHash + "/" + fib.path)
                         .copyTo(File(tmpDirectory.path + "/" + pathFlat))
@@ -180,7 +182,7 @@ internal class ModeDefault(
                 )
             }
         } catch (ex: FileNotFoundException) {
-            logger.log("File not found: ${ex.message}  while generating license texts!", Level.ERROR, pack.id )
+            logger.log("File not found: ${ex.message}  while generating license texts!", Level.ERROR, pack.id)
             return ""
         }
 

@@ -20,6 +20,20 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 /**
+ * Part of the [OSCakeConfiguration]
+ */
+internal data class PackageRestrictions(
+    /**
+     * shows if the mechanism for package restrictions is enabled
+     */
+    val enabled: Boolean?,
+    /**
+     * contains a list of packages in IVY-notation, which has to be included - all others will be ignored
+     */
+    val onlyIncludePackages: MutableList<String>?
+)
+
+/**
 Wrapper class for the [OSCakeConfiguration] class - reads the file passed by option "OSCake=configFile=...:"
  */
 internal data class OSCakeConfiguration(
@@ -43,4 +57,8 @@ internal data class OSCakeConfiguration(
      * [ortScanResultsDir] folder where ORT stores its native scan results.
      */
     val ortScanResultsDir: String? = null,
+    /**
+     * [packageRestrictions] include only the named packages - defined as [Identifier](s) when processing.
+     */
+    val packageRestrictions: PackageRestrictions? = null,
 )
