@@ -89,6 +89,7 @@ class OSCakeReporter : Reporter {
 
         // start processing
         val scanDict = getNativeScanResults(input, cfg)
+        removeMultipleEqualLicensesPerFile(scanDict)
         val osc = ingestAnalyzerOutput(input, scanDict, outputDir, cfg)
 
         // transform result into json output
@@ -144,10 +145,13 @@ class OSCakeReporter : Reporter {
         val onlyIncludePackagesMap: MutableMap<Identifier, Boolean> = mutableMapOf()
         osCakeConfiguration.packageRestrictions?.let { packageRestriction ->
             if (packageRestriction.enabled != null && packageRestriction.enabled) {
+                var infoStr = "The output is restricted - set in configuration - to the following package(s):\n"
                 packageRestriction.onlyIncludePackages?.forEach {
                     val id = Identifier(it)
                     onlyIncludePackagesMap[id] = false
+                    infoStr += "   $id\n"
                 }
+                logger.log(infoStr, Level.INFO)
             }
         }
         return OSCakeConfigParams(ortScanResultsDir,
@@ -158,6 +162,42 @@ class OSCakeReporter : Reporter {
                 toIntOrNull() != null) options["dependency-granularity"]!!.toInt() else Int.MAX_VALUE,
             deleteOrtNativeScanResults
             )
+    }
+
+    /**
+     * If a file contains more than one license text entry for a specific license and the difference of the
+     * scores of the licenses is greater than 1, then the entry is removed - the one with the highest score remains.
+     */
+    private fun removeMultipleEqualLicensesPerFile(scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>) {
+        scanDict.forEach { (pkg, fibMap) ->
+            fibMap.forEach { (_, fib) ->
+                // create a map consisting of key=license, value=List of LicenseTextEntry
+                val licMap: MutableMap<String, MutableList<LicenseTextEntry>> = mutableMapOf()
+                fib.licenseTextEntries.forEach {
+                    (licMap.getOrPut(it.license!!) { mutableListOf<LicenseTextEntry>() }).add(it)
+                }
+                if (licMap.isNotEmpty()) {
+                    val lteToRemove = mutableListOf<LicenseTextEntry>()
+                    licMap.filterValues { it.size > 1 } .forEach { (_, lteList) ->
+                        val sortedList = lteList.toMutableList()
+                        sortedList.sortByDescending { it.score }
+                        val highest = sortedList[0]
+                        for (i in 1 until lteList.size) {
+                            // check if there is more than 1 percent difference in the scores
+                            if (highest.score - sortedList[i].score > 1) {
+                                lteToRemove.add(sortedList[i])
+                                logger.log(
+                                    "License text finding for license \"${highest.license}\" was removed, " +
+                                            "due to multiple similar entries in the file: \"${fib.path}\"!",
+                                    Level.INFO, pkg)
+                            }
+                        }
+                    }
+                    if (lteToRemove.isNotEmpty()) fib.licenseTextEntries.removeAll(lteToRemove)
+                }
+            }
+        }
+
     }
 
     /**
@@ -409,6 +449,7 @@ class OSCakeReporter : Reporter {
                         licenseTextEntry.isLicenseNotice = license["matched_rule"]["is_license_notice"].asBoolean()
                                 || license["matched_rule"]["is_license_reference"].asBoolean()
                                 || license["matched_rule"]["is_license_tag"].asBoolean()
+                        licenseTextEntry.score = license["score"].asDouble()
                     }
                 }
             }

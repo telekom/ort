@@ -233,7 +233,8 @@ internal class ModeDefault(
     private fun generateInstancedLicenseText(pack: Pack, fileInfoBlock: FileInfoBlock, sourceCodeDir: String?,
                                              licenseTextEntry: LicenseTextEntry, provHash: String): String? {
 
-        val copyrightStartLine = getCopyrightStartline(fileInfoBlock, licenseTextEntry)
+        val fileName = sourceCodeDir + "/" + pack.id.toPath("/") + "/" + provHash + "/" + fileInfoBlock.path
+        val copyrightStartLine = getCopyrightStartline(fileInfoBlock, licenseTextEntry, fileName)
         if (copyrightStartLine == null) {
             logger.log("No Copyright-Startline found in ${fileInfoBlock.path}", Level.ERROR, pack.id,
                 fileInfoBlock.path)
@@ -244,7 +245,6 @@ internal class ModeDefault(
                     "${fileInfoBlock.path}", Level.ERROR, pack.id, fileInfoBlock.path)
             return null
         }
-        val fileName = sourceCodeDir + "/" + pack.id.toPath("/") + "/" + provHash + "/" + fileInfoBlock.path
         return getLinesFromFile(fileName, copyrightStartLine, licenseTextEntry.endLine)
     }
 
@@ -257,18 +257,54 @@ internal class ModeDefault(
      * The copyright statement must be found above of the license text [licenseTextEntry]; therefore, search for the
      * smallest startline of a copyright entry without crossing another license text
      */
-    private fun getCopyrightStartline(fileInfoBlock: FileInfoBlock, licenseTextEntry: LicenseTextEntry): Int? {
+    private fun getCopyrightStartline(fileInfoBlock: FileInfoBlock, licenseTextEntry: LicenseTextEntry, fileName: String): Int? {
         val completeList = fileInfoBlock.licenseTextEntries.filter { it.isLicenseText }.toMutableList<TextEntry>()
         completeList.addAll(fileInfoBlock.copyrightTextEntries)
         completeList.sortByDescending { it.startLine }
         var found = false
         var line: Int? = null
+        var lastLicenseTextEntry: LicenseTextEntry? = null
 
         loop@ for (lte in completeList) {
             if (found && lte is CopyrightTextEntry) line = lte.startLine
-            if (found && lte is LicenseTextEntry) break@loop
+            if (found && lte is LicenseTextEntry) {
+                break@loop
+            }
+            if (lte is LicenseTextEntry) lastLicenseTextEntry = lte
+
             if (lte == licenseTextEntry) found = true
         }
+        /* special case #1: the scanner does not identify the line "Copyright (c) <year> <copyright holders>" as a
+        valid copyright entry; therefore, no CopyrightTextEntry is found immediately before the LicenseTextEntry.
+        In order to solve this case, the license text is taken from LicenseTextEntry.startLine-2 till
+        LicenseTextEntry.endLine. If one of the two leading lines contains the word "Copyright", then this is the
+        starting line.
+         */
+        line?: run {
+            lastLicenseTextEntry?.let {
+                var diff = 2
+                if (it.startLine == 1) diff = 0
+                if (it.startLine == 2) diff = 1
+                val copyrightStartLine = it.startLine - diff
+                if (diff > 0) {
+                    val strArr = getLinesFromFile(fileName, copyrightStartLine, it.endLine).split("\n")
+                    if (strArr.size > 2) {
+                        if (strArr[1].contains("Copyright")) line = copyrightStartLine + 1
+                        if (strArr[0].contains("Copyright")) line = copyrightStartLine
+                    }
+                }
+            }
+        }
+        /* special case #2: sometimes the scanner identifies a license text correctly, but the text itself includes
+        already the copyright, therefore the standard mechanism (copyright start line is lower than the start line of
+        the license text) does not work. Solution: find copyright (start and endline) inside of a license text entry.
+         */
+        line?: lastLicenseTextEntry?.run {
+            if (completeList.filterIsInstance<CopyrightTextEntry>().any {
+                it.startLine >= lastLicenseTextEntry.startLine && it.endLine <= lastLicenseTextEntry.endLine })
+                line = lastLicenseTextEntry.startLine
+        }
+
         return line
     }
 

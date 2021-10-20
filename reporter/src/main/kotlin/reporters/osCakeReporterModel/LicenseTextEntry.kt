@@ -45,5 +45,9 @@ internal data class LicenseTextEntry(
     /**
      * If the scanner identified a license as reference, notice, etc. and not as text [isLicenseNotice] is set to true.
      */
-    var isLicenseNotice: Boolean = false
+    var isLicenseNotice: Boolean = false,
+    /**
+     * The [score] of the scanner for this license
+     */
+    var score: Double = 0.0,
 ) : TextEntry
