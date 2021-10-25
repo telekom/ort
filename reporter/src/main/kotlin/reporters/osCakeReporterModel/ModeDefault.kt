@@ -328,13 +328,19 @@ internal class ModeDefault(
     }
 
     /**
-     * decides if the source code is needed, e.g. for instanced licenses
+     * decides if the source code is needed, e.g. for isLicenseText == true
      */
     override fun needsSourceCode(
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
         pack: Pack
     ): Boolean = scanDict[pack.id]?.any { entry ->
-        entry.value.licenseTextEntries.any { lte -> lte.isLicenseText } } ?: false
+                entry.value.licenseTextEntries.any { lte -> lte.isLicenseText } ||
+                osCakeConfiguration.scopePatterns.any {
+                    FileSystems.getDefault().getPathMatcher("glob:$it").
+                        matches(File(File(entry.value.path).name).toPath())
+                }
+        } ?: false
+
 
     /**
      * If no license is found for the project, a default one is created and filled with information provided by the
