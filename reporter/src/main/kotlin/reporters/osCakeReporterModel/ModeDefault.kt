@@ -333,23 +333,8 @@ internal class ModeDefault(
     override fun needsSourceCode(
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
         pack: Pack
-    ): Boolean {
-        // check if scanDict contains LicenseTextEntry with instancedLicenses OR path matches scopePatterns
-        var hasInstancedLicenses = false
-        var hasMatchingWithScope = false
-        val fileSystem = FileSystems.getDefault()
-
-        scanDict[pack.id]?.forEach { entry ->
-            hasInstancedLicenses = hasInstancedLicenses ||
-                entry.value.licenseTextEntries.any { lte -> lte.isInstancedLicense }
-
-            hasMatchingWithScope = hasMatchingWithScope ||
-                osCakeConfiguration.scopePatterns.any {
-                    fileSystem.getPathMatcher("glob:$it").matches(File(File(entry.value.path).name).toPath())
-                }
-        }
-        return hasInstancedLicenses || hasMatchingWithScope
-    }
+    ): Boolean = scanDict[pack.id]?.any { entry ->
+        entry.value.licenseTextEntries.any { lte -> lte.isLicenseText } } ?: false
 
     /**
      * If no license is found for the project, a default one is created and filled with information provided by the
