@@ -20,6 +20,7 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
@@ -46,5 +47,13 @@ internal data class DefaultLicense(
      * Categorizes the [license] as declared, if the license was set by the analyzer and not found
      * by the scanner.
      */
-    @JsonIgnore var declared: Boolean = true
+    @JsonIgnore var declared: Boolean = true,
+    /**
+     * describes if there were any issues
+     */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT) var hasIssues: Boolean = false,
+    /**
+     * contains issues for the scope
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL) var issues: Issues? = null
 )

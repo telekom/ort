@@ -40,6 +40,7 @@ import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.reporter.model.DependencyTreeNode
 import org.ossreviewtoolkit.reporter.model.EvaluatedModel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
@@ -53,6 +54,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeWrapper
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.REPORTER_LOGGER
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ScopeLevel
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.getLicensesFolderPrefix
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.isInstancedLicense
@@ -91,6 +93,9 @@ class OSCakeReporter : Reporter {
         val scanDict = getNativeScanResults(input, cfg)
         removeMultipleEqualLicensesPerFile(scanDict)
         val osc = ingestAnalyzerOutput(input, scanDict, outputDir, cfg)
+        if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) {
+            handleOSCakeIssues(osc.project, logger)
+        }
 
         // transform result into json output
         val objectMapper = ObjectMapper()
@@ -104,6 +109,7 @@ class OSCakeReporter : Reporter {
 
         return listOf(outputFile)
     }
+
 
     /**
      * [handleOSCakeConfig] contains logical checks and combinations of configuration entries set in osCakeConfiguration
@@ -189,7 +195,7 @@ class OSCakeReporter : Reporter {
                                 logger.log(
                                     "License text finding for license \"${highest.license}\" was removed, " +
                                             "due to multiple similar entries in the file: \"${fib.path}\"!",
-                                    Level.INFO, pkg)
+                                    Level.INFO, pkg, fib.path, highest, ScopeLevel.FILE, ProcessingPhase.PRE)
                             }
                         }
                     }
@@ -288,8 +294,6 @@ class OSCakeReporter : Reporter {
         cfg.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
             logger.log("packageRestrictions are enabled, but the package [$identifier] was not found", Level.WARN)
         }
-        if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) handleOSCakeIssues(osc.project, logger)
-
         return osc
     }
 

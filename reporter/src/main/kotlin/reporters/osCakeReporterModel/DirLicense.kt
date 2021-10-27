@@ -19,6 +19,7 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
@@ -39,5 +40,13 @@ internal data class DirLicense(
     /**
      * Shows the [path] to the file where the license was found.
      */
-    @get:JsonProperty("foundInFileScope") val path: String? = null
+    @get:JsonProperty("foundInFileScope") val path: String? = null,
+    /**
+     * describes if there were any issues
+     */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT) var hasIssues: Boolean = false,
+    /**
+    * contains issues for the scope
+    */
+    @JsonInclude(JsonInclude.Include.NON_NULL) var issues: Issues? = null
 )

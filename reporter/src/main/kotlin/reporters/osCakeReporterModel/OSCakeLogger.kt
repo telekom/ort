@@ -45,8 +45,53 @@ internal class OSCakeLogger(
     /**
      * Stores an issue in the map [osCakeIssues] and writes the [msg] with a specific prefix into the log file.
      */
-    internal fun log(msg: String, level: Level, id: Identifier? = null, fileScope: String? = null) {
-        osCakeIssues.add(OSCakeIssue(msg, level, id, fileScope))
+    internal fun log(
+        msg: String,
+        level: Level,
+        id: Identifier? = null,
+        fileScope: String? = null,
+        reference: Any? = null,
+        scope: ScopeLevel? = null,
+        phase: ProcessingPhase? = null
+    ) {
+        osCakeIssues.add(OSCakeIssue(msg, level, id, fileScope, reference, scope, phase))
+
+        // check log levels from config
+        when (reference) {
+            is DefaultLicense -> {
+                reference.hasIssues = true
+                if (reference.issues == null) reference.issues = Issues()
+                if (level == Level.INFO) {
+                    if (reference.issues!!.infos == null) reference.issues!!.infos = mutableListOf<String>()
+                    reference.issues!!.infos!!.add(msg)
+                }
+                if (level == Level.WARN) {
+                    if (reference.issues!!.warnings == null) reference.issues!!.warnings = mutableListOf<String>()
+                    reference.issues!!.warnings!!.add(msg)
+                }
+                if (level == Level.ERROR) {
+                    if (reference.issues!!.errors == null) reference.issues!!.errors = mutableListOf<String>()
+                    reference.issues!!.errors!!.add(msg)
+                }
+            }
+            is DirLicense -> {
+                reference.hasIssues = true
+                if (reference.issues == null) reference.issues = Issues()
+                if (level == Level.INFO) {
+                    if (reference.issues!!.infos == null) reference.issues!!.infos = mutableListOf<String>()
+                    reference.issues!!.infos!!.add(msg)
+                }
+                if (level == Level.WARN) {
+                    if (reference.issues!!.warnings == null) reference.issues!!.warnings = mutableListOf<String>()
+                    reference.issues!!.warnings!!.add(msg)
+                }
+                if (level == Level.ERROR) {
+                    if (reference.issues!!.errors == null) reference.issues!!.errors = mutableListOf<String>()
+                    reference.issues!!.errors!!.add(msg)
+                }
+            }
+        }
+
         var prefix = ""
         if (id != null) prefix += id
         if (fileScope != null) {

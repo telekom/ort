@@ -44,4 +44,16 @@ internal data class OSCakeIssue(
      * [fileScope] is set, if the problem happens in conjunction with a specific file path.
      */
     val fileScope: String?,
+    /**
+     * name of the license which is affected
+     */
+    val reference: Any?,
+    /**
+     * describes on which level the error occured
+     */
+    val scope: ScopeLevel?,
+    /**
+     * describes in which phase the error occured
+     */
+    val phase: ProcessingPhase?
 )

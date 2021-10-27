@@ -199,7 +199,8 @@ internal class ModeDefault(
                     } else {
                         logger.log(
                             "multiple equal licenses <${lte.license}> in the same file found: ${fib.path}" +
-                                    " - ignored!", Level.INFO, pack.id, fib.path)
+                                    " - ignored!", Level.INFO, pack.id, fib.path, pack.defaultLicensings.first { it.license == lte.license &&
+                                    it.path == fibPathWithoutPackage }, ScopeLevel.DEFAULT, ProcessingPhase.PROCESS)
                     }
                 }
             }
@@ -216,8 +217,10 @@ internal class ModeDefault(
                         file?.name, fibPathWithoutPackage))
                     if (lte.isLicenseText) file?.writeText(genText!!)
                 } else {
-                    logger.log("multiple equal licenses <${lte.license}> in the same file " +
-                            "found: ${fib.path} - ignored!", Level.INFO, pack.id, fib.path)
+                    logger.log(
+                        "multiple equal licenses <${lte.license}> in the same file found: ${fib.path}" +
+                                " - ignored!", Level.INFO, pack.id, fib.path, dirLicensing.licenses.first { it.license == lte.license &&
+                                it.path == fibPathWithoutPackage }, ScopeLevel.DIR, ProcessingPhase.PROCESS)
                 }
             }
             ScopeLevel.FILE -> if (lte.isLicenseText) file?.writeText(genText!!)
@@ -351,13 +354,14 @@ internal class ModeDefault(
                 pack.id, Level.WARN, pack.id)
         pack.declaredLicenses.forEach {
             val pathInArchive: String? = null
-            if (isInstancedLicense(input, it.toString())) logger.log(
-                "Declared license: <$it> is instanced license - no license text provided!: " +
-                        pack.id, Level.ERROR, pack.id)
             DefaultLicense(it.toString(), FOUND_IN_FILE_SCOPE_DECLARED, pathInArchive).apply {
                 pack.defaultLicensings.add(this)
+                if (isInstancedLicense(input, it.toString())) logger.log(
+                    "Declared license: <$it> is instanced license - no license text provided!: " +
+                            pack.id, Level.ERROR, pack.id)
+                else
+                    logger.log("Declared license <$it> used for project/package: " + pack.id, Level.INFO, pack.id)
             }
         }
-        logger.log("declared license used for project/package: " + pack.id, Level.INFO, pack.id)
     }
 }
