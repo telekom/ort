@@ -82,11 +82,11 @@ class OSCakeReporter : Reporter {
         // relay issues from ORT
         input.ortResult.analyzer?.result?.let {
             if (it.hasIssues)logger.log("Issue in ORT-ANALYZER - please check ORT-logfile or console output " +
-                    "or scan_result.yml", Level.WARN)
+                    "or scan_result.yml", Level.WARN, phase = ProcessingPhase.ORIGINAL)
         }
         input.ortResult.scanner?.results?.let {
             if (it.hasIssues) logger.log("Issue in ORT-SCANNER - please check ORT-logfile or console output " +
-                    "or scan-result.yml", Level.WARN)
+                    "or scan-result.yml", Level.WARN, phase = ProcessingPhase.ORIGINAL)
         }
 
         // start processing
@@ -94,7 +94,7 @@ class OSCakeReporter : Reporter {
         removeMultipleEqualLicensesPerFile(scanDict)
         val osc = ingestAnalyzerOutput(input, scanDict, outputDir, cfg)
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) {
-            handleOSCakeIssues(osc.project, logger)
+            handleOSCakeIssues(osc.project, logger, cfg.issuesLevel)
         }
 
         // transform result into json output
@@ -144,7 +144,7 @@ class OSCakeReporter : Reporter {
             if (deleteOrtNativeScanResults) {
                 logger.log(
                     "Option \"--deleteOrtNativeScanResults\" ignored, because \"scanResultsCache\" in " +
-                            "oscake.conf does not exist or is not enabled!", Level.INFO
+                            "oscake.conf does not exist or is not enabled!", Level.INFO, phase = ProcessingPhase.CONFIG
                 )
             }
         }
@@ -157,16 +157,23 @@ class OSCakeReporter : Reporter {
                     onlyIncludePackagesMap[id] = false
                     infoStr += "   $id\n"
                 }
-                logger.log(infoStr, Level.INFO)
+                logger.log(infoStr, Level.INFO, phase = ProcessingPhase.CONFIG)
             }
         }
+        var issueLevel: Int
+        osCakeConfiguration.includeIssues?.enabled.let {
+            issueLevel = osCakeConfiguration.includeIssues?.level?:-1
+            if (issueLevel > 2) issueLevel = 2
+        }
+
         return OSCakeConfigParams(ortScanResultsDir,
             scanResultsCacheEnabled,
             oscakeScanResultsDir,
             onlyIncludePackagesMap,
             if (options["dependency-granularity"]?.
                 toIntOrNull() != null) options["dependency-granularity"]!!.toInt() else Int.MAX_VALUE,
-            deleteOrtNativeScanResults
+            deleteOrtNativeScanResults,
+            issueLevel
             )
     }
 
@@ -194,8 +201,8 @@ class OSCakeReporter : Reporter {
                                 lteToRemove.add(sortedList[i])
                                 logger.log(
                                     "License text finding for license \"${highest.license}\" was removed, " +
-                                            "due to multiple similar entries in the file: \"${fib.path}\"!",
-                                    Level.INFO, pkg, fib.path, highest, ScopeLevel.FILE, ProcessingPhase.PRE)
+                                            "due to multiple similar entries in the file!",
+                                    Level.DEBUG, pkg, fib.path, highest, ScopeLevel.FILE, ProcessingPhase.PRE)
                             }
                         }
                     }
@@ -261,7 +268,8 @@ class OSCakeReporter : Reporter {
                 }
         }
         if (cntLevelExcluded > 0) logger.log("Attention: 'dependency-granularity' is restricted to level:" +
-                " ${cfg.dependencyGranularity} via option! $cntLevelExcluded package(s) were excluded!", Level.WARN)
+                " ${cfg.dependencyGranularity} via option! $cntLevelExcluded package(s) were excluded!", Level.INFO,
+                phase = ProcessingPhase.PROCESS)
 
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
@@ -274,8 +282,9 @@ class OSCakeReporter : Reporter {
                     // first is taken
                     input.ortResult.scanner?.results?.scanResults?.get(pkgMap[pack.id]!!.id)?.let {
                         if (it.size > 1) {
-                            logger.log("Package: ${pack.id} - has more than one provenance! " +
-                                    "Only the first one is taken into/from the sourcecode folder!", Level.WARN, pack.id)
+                            logger.log("Package has more than one provenance! " +
+                                    "Only the first one is taken into/from the sourcecode folder!", Level.WARN, pack.id,
+                                phase = ProcessingPhase.PROCESS)
                         }
                     }
                     val provenance = input.ortResult.scanner?.results?.scanResults!![pack.id]!!.first().provenance
@@ -292,7 +301,8 @@ class OSCakeReporter : Reporter {
         zipAndCleanUp(outputDir, tmpDirectory, osc.project.complianceArtifactCollection.archivePath)
 
         cfg.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
-            logger.log("packageRestrictions are enabled, but the package [$identifier] was not found", Level.WARN)
+            logger.log("packageRestrictions are enabled, but the package [$identifier] was not found",
+                Level.WARN, phase = ProcessingPhase.PROCESS)
         }
         return osc
     }
@@ -320,8 +330,8 @@ class OSCakeReporter : Reporter {
             filter { cfg.onlyIncludePackages.isEmpty() ||
                     (cfg.onlyIncludePackages.isNotEmpty() && cfg.onlyIncludePackages.contains(it.key)) }?.
             forEach { (key, pp) ->
-            if (pp.size > 1) logger.log("Package: $key - has more than one provenance! " +
-                            "Only the first one is taken!", Level.WARN, key)
+            if (pp.size > 1) logger.log("Package has more than one provenance! " +
+                            "Only the first one is taken!", Level.WARN, key, phase = ProcessingPhase.SCANRESULT)
             if (cfg.onlyIncludePackages.isNotEmpty()) cfg.onlyIncludePackages[key] = true
             pp.first().also {
                 try {
@@ -368,7 +378,8 @@ class OSCakeReporter : Reporter {
                     scanDict[key] = fileInfoBlockDict
                 } catch (fileNotFound: FileNotFoundException) {
                     // if native scan results are not found for one package, we continue, but log an error
-                    logger.log(fileNotFound.message.toString(), Level.ERROR, key)
+                    logger.log("Native scan result was not found: ${fileNotFound.message.toString()}",
+                        Level.ERROR, key, phase = ProcessingPhase.SCANRESULT)
                 }
             }
         }
@@ -404,7 +415,7 @@ class OSCakeReporter : Reporter {
             path = "$oscakeScanResultsDir"
             if (ortScanResultsDir != null && !File("$oscakeScanResultsDir/$subfolder").exists()) {
                 logger.log("Scan results for $subfolder does not exist - neither in $ortScanResultsDir nor in " +
-                            "$oscakeScanResultsDir", Level.ERROR
+                            "$oscakeScanResultsDir", Level.ERROR, phase = ProcessingPhase.SCANRESULT
                 )
             }
         }

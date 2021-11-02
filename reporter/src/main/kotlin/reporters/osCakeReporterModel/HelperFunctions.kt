@@ -155,24 +155,65 @@ internal fun getPathName(pack: Pack, fib: FileInfoBlock): String {
 
 /**
  * The method walks through the packages, searches for corresponding issues (stored in [logger]) and sets
- * the flags "hasIssues" (on package and on global level).
+ * the flags "hasIssues" (on package, root, default and dir level).
  */
-internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger) {
-    var hasIssuesGlobal = false
+internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int) {
     // create Map with key = package (package may also be null)
     val issuesPerPackage = logger.osCakeIssues.groupBy { it.id?.toCoordinates() }
-    // walk through packs and check if there are issues (WARN and ERROR) per package - set global hasIssues if necessary
-    project.packs.forEach { pack ->
-        pack.hasIssues = issuesPerPackage[pack.id.toCoordinates()]?.any {
-            it.level == Level.WARN || it.level == Level.ERROR } ?: false
-        if (pack.hasIssues) hasIssuesGlobal = true
-    }
-    // check OSCakeIssues with no package info
-    if (!hasIssuesGlobal) hasIssuesGlobal = issuesPerPackage.get(null)?.any {
-        it.level == Level.WARN || it.level == Level.ERROR } ?: false
 
-    // set global hasIssues
-    project.hasIssues = hasIssuesGlobal
+    // Root-Level: handle OSCakeIssues with no package info
+    issuesPerPackage[null]?.forEach {
+        project.hasIssues = project.hasIssues || addIssue(it, project.issues, issuesLevel)
+    }
+    // Package-Level: handle OSCakeIssues with package but no reference info
+    project.packs.forEach { pack ->
+        issuesPerPackage[pack.id.toCoordinates()]?.
+            forEach {
+                if (it.reference == null || !(it.reference is DefaultLicense || it.reference is DirLicense )) {
+                    pack.hasIssues = pack.hasIssues || addIssue(it, pack.issues, issuesLevel)
+                }
+        }
+    }
+
+    // Default/Dir-Level: handle OSCakeIssues with package and reference for Default/Dir level
+    project.packs.forEach { pack ->
+        var pkgHasIssues = false
+        issuesPerPackage[pack.id.toCoordinates()]?.forEach {
+            when(it.reference) {
+                is DefaultLicense -> {
+                    it.reference.hasIssues = addIssue(it, it.reference.issues, issuesLevel)
+                    pkgHasIssues = pkgHasIssues || it.reference.hasIssues
+                }
+                is DirLicense -> {
+                    addIssue(it, it.reference.issues, issuesLevel)
+                    pkgHasIssues = pkgHasIssues || it.reference.hasIssues
+                }
+            }
+        }
+        pack.hasIssues = pack.hasIssues || pkgHasIssues
+    }
+
+    // propagate hasIssue from Package to Project
+    project.hasIssues = project.hasIssues || project.packs.any { it.hasIssues }
+
+}
+
+/**
+ * Adds issue to the issues list depending on Level information;
+ * return true for Warnings and Errors
+ */
+internal fun addIssue(oscakeIssue: OSCakeIssue, issues: Issues, issuesLevel: Int): Boolean {
+    var rc = true
+    when (oscakeIssue.level) {
+        Level.INFO -> {
+            if (issuesLevel > 1)
+                issues.infos.add(oscakeIssue.msg)
+            rc = false
+        }
+        Level.WARN -> if (issuesLevel > 0) issues.warnings.add(oscakeIssue.msg)
+        Level.ERROR -> if (issuesLevel > -1) issues.errors.add(oscakeIssue.msg)
+    }
+    return rc
 }
 
 internal fun deleteFromArchive(oldPath: String?, archiveDir: File) =

@@ -19,11 +19,13 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
-import com.fasterxml.jackson.annotation.JsonInclude
-
-@JsonInclude(JsonInclude.Include.NON_EMPTY)
-data class Issues(
-    val errors: MutableList<String>  = mutableListOf(),
-    val warnings: MutableList<String> = mutableListOf(),
-    val infos: MutableList<String> = mutableListOf()
-    )
+class IssuesFilter {
+    override fun equals(other: Any?): Boolean {
+        // do not serialize when the lists are empty
+        if (other is Issues) {
+            if (other.errors.isEmpty() && other.infos.isEmpty() && other.warnings.isEmpty())
+                return true
+        }
+        return false
+    }
+}

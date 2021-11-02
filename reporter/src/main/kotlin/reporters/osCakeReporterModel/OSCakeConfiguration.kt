@@ -34,6 +34,20 @@ internal data class PackageRestrictions(
 )
 
 /**
+ * Part of the [OSCakeConfiguration]
+ */
+internal data class IncludeIssues(
+    /**
+     * shows if the mechanism for including issues is enabled
+     */
+    val enabled: Boolean?,
+    /**
+     * contains a list of packages in IVY-notation, which has to be included - all others will be ignored
+     */
+    val level: Int? // 0..ERROR, 1..WARN + ERROR, 2..INFO + WARN + ERROR
+)
+
+/**
 Wrapper class for the [OSCakeConfiguration] class - reads the file passed by option "OSCake=configFile=...:"
  */
 internal data class OSCakeConfiguration(
@@ -61,4 +75,8 @@ internal data class OSCakeConfiguration(
      * [packageRestrictions] include only the named packages - defined as [Identifier](s) when processing.
      */
     val packageRestrictions: PackageRestrictions? = null,
+    /**
+     * defines if issues should be reported in oscc output
+     */
+    val includeIssues: IncludeIssues? = null
 )

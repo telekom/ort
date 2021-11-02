@@ -27,7 +27,9 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
  * The DirLicense class wraps the information about the [license] the name of the file containing the license
  * information [licenseTextInArchive] and the corresponding [path]
  */
-@JsonPropertyOrder("foundInFileScope", "license", "licenseTextInArchive")
+@JsonPropertyOrder("foundInFileScope", "license", "licenseTextInArchive", "hasIssues", "issues")
+// work around with custom filter, because a declaration on property level "issues" did not work
+@JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilter::class)
 internal data class DirLicense(
     /**
      * [license] contains the name of the license.
@@ -44,9 +46,9 @@ internal data class DirLicense(
     /**
      * describes if there were any issues
      */
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT) var hasIssues: Boolean = false,
+    var hasIssues: Boolean = false,
     /**
     * contains issues for the scope
     */
-    @JsonInclude(JsonInclude.Include.NON_NULL) var issues: Issues? = null
+    val issues: Issues = Issues()
 )

@@ -34,8 +34,9 @@ import org.ossreviewtoolkit.model.Identifier
  * [ScopeLevel]s: [defaultLicensings], [dirLicensings], etc.. If the sourcecode is not placed in the
  * root directory of the repository (e.g. git), than the property [packageRoot] shows the path to the root directory
   */
-@JsonPropertyOrder("pid", "release", "repository", "id", "reuseCompliant", "hasIssues", "defaultLicensings",
+@JsonPropertyOrder("pid", "release", "repository", "id", "reuseCompliant", "hasIssues", "issues", "defaultLicensings",
     "dirLicensings", "reuseLicensings", "fileLicensings")
+@JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilter::class)
 internal data class Pack(
     /**
      * Unique identifier for the package.
@@ -80,7 +81,11 @@ internal data class Pack(
     /**
      * [hasIssues] shows that issues have happened during processing.
      */
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT) var hasIssues: Boolean = false
+    var hasIssues: Boolean = false
+    /**
+     * contains issues for the package level
+     */
+    val issues: Issues = Issues()
     /**
      *  [defaultLicensings] contains a list of [DefaultLicense]s  for non-REUSE compliant packages.
      */

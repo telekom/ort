@@ -108,7 +108,7 @@ internal class CurationManager(
         }
 
         // 4. report [OSCakeIssue]s
-        if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger)
+        if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger, -1)
 
         // 5. generate .zip and .oscc files
         createResultingFiles()

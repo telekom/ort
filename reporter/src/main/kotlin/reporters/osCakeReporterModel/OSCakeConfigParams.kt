@@ -49,5 +49,9 @@ internal data class OSCakeConfigParams(
     /**
      * deletes the ORT native-scan-results directory if set
      */
-    val deleteOrtNativeScanResults: Boolean
+    val deleteOrtNativeScanResults: Boolean,
+    /**
+     * defines the level for issue documentation in oscc-file
+     */
+    val issuesLevel: Int
 )

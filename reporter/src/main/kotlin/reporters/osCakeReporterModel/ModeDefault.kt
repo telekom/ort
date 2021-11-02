@@ -81,7 +81,8 @@ internal class ModeDefault(
                 }
             }
         } catch (ex: FileNotFoundException) {
-            logger.log("File not found during creation of \"FileLicensings\"", Level.ERROR, pack.id)
+            logger.log("File not found during creation of \"FileLicensings\"", Level.ERROR, pack.id,
+                phase = ProcessingPhase.PROCESS)
             return
         }
         /*
@@ -182,7 +183,8 @@ internal class ModeDefault(
                 )
             }
         } catch (ex: FileNotFoundException) {
-            logger.log("File not found: ${ex.message}  while generating license texts!", Level.ERROR, pack.id)
+            logger.log("File not found: ${ex.message}  while generating license texts!", Level.ERROR, pack.id,
+            phase = ProcessingPhase.PROCESS)
             return ""
         }
 
@@ -197,10 +199,12 @@ internal class ModeDefault(
                         pack.defaultLicensings.add(this)
                         if (lte.isLicenseText) file?.writeText(genText!!)
                     } else {
+                        val lic = pack.defaultLicensings.first { it.license == lte.license &&
+                                it.path == fibPathWithoutPackage }
+                        val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
                         logger.log(
                             "multiple equal licenses <${lte.license}> in the same file found: ${fib.path}" +
-                                    " - ignored!", Level.INFO, pack.id, fib.path, pack.defaultLicensings.first { it.license == lte.license &&
-                                    it.path == fibPathWithoutPackage }, ScopeLevel.DEFAULT, ProcessingPhase.PROCESS)
+                                    " - ignored!", ll, pack.id, fib.path, lic.license, ScopeLevel.DEFAULT, ProcessingPhase.PROCESS)
                     }
                 }
             }
@@ -217,10 +221,12 @@ internal class ModeDefault(
                         file?.name, fibPathWithoutPackage))
                     if (lte.isLicenseText) file?.writeText(genText!!)
                 } else {
+                    val lic = dirLicensing.licenses.first { it.license == lte.license &&
+                            it.path == fibPathWithoutPackage }
+                    val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
                     logger.log(
                         "multiple equal licenses <${lte.license}> in the same file found: ${fib.path}" +
-                                " - ignored!", Level.INFO, pack.id, fib.path, dirLicensing.licenses.first { it.license == lte.license &&
-                                it.path == fibPathWithoutPackage }, ScopeLevel.DIR, ProcessingPhase.PROCESS)
+                                " - ignored!", ll, pack.id, fib.path, lic.license, ScopeLevel.DIR, ProcessingPhase.PROCESS)
                 }
             }
             ScopeLevel.FILE -> if (lte.isLicenseText) file?.writeText(genText!!)
@@ -240,12 +246,12 @@ internal class ModeDefault(
         val copyrightStartLine = getCopyrightStartline(fileInfoBlock, licenseTextEntry, fileName)
         if (copyrightStartLine == null) {
             logger.log("No Copyright-Startline found in ${fileInfoBlock.path}", Level.ERROR, pack.id,
-                fileInfoBlock.path)
+                fileInfoBlock.path, phase = ProcessingPhase.PROCESS)
             return null
         }
         if (copyrightStartLine > licenseTextEntry.endLine) {
             logger.log("Line markers $copyrightStartLine : ${licenseTextEntry.endLine} not valid in: " +
-                    "${fileInfoBlock.path}", Level.ERROR, pack.id, fileInfoBlock.path)
+                    "${fileInfoBlock.path}", Level.ERROR, pack.id, fileInfoBlock.path, phase = ProcessingPhase.PROCESS)
             return null
         }
         return getLinesFromFile(fileName, copyrightStartLine, licenseTextEntry.endLine)
@@ -350,17 +356,18 @@ internal class ModeDefault(
      * declaredLicenses (its origin is the package manager and not the scanner).
      */
     private fun prepareEntryForScopeDefault(pack: Pack, input: ReporterInput) {
-        if (pack.declaredLicenses.size == 0) logger.log("No declared license found for project/package: " +
-                pack.id, Level.WARN, pack.id)
+        if (pack.declaredLicenses.size == 0) logger.log("No declared license found for project/package!",
+            Level.WARN, pack.id, phase = ProcessingPhase.POST)
         pack.declaredLicenses.forEach {
             val pathInArchive: String? = null
             DefaultLicense(it.toString(), FOUND_IN_FILE_SCOPE_DECLARED, pathInArchive).apply {
                 pack.defaultLicensings.add(this)
                 if (isInstancedLicense(input, it.toString())) logger.log(
-                    "Declared license: <$it> is instanced license - no license text provided!: " +
-                            pack.id, Level.ERROR, pack.id)
+                    "Declared license: <$it> is instanced license - no license text provided!",
+                    Level.WARN, pack.id, phase = ProcessingPhase.POST)
                 else
-                    logger.log("Declared license <$it> used for project/package: " + pack.id, Level.INFO, pack.id)
+                    logger.log("Declared license <$it> used for project/package", Level.INFO,
+                        pack.id, phase = ProcessingPhase.POST)
             }
         }
     }

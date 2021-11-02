@@ -78,18 +78,20 @@ internal abstract class ModeSelector {
             val downloadDirectory = downloadDir.resolve(pkg.id.toPath()).resolve(provenanceHash)
             // Check if package has already been downloaded
             if (downloadDirectory.exists()) {
-                logger.log("No source code download necessary for Package: ${pkg.id}.", Level.DEBUG)
+                logger.log("No source code download necessary for Package: ${pkg.id}.", Level.DEBUG,
+                phase = ProcessingPhase.DOWNLOAD)
                 return
             } else logger.log("Source code for ${pkg.id} is being downloaded.", Level.DEBUG)
             val downloadProvenance = Downloader(downloaderConfig).download(pkg, downloadDirectory)
-            logger.log("Source code download for ${pkg.id} completed.", Level.DEBUG)
+            logger.log("Source code download for ${pkg.id} completed.", Level.DEBUG,
+                phase = ProcessingPhase.DOWNLOAD)
 
             if (downloadProvenance != scannerPackageProvenance) {
                 logger.log("Mismatching provenance when creating missing source code for ${pkg.id}.",
-                    Level.WARN, pkg.id)
+                    Level.WARN, pkg.id, phase = ProcessingPhase.DOWNLOAD)
             }
         } catch (ex: DownloadException) {
-            logger.log("Error when downloading sources for Package: ${pkg.id}.", Level.WARN, pkg.id)
+            logger.log("Error when downloading sources.", Level.WARN, pkg.id, phase = ProcessingPhase.DOWNLOAD)
         }
     }
 

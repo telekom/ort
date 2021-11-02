@@ -20,17 +20,24 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 
 /**
  * The class [Project] wraps the meta information ([complianceArtifactCollection]) of the OSCakeReporter as well
  * as a list of included projects and packages store in instances of [Pack]
  */
+//@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilter::class)
 internal data class Project(@JsonIgnore val cid: String) {
     /**
      * [hasIssues] shows if problems occurred during processing the data.
      */
     var hasIssues: Boolean = false
+    /**
+     * contains issues for the project level
+     */
+    var issues: Issues = Issues()
     /**
      * [complianceArtifactCollection] contains metadata about the project.
      */

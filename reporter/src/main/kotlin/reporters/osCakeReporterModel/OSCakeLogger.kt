@@ -56,49 +56,13 @@ internal class OSCakeLogger(
     ) {
         osCakeIssues.add(OSCakeIssue(msg, level, id, fileScope, reference, scope, phase))
 
-        // check log levels from config
-        when (reference) {
-            is DefaultLicense -> {
-                reference.hasIssues = true
-                if (reference.issues == null) reference.issues = Issues()
-                if (level == Level.INFO) {
-                    if (reference.issues!!.infos == null) reference.issues!!.infos = mutableListOf<String>()
-                    reference.issues!!.infos!!.add(msg)
-                }
-                if (level == Level.WARN) {
-                    if (reference.issues!!.warnings == null) reference.issues!!.warnings = mutableListOf<String>()
-                    reference.issues!!.warnings!!.add(msg)
-                }
-                if (level == Level.ERROR) {
-                    if (reference.issues!!.errors == null) reference.issues!!.errors = mutableListOf<String>()
-                    reference.issues!!.errors!!.add(msg)
-                }
-            }
-            is DirLicense -> {
-                reference.hasIssues = true
-                if (reference.issues == null) reference.issues = Issues()
-                if (level == Level.INFO) {
-                    if (reference.issues!!.infos == null) reference.issues!!.infos = mutableListOf<String>()
-                    reference.issues!!.infos!!.add(msg)
-                }
-                if (level == Level.WARN) {
-                    if (reference.issues!!.warnings == null) reference.issues!!.warnings = mutableListOf<String>()
-                    reference.issues!!.warnings!!.add(msg)
-                }
-                if (level == Level.ERROR) {
-                    if (reference.issues!!.errors == null) reference.issues!!.errors = mutableListOf<String>()
-                    reference.issues!!.errors!!.add(msg)
-                }
-            }
-        }
-
         var prefix = ""
         if (id != null) prefix += id
         if (fileScope != null) {
-            prefix += if (prefix == "") "FileScope: $fileScope"
-            else " - FileScope: $fileScope"
+            prefix += if (prefix == "") "File: $fileScope"
+            else " - File: $fileScope"
         }
         if (prefix != "") prefix = "[$prefix]: "
-        logger.log(level, "$source: $prefix$msg")
+        logger.log(level, "$source: <<$phase>> $prefix$msg")
     }
 }
