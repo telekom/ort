@@ -204,7 +204,7 @@ internal class ModeDefault(
                         val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
                         logger.log(
                             "multiple equal licenses <${lte.license}> in the same file found: ${fib.path}" +
-                                    " - ignored!", ll, pack.id, fib.path, lic.license, ScopeLevel.DEFAULT, ProcessingPhase.PROCESS)
+                                    " - ignored!", ll, pack.id, fib.path, lic, ScopeLevel.DEFAULT, ProcessingPhase.PROCESS)
                     }
                 }
             }
@@ -226,7 +226,7 @@ internal class ModeDefault(
                     val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
                     logger.log(
                         "multiple equal licenses <${lte.license}> in the same file found: ${fib.path}" +
-                                " - ignored!", ll, pack.id, fib.path, lic.license, ScopeLevel.DIR, ProcessingPhase.PROCESS)
+                                " - ignored!", ll, pack.id, fib.path, lic, ScopeLevel.DIR, ProcessingPhase.PROCESS)
                 }
             }
             ScopeLevel.FILE -> if (lte.isLicenseText) file?.writeText(genText!!)

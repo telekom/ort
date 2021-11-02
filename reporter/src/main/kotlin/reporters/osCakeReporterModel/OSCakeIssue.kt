@@ -22,7 +22,6 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
-
 /**
  * [OSCakeIssue] represents a class containing information about problems which occurred during processing data of the
  * [OSCakeReporter] or the [CurationManager].
@@ -57,3 +56,28 @@ internal data class OSCakeIssue(
      */
     val phase: ProcessingPhase?
 )
+{
+    internal fun generateJSONPath(): String {
+        // Root-Level
+        if (id == null) {
+            return "\$.hasIssues"
+        }
+        // Package-Level
+        if (scope != ScopeLevel.DIR && scope != ScopeLevel.DEFAULT) {
+            return "\$.complianceArtifactPackages[?(@.pid=='${id.name}')].hasIssues"
+        }
+        if (scope == ScopeLevel.DEFAULT) {
+            val license = (reference as DefaultLicense).license
+            return "\$.complianceArtifactPackages[?(@.pid=='${id.name}')].defaultLicensings" +
+                    "[?(@.license=='$license')].hasIssues"
+        }
+        if (scope == ScopeLevel.DIR) {
+            val license = (reference as DirLicense).license
+            val fileName = fileScope?:""
+            val p = fileName.indexOfLast { it == '/' }
+            val dirScope = if (p > -1) fileName.substring(0, p) else ""
+            return "\$.complianceArtifactPackages[?(@.pid=='semver4j')].dirLicensings[?(@.dirScope=='$dirScope')].dirLicenses[?(@.license=='$license')].hasIssues"
+        }
+        return ""
+    }
+}

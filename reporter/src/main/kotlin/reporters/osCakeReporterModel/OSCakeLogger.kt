@@ -54,7 +54,11 @@ internal class OSCakeLogger(
         scope: ScopeLevel? = null,
         phase: ProcessingPhase? = null
     ) {
-        osCakeIssues.add(OSCakeIssue(msg, level, id, fileScope, reference, scope, phase))
+        var jsonPath: String
+        OSCakeIssue(msg, level, id, fileScope, reference, scope, phase).also {
+            osCakeIssues.add(it)
+            jsonPath = it.generateJSONPath()
+        }
 
         var prefix = ""
         if (id != null) prefix += id
@@ -63,6 +67,7 @@ internal class OSCakeLogger(
             else " - File: $fileScope"
         }
         if (prefix != "") prefix = "[$prefix]: "
-        logger.log(level, "$source: <<$phase>> $prefix$msg")
+        val jp = if (jsonPath != "") " - PATH: $jsonPath" else ""
+        logger.log(level, "$source: <<$phase>> $prefix$msg$jp")
     }
 }
