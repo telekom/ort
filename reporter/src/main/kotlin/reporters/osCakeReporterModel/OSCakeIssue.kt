@@ -64,19 +64,20 @@ internal data class OSCakeIssue(
         }
         // Package-Level
         if (scope != ScopeLevel.DIR && scope != ScopeLevel.DEFAULT) {
-            return "\$.complianceArtifactPackages[?(@.pid=='${id.name}')].hasIssues"
+            return "\$.complianceArtifactPackages[?(@.pid=='${id.name}')]"
         }
         if (scope == ScopeLevel.DEFAULT) {
             val license = (reference as DefaultLicense).license
             return "\$.complianceArtifactPackages[?(@.pid=='${id.name}')].defaultLicensings" +
-                    "[?(@.license=='$license')].hasIssues"
+                    "[?(@.license=='$license')]"
         }
         if (scope == ScopeLevel.DIR) {
             val license = (reference as DirLicense).license
             val fileName = fileScope?:""
             val p = fileName.indexOfLast { it == '/' }
             val dirScope = if (p > -1) fileName.substring(0, p) else ""
-            return "\$.complianceArtifactPackages[?(@.pid=='semver4j')].dirLicensings[?(@.dirScope=='$dirScope')].dirLicenses[?(@.license=='$license')].hasIssues"
+            return "\$.complianceArtifactPackages[?(@.pid=='${id.name}')].dirLicensings[?(@.dirScope=='$dirScope')]." +
+                    "dirLicenses[?(@.foundInFileScope=='$fileName' && @.license=='$license')]"
         }
         return ""
     }

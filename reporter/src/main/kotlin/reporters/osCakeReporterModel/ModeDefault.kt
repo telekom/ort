@@ -87,7 +87,8 @@ internal class ModeDefault(
          *           file which contains an "isLicenseText" entry
          */
         scanDict[pack.id]?.forEach { fileName, fib ->
-            fib.licenseTextEntries /*.filter { it.isLicenseText }*/.forEach {
+            // sort necessary for Wekan #85 - priority logic for handling LicenseTextEntries with equal licenses
+            fib.licenseTextEntries.sortedWith(LicenseTextEntry).forEach {
                 val dedupFileName = handleDirDefaultEntriesAndLicenseTextsOnAllScopes(pack, sourceCodeDir, tmpDirectory,
                     fib, getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params.scopePatterns), it, provHash)
                 @Suppress("ComplexCondition")
@@ -199,7 +200,7 @@ internal class ModeDefault(
                                 it.path == fibPathWithoutPackage }
                         val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
                         logger.log(
-                            "multiple equal licenses <${lte.license}> in the same file found: ${fib.path}" +
+                            "DefaultScope: multiple equal licenses <${lte.license}> in the same file found" +
                                     " - ignored!", ll, pack.id, fib.path, lic, ScopeLevel.DEFAULT, ProcessingPhase.PROCESS)
                     }
                 }
@@ -221,7 +222,7 @@ internal class ModeDefault(
                             it.path == fibPathWithoutPackage }
                     val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
                     logger.log(
-                        "multiple equal licenses <${lte.license}> in the same file found: ${fib.path}" +
+                        "DirScope: multiple equal licenses <${lte.license}> in the same file found" +
                                 " - ignored!", ll, pack.id, fib.path, lic, ScopeLevel.DIR, ProcessingPhase.PROCESS)
                 }
             }

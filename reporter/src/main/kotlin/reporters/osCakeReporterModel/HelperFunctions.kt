@@ -185,7 +185,7 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLe
                     pkgHasIssues = pkgHasIssues || it.reference.hasIssues
                 }
                 is DirLicense -> {
-                    addIssue(it, it.reference.issues, issuesLevel)
+                    it.reference.hasIssues = addIssue(it, it.reference.issues, issuesLevel)
                     pkgHasIssues = pkgHasIssues || it.reference.hasIssues
                 }
             }
@@ -205,6 +205,7 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLe
 internal fun addIssue(oscakeIssue: OSCakeIssue, issues: Issues, issuesLevel: Int): Boolean {
     var rc = true
     when (oscakeIssue.level) {
+        Level.DEBUG -> rc = false
         Level.INFO -> {
             if (issuesLevel > 1)
                 issues.infos.add(oscakeIssue.msg)

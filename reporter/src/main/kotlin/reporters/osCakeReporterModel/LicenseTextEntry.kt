@@ -50,4 +50,22 @@ internal data class LicenseTextEntry(
      * The [score] of the scanner for this license
      */
     var score: Double = 0.0,
-) : TextEntry
+) : TextEntry {
+    companion object : Comparator<LicenseTextEntry> {
+
+        override fun compare(a: LicenseTextEntry, b: LicenseTextEntry): Int  {
+            if (a.license == b.license) {
+                if ((a.isLicenseText && b.isLicenseText) || (!a.isLicenseText && !b.isLicenseText)) return 0
+                if (a.isLicenseText && !b.isLicenseText) return -1
+                if (!a.isLicenseText && b.isLicenseText) return 1
+            }
+            else {
+                val aa = a.license?:""
+                val bb = b.license?:""
+                return aa.compareTo(bb)
+            }
+            return 0
+        }
+    }
+
+}

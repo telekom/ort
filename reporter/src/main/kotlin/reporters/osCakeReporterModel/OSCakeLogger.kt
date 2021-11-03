@@ -56,7 +56,7 @@ internal class OSCakeLogger(
     ) {
         var jsonPath = ""
         OSCakeIssue(msg, level, id, fileScope, reference, scope, phase).also {
-            osCakeIssues.add(it)
+            if (level != Level.DEBUG) osCakeIssues.add(it)
             if (OSCakeConfiguration.params.includeJsonPathInLogfile4ErrorsAndWarnings &&
                 (level == Level.ERROR || level == Level.WARN))
                 jsonPath = it.generateJSONPath()
