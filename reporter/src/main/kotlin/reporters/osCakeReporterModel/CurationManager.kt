@@ -41,11 +41,6 @@ internal class CurationManager(
      */
     val project: Project,
     /**
-     * The [osCakeConfiguration] contains folders where to find the curation files and the corresponding license
-     * texts files.
-     */
-    val osCakeConfiguration: OSCakeConfiguration,
-    /**
      * The generated files are stored in the folder [outputDir]
      */
     val outputDir: File,
@@ -66,8 +61,8 @@ internal class CurationManager(
     /**
      * The [curationProvider] contains a list of [PackageCuration]s to be applied.
      */
-    private var curationProvider = CurationProvider(File(osCakeConfiguration.curations!!.get("directory")),
-        File(osCakeConfiguration.curations.get("fileStore")))
+    private var curationProvider = CurationProvider(File(OSCakeConfiguration.params.curationsDirectory),
+        File(OSCakeConfiguration.params.curationsFileStore))
 
     /**
      * The [logger] is only initialized, if there is something to log.
@@ -104,7 +99,7 @@ internal class CurationManager(
         // and "packageModifier" - update, insert, delete
         project.packs.forEach {
             curationProvider.getCurationFor(it.id)?.curate(it, archiveDir,
-                File(osCakeConfiguration.curations?.get("fileStore")), osCakeConfiguration)
+                File(OSCakeConfiguration.params.curationsFileStore))
         }
 
         // 4. report [OSCakeIssue]s

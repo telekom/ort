@@ -68,7 +68,7 @@ internal abstract class ModeSelector {
         if (!needsSourceCode(scanDict, pack)) return
         val pkg = pkgMap[pack.id]!!
 
-        val downloadDir = File(osCakeConfig.sourceCodesDir!!)
+        val downloadDir = File(OSCakeConfiguration.params.sourceCodesDir!!)
         val downloaderConfig = DownloaderConfiguration()
 
         val provenanceHash = getHash(scannerPackageProvenance)
@@ -97,19 +97,17 @@ internal abstract class ModeSelector {
 
     companion object {
         lateinit var pkgMap: MutableMap<Identifier, Package>
-        lateinit var osCakeConfig: OSCakeConfiguration
         /**
          * The [getMode] method returns an instance of [ModeREUSE] or [ModeDefault] depending on the type
          * of package
          */
         internal fun getMode(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
-                             osCakeConfiguration: OSCakeConfiguration, reporterInput: ReporterInput,
+                             reporterInput: ReporterInput,
                              packageMap: MutableMap<Identifier, Package>): ModeSelector {
             pkgMap = packageMap
-            osCakeConfig = osCakeConfiguration
             return when (pack.reuseCompliant) {
                 true -> ModeREUSE(pack, scanDict)
-                else -> ModeDefault(pack, scanDict, osCakeConfiguration, reporterInput)
+                else -> ModeDefault(pack, scanDict, reporterInput)
             }
         }
     }

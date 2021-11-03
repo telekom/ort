@@ -29,29 +29,49 @@ internal data class OSCakeConfigParams(
     /**
      * [ortScanResultsDir] folder where ORT stores its native scan results.
      */
-    val ortScanResultsDir: String? = null,
+    var ortScanResultsDir: String? = null,
     /**
      * if enabled, copies the ORT-native-scan-results to OSCake-native-scan-results
      */
-    val scanResultsCacheEnabled: Boolean = false,
+    var scanResultsCacheEnabled: Boolean = false,
     /**
      * path, where to store the ORT-native-scan-results for caching
      */
-    val oscakeScanResultsDir: String? = null,
+    var oscakeScanResultsDir: String? = null,
     /**
      * [onlyIncludePackages] include only the named packages - defined as [Identifier](s) when processing.
      */
-    val onlyIncludePackages: MutableMap<Identifier, Boolean> = mutableMapOf(),
+    var onlyIncludePackages: MutableMap<Identifier, Boolean> = mutableMapOf(),
     /**
      * Defines the granularity levels of the output from 0...Max
      */
-    val dependencyGranularity: Int,
+    var dependencyGranularity: Int = -1,
     /**
      * deletes the ORT native-scan-results directory if set
      */
-    val deleteOrtNativeScanResults: Boolean,
+    var deleteOrtNativeScanResults: Boolean = false,
     /**
      * defines the level for issue documentation in oscc-file
      */
-    val issuesLevel: Int
-)
+    var issuesLevel: Int = -1,
+    /**
+     * [sourceCodesDir] folders where to find or save the source code.
+     */
+    var sourceCodesDir: String? = null,
+    var includeJsonPathInLogfile4ErrorsAndWarnings: Boolean = false,
+    /**
+     *  [scopePatterns] contains a list of glob patterns which are used to determine the corresponding [ScopeLevel].
+     */
+    var scopePatterns: List<String> = mutableListOf(),
+    /**
+     * detailed info about curation handling
+     */
+    var curationsEnabled: Boolean = false,
+    var curationsDirectory: String = "",
+    var curationsFileStore: String = "",
+
+    ) {
+    constructor(includeJsonPathInLogfile: Boolean) : this(
+        includeJsonPathInLogfile4ErrorsAndWarnings = includeJsonPathInLogfile,
+    )
+}

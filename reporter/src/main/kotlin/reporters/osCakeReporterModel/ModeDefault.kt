@@ -43,10 +43,6 @@ internal class ModeDefault(
      */
     private val scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
     /**
-     * [osCakeConfiguration] contains configuration information
-     */
-    private val osCakeConfiguration: OSCakeConfiguration,
-    /**
      * [reporterInput] provides information about the analyzed and scanned packages (from ORT)
      */
     private val reporterInput: ReporterInput) : ModeSelector() {
@@ -67,7 +63,7 @@ internal class ModeDefault(
         @Suppress("SwallowedException")
         try {
             scanDict[pack.id]?.forEach { fileName, fib ->
-                val scopeLevel = getScopeLevel(fileName, pack.packageRoot, osCakeConfiguration.scopePatterns)
+                val scopeLevel = getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params.scopePatterns)
                 if ((scopeLevel == ScopeLevel.DIR || scopeLevel == ScopeLevel.DEFAULT) &&
                     fib.licenseTextEntries.size > 0) {
                     val pathFlat = createPathFlat(pack.id, fib.path)
@@ -93,7 +89,7 @@ internal class ModeDefault(
         scanDict[pack.id]?.forEach { fileName, fib ->
             fib.licenseTextEntries /*.filter { it.isLicenseText }*/.forEach {
                 val dedupFileName = handleDirDefaultEntriesAndLicenseTextsOnAllScopes(pack, sourceCodeDir, tmpDirectory,
-                    fib, getScopeLevel(fileName, pack.packageRoot, osCakeConfiguration.scopePatterns), it, provHash)
+                    fib, getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params.scopePatterns), it, provHash)
                 @Suppress("ComplexCondition")
                 if ((it.isLicenseText && dedupFileName != null) || (!it.isLicenseText && dedupFileName == "")) {
                     addInfoToFileLicensings(pack, it, getPathName(pack, fib), dedupFileName)
@@ -344,7 +340,7 @@ internal class ModeDefault(
         pack: Pack
     ): Boolean = scanDict[pack.id]?.any { entry ->
                 entry.value.licenseTextEntries.any { lte -> lte.isLicenseText } ||
-                osCakeConfiguration.scopePatterns.any {
+                        OSCakeConfiguration.params.scopePatterns.any {
                     FileSystems.getDefault().getPathMatcher("glob:$it").
                         matches(File(File(entry.value.path).name).toPath())
                 }

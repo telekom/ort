@@ -105,7 +105,7 @@ internal data class PackageCuration(
      * the special case of [fileScope] == CURATION_DEFAULT_LICENSING (This special processing is necessary if
      * defaultLicensings exist, which are not based on fileLicensings - aka "declared license").
      */
-    internal fun curate(pack: Pack, archiveDir: File, fileStore: File, osCakeConfiguration: OSCakeConfiguration) {
+    internal fun curate(pack: Pack, archiveDir: File, fileStore: File) {
         if (packageModifier == "insert" || packageModifier == "update") {
             curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
                 val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
@@ -114,7 +114,7 @@ internal data class PackageCuration(
                     when (curationFileLicenseItem.modifier) {
                         "insert" -> curateLicenseInsert(
                             curationFileItem, curationFileLicenseItem, pack, archiveDir,
-                            fileStore, osCakeConfiguration
+                            fileStore
                         )
                         "delete" -> curateLicenseDelete(curationFileItem, curationFileLicenseItem, pack, archiveDir)
                         "update" -> curateLicenseUpdate(
@@ -380,10 +380,9 @@ internal data class PackageCuration(
         pack: Pack,
         archiveDir: File,
         fileStore: File,
-        osCakeConfiguration: OSCakeConfiguration
     ) {
         val scopeLevel = getScopeLevel(curationFileItem.fileScope,
-            pack.packageRoot, osCakeConfiguration.scopePatterns)
+            pack.packageRoot, OSCakeConfiguration.params.scopePatterns)
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
