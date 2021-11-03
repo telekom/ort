@@ -311,7 +311,7 @@ class OSCakeReporter : Reporter {
                 } catch (fileNotFound: FileNotFoundException) {
                     // if native scan results are not found for one package, we continue, but log an error
                     logger.log("Native scan result was not found: ${fileNotFound.message.toString()}",
-                        Level.ERROR, key, phase = ProcessingPhase.SCANRESULT)
+                        Level.ERROR, null, phase = ProcessingPhase.SCANRESULT)
                 }
             }
         }

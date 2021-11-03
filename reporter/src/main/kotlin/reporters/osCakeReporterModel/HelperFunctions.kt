@@ -163,14 +163,16 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLe
 
     // Root-Level: handle OSCakeIssues with no package info
     issuesPerPackage[null]?.forEach {
-        project.hasIssues = project.hasIssues || addIssue(it, project.issues, issuesLevel)
+        val rc = addIssue(it, project.issues, issuesLevel)
+        project.hasIssues = project.hasIssues || rc
     }
     // Package-Level: handle OSCakeIssues with package but no reference info
     project.packs.forEach { pack ->
         issuesPerPackage[pack.id.toCoordinates()]?.
             forEach {
                 if (it.reference == null || !(it.reference is DefaultLicense || it.reference is DirLicense )) {
-                    pack.hasIssues = pack.hasIssues || addIssue(it, pack.issues, issuesLevel)
+                    val rc = addIssue(it, pack.issues, issuesLevel)
+                    pack.hasIssues = pack.hasIssues || rc
                 }
         }
     }
