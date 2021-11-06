@@ -97,14 +97,18 @@ internal data class OSCakeConfiguration(
 
 ) {
     companion object {
-        lateinit var params: OSCakeConfigParams
+        private lateinit var osCakeConfiguration: OSCakeConfiguration
+        private val commandLineParams: MutableMap<String,String> = mutableMapOf()
         private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(REPORTER_LOGGER) }
+        lateinit var params: OSCakeConfigParams
+        lateinit var osCakeConfigInfo: OSCakeConfigInfo
 
         /**
          * [setConfigParams] contains logical checks and combinations of configuration entries set in osCakeConfiguration
          */
         internal fun setConfigParams(options: Map<String, String>) {
-            val osCakeConfiguration = getOSCakeConfiguration(options["configFile"]!!)
+            osCakeConfiguration = getOSCakeConfiguration(options["configFile"]!!)
+            commandLineParams["configFile"] = options["configFile"]!!
             if (osCakeConfiguration.curations?.get("enabled").toBoolean()) {
                 require(isValidFolder(osCakeConfiguration.curations?.get("fileStore"))) {
                     "Invalid or missing config entry found for \"curations.filestore\" in oscake.conf"
@@ -123,6 +127,8 @@ internal data class OSCakeConfiguration(
             var scanResultsCacheEnabled = false
             var oscakeScanResultsDir: String? = null
             val deleteOrtNativeScanResults = options.containsKey("--deleteOrtNativeScanResults")
+            if (deleteOrtNativeScanResults)
+                commandLineParams["deleteOrtNativeScanResults"] = true.toString()
             if (osCakeConfiguration.scanResultsCache?.get("enabled").toBoolean()) {
                 scanResultsCacheEnabled = true
                 require(isValidFolder(osCakeConfiguration.scanResultsCache?.getOrDefault("directory", ""))) {
@@ -163,6 +169,8 @@ internal data class OSCakeConfiguration(
             params.onlyIncludePackages = onlyIncludePackagesMap
             params.dependencyGranularity = if (options["dependency-granularity"]?.
                 toIntOrNull() != null) options["dependency-granularity"]!!.toInt() else Int.MAX_VALUE
+            if (params.dependencyGranularity != Int.MAX_VALUE) commandLineParams["dependency-granularity"] =
+                params.dependencyGranularity.toString()
             params.deleteOrtNativeScanResults = deleteOrtNativeScanResults
             params.issuesLevel = issueLevel
             params.sourceCodesDir = osCakeConfiguration.sourceCodesDir
@@ -176,8 +184,9 @@ internal data class OSCakeConfiguration(
                     "curations in oscake.conf are enabled, but 'curations.fileStore' is not a valid folder!"
                 }
                 params.curationsDirectory = osCakeConfiguration.curations!!.getOrDefault("directory", "")
-                params.curationsFileStore = osCakeConfiguration.curations.getOrDefault("fileStore", "")
+                params.curationsFileStore = osCakeConfiguration.curations!!.getOrDefault("fileStore", "")
             }
+            osCakeConfigInfo = OSCakeConfigInfo(OSCakeConfiguration.commandLineParams, OSCakeConfiguration.osCakeConfiguration)
         }
         /**
          * fetches the options which were passed via "-O OSCake=...=..."
