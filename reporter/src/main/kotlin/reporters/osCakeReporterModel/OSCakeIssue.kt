@@ -22,6 +22,7 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
+
 /**
  * [OSCakeIssue] represents a class containing information about problems which occurred during processing data of the
  * [OSCakeReporter] or the [CurationManager].
@@ -55,8 +56,7 @@ internal data class OSCakeIssue(
      * describes in which phase the error occured
      */
     val phase: ProcessingPhase?
-)
-{
+) {
     internal fun generateJSONPath(): String {
         // Root-Level
         if (id == null) {
@@ -73,7 +73,7 @@ internal data class OSCakeIssue(
         }
         if (scope == ScopeLevel.DIR) {
             val license = (reference as DirLicense).license
-            val fileName = fileScope?:""
+            val fileName = fileScope ?: ""
             val p = fileName.indexOfLast { it == '/' }
             val dirScope = if (p > -1) fileName.substring(0, p) else ""
             return "\$.complianceArtifactPackages[?(@.pid=='${id.name}')].dirLicensings[?(@.dirScope=='$dirScope')]." +

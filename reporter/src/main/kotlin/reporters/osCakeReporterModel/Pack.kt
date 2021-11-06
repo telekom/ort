@@ -36,7 +36,7 @@ import org.ossreviewtoolkit.model.Identifier
   */
 @JsonPropertyOrder("pid", "release", "repository", "id", "reuseCompliant", "hasIssues", "issues", "defaultLicensings",
     "dirLicensings", "reuseLicensings", "fileLicensings")
-@JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilter::class)
+@JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
 internal data class Pack(
     /**
      * Unique identifier for the package.

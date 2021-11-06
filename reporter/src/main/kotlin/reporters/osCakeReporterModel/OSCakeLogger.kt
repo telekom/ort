@@ -58,8 +58,7 @@ internal class OSCakeLogger(
         OSCakeIssue(msg, level, id, fileScope, reference, scope, phase).also {
             if (level != Level.DEBUG) osCakeIssues.add(it)
             if (OSCakeConfiguration.params.includeJsonPathInLogfile4ErrorsAndWarnings &&
-                (level == Level.ERROR || level == Level.WARN))
-                jsonPath = it.generateJSONPath()
+                (level == Level.ERROR || level == Level.WARN)) jsonPath = it.generateJSONPath()
         }
 
         var prefix = ""

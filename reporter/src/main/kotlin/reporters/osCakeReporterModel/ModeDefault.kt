@@ -90,7 +90,8 @@ internal class ModeDefault(
             // sort necessary for Wekan #85 - priority logic for handling LicenseTextEntries with equal licenses
             fib.licenseTextEntries.sortedWith(LicenseTextEntry).forEach {
                 val dedupFileName = handleDirDefaultEntriesAndLicenseTextsOnAllScopes(pack, sourceCodeDir, tmpDirectory,
-                    fib, getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params.scopePatterns), it, provHash)
+                    fib, getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params.scopePatterns), it,
+                    provHash)
                 @Suppress("ComplexCondition")
                 if ((it.isLicenseText && dedupFileName != null) || (!it.isLicenseText && dedupFileName == "")) {
                     addInfoToFileLicensings(pack, it, getPathName(pack, fib), dedupFileName)
@@ -201,7 +202,8 @@ internal class ModeDefault(
                         val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
                         logger.log(
                             "DefaultScope: multiple equal licenses <${lte.license}> in the same file found" +
-                                    " - ignored!", ll, pack.id, fib.path, lic, ScopeLevel.DEFAULT, ProcessingPhase.PROCESS)
+                                    " - ignored!", ll, pack.id, fib.path, lic, ScopeLevel.DEFAULT,
+                            ProcessingPhase.PROCESS)
                     }
                 }
             }
@@ -263,7 +265,8 @@ internal class ModeDefault(
      * The copyright statement must be found above of the license text [licenseTextEntry]; therefore, search for the
      * smallest startline of a copyright entry without crossing another license text
      */
-    private fun getCopyrightStartline(fileInfoBlock: FileInfoBlock, licenseTextEntry: LicenseTextEntry, fileName: String): Int? {
+    private fun getCopyrightStartline(fileInfoBlock: FileInfoBlock, licenseTextEntry: LicenseTextEntry, fileName:
+        String): Int? {
         val completeList = fileInfoBlock.licenseTextEntries.filter { it.isLicenseText }.toMutableList<TextEntry>()
         completeList.addAll(fileInfoBlock.copyrightTextEntries)
         completeList.sortByDescending { it.startLine }
@@ -286,7 +289,7 @@ internal class ModeDefault(
         LicenseTextEntry.endLine. If one of the two leading lines contains the word "Copyright", then this is the
         starting line.
          */
-        line?: run {
+        line ?: run {
             lastLicenseTextEntry?.let {
                 var diff = 2
                 if (it.startLine == 1) diff = 0
@@ -305,10 +308,10 @@ internal class ModeDefault(
         already the copyright, therefore the standard mechanism (copyright start line is lower than the start line of
         the license text) does not work. Solution: find copyright (start and endline) inside of a license text entry.
          */
-        line?: lastLicenseTextEntry?.run {
+        line ?: lastLicenseTextEntry?.run {
             if (completeList.filterIsInstance<CopyrightTextEntry>().any {
-                it.startLine >= lastLicenseTextEntry.startLine && it.endLine <= lastLicenseTextEntry.endLine })
-                line = lastLicenseTextEntry.startLine
+                it.startLine >= lastLicenseTextEntry.startLine && it.endLine <= lastLicenseTextEntry.endLine }) line =
+                    lastLicenseTextEntry.startLine
         }
 
         return line
@@ -342,11 +345,10 @@ internal class ModeDefault(
     ): Boolean = scanDict[pack.id]?.any { entry ->
                 entry.value.licenseTextEntries.any { lte -> lte.isLicenseText } ||
                         OSCakeConfiguration.params.scopePatterns.any {
-                    FileSystems.getDefault().getPathMatcher("glob:$it").
-                        matches(File(File(entry.value.path).name).toPath())
+                    FileSystems.getDefault().getPathMatcher("glob:$it").matches(
+                        File(File(entry.value.path).name).toPath())
                 }
         } ?: false
-
 
     /**
      * If no license is found for the project, a default one is created and filled with information provided by the
@@ -359,12 +361,14 @@ internal class ModeDefault(
             val pathInArchive: String? = null
             DefaultLicense(it.toString(), FOUND_IN_FILE_SCOPE_DECLARED, pathInArchive).apply {
                 pack.defaultLicensings.add(this)
-                if (isInstancedLicense(input, it.toString())) logger.log(
-                    "Declared license: <$it> is instanced license - no license text provided!",
-                    Level.WARN, pack.id, phase = ProcessingPhase.POST)
-                else
+                if (isInstancedLicense(input, it.toString())) {
+                    logger.log(
+                        "Declared license: <$it> is instanced license - no license text provided!",
+                        Level.WARN, pack.id, phase = ProcessingPhase.POST)
+                } else {
                     logger.log("Declared license <$it> used for project/package", Level.INFO,
                         pack.id, phase = ProcessingPhase.POST)
+                }
             }
         }
     }

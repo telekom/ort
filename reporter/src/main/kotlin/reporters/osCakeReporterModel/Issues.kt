@@ -23,7 +23,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 data class Issues(
-    val errors: MutableList<String>  = mutableListOf(),
+    val errors: MutableList<String> = mutableListOf(),
     val warnings: MutableList<String> = mutableListOf(),
     val infos: MutableList<String> = mutableListOf()
     )

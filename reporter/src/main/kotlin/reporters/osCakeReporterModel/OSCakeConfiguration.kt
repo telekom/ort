@@ -29,7 +29,6 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 
-
 /**
  * Part of the [OSCakeConfiguration]
  */
@@ -97,56 +96,57 @@ internal data class OSCakeConfiguration(
 
 ) {
     companion object {
-        private lateinit var osCakeConfiguration: OSCakeConfiguration
-        private val commandLineParams: MutableMap<String,String> = mutableMapOf()
+        private lateinit var osCakeConfig: OSCakeConfiguration
+        private val commandLineParams: MutableMap<String, String> = mutableMapOf()
         private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(REPORTER_LOGGER) }
         lateinit var params: OSCakeConfigParams
         lateinit var osCakeConfigInfo: OSCakeConfigInfo
 
         /**
-         * [setConfigParams] contains logical checks and combinations of configuration entries set in osCakeConfiguration
+         * [setConfigParams] contains logical checks and combinations of configuration entries set in
+         * osCakeConfig
          */
         internal fun setConfigParams(options: Map<String, String>) {
-            osCakeConfiguration = getOSCakeConfiguration(options["configFile"]!!)
+            osCakeConfig = getOSCakeConfiguration(options["configFile"]!!)
             commandLineParams["configFile"] = options["configFile"]!!
-            if (osCakeConfiguration.curations?.get("enabled").toBoolean()) {
-                require(isValidFolder(osCakeConfiguration.curations?.get("fileStore"))) {
+            if (osCakeConfig.curations?.get("enabled").toBoolean()) {
+                require(isValidFolder(osCakeConfig.curations?.get("fileStore"))) {
                     "Invalid or missing config entry found for \"curations.filestore\" in oscake.conf"
                 }
-                require(isValidFolder(osCakeConfiguration.curations?.get("directory"))) {
+                require(isValidFolder(osCakeConfig.curations?.get("directory"))) {
                     "Invalid or missing config entry found for \"curations.directory\" in oscake.conf"
                 }
             }
-            require(isValidFolder(osCakeConfiguration.sourceCodesDir)) {
+            require(isValidFolder(osCakeConfig.sourceCodesDir)) {
                 "Invalid or missing config entry found for \"sourceCodesDir\" in oscake.conf"
             }
-            val ortScanResultsDir = osCakeConfiguration.ortScanResultsDir
+            val ortScanResultsDir = osCakeConfig.ortScanResultsDir
             // init of params necessary, because the logger already needs this information
-            params = OSCakeConfigParams(osCakeConfiguration.includeJsonPathInLogfile4ErrorsAndWarnings?:false)
+            params = OSCakeConfigParams(osCakeConfig.includeJsonPathInLogfile4ErrorsAndWarnings ?: false)
 
             var scanResultsCacheEnabled = false
             var oscakeScanResultsDir: String? = null
             val deleteOrtNativeScanResults = options.containsKey("--deleteOrtNativeScanResults")
-            if (deleteOrtNativeScanResults)
-                commandLineParams["deleteOrtNativeScanResults"] = true.toString()
-            if (osCakeConfiguration.scanResultsCache?.get("enabled").toBoolean()) {
+            if (deleteOrtNativeScanResults) commandLineParams["deleteOrtNativeScanResults"] = true.toString()
+            if (osCakeConfig.scanResultsCache?.get("enabled").toBoolean()) {
                 scanResultsCacheEnabled = true
-                require(isValidFolder(osCakeConfiguration.scanResultsCache?.getOrDefault("directory", ""))) {
-                    "scanResultsCache in oscake.conf is enabled, but 'scanResultsCache.directory' is not a valid folder " +
+                require(isValidFolder(osCakeConfig.scanResultsCache?.getOrDefault("directory", ""))) {
+                "scanResultsCache in oscake.conf is enabled, but 'scanResultsCache.directory' is not a valid folder " +
                             "or 'scanResultsCache.directory' is missing in config!"
                 }
-                oscakeScanResultsDir = osCakeConfiguration.scanResultsCache?.getOrDefault("directory", null)
+                oscakeScanResultsDir = osCakeConfig.scanResultsCache?.getOrDefault("directory", null)
             } else {
-                require(isValidFolder(ortScanResultsDir)) { "Conf-value for 'nativeScanResultsDir' is not a valid folder!" }
+                require(isValidFolder(ortScanResultsDir)) { "Conf-value for 'nativeScanResultsDir' " +
+                        "is not a valid folder!" }
                 if (deleteOrtNativeScanResults) {
                     logger.log(
                         "Option \"--deleteOrtNativeScanResults\" ignored, because \"scanResultsCache\" in " +
-                                "oscake.conf does not exist or is not enabled!", Level.INFO, phase = ProcessingPhase.CONFIG
-                    )
+                                "oscake.conf does not exist or is not enabled!", Level.INFO,
+                        phase = ProcessingPhase.CONFIG)
                 }
             }
             val onlyIncludePackagesMap: MutableMap<Identifier, Boolean> = mutableMapOf()
-            osCakeConfiguration.packageRestrictions?.let { packageRestriction ->
+            osCakeConfig.packageRestrictions?.let { packageRestriction ->
                 if (packageRestriction.enabled != null && packageRestriction.enabled) {
                     var infoStr = "The output is restricted - set in configuration - to the following package(s):\n"
                     packageRestriction.onlyIncludePackages?.forEach {
@@ -158,8 +158,8 @@ internal data class OSCakeConfiguration(
                 }
             }
             var issueLevel: Int
-            osCakeConfiguration.includeIssues?.enabled.let {
-                issueLevel = osCakeConfiguration.includeIssues?.level?:-1
+            osCakeConfig.includeIssues?.enabled.let {
+                issueLevel = osCakeConfig.includeIssues?.level ?: -1
                 if (issueLevel > 2) issueLevel = 2
             }
 
@@ -173,20 +173,21 @@ internal data class OSCakeConfiguration(
                 params.dependencyGranularity.toString()
             params.deleteOrtNativeScanResults = deleteOrtNativeScanResults
             params.issuesLevel = issueLevel
-            params.sourceCodesDir = osCakeConfiguration.sourceCodesDir
-            params.scopePatterns = osCakeConfiguration.scopePatterns
-            params.curationsEnabled = osCakeConfiguration.curations?.get("enabled").toBoolean()
+            params.sourceCodesDir = osCakeConfig.sourceCodesDir
+            params.scopePatterns = osCakeConfig.scopePatterns
+            params.curationsEnabled = osCakeConfig.curations?.get("enabled").toBoolean()
             if (params.curationsEnabled) {
-                require(isValidFolder(osCakeConfiguration.curations?.getOrDefault("directory", ""))) {
+                require(isValidFolder(osCakeConfig.curations?.getOrDefault("directory", ""))) {
                     "curations in oscake.conf are enabled, but 'curations.directory' is not a valid folder!"
                 }
-                require(isValidFolder(osCakeConfiguration.curations?.getOrDefault("fileStore", ""))) {
+                require(isValidFolder(osCakeConfig.curations?.getOrDefault("fileStore", ""))) {
                     "curations in oscake.conf are enabled, but 'curations.fileStore' is not a valid folder!"
                 }
-                params.curationsDirectory = osCakeConfiguration.curations!!.getOrDefault("directory", "")
-                params.curationsFileStore = osCakeConfiguration.curations!!.getOrDefault("fileStore", "")
+                params.curationsDirectory = osCakeConfig.curations!!.getOrDefault("directory", "")
+                params.curationsFileStore = osCakeConfig.curations!!.getOrDefault("fileStore", "")
             }
-            osCakeConfigInfo = OSCakeConfigInfo(OSCakeConfiguration.commandLineParams, OSCakeConfiguration.osCakeConfiguration)
+            osCakeConfigInfo = OSCakeConfigInfo(OSCakeConfiguration.commandLineParams,
+                OSCakeConfiguration.osCakeConfig)
         }
         /**
          * fetches the options which were passed via "-O OSCake=...=..."
@@ -207,6 +208,5 @@ internal data class OSCakeConfiguration(
          */
         private fun isValidFolder(dir: String?): Boolean =
             !(dir == null || !File(dir).exists() || !File(dir).isDirectory)
-
     }
 }

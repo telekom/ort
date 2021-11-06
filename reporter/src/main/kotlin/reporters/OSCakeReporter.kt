@@ -22,10 +22,6 @@ package org.ossreviewtoolkit.reporter.reporters
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 
-import com.sksamuel.hoplite.ConfigLoader
-import com.sksamuel.hoplite.PropertySource
-import com.sksamuel.hoplite.fp.getOrElse
-
 import java.io.File
 import java.io.FileNotFoundException
 
@@ -51,7 +47,6 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigu
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeWrapper
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.REPORTER_LOGGER
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ScopeLevel
@@ -114,7 +109,8 @@ class OSCakeReporter : Reporter {
      * If a file contains more than one license text entry for a specific license and the difference of the
      * scores of the licenses is greater than 1, then the entry is removed - the one with the highest score remains.
      */
-    private fun removeMultipleEqualLicensesPerFile(scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>) {
+    private fun removeMultipleEqualLicensesPerFile(scanDict: MutableMap<Identifier,
+            MutableMap<String, FileInfoBlock>>) {
         scanDict.forEach { (pkg, fibMap) ->
             fibMap.forEach { (_, fib) ->
                 // create a map consisting of key=license, value=List of LicenseTextEntry
@@ -124,7 +120,7 @@ class OSCakeReporter : Reporter {
                 }
                 if (licMap.isNotEmpty()) {
                     val lteToRemove = mutableListOf<LicenseTextEntry>()
-                    licMap.filterValues { it.size > 1 } .forEach { (_, lteList) ->
+                    licMap.filterValues { it.size > 1 }.forEach { (_, lteList) ->
                         val sortedList = lteList.toMutableList()
                         sortedList.sortByDescending { it.score }
                         val highest = sortedList[0]
@@ -143,7 +139,6 @@ class OSCakeReporter : Reporter {
                 }
             }
         }
-
     }
 
     /**
@@ -311,7 +306,7 @@ class OSCakeReporter : Reporter {
                     scanDict[key] = fileInfoBlockDict
                 } catch (fileNotFound: FileNotFoundException) {
                     // if native scan results are not found for one package, we continue, but log an error
-                    logger.log("Native scan result was not found: ${fileNotFound.message.toString()}",
+                    logger.log("Native scan result was not found: ${fileNotFound.message}",
                         Level.ERROR, null, phase = ProcessingPhase.SCANRESULT)
                 }
             }

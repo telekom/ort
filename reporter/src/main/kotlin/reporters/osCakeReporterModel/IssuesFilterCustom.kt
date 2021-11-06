@@ -19,12 +19,12 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
-class IssuesFilter {
+@Suppress("EqualsWithHashCodeExist")
+class IssuesFilterCustom {
     override fun equals(other: Any?): Boolean {
         // do not serialize when the lists are empty
         if (other is Issues) {
-            if (other.errors.isEmpty() && other.infos.isEmpty() && other.warnings.isEmpty())
-                return true
+            if (other.errors.isEmpty() && other.infos.isEmpty() && other.warnings.isEmpty()) return true
         }
         return false
     }

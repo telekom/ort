@@ -170,7 +170,7 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLe
     project.packs.forEach { pack ->
         issuesPerPackage[pack.id.toCoordinates()]?.
             forEach {
-                if (it.reference == null || !(it.reference is DefaultLicense || it.reference is DirLicense )) {
+                if (it.reference == null || !(it.reference is DefaultLicense || it.reference is DirLicense)) {
                     val rc = addIssue(it, pack.issues, issuesLevel)
                     pack.hasIssues = pack.hasIssues || rc
                 }
@@ -181,7 +181,7 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLe
     project.packs.forEach { pack ->
         var pkgHasIssues = false
         issuesPerPackage[pack.id.toCoordinates()]?.forEach {
-            when(it.reference) {
+            when (it.reference) {
                 is DefaultLicense -> {
                     it.reference.hasIssues = addIssue(it, it.reference.issues, issuesLevel)
                     pkgHasIssues = pkgHasIssues || it.reference.hasIssues
@@ -197,7 +197,6 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLe
 
     // propagate hasIssue from Package to Project
     project.hasIssues = project.hasIssues || project.packs.any { it.hasIssues }
-
 }
 
 /**
@@ -209,8 +208,7 @@ internal fun addIssue(oscakeIssue: OSCakeIssue, issues: Issues, issuesLevel: Int
     when (oscakeIssue.level) {
         Level.DEBUG -> rc = false
         Level.INFO -> {
-            if (issuesLevel > 1)
-                issues.infos.add(oscakeIssue.msg)
+            if (issuesLevel > 1) issues.infos.add(oscakeIssue.msg)
             rc = false
         }
         Level.WARN -> if (issuesLevel > 0) issues.warnings.add(oscakeIssue.msg)

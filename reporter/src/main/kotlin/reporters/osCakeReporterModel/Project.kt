@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
  * The class [Project] wraps the meta information ([complianceArtifactCollection]) of the OSCakeReporter as well
  * as a list of included projects and packages store in instances of [Pack]
  */
-@JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilter::class)
+@JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
 internal data class Project(@JsonIgnore val cid: String) {
     /**
      * [hasIssues] shows if problems occurred during processing the data.
