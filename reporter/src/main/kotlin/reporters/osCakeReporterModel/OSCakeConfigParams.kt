@@ -70,7 +70,13 @@ internal data class OSCakeConfigParams(
     var curationsDirectory: String = "",
     var curationsFileStore: String = "",
 
-    ) {
+    /**
+     * [onlyIncludePackages] include the named packages - if they would be excluded by the commandline
+     * option: dependency-granularity
+     */
+    var forceIncludePackages: MutableMap<Identifier, Boolean> = mutableMapOf(),
+
+) {
     constructor(includeJsonPathInLogfile: Boolean) : this(
         includeJsonPathInLogfile4ErrorsAndWarnings = includeJsonPathInLogfile,
     )

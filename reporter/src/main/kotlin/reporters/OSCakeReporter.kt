@@ -87,6 +87,12 @@ class OSCakeReporter : Reporter {
         val scanDict = getNativeScanResults(input, OSCakeConfiguration.params)
         removeMultipleEqualLicensesPerFile(scanDict)
         val osc = ingestAnalyzerOutput(input, scanDict, outputDir, OSCakeConfiguration.params)
+
+        OSCakeConfiguration.params.forceIncludePackages.filter { !it.value }.forEach {
+            logger.log("Package \"${it.key}\" is configured to be present due to \"forceIncludePackages-List\", " +
+                    "but was not found!", Level.WARN, phase=ProcessingPhase.POST)
+        }
+
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) {
             handleOSCakeIssues(osc.project, logger, OSCakeConfiguration.params.issuesLevel)
         }
@@ -416,6 +422,12 @@ class OSCakeReporter : Reporter {
         id: Identifier
     ): Boolean {
         var rc = false
+        // include package despite of the dependency-granularity level
+        if (OSCakeConfiguration.params.forceIncludePackages.contains(id)) {
+            OSCakeConfiguration.params.forceIncludePackages[id] = true
+            return true
+        }
+
         dependencyTrees.forEach { dependencyTreeNode ->
             // take only nodes for packages and not nodes for structuring (e.g. defining scopes)
             if (dependencyTreeNode.pkg != null && dependencyTreeNode.pkg.id == id) {

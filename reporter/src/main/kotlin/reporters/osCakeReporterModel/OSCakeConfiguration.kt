@@ -46,6 +46,22 @@ internal data class PackageRestrictions(
 /**
  * Part of the [OSCakeConfiguration]
  */
+internal data class PackageInclusions(
+    /**
+     * shows if the mechanism for package inclusions is enabled, only works if the commandline parameter for
+     * dependency-granularity is set
+     */
+    val enabled: Boolean?,
+    /**
+     * contains a list of packages in IVY-notation, which has to be included - all others will be ignored
+     */
+    val forceIncludePackages: MutableList<String>?
+)
+
+
+/**
+ * Part of the [OSCakeConfiguration]
+ */
 internal data class IncludeIssues(
     /**
      * shows if the mechanism for including issues is enabled
@@ -86,15 +102,20 @@ internal data class OSCakeConfiguration(
      */
     val packageRestrictions: PackageRestrictions? = null,
     /**
+     * [packageInclusions] include the named packages despite the fact that they would be excluded due to the
+     * commandline option: dependency-granularity.
+     */
+    val packageInclusions: PackageInclusions? = null,
+    /**
      * defines if issues should be reported in oscc output
      */
     val includeIssues: IncludeIssues? = null,
     /**
      * defines if the log messages should be enriched with json paths concerning the oscc file
      */
-    val includeJsonPathInLogfile4ErrorsAndWarnings: Boolean? = false
+    val includeJsonPathInLogfile4ErrorsAndWarnings: Boolean? = false,
 
-) {
+    ) {
     companion object {
         private lateinit var osCakeConfig: OSCakeConfiguration
         private val commandLineParams: MutableMap<String, String> = mutableMapOf()
@@ -131,7 +152,7 @@ internal data class OSCakeConfiguration(
             if (osCakeConfig.scanResultsCache?.get("enabled").toBoolean()) {
                 scanResultsCacheEnabled = true
                 require(isValidFolder(osCakeConfig.scanResultsCache?.getOrDefault("directory", ""))) {
-                "scanResultsCache in oscake.conf is enabled, but 'scanResultsCache.directory' is not a valid folder " +
+                    "scanResultsCache in oscake.conf is enabled, but 'scanResultsCache.directory' is not a valid folder " +
                             "or 'scanResultsCache.directory' is missing in config!"
                 }
                 oscakeScanResultsDir = osCakeConfig.scanResultsCache?.getOrDefault("directory", null)
@@ -145,6 +166,10 @@ internal data class OSCakeConfiguration(
                         phase = ProcessingPhase.CONFIG)
                 }
             }
+
+            params.dependencyGranularity = if (options["dependency-granularity"]?.
+                toIntOrNull() != null) options["dependency-granularity"]!!.toInt() else Int.MAX_VALUE
+
             val onlyIncludePackagesMap: MutableMap<Identifier, Boolean> = mutableMapOf()
             osCakeConfig.packageRestrictions?.let { packageRestriction ->
                 if (packageRestriction.enabled != null && packageRestriction.enabled) {
@@ -155,8 +180,12 @@ internal data class OSCakeConfiguration(
                         infoStr += "   $id\n"
                     }
                     logger.log(infoStr, Level.INFO, phase = ProcessingPhase.CONFIG)
+                    params.dependencyGranularity = Int.MAX_VALUE
+                    logger.log("commandline parameter \"dependency-granularity\" is overruled due to " +
+                            "packageRestrictions", Level.INFO,phase = ProcessingPhase.CONFIG)
                 }
             }
+
             var issueLevel: Int
             osCakeConfig.includeIssues?.enabled.let {
                 issueLevel = osCakeConfig.includeIssues?.level ?: -1
@@ -167,10 +196,23 @@ internal data class OSCakeConfiguration(
             params.scanResultsCacheEnabled = scanResultsCacheEnabled
             params.oscakeScanResultsDir = oscakeScanResultsDir
             params.onlyIncludePackages = onlyIncludePackagesMap
-            params.dependencyGranularity = if (options["dependency-granularity"]?.
-                toIntOrNull() != null) options["dependency-granularity"]!!.toInt() else Int.MAX_VALUE
-            if (params.dependencyGranularity != Int.MAX_VALUE) commandLineParams["dependency-granularity"] =
-                params.dependencyGranularity.toString()
+
+            val forceIncludePackagesMap: MutableMap<Identifier, Boolean> = mutableMapOf()
+            osCakeConfig.packageInclusions?.let { packageInclusion ->
+                 if (params.dependencyGranularity != Int.MAX_VALUE && packageInclusion.enabled != null &&
+                     packageInclusion.enabled) {
+                     var infoStr = "The output is extended (set in configuration and despite of the commandline " +
+                             "parameter: \"dependency-granularity\" ) with the following package(s):\n"
+                     packageInclusion.forceIncludePackages?.forEach {
+                         val id = Identifier(it)
+                         forceIncludePackagesMap[id] = false
+                         infoStr += "   $id\n"
+                     }
+                     logger.log(infoStr, Level.INFO, phase = ProcessingPhase.CONFIG)
+                 }
+             }
+            params.forceIncludePackages = forceIncludePackagesMap
+
             params.deleteOrtNativeScanResults = deleteOrtNativeScanResults
             params.issuesLevel = issueLevel
             params.sourceCodesDir = osCakeConfig.sourceCodesDir
@@ -186,6 +228,9 @@ internal data class OSCakeConfiguration(
                 params.curationsDirectory = osCakeConfig.curations!!.getOrDefault("directory", "")
                 params.curationsFileStore = osCakeConfig.curations!!.getOrDefault("fileStore", "")
             }
+            if (params.dependencyGranularity != Int.MAX_VALUE) commandLineParams["dependency-granularity"] =
+                params.dependencyGranularity.toString()
+
             osCakeConfigInfo = OSCakeConfigInfo(OSCakeConfiguration.commandLineParams,
                 OSCakeConfiguration.osCakeConfig)
         }
