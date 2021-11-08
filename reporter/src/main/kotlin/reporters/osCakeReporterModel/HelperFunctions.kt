@@ -239,8 +239,8 @@ internal fun List<String>.generateSuffixRegex(): String =
     }.toString()
 
 internal fun String.getRidOfCommentSymbols(): String {
-    val withoutPrefix = Regex(commentPrefixRegexList).replace(this.trim(), "")
-    return if (withoutPrefix != this.trim()) Regex(commentSuffixRegexList).replace(withoutPrefix, "") else withoutPrefix
+    val withoutPrefix = Regex(commentPrefixRegexList).replaceFirst(this, "")
+    return if (withoutPrefix != this) Regex(commentSuffixRegexList).replace(withoutPrefix, "") else withoutPrefix
 }
 
 private val SHA1_DIGEST by lazy { MessageDigest.getInstance("SHA-1") }
