@@ -90,7 +90,7 @@ class OSCakeReporter : Reporter {
 
         OSCakeConfiguration.params.forceIncludePackages.filter { !it.value }.forEach {
             logger.log("Package \"${it.key}\" is configured to be present due to \"forceIncludePackages-List\", " +
-                    "but was not found!", Level.WARN, phase=ProcessingPhase.POST)
+                    "but was not found!", Level.WARN, phase = ProcessingPhase.POST)
         }
 
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) {

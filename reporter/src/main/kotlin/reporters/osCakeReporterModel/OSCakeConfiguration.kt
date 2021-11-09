@@ -58,7 +58,6 @@ internal data class PackageInclusions(
     val forceIncludePackages: MutableList<String>?
 )
 
-
 /**
  * Part of the [OSCakeConfiguration]
  */
@@ -152,8 +151,8 @@ internal data class OSCakeConfiguration(
             if (osCakeConfig.scanResultsCache?.get("enabled").toBoolean()) {
                 scanResultsCacheEnabled = true
                 require(isValidFolder(osCakeConfig.scanResultsCache?.getOrDefault("directory", ""))) {
-                    "scanResultsCache in oscake.conf is enabled, but 'scanResultsCache.directory' is not a valid folder " +
-                            "or 'scanResultsCache.directory' is missing in config!"
+                    "scanResultsCache in oscake.conf is enabled, but 'scanResultsCache.directory' is not a valid " +
+                            "folder or 'scanResultsCache.directory' is missing in config!"
                 }
                 oscakeScanResultsDir = osCakeConfig.scanResultsCache?.getOrDefault("directory", null)
             } else {
@@ -182,7 +181,7 @@ internal data class OSCakeConfiguration(
                     logger.log(infoStr, Level.INFO, phase = ProcessingPhase.CONFIG)
                     params.dependencyGranularity = Int.MAX_VALUE
                     logger.log("commandline parameter \"dependency-granularity\" is overruled due to " +
-                            "packageRestrictions", Level.INFO,phase = ProcessingPhase.CONFIG)
+                            "packageRestrictions", Level.INFO, phase = ProcessingPhase.CONFIG)
                 }
             }
 
@@ -190,6 +189,7 @@ internal data class OSCakeConfiguration(
             osCakeConfig.includeIssues?.enabled.let {
                 issueLevel = osCakeConfig.includeIssues?.level ?: -1
                 if (issueLevel > 2) issueLevel = 2
+                if (it == false) issueLevel = -1
             }
 
             params.ortScanResultsDir = ortScanResultsDir

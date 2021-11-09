@@ -74,9 +74,31 @@ internal class CurationManager(
      * package modifiers, applies the curations, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
-        // 1. reset "hasIssues" values
+        // 1. reset "hasIssues" values and remove old issues
         project.hasIssues = false
-        project.packs.forEach { it.hasIssues = false }
+        project.issues.warnings.clear()
+        project.issues.errors.clear()
+        project.issues.infos.clear()
+        project.packs.forEach { pack ->
+            pack.hasIssues = false
+            pack.issues.warnings.clear()
+            pack.issues.errors.clear()
+            pack.issues.infos.clear()
+            pack.defaultLicensings.forEach {
+                it.hasIssues = false
+                it.issues.warnings.clear()
+                it.issues.errors.clear()
+                it.issues.infos.clear()
+            }
+            pack.dirLicensings.forEach { dirLicensing ->
+                dirLicensing.licenses.forEach {
+                    it.issues.warnings.clear()
+                    it.issues.errors.clear()
+                    it.issues.infos.clear()
+                    it.hasIssues = false
+                }
+            }
+        }
 
         // 2. handle packageModifiers
         val orderByModifier = packageModifierMap.keys.withIndex().associate { it.value to it.index }
@@ -89,7 +111,7 @@ internal class CurationManager(
                         }
                     } else {
                         logger.log("Package: \"${packageCuration.id}\" already exists - no duplication!",
-                            Level.INFO)
+                            Level.INFO, phase = ProcessingPhase.CURATION)
                     }
                 "delete" -> deletePackage(packageCuration, archiveDir)
             }
@@ -103,7 +125,8 @@ internal class CurationManager(
         }
 
         // 4. report [OSCakeIssue]s
-        if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger, -1)
+        if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger,
+            OSCakeConfiguration.params.issuesLevel)
 
         // 5. generate .zip and .oscc files
         createResultingFiles()
@@ -148,7 +171,8 @@ internal class CurationManager(
             }
         }
         missingFiles.forEach {
-            logger.log("File: \"${it}\" not found in archive! --> Inconsistency", Level.ERROR)
+            logger.log("File: \"${it}\" not found in archive! --> Inconsistency",
+                Level.ERROR, phase = ProcessingPhase.CURATION)
         }
         // consistency check: direction from archive to pack
         missingFiles.clear()
@@ -176,7 +200,8 @@ internal class CurationManager(
             if (!found) missingFiles.add(fileName)
         }
         missingFiles.forEach {
-            logger.log("Archived file: \"${it}\": no reference found in oscc-file! Inconsistency", Level.ERROR)
+            logger.log("Archived file: \"${it}\": no reference found in oscc-file! Inconsistency",
+                Level.ERROR, phase = ProcessingPhase.CURATION)
         }
     }
 
@@ -184,7 +209,7 @@ internal class CurationManager(
      * The method writes the output file in oscc format (json file named  "..._curated.oscc") and creates a zip file
      * containing license text files named "..._curated.zip"
      */
-     fun createResultingFiles() {
+    private fun createResultingFiles() {
         val sourceZipFileName = File(stripRelativePathIndicators(project.complianceArtifactCollection.archivePath))
         val newZipFileName = extendFilename(sourceZipFileName)
         val targetFile = File(outputDir.path, newZipFileName)
