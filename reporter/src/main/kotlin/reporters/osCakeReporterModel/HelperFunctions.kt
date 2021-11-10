@@ -160,10 +160,13 @@ internal fun getPathName(pack: Pack, fib: FileInfoBlock): String {
 internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int) {
     // create Map with key = package (package may also be null)
     val issuesPerPackage = logger.osCakeIssues.groupBy { it.id?.toCoordinates() }
+    // keeps next number for the issue id, starting at 1
+    val issueNumberPerPackage = issuesPerPackage.keys.associateBy({ it }, { mutableMapOf("errno" to 1,
+        "warno" to 1, "infno" to 1) }).toMutableMap()
 
     // Root-Level: handle OSCakeIssues with no package info
     issuesPerPackage[null]?.forEach {
-        val rc = addIssue(it, project.issues, issuesLevel)
+        val rc = addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage.get(null)!!)
         project.hasIssues = project.hasIssues || rc
     }
     // Package-Level: handle OSCakeIssues with package but no reference info
@@ -171,7 +174,8 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLe
         issuesPerPackage[pack.id.toCoordinates()]?.
             forEach {
                 if (it.reference == null || !(it.reference is DefaultLicense || it.reference is DirLicense)) {
-                    val rc = addIssue(it, pack.issues, issuesLevel)
+                    val rc = addIssue(it, pack.issueList, issuesLevel,
+                        issueNumberPerPackage.get(pack.id.toCoordinates())!!)
                     pack.hasIssues = pack.hasIssues || rc
                 }
         }
@@ -183,11 +187,13 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLe
         issuesPerPackage[pack.id.toCoordinates()]?.forEach {
             when (it.reference) {
                 is DefaultLicense -> {
-                    it.reference.hasIssues = addIssue(it, it.reference.issues, issuesLevel)
+                    it.reference.hasIssues = addIssue(it, it.reference.issueList, issuesLevel,
+                        issueNumberPerPackage.get(pack.id.toCoordinates())!!)
                     pkgHasIssues = pkgHasIssues || it.reference.hasIssues
                 }
                 is DirLicense -> {
-                    it.reference.hasIssues = addIssue(it, it.reference.issues, issuesLevel)
+                    it.reference.hasIssues = addIssue(it, it.reference.issueList, issuesLevel,
+                        issueNumberPerPackage.get(pack.id.toCoordinates())!!)
                     pkgHasIssues = pkgHasIssues || it.reference.hasIssues
                 }
             }
@@ -203,19 +209,44 @@ internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLe
  * Adds issue to the issues list depending on Level information;
  * return true for Warnings and Errors
  */
-internal fun addIssue(oscakeIssue: OSCakeIssue, issues: Issues, issuesLevel: Int): Boolean {
-    var rc = true
-    when (oscakeIssue.level) {
-        Level.DEBUG -> rc = false
-        Level.INFO -> {
-            if (issuesLevel > 1) issues.infos.add(oscakeIssue.msg)
-            rc = false
+internal fun addIssue(oscakeIssue: OSCakeIssue, issueList: IssueList, issuesLevel: Int, no: MutableMap<String, Int>):
+        Boolean = when (oscakeIssue.level) {
+            Level.DEBUG -> false
+            Level.INFO -> {
+                if (issuesLevel > 1) issueList.infos.add(Issue(getNextNo('I', no), oscakeIssue.msg))
+                false
+            }
+            Level.WARN -> { if (issuesLevel > 0) issueList.warnings.add(Issue(getNextNo('W', no), oscakeIssue.msg))
+                true
+            }
+            Level.ERROR -> { if (issuesLevel > -1) issueList.errors.add(Issue(getNextNo('E', no), oscakeIssue.msg))
+                true
+            }
+            else -> false
         }
-        Level.WARN -> if (issuesLevel > 0) issues.warnings.add(oscakeIssue.msg)
-        Level.ERROR -> if (issuesLevel > -1) issues.errors.add(oscakeIssue.msg)
+
+/**
+ * [getNextNo] returns the next id for an issue depending on the type: INFO, WARN, ERROR represented by the [prefix]
+ * e.g. E01 or W01
+ */
+private fun getNextNo(prefix: Char, no: MutableMap<String, Int>): String = when (prefix) {
+        'I' -> {
+            var next = no.get("infno")!!
+            no.put("infno", next + 1)
+            prefix.toString() + "%02d".format(next)
+        }
+        'W' -> {
+            var next = no.get("warno")!!
+            no.put("warno", next + 1)
+            prefix.toString() + "%02d".format(next)
+        }
+        'E' -> {
+            var next = no.get("errno")!!
+            no.put("errno", next + 1)
+            prefix.toString() + "%02d".format(next)
+        }
+        else -> "No no found!"
     }
-    return rc
-}
 
 internal fun deleteFromArchive(oldPath: String?, archiveDir: File) =
     oldPath?.let { File(archiveDir, oldPath).apply { if (exists()) delete() } }

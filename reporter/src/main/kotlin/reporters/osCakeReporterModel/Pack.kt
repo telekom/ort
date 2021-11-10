@@ -85,7 +85,7 @@ internal data class Pack(
     /**
      * contains issues for the package level
      */
-    val issues: Issues = Issues()
+    @JsonProperty("issues") val issueList: IssueList = IssueList()
     /**
      *  [defaultLicensings] contains a list of [DefaultLicense]s  for non-REUSE compliant packages.
      */

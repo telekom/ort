@@ -57,5 +57,5 @@ internal class DefaultLicense(
     /**
      * contains issues for the scope
      */
-    val issues: Issues = Issues()
+    @JsonProperty("issues") val issueList: IssueList = IssueList()
 )

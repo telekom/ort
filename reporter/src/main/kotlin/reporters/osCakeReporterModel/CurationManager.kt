@@ -76,25 +76,25 @@ internal class CurationManager(
     internal fun manage() {
         // 1. reset "hasIssues" values and remove old issues
         project.hasIssues = false
-        project.issues.warnings.clear()
-        project.issues.errors.clear()
-        project.issues.infos.clear()
+        project.issueList.warnings.clear()
+        project.issueList.errors.clear()
+        project.issueList.infos.clear()
         project.packs.forEach { pack ->
             pack.hasIssues = false
-            pack.issues.warnings.clear()
-            pack.issues.errors.clear()
-            pack.issues.infos.clear()
+            pack.issueList.warnings.clear()
+            pack.issueList.errors.clear()
+            pack.issueList.infos.clear()
             pack.defaultLicensings.forEach {
                 it.hasIssues = false
-                it.issues.warnings.clear()
-                it.issues.errors.clear()
-                it.issues.infos.clear()
+                it.issueList.warnings.clear()
+                it.issueList.errors.clear()
+                it.issueList.infos.clear()
             }
             pack.dirLicensings.forEach { dirLicensing ->
                 dirLicensing.licenses.forEach {
-                    it.issues.warnings.clear()
-                    it.issues.errors.clear()
-                    it.issues.infos.clear()
+                    it.issueList.warnings.clear()
+                    it.issueList.errors.clear()
+                    it.issueList.infos.clear()
                     it.hasIssues = false
                 }
             }

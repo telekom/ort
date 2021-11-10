@@ -19,13 +19,14 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
-@Suppress("EqualsWithHashCodeExist")
-class IssuesFilterCustom {
-    override fun equals(other: Any?): Boolean {
-        // do not serialize when the lists are empty
-        if (other is IssueList) {
-            if (other.errors.isEmpty() && other.infos.isEmpty() && other.warnings.isEmpty()) return true
-        }
-        return false
-    }
-}
+import com.fasterxml.jackson.annotation.JsonInclude
+
+/**
+ * keeps lists for issues of type: ERROR, WARN and INFO
+ */
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
+data class IssueList(
+    val errors: MutableList<Issue> = mutableListOf(),
+    val warnings: MutableList<Issue> = mutableListOf(),
+    val infos: MutableList<Issue> = mutableListOf()
+)

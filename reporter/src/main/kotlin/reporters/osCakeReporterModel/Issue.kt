@@ -19,11 +19,7 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
-import com.fasterxml.jackson.annotation.JsonInclude
-
-@JsonInclude(JsonInclude.Include.NON_EMPTY)
-data class Issues(
-    val errors: MutableList<String> = mutableListOf(),
-    val warnings: MutableList<String> = mutableListOf(),
-    val infos: MutableList<String> = mutableListOf()
+data class Issue(
+    val id: String,
+    val message: String
     )

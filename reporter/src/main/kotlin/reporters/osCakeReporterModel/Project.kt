@@ -22,11 +22,13 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
 /**
  * The class [Project] wraps the meta information ([complianceArtifactCollection]) of the OSCakeReporter as well
  * as a list of included projects and packages store in instances of [Pack]
  */
+@JsonPropertyOrder("hasIssues", "issues", "config", "complianceArtifactCollection", "complianceArtifactPackages")
 @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
 internal data class Project(@JsonIgnore val cid: String) {
     /**
@@ -36,8 +38,10 @@ internal data class Project(@JsonIgnore val cid: String) {
     /**
      * contains issues for the project level
      */
-    var issues: Issues = Issues()
-
+    @JsonProperty("issues") val issueList: IssueList = IssueList()
+    /**
+     * contains the runtime configuration - commandline parameters and oscake.conf
+     */
     var config: OSCakeConfigInfo? = null
     /**
      * [complianceArtifactCollection] contains metadata about the project.
