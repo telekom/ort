@@ -81,10 +81,6 @@ data class OSCakeConfiguration(
      */
     val scopePatterns: List<String> = mutableListOf(),
     /**
-     * [curations] contains information about the folders where the curation files can be found.
-     */
-    val curations: Map<String, String>? = null,
-    /**
      * [sourceCodesDir] folders where to find or save the source code.
      */
     val sourceCodesDir: String? = null,
@@ -129,14 +125,6 @@ data class OSCakeConfiguration(
         internal fun setConfigParams(options: Map<String, String>) {
             osCakeConfig = getOSCakeConfiguration(options["configFile"]!!)
             commandLineParams["configFile"] = options["configFile"]!!
-            if (osCakeConfig.curations?.get("enabled").toBoolean()) {
-                require(isValidFolder(osCakeConfig.curations?.get("fileStore"))) {
-                    "Invalid or missing config entry found for \"curations.filestore\" in oscake.conf"
-                }
-                require(isValidFolder(osCakeConfig.curations?.get("directory"))) {
-                    "Invalid or missing config entry found for \"curations.directory\" in oscake.conf"
-                }
-            }
             require(isValidFolder(osCakeConfig.sourceCodesDir)) {
                 "Invalid or missing config entry found for \"sourceCodesDir\" in oscake.conf"
             }
@@ -217,17 +205,6 @@ data class OSCakeConfiguration(
             params.issuesLevel = issueLevel
             params.sourceCodesDir = osCakeConfig.sourceCodesDir
             params.scopePatterns = osCakeConfig.scopePatterns
-            params.curationsEnabled = osCakeConfig.curations?.get("enabled").toBoolean()
-            if (params.curationsEnabled) {
-                require(isValidFolder(osCakeConfig.curations?.getOrDefault("directory", ""))) {
-                    "curations in oscake.conf are enabled, but 'curations.directory' is not a valid folder!"
-                }
-                require(isValidFolder(osCakeConfig.curations?.getOrDefault("fileStore", ""))) {
-                    "curations in oscake.conf are enabled, but 'curations.fileStore' is not a valid folder!"
-                }
-                params.curationsDirectory = osCakeConfig.curations!!.getOrDefault("directory", "")
-                params.curationsFileStore = osCakeConfig.curations!!.getOrDefault("fileStore", "")
-            }
             if (params.dependencyGranularity != Int.MAX_VALUE) commandLineParams["dependency-granularity"] =
                 params.dependencyGranularity.toString()
 
@@ -237,7 +214,7 @@ data class OSCakeConfiguration(
         /**
          * fetches the options which were passed via "-O OSCake=...=..."
          */
-        internal fun getOSCakeConfiguration(fileName: String): OSCakeConfiguration {
+        private fun getOSCakeConfiguration(fileName: String): OSCakeConfiguration {
             val config = ConfigLoader.Builder()
                 .addSource(PropertySource.file(File(fileName)))
                 .build()

@@ -36,38 +36,13 @@ import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
 import org.ossreviewtoolkit.utils.toHexString
 
-public const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
+const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
 const val REUSE_LICENSES_FOLDER = "LICENSES/"
-const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
-const val CURATION_LOGGER = "OSCakeCuration"
 internal const val REPORTER_LOGGER = "OSCakeReporter"
 
 val commentPrefixRegexList = listOf("""\*""", """/\*+""", "//", "#", "<#", """\.\.\.""", "REM",
     "<!--", "!", "'", "--", ";", """\(\*""", """\{""").generatePrefixRegex()
 val commentSuffixRegexList = listOf("""\*+/""", "-->", "#>", """\*\)""", """\}""").generateSuffixRegex()
-
-/**
- * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
- * modifiers - the first set contains modifiers for licenses, second set for copyrights
- * Important: the sequence of items in the sets defines also the sequence of curations
- * e.g.: for packageModifier: "update" the sequence of curations is "delete-all", than "delete" and finally "insert"
- */
-val packageModifierMap = hashMapOf("delete" to listOf(setOf(), setOf()),
-    "insert" to listOf(setOf("insert"), setOf("insert")),
-    "update" to listOf(setOf("delete", "insert", "update"), setOf("delete-all", "delete", "insert"))
-)
-
-/**
- * [orderLicenseByModifier] defines the sort order of curations for licenses.
- */
-val orderLicenseByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(0)?.
-withIndex()?.associate { it.value to it.index } }.toMap()
-
-/**
- * [orderCopyrightByModifier] defines the sort order of curations for copyrights.
- */
-val orderCopyrightByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(1)?.
-withIndex()?.associate { it.value to it.index } }.toMap()
 
 /**
  * Checks if a license is categorized as "instanced" license - as defined in file

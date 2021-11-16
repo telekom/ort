@@ -64,13 +64,6 @@ data class OSCakeConfigParams(
      */
     var scopePatterns: List<String> = mutableListOf(),
     /**
-     * detailed info about curation handling
-     */
-    var curationsEnabled: Boolean = false,
-    var curationsDirectory: String = "",
-    var curationsFileStore: String = "",
-
-    /**
      * [onlyIncludePackages] include the named packages - if they would be excluded by the commandline
      * option: dependency-granularity
      */

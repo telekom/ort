@@ -19,6 +19,32 @@
 
 package org.ossreviewtoolkit.oscake
 
+const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
+const val CURATION_LOGGER = "OSCakeCuration"
+
+/**
+ * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
+ * modifiers - the first set contains modifiers for licenses, second set for copyrights
+ * Important: the sequence of items in the sets defines also the sequence of curations
+ * e.g.: for packageModifier: "update" the sequence of curations is "delete-all", than "delete" and finally "insert"
+ */
+val packageModifierMap = hashMapOf("delete" to listOf(setOf(), setOf()),
+    "insert" to listOf(setOf("insert"), setOf("insert")),
+    "update" to listOf(setOf("delete", "insert", "update"), setOf("delete-all", "delete", "insert"))
+)
+
+/**
+ * [orderLicenseByModifier] defines the sort order of curations for licenses.
+ */
+val orderLicenseByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(0)?.
+withIndex()?.associate { it.value to it.index } }.toMap()
+
+/**
+ * [orderCopyrightByModifier] defines the sort order of curations for copyrights.
+ */
+val orderCopyrightByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(1)?.
+withIndex()?.associate { it.value to it.index } }.toMap()
+
 class OSCakeApplication() {
     companion object {
         val ALL by lazy { listOf("curator", "merger") }
