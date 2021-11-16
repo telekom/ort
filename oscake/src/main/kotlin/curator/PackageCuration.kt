@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.oscake.curator
 
 import com.fasterxml.jackson.annotation.JsonProperty
 
@@ -30,6 +30,9 @@ import java.nio.file.FileSystems
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.model.config.OSCakeConfiguration
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+
 
 /**
  * A [PackageCuration] contains a curation for a specific package, identified by an [id]. The instances are created
@@ -105,7 +108,7 @@ internal data class PackageCuration(
      * the special case of [fileScope] == CURATION_DEFAULT_LICENSING (This special processing is necessary if
      * defaultLicensings exist, which are not based on fileLicensings - aka "declared license").
      */
-    internal fun curate(pack: Pack, archiveDir: File, fileStore: File) {
+    internal fun curate(pack: Pack, archiveDir: File, fileStore: File, config: OSCakeConfiguration) {
         if (packageModifier == "insert" || packageModifier == "update") {
             curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
                 val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
@@ -114,7 +117,7 @@ internal data class PackageCuration(
                     when (curationFileLicenseItem.modifier) {
                         "insert" -> curateLicenseInsert(
                             curationFileItem, curationFileLicenseItem, pack, archiveDir,
-                            fileStore
+                            fileStore, config
                         )
                         "delete" -> curateLicenseDelete(curationFileItem, curationFileLicenseItem, pack, archiveDir)
                         "update" -> curateLicenseUpdate(
@@ -313,8 +316,10 @@ internal data class PackageCuration(
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: (FileLicensing(fileScope).apply {
             pack.fileLicensings.add(this) })
                 ).apply {
-                    copyrights.add(FileCopyright(curFileCopyrightItem.copyright!!.replace("\\?", "?"
-                        ).replace("\\*", "*")))
+                    copyrights.add(
+                        FileCopyright(curFileCopyrightItem.copyright!!.replace("\\?", "?"
+                        ).replace("\\*", "*"))
+                    )
                 }
 
     private fun curateCopyrightDeleteAll(fileScope: String, pack: Pack) {
@@ -380,9 +385,10 @@ internal data class PackageCuration(
         pack: Pack,
         archiveDir: File,
         fileStore: File,
+        config: OSCakeConfiguration
     ) {
         val scopeLevel = getScopeLevel(curationFileItem.fileScope,
-            pack.packageRoot, OSCakeConfiguration.params.scopePatterns)
+            pack.packageRoot, config.oscakeCurations?.scopePatterns ?: emptyList())
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
@@ -405,8 +411,10 @@ internal data class PackageCuration(
             if (pack.fileLicensings.none { it.scope == fileScope }) pack.fileLicensings.add(this)
         }
 
-        if (pack.reuseCompliant && fileScope.startsWith(REUSE_LICENSES_FOLDER)) pack.reuseLicensings.add(ReuseLicense(
-            fileLicense.license, fileScope, fileLicense.licenseTextInArchive))
+        if (pack.reuseCompliant && fileScope.startsWith(REUSE_LICENSES_FOLDER)) pack.reuseLicensings.add(
+            ReuseLicense(
+            fileLicense.license, fileScope, fileLicense.licenseTextInArchive)
+        )
 
         if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
             pack.defaultLicensings.add(
@@ -439,7 +447,7 @@ internal data class PackageCuration(
         File(fileStore.path + "/" + newPath).apply {
             if (exists()) copyTo(targetFileDeDup)
             else {
-                logger.log("File '" + name + "' in file store not found --> set to null", Level.ERROR, pack.id)
+                logger.log("File '$name' in file store not found --> set to null", Level.ERROR, pack.id)
                 return null
             }
         }

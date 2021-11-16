@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger
  * The [OSCakeLoggerManager] is the connection to the log4j2.xml configuration file. It handles a map of different
  * [OSCakeLogger]s and acts as a factory.
  */
-internal class OSCakeLoggerManager private constructor() {
+class OSCakeLoggerManager private constructor() {
     companion object {
         /**
          * The [logger] is a reference to the Apache log4j2.

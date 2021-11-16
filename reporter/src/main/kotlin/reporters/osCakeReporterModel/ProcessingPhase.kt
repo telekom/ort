@@ -22,4 +22,4 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 /**
  * License information may be valid for different scope levels [ProcessingPhase].
 */
-internal enum class ProcessingPhase { ORIGINAL, CONFIG, PRE, SCANRESULT, DOWNLOAD, PROCESS, POST, CURATION }
+enum class ProcessingPhase { ORIGINAL, CONFIG, PRE, SCANRESULT, DOWNLOAD, PROCESS, POST, CURATION }

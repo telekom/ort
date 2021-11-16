@@ -22,7 +22,9 @@ package org.ossreviewtoolkit.oscake
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
+import org.ossreviewtoolkit.oscake.curator.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FOUND_IN_FILE_SCOPE_DECLARED
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import java.io.File
 import java.io.IOException
@@ -31,8 +33,6 @@ class OSCakeCurator (private val config: OSCakeConfiguration, private val osccFi
                      private val outputDir: File) {
 
     fun execute() {
-
-        println(config.oscakeCurations?.directory + " ---- " + outputDir)
         val mapper = jacksonObjectMapper()
         var project: Project?
         try {
@@ -46,6 +46,9 @@ class OSCakeCurator (private val config: OSCakeConfiguration, private val osccFi
                         it.declared = false
                 }
             }
+            val osc = OSCakeRoot(project.complianceArtifactCollection.cid)
+            osc.project = project
+            CurationManager(osc.project, outputDir, osccFile.absolutePath, config).manage()
         } catch (e: IOException) {
             println(e.stackTraceToString())
         } finally {

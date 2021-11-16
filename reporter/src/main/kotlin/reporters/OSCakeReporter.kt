@@ -38,7 +38,6 @@ import org.ossreviewtoolkit.reporter.model.DependencyTreeNode
 import org.ossreviewtoolkit.reporter.model.EvaluatedModel
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.LicenseTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ModeSelector
@@ -104,10 +103,6 @@ class OSCakeReporter : Reporter {
         outputFile.bufferedWriter().use {
             it.write(objectMapper.writeValueAsString(osc.project))
         }
-        // process curations
-        if (OSCakeConfiguration.params.curationsEnabled) CurationManager(osc.project,
-            outputDir, reportFilename).manage()
-
         return listOf(outputFile)
     }
 

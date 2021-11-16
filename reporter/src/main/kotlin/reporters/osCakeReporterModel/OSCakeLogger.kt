@@ -27,7 +27,7 @@ import org.ossreviewtoolkit.model.Identifier
 /**
  * The [OSCakeLogger] manages a list of reported [OSCakeIssue]s and a [logger] for a specific [source]
   */
-internal class OSCakeLogger(
+class OSCakeLogger(
     /**
      * [source] represents the origin (e.g. [CURATION_LOGGER] or [REPORTER_LOGGER]).
      */
@@ -45,7 +45,7 @@ internal class OSCakeLogger(
     /**
      * Stores an issue in the map [osCakeIssues] and writes the [msg] with a specific prefix into the log file.
      */
-    internal fun log(
+    fun log(
         msg: String,
         level: Level,
         id: Identifier? = null,

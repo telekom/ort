@@ -17,24 +17,23 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
-
-import com.fasterxml.jackson.annotation.JsonProperty
+package org.ossreviewtoolkit.oscake.curator
 
 /**
- * A class defining curations for licenses and copyrights for a specific file defined in [fileScope].
+ * A class defining a curation for a copyright.
  */
-internal data class CurationFileItem(
+internal data class CurationFileCopyrightItem(
     /**
-     * Relative path to the specified file - may also contain the "packageRoot" as defined in the class pack.
+     * The [modifier] defines the application of the curation: delete, insert or delete-all.
      */
-    @JsonProperty("file_scope") val fileScope: String,
+    val modifier: String,
     /**
-     * List of [fileLicenses] to be processed.
+     * The optional [reason] is a description of the necessity of the curation.
      */
-    @JsonProperty("file_licenses") val fileLicenses: List<CurationFileLicenseItem>?,
+    val reason: String?,
     /**
-     * List of [fileCopyrights] to be processed.
+     * The [copyright] is used to identify the specific copyright text; it may contain a string,
+     * a placeholder "*" or null. The [copyright] may also contain wildcards, like: "*" or "?".
      */
-    @JsonProperty("file_copyrights") val fileCopyrights: List<CurationFileCopyrightItem>?
+    val copyright: String?
 )

@@ -20,7 +20,6 @@
 package org.ossreviewtoolkit.model.config
 
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.annotation.JsonProperty
 
 /**
  * The base configuration model of the oscake applications.
@@ -32,5 +31,7 @@ data class OSCakeConfiguration(
 
 data class OSCakeCurations(
     val directory: String? = null,
-    val fileStore: String? = null
+    val fileStore: String? = null,
+    val issueLevel: Int? = -1,
+    val scopePatterns: List<String>? = emptyList()
 )

@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.oscake.curator
 
 import com.fasterxml.jackson.databind.ObjectMapper
 
@@ -26,6 +26,8 @@ import java.io.File
 import kotlin.io.path.createTempDirectory
 
 import org.apache.logging.log4j.Level
+import org.ossreviewtoolkit.model.config.OSCakeConfiguration
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
 import org.ossreviewtoolkit.utils.packZip
 import org.ossreviewtoolkit.utils.unpackZip
@@ -47,7 +49,12 @@ internal class CurationManager(
     /**
      * The name of the reporter's output file which is extended by the [CurationManager]
      */
-    val reportFilename: String) {
+    private val reportFilename: String,
+    /**
+     * Configuration in ort.conf
+     */
+    val config: OSCakeConfiguration
+    ) {
 
     /**
      * If curations have to be applied, the reporter's zip-archive is unpacked into this temporary folder.
@@ -61,8 +68,8 @@ internal class CurationManager(
     /**
      * The [curationProvider] contains a list of [PackageCuration]s to be applied.
      */
-    private var curationProvider = CurationProvider(File(OSCakeConfiguration.params.curationsDirectory),
-        File(OSCakeConfiguration.params.curationsFileStore))
+    private var curationProvider = CurationProvider(File(config.oscakeCurations?.directory!!),
+        File(config.oscakeCurations?.fileStore!!))
 
     /**
      * The [logger] is only initialized, if there is something to log.
@@ -111,7 +118,8 @@ internal class CurationManager(
                         }
                     } else {
                         logger.log("Package: \"${packageCuration.id}\" already exists - no duplication!",
-                            Level.INFO, phase = ProcessingPhase.CURATION)
+                            Level.INFO, phase = ProcessingPhase.CURATION
+                        )
                     }
                 "delete" -> deletePackage(packageCuration, archiveDir)
             }
@@ -121,12 +129,12 @@ internal class CurationManager(
         // and "packageModifier" - update, insert, delete
         project.packs.forEach {
             curationProvider.getCurationFor(it.id)?.curate(it, archiveDir,
-                File(OSCakeConfiguration.params.curationsFileStore))
+                File(config.oscakeCurations?.fileStore!!), config)
         }
 
         // 4. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger,
-            OSCakeConfiguration.params.issuesLevel)
+            config.oscakeCurations?.issueLevel ?: -1)
 
         // 5. generate .zip and .oscc files
         createResultingFiles()
@@ -172,7 +180,8 @@ internal class CurationManager(
         }
         missingFiles.forEach {
             logger.log("File: \"${it}\" not found in archive! --> Inconsistency",
-                Level.ERROR, phase = ProcessingPhase.CURATION)
+                Level.ERROR, phase = ProcessingPhase.CURATION
+            )
         }
         // consistency check: direction from archive to pack
         missingFiles.clear()
@@ -201,7 +210,8 @@ internal class CurationManager(
         }
         missingFiles.forEach {
             logger.log("Archived file: \"${it}\": no reference found in oscc-file! Inconsistency",
-                Level.ERROR, phase = ProcessingPhase.CURATION)
+                Level.ERROR, phase = ProcessingPhase.CURATION
+            )
         }
     }
 

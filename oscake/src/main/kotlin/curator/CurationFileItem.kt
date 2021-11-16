@@ -17,20 +17,24 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.oscake.curator
+
+import com.fasterxml.jackson.annotation.JsonProperty
 
 /**
- * The class [OSCakeRoot] represents the root node for the output; currently, it only consists of the property
- * [Project]
+ * A class defining curations for licenses and copyrights for a specific file defined in [fileScope].
  */
-data class OSCakeRoot(
+internal data class CurationFileItem(
     /**
-     * The [cid] is the unique identifier for the project: e.g.: "Maven:de.tdosca.tc06:tdosca-tc06:1.0"
+     * Relative path to the specified file - may also contain the "packageRoot" as defined in the class pack.
      */
-    private val cid: String
-) {
+    @JsonProperty("file_scope") val fileScope: String,
     /**
-     * The [project] contains the project's packages and resolved license information.
+     * List of [fileLicenses] to be processed.
      */
-    var project: Project = Project()
-}
+    @JsonProperty("file_licenses") val fileLicenses: List<CurationFileLicenseItem>?,
+    /**
+     * List of [fileCopyrights] to be processed.
+     */
+    @JsonProperty("file_copyrights") val fileCopyrights: List<CurationFileCopyrightItem>?
+)

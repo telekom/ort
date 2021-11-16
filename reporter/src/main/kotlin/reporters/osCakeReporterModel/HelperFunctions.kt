@@ -37,9 +37,9 @@ import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
 import org.ossreviewtoolkit.utils.toHexString
 
 public const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
-internal const val REUSE_LICENSES_FOLDER = "LICENSES/"
-internal const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
-internal const val CURATION_LOGGER = "OSCakeCuration"
+const val REUSE_LICENSES_FOLDER = "LICENSES/"
+const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
+const val CURATION_LOGGER = "OSCakeCuration"
 internal const val REPORTER_LOGGER = "OSCakeReporter"
 
 val commentPrefixRegexList = listOf("""\*""", """/\*+""", "//", "#", "<#", """\.\.\.""", "REM",
@@ -52,7 +52,7 @@ val commentSuffixRegexList = listOf("""\*+/""", "-->", "#>", """\*\)""", """\}""
  * Important: the sequence of items in the sets defines also the sequence of curations
  * e.g.: for packageModifier: "update" the sequence of curations is "delete-all", than "delete" and finally "insert"
  */
-internal val packageModifierMap = hashMapOf("delete" to listOf(setOf(), setOf()),
+val packageModifierMap = hashMapOf("delete" to listOf(setOf(), setOf()),
     "insert" to listOf(setOf("insert"), setOf("insert")),
     "update" to listOf(setOf("delete", "insert", "update"), setOf("delete-all", "delete", "insert"))
 )
@@ -60,13 +60,13 @@ internal val packageModifierMap = hashMapOf("delete" to listOf(setOf(), setOf())
 /**
  * [orderLicenseByModifier] defines the sort order of curations for licenses.
  */
-internal val orderLicenseByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(0)?.
+val orderLicenseByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(0)?.
 withIndex()?.associate { it.value to it.index } }.toMap()
 
 /**
  * [orderCopyrightByModifier] defines the sort order of curations for copyrights.
  */
-internal val orderCopyrightByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(1)?.
+val orderCopyrightByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(1)?.
 withIndex()?.associate { it.value to it.index } }.toMap()
 
 /**
@@ -80,7 +80,7 @@ internal fun isInstancedLicense(input: ReporterInput, license: String): Boolean 
 /**
  * If a file with [path] already exists, a suffix is prepared for uniqueness and the adapted path is returned.
  */
-internal fun deduplicateFileName(path: String): String {
+fun deduplicateFileName(path: String): String {
     var ret = path
     if (File(path).exists()) {
         var counter = 2
@@ -92,10 +92,10 @@ internal fun deduplicateFileName(path: String): String {
     return ret
 }
 
-internal fun getLicensesFolderPrefix(packageRoot: String) = packageRoot +
+fun getLicensesFolderPrefix(packageRoot: String) = packageRoot +
         (if (packageRoot != "") "/" else "") + REUSE_LICENSES_FOLDER
 
-internal fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null): String =
+fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null): String =
     id.toPath("%") + "%" + path.replace('/', '%').replace('\\', '%'
     ) + if (fileExtension != null) ".$fileExtension" else ""
 
@@ -103,7 +103,7 @@ internal fun createPathFlat(id: Identifier, path: String, fileExtension: String?
  * Depending on the [path] of the file and the name of the file (contained in list [scopePatterns]) the
  * [ScopeLevel] is identified.
  */
-internal fun getScopeLevel(path: String, packageRoot: String, scopePatterns: List<String>): ScopeLevel {
+fun getScopeLevel(path: String, packageRoot: String, scopePatterns: List<String>): ScopeLevel {
     var scopeLevel = ScopeLevel.FILE
     val fileSystem = FileSystems.getDefault()
 
@@ -120,7 +120,7 @@ internal fun getScopeLevel(path: String, packageRoot: String, scopePatterns: Lis
     return scopeLevel
 }
 
-internal fun getDirScopePath(pack: Pack, fileScope: String): String {
+fun getDirScopePath(pack: Pack, fileScope: String): String {
     val p = if (fileScope.startsWith(pack.packageRoot) && pack.packageRoot != "") {
         fileScope.replaceFirst(pack.packageRoot, "")
     } else {
@@ -132,7 +132,7 @@ internal fun getDirScopePath(pack: Pack, fileScope: String): String {
     return p.substring(start, lastIndex)
 }
 
-internal fun getPathWithoutPackageRoot(pack: Pack, fileScope: String): String {
+fun getPathWithoutPackageRoot(pack: Pack, fileScope: String): String {
     val pathWithoutPackage = if (fileScope.startsWith(pack.packageRoot) && pack.packageRoot != "") {
         fileScope.replaceFirst(pack.packageRoot, "")
     } else {
@@ -157,7 +157,7 @@ internal fun getPathName(pack: Pack, fib: FileInfoBlock): String {
  * The method walks through the packages, searches for corresponding issues (stored in [logger]) and sets
  * the flags "hasIssues" (on package, root, default and dir level).
  */
-internal fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int) {
+fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int) {
     // create Map with key = package (package may also be null)
     val issuesPerPackage = logger.osCakeIssues.groupBy { it.id?.toCoordinates() }
     // keeps next number for the issue id, starting at 1
@@ -248,7 +248,7 @@ private fun getNextNo(prefix: Char, no: MutableMap<String, Int>): String = when 
         else -> "No no found!"
     }
 
-internal fun deleteFromArchive(oldPath: String?, archiveDir: File) =
+fun deleteFromArchive(oldPath: String?, archiveDir: File) =
     oldPath?.let { File(archiveDir, oldPath).apply { if (exists()) delete() } }
 
 internal fun List<String>.generatePrefixRegex(): String =
