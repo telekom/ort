@@ -37,7 +37,7 @@ import org.ossreviewtoolkit.model.Identifier
 @JsonPropertyOrder("pid", "release", "repository", "id", "reuseCompliant", "hasIssues", "issues", "defaultLicensings",
     "dirLicensings", "reuseLicensings", "fileLicensings")
 @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
-internal data class Pack(
+data class Pack(
     /**
      * Unique identifier for the package.
      */
@@ -49,7 +49,7 @@ internal data class Pack(
     /**
      * The [packageRoot] is set to the folder where the source code can be found (empty string = default).
      */
-    @JsonIgnore val packageRoot: String
+    @JsonIgnore val packageRoot: String = ""
 ) {
     /**
      * Package ID: e.g. "tdosca-tc06"  - part of the [id].

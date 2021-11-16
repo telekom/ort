@@ -32,5 +32,5 @@ internal data class OSCakeRoot(
     /**
      * The [project] contains the project's packages and resolved license information.
      */
-    var project: Project = Project(cid)
+    var project: Project = Project()
 }

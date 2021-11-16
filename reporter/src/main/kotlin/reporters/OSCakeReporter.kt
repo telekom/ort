@@ -162,6 +162,7 @@ class OSCakeReporter : Reporter {
     ): OSCakeRoot {
         val pkgMap = mutableMapOf<Identifier, org.ossreviewtoolkit.model.Package>()
         val osc = OSCakeRoot(input.ortResult.getProjects().first().id.toCoordinates())
+        osc.project.complianceArtifactCollection.cid = input.ortResult.getProjects().first().id.toCoordinates()
         // evaluated model contains a dependency tree of packages with its corresponding levels (=depth in the tree)
         val evaluatedModel = EvaluatedModel.create(input)
 

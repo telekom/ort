@@ -185,7 +185,8 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
             ScannerCommand(),
             UploadCurationsCommand(),
             UploadResultToPostgresCommand(),
-            UploadResultToSw360Command()
+            UploadResultToSw360Command(),
+            OSCakeCommand()
         )
 
         versionOption(

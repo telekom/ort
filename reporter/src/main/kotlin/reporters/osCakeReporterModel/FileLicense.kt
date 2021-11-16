@@ -26,7 +26,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore
  * information [licenseTextInArchive]. An instance with null values may exist if the file was archived by the scanner
  * and not treated by other logic branches
  */
-internal data class FileLicense(
+data class FileLicense(
     /**
      * [license] contains the name of the license.
      */

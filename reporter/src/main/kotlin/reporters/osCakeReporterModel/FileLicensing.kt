@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
  * The class FileLicensing is a collection of [FileLicense] instances for the given path (stored in [scope])
  */
 @JsonPropertyOrder("scope", "fileContentInArchive", "licenses")
-internal data class FileLicensing(
+data class FileLicensing(
     /**
      * [scope] contains the name of the file to which the licenses belong.
      */

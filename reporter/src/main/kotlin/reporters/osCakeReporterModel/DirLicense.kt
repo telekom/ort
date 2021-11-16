@@ -30,7 +30,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
 @JsonPropertyOrder("foundInFileScope", "license", "licenseTextInArchive", "hasIssues", "issues")
 // work around with custom filter, because a declaration on property level "issues" did not work
 @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
-internal data class DirLicense(
+data class DirLicense(
     /**
      * [license] contains the name of the license.
      */

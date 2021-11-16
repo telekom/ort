@@ -64,6 +64,7 @@ include(":scanner")
 include(":spdx-utils")
 include(":test-utils")
 include(":utils")
+include(":oscake")
 
 val buildCacheRetentionDays: String by settings
 

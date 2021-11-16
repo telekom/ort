@@ -25,7 +25,7 @@ import org.ossreviewtoolkit.model.Identifier
 Wrapper class for the [OSCakeConfigParams] class - used to store processed data from [OSCakeConfiguration]
  */
 
-internal data class OSCakeConfigParams(
+data class OSCakeConfigParams(
     /**
      * [ortScanResultsDir] folder where ORT stores its native scan results.
      */

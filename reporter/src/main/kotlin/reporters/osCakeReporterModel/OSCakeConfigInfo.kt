@@ -22,7 +22,7 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 /**
  * The class [OSCakeConfigInfo] wraps the config information to be present in oscc file
  */
-internal data class OSCakeConfigInfo(
+data class OSCakeConfigInfo(
     val osCakeCommandLineParams: Map<String, String>,
     val osCakeConfigFile: OSCakeConfiguration
 )

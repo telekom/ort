@@ -30,25 +30,25 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
  */
 @JsonPropertyOrder("hasIssues", "issues", "config", "complianceArtifactCollection", "complianceArtifactPackages")
 @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
-internal data class Project(@JsonIgnore val cid: String) {
+data class Project(
     /**
      * [hasIssues] shows if problems occurred during processing the data.
      */
-    var hasIssues: Boolean = false
+    var hasIssues: Boolean = false,
     /**
      * contains issues for the project level
      */
-    @JsonProperty("issues") val issueList: IssueList = IssueList()
+    @get:JsonProperty("issues") val issueList: IssueList = IssueList(),
     /**
      * contains the runtime configuration - commandline parameters and oscake.conf
      */
-    var config: OSCakeConfigInfo? = null
+    var config: OSCakeConfigInfo? = null,
     /**
      * [complianceArtifactCollection] contains metadata about the project.
      */
-    val complianceArtifactCollection = ComplianceArtifactCollection(cid)
+    val complianceArtifactCollection: ComplianceArtifactCollection = ComplianceArtifactCollection(),
     /**
      * [packs] is a list of packages [Pack] which are part of the project.
      */
-    @JsonProperty("complianceArtifactPackages") val packs: MutableList<Pack> = mutableListOf<Pack>()
-}
+    @get:JsonProperty("complianceArtifactPackages") val packs: MutableList<Pack> = mutableListOf<Pack>()
+)

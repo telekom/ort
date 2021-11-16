@@ -71,7 +71,11 @@ data class OrtConfiguration(
     /**
      * The configuration of the notifier.
      */
-    val notifier: NotifierConfiguration = NotifierConfiguration()
+    val notifier: NotifierConfiguration = NotifierConfiguration(),
+    /**
+     * The configuration of the oscake applications.
+     */
+    val oscake: OSCakeConfiguration = OSCakeConfiguration()
 ) {
     companion object {
         /**

@@ -28,27 +28,30 @@ import java.time.LocalDateTime
  * only zip archives are supported.
  */
 @JsonPropertyOrder("cid", "author", "release", "date", "archivePath", "archiveType")
-internal data class ComplianceArtifactCollection(
+data class ComplianceArtifactCollection(
     /**
      * [cid] is the Identifier of this project e.g.: "Maven:de.tdosca.tc06:tdosca-tc06:1.0".
      */
-    var cid: String
-) {
-    val author = "OSCake-Reporter"
+    var cid: String = "",
+    /**
+     * Responsible for the content
+     */
+    val author: String = "OSCake-Reporter",
     /**
      * Represents the release number of the OSCakeReporter which was used when creating the file.
      */
-    val release = Release.NUMBER
+    val release: String = Release.NUMBER,
     /**
      * [date] keeps the creation timestamp of the report.
      */
-    val date = LocalDateTime.now().toString()
+    val date: String = LocalDateTime.now().toString(),
     /**
      * [archivePath] describes the path to the archive file containing the processed license files.
      */
-    var archivePath = "./licensefiles.zip"
+    var archivePath: String = "./licensefiles.zip",
     /**
      * In current versions only zip files are used.
      */
-    var archiveType = "ZIP"
-}
+    var archiveType: String = "ZIP"
+)
+

@@ -32,7 +32,7 @@ import org.ossreviewtoolkit.model.Identifier
 /**
  * Part of the [OSCakeConfiguration]
  */
-internal data class PackageRestrictions(
+data class PackageRestrictions(
     /**
      * shows if the mechanism for package restrictions is enabled
      */
@@ -46,7 +46,7 @@ internal data class PackageRestrictions(
 /**
  * Part of the [OSCakeConfiguration]
  */
-internal data class PackageInclusions(
+data class PackageInclusions(
     /**
      * shows if the mechanism for package inclusions is enabled, only works if the commandline parameter for
      * dependency-granularity is set
@@ -61,7 +61,7 @@ internal data class PackageInclusions(
 /**
  * Part of the [OSCakeConfiguration]
  */
-internal data class IncludeIssues(
+data class IncludeIssues(
     /**
      * shows if the mechanism for including issues is enabled
      */
@@ -75,7 +75,7 @@ internal data class IncludeIssues(
 /**
 Wrapper class for the [OSCakeConfiguration] class - reads the file passed by option "OSCake=configFile=...:"
  */
-internal data class OSCakeConfiguration(
+data class OSCakeConfiguration(
     /**
      *  [scopePatterns] contains a list of glob patterns which are used to determine the corresponding [ScopeLevel].
      */
