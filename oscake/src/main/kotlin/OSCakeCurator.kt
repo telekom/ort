@@ -21,38 +21,40 @@ package org.ossreviewtoolkit.oscake
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.curator.CurationManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FOUND_IN_FILE_SCOPE_DECLARED
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import java.io.File
 import java.io.IOException
 
 class OSCakeCurator (private val config: OSCakeConfiguration, private val osccFile: File,
                      private val outputDir: File) {
 
+    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
+
     fun execute() {
         val mapper = jacksonObjectMapper()
-        var project: Project?
+        var project: Project? = null
         try {
             val json = osccFile.readText()
             project = mapper.readValue<Project>(json)
-
-            // reset values depending on oscc content
-            project.packs.forEach { pack ->
-                pack.defaultLicensings.forEach {
-                    if (it.license != FOUND_IN_FILE_SCOPE_DECLARED)
-                        it.declared = false
-                }
-            }
-            val osc = OSCakeRoot(project.complianceArtifactCollection.cid)
-            osc.project = project
-            CurationManager(osc.project, outputDir, osccFile.absolutePath, config).manage()
         } catch (e: IOException) {
-            println(e.stackTraceToString())
+            logger.log("Invalid json format found in file: \"$osccFile\"\n. ${e.stackTraceToString()} ",
+                Level.ERROR, phase = ProcessingPhase.CURATION)
         } finally {
-            println("finally")
+            project?.let {
+                // reset values depending on oscc content because they are not in oscc
+                project.packs.forEach { pack ->
+                    pack.defaultLicensings.forEach {
+                        if (it.license != FOUND_IN_FILE_SCOPE_DECLARED)
+                            it.declared = false
+                    }
+                }
+                val osc = OSCakeRoot(project.complianceArtifactCollection.cid)
+                osc.project = project
+                CurationManager(osc.project, outputDir, osccFile.absolutePath, config).manage()
+            }
         }
     }
 }

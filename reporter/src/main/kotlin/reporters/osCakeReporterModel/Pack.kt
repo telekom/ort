@@ -34,8 +34,8 @@ import org.ossreviewtoolkit.model.Identifier
  * [ScopeLevel]s: [defaultLicensings], [dirLicensings], etc.. If the sourcecode is not placed in the
  * root directory of the repository (e.g. git), than the property [packageRoot] shows the path to the root directory
   */
-@JsonPropertyOrder("pid", "release", "repository", "id", "reuseCompliant", "hasIssues", "issues", "defaultLicensings",
-    "dirLicensings", "reuseLicensings", "fileLicensings")
+@JsonPropertyOrder("pid", "release", "repository", "id", "sourceRoot", "reuseCompliant", "hasIssues", "issues",
+    "defaultLicensings", "dirLicensings", "reuseLicensings", "fileLicensings")
 @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
 data class Pack(
     /**
@@ -49,7 +49,7 @@ data class Pack(
     /**
      * The [packageRoot] is set to the folder where the source code can be found (empty string = default).
      */
-    @JsonIgnore val packageRoot: String = ""
+    @get:JsonProperty("sourceRoot") val packageRoot: String = ""
 ) {
     /**
      * Package ID: e.g. "tdosca-tc06"  - part of the [id].

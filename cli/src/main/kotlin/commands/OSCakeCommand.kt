@@ -31,6 +31,7 @@ import org.ossreviewtoolkit.cli.GlobalOptions
 import org.ossreviewtoolkit.cli.utils.outputGroup
 import org.ossreviewtoolkit.oscake.OSCakeApplication
 import org.ossreviewtoolkit.oscake.OSCakeCurator
+import org.ossreviewtoolkit.oscake.isValidDirectory
 import org.ossreviewtoolkit.utils.expandTilde
 
 class OSCakeCommand : CliktCommand(name = "oscake", help = "Check dependencies for security vulnerabilities.") {
@@ -68,8 +69,17 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Check dependencies f
 
     override fun run() {
         val config = globalOptionsForSubcommands.config
+
         when (oscakeApp) {
-            "curator" -> OSCakeCurator(config.oscake, osccFile, outputDir).execute()
+            "curator" -> {
+                require(isValidDirectory(config.oscake.oscakeCurations?.fileStore)) {
+                    "Directory for \"config.oscake.oscakeCurations.fileStore\" is not set correctly in ort.conf"
+                }
+                require(isValidDirectory(config.oscake.oscakeCurations?.directory)) {
+                    "Directory for \"config.oscake.oscakeCurations.directory\" is not set correctly in ort.conf"
+                }
+                OSCakeCurator(config.oscake, osccFile, outputDir).execute()
+            }
         }
     }
 }

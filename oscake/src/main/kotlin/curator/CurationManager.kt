@@ -83,33 +83,7 @@ internal class CurationManager(
      * package modifiers, applies the curations, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
-        // 1. reset "hasIssues" values and remove old issues
-        project.hasIssues = false
-        project.issueList.warnings.clear()
-        project.issueList.errors.clear()
-        project.issueList.infos.clear()
-        project.packs.forEach { pack ->
-            pack.hasIssues = false
-            pack.issueList.warnings.clear()
-            pack.issueList.errors.clear()
-            pack.issueList.infos.clear()
-            pack.defaultLicensings.forEach {
-                it.hasIssues = false
-                it.issueList.warnings.clear()
-                it.issueList.errors.clear()
-                it.issueList.infos.clear()
-            }
-            pack.dirLicensings.forEach { dirLicensing ->
-                dirLicensing.licenses.forEach {
-                    it.issueList.warnings.clear()
-                    it.issueList.errors.clear()
-                    it.issueList.infos.clear()
-                    it.hasIssues = false
-                }
-            }
-        }
-
-        // 2. handle packageModifiers
+        // 1. handle packageModifiers
         val orderByModifier = packageModifierMap.keys.withIndex().associate { it.value to it.index }
         curationProvider.packageCurations.sortedBy { orderByModifier[it.packageModifier] }.forEach { packageCuration ->
             when (packageCuration.packageModifier) {
@@ -127,18 +101,18 @@ internal class CurationManager(
             }
         }
 
-        // 3. curate each package regarding the "modifier" - insert, delete, update
+        // 2. curate each package regarding the "modifier" - insert, delete, update
         // and "packageModifier" - update, insert, delete
         project.packs.forEach {
             curationProvider.getCurationFor(it.id)?.curate(it, archiveDir,
                 File(config.oscakeCurations?.fileStore!!), config)
         }
 
-        // 4. report [OSCakeIssue]s
+        // 3. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger,
             config.oscakeCurations?.issueLevel ?: -1)
 
-        // 5. generate .zip and .oscc files
+        // 4. generate .zip and .oscc files
         createResultingFiles()
     }
 

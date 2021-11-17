@@ -185,40 +185,43 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
  * return true for Warnings and Errors
  */
 internal fun addIssue(oscakeIssue: OSCakeIssue, issueList: IssueList, issuesLevel: Int, no: MutableMap<String, Int>):
-        Boolean = when (oscakeIssue.level) {
-            Level.DEBUG -> false
-            Level.INFO -> {
-                if (issuesLevel > 1) issueList.infos.add(Issue(getNextNo('I', no), oscakeIssue.msg))
-                false
-            }
-            Level.WARN -> { if (issuesLevel > 0) issueList.warnings.add(Issue(getNextNo('W', no), oscakeIssue.msg))
-                true
-            }
-            Level.ERROR -> { if (issuesLevel > -1) issueList.errors.add(Issue(getNextNo('E', no), oscakeIssue.msg))
-                true
-            }
-            else -> false
-        }
+        Boolean {
+        val prePrefix = if (oscakeIssue.phase == ProcessingPhase.CURATION) "Cur_" else ""
 
+        when (oscakeIssue.level) {
+            Level.DEBUG -> return false
+            Level.INFO -> {
+                if (issuesLevel > 1) issueList.infos.add(Issue(getNextNo('I', no, prePrefix), oscakeIssue.msg))
+                return false
+            }
+        Level.WARN -> { if (issuesLevel > 0) issueList.warnings.add(Issue(getNextNo('W', no, prePrefix), oscakeIssue.msg))
+            return true
+        }
+        Level.ERROR -> { if (issuesLevel > -1) issueList.errors.add(Issue(getNextNo('E', no, prePrefix), oscakeIssue.msg))
+            return true
+        }
+        else -> return false
+        }
+}
 /**
  * [getNextNo] returns the next id for an issue depending on the type: INFO, WARN, ERROR represented by the [prefix]
  * e.g. E01 or W01
  */
-private fun getNextNo(prefix: Char, no: MutableMap<String, Int>): String = when (prefix) {
+private fun getNextNo(prefix: Char, no: MutableMap<String, Int>, prePrefix: String): String = when (prefix) {
         'I' -> {
-            var next = no.get("infno")!!
-            no.put("infno", next + 1)
-            prefix.toString() + "%02d".format(next)
+            var next = no["infno"]!!
+            no["infno"] = next + 1
+            prePrefix + prefix.toString() + "%02d".format(next)
         }
         'W' -> {
-            var next = no.get("warno")!!
-            no.put("warno", next + 1)
-            prefix.toString() + "%02d".format(next)
+            var next = no["warno"]!!
+            no["warno"] = next + 1
+            prePrefix + prefix.toString() + "%02d".format(next)
         }
         'E' -> {
-            var next = no.get("errno")!!
-            no.put("errno", next + 1)
-            prefix.toString() + "%02d".format(next)
+            var next = no["errno"]!!
+            no["errno"] = next + 1
+            prePrefix + prefix.toString() + "%02d".format(next)
         }
         else -> "No no found!"
     }

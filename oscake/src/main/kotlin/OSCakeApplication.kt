@@ -19,6 +19,8 @@
 
 package org.ossreviewtoolkit.oscake
 
+import java.io.File
+
 const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
 const val CURATION_LOGGER = "OSCakeCuration"
 
@@ -44,6 +46,12 @@ withIndex()?.associate { it.value to it.index } }.toMap()
  */
 val orderCopyrightByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(1)?.
 withIndex()?.associate { it.value to it.index } }.toMap()
+
+/**
+ * checks if the value of the optionName in map is a valid file
+ */
+fun isValidDirectory(dirName: String?): Boolean =
+    if (dirName != null) File(dirName).exists() && File(dirName).isDirectory else false
 
 class OSCakeApplication() {
     companion object {
