@@ -40,12 +40,14 @@ class OSCakeCurator (private val config: OSCakeConfiguration, private val osccFi
             val json = osccFile.readText()
             project = mapper.readValue<Project>(json)
         } catch (e: IOException) {
-            logger.log("Invalid json format found in file: \"$osccFile\"\n. ${e.stackTraceToString()} ",
+            logger.log("Invalid json format found in file: \"$osccFile\".\n ${e.stackTraceToString()} ",
                 Level.ERROR, phase = ProcessingPhase.CURATION)
         } finally {
             project?.let {
-                // reset values depending on oscc content because they are not in oscc
+                // rebuild info for model completeness built on information in oscc
                 project.packs.forEach { pack ->
+                    pack.namespace = pack.id.namespace
+                    pack.type = pack.id.type
                     pack.defaultLicensings.forEach {
                         if (it.license != FOUND_IN_FILE_SCOPE_DECLARED)
                             it.declared = false

@@ -59,7 +59,7 @@ data class Pack(
      * Namespace of the package: e.g. "de.tdosca.tc06" - part of the [id].
      */
     @JsonIgnore
-    val namespace = id.namespace
+    var namespace = id.namespace
     /**
      * version number of the package: e.g. "1.0" - part of the [id].
      */
@@ -68,7 +68,7 @@ data class Pack(
      * [type] describes the package manager for the package: e.g. "Maven" - part of the [id].
      */
     @JsonIgnore
-    val type = id.type
+    var type = id.type
     /**
      * [declaredLicenses] contains a set of licenses identified by the ORT analyzer.
      */
