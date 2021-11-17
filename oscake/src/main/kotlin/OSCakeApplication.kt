@@ -53,8 +53,6 @@ withIndex()?.associate { it.value to it.index } }.toMap()
 fun isValidDirectory(dirName: String?): Boolean =
     if (dirName != null) File(dirName).exists() && File(dirName).isDirectory else false
 
-class OSCakeApplication() {
-    companion object {
-        val ALL by lazy { listOf("curator", "merger") }
-    }
+object OSCakeApplication {
+   val ALL by lazy { listOf("curator", "merger") }
 }

@@ -30,7 +30,6 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.oscake.CURATION_LOGGER
-import org.ossreviewtoolkit.oscake.curator.PackageCuration
 import org.ossreviewtoolkit.oscake.packageModifierMap
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 

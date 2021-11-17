@@ -21,14 +21,17 @@ package org.ossreviewtoolkit.oscake
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import org.apache.logging.log4j.Level
-import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.oscake.curator.CurationManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+
 import java.io.File
 import java.io.IOException
 
-class OSCakeCurator (private val config: OSCakeConfiguration, private val osccFile: File,
+import org.apache.logging.log4j.Level
+
+import org.ossreviewtoolkit.model.config.OSCakeConfiguration
+import org.ossreviewtoolkit.oscake.curator.CurationManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+
+class OSCakeCurator(private val config: OSCakeConfiguration, private val osccFile: File,
                      private val outputDir: File) {
 
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
@@ -49,8 +52,7 @@ class OSCakeCurator (private val config: OSCakeConfiguration, private val osccFi
                     pack.namespace = pack.id.namespace
                     pack.type = pack.id.type
                     pack.defaultLicensings.forEach {
-                        if (it.license != FOUND_IN_FILE_SCOPE_DECLARED)
-                            it.declared = false
+                        it.declared = it.license == FOUND_IN_FILE_SCOPE_DECLARED
                     }
                 }
                 val osc = OSCakeRoot(project.complianceArtifactCollection.cid)

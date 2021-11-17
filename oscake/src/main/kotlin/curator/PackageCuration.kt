@@ -30,13 +30,11 @@ import java.nio.file.FileSystems
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.CURATION_DEFAULT_LICENSING
 import org.ossreviewtoolkit.oscake.CURATION_LOGGER
 import org.ossreviewtoolkit.oscake.orderCopyrightByModifier
 import org.ossreviewtoolkit.oscake.orderLicenseByModifier
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
-
 
 /**
  * A [PackageCuration] contains a curation for a specific package, identified by an [id]. The instances are created
