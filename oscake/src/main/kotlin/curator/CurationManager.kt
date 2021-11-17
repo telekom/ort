@@ -103,9 +103,10 @@ internal class CurationManager(
 
         // 2. curate each package regarding the "modifier" - insert, delete, update
         // and "packageModifier" - update, insert, delete
+        val scopePatterns = project.config?.osCakeConfigFile?.scopePatterns ?: emptyList()
         project.packs.forEach {
             curationProvider.getCurationFor(it.id)?.curate(it, archiveDir,
-                File(config.oscakeCurations?.fileStore!!), config)
+                File(config.oscakeCurations?.fileStore!!), scopePatterns)
         }
 
         // 3. report [OSCakeIssue]s

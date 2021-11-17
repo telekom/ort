@@ -30,8 +30,16 @@ data class OSCakeConfiguration(
 )
 
 data class OSCakeCurations(
+    /**
+     * The [directory] where to find the yml files to be used for curations
+     */
     val directory: String? = null,
+    /**
+     * The directory where to find referenced files in curations (*.yml files)
+     */
     val fileStore: String? = null,
-    val issueLevel: Int? = -1,
-    val scopePatterns: List<String>? = emptyList()
+    /**
+     * [issueLevel]: -1..not enabled, 0..ERROR, 1..WARN + ERROR, 2..INFO + WARN + ERROR
+     */
+    val issueLevel: Int? = -1
 )
