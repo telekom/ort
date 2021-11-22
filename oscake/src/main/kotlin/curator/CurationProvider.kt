@@ -71,10 +71,9 @@ internal class CurationProvider(
                         if (checkSemantics(packageCuration, it.name, fileStore)) packageCurations.add(packageCuration)
                     }
                 } catch (e: IOException) {
-                    logger.log("Error while processing file: ${it.absoluteFile}! - Curation not applied!",
+                    logger.log("Error while processing file: ${it.absoluteFile}! - Curation not applied! ${e.message}",
                         Level.ERROR, phase = ProcessingPhase.CURATION
                     )
-                    e.message?.let { logger.log(e.message!!, Level.ERROR, phase = ProcessingPhase.CURATION) }
                 }
             }
         }
@@ -87,7 +86,7 @@ internal class CurationProvider(
     internal fun getCurationFor(pkgId: Identifier): PackageCuration? {
         packageCurations.filter { it.isApplicable(pkgId) }.apply {
             if (size > 1) logger.log("Error: more than one curation was found for" +
-                    " package: $pkgId - don't know which one to take!", Level.ERROR, phase = ProcessingPhase.CURATION
+                    " package: $pkgId - don't know which one to take!", Level.ERROR, pkgId, phase = ProcessingPhase.CURATION
             )
             if (size != 1) return null
             return first()
@@ -290,6 +289,27 @@ internal class CurationProvider(
                 if (curationFileItem1.fileLicenses?.any { it.licenseTextInArchive != null } == true) {
                     logger.log("$errorPrefix if package_modifier = \"insert\" for REUSE package: licenseText" +
                             "InArchive must be null for files outside of the LICENSES folder! $errorSuffix",
+                        Level.WARN, phase = ProcessingPhase.CURATION
+                    )
+                    return false
+                }
+            }
+        }
+        // 11. check "resolvedIssues"
+        if ((packageCuration.packageModifier == "insert" || packageCuration.packageModifier == "delete") &&
+                    !packageCuration.resolvedIssues.isNullOrEmpty()) {
+            logger.log(
+                "$errorPrefix When package_modifier == insert or delete, the resolved_issues " +
+                        "list must be null or empty! $errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
+            )
+            return false
+        }
+        val pattern = "(E|W|I)\\d\\d".toRegex()
+        if (packageCuration.packageModifier == "update" && !packageCuration.resolvedIssues.isNullOrEmpty()) {
+            packageCuration.resolvedIssues.forEach {
+                if (!pattern.matches(it)) {
+                    logger.log(
+                        "$errorPrefix Issue-ID \"$it\" not a valid format! $errorSuffix",
                         Level.WARN, phase = ProcessingPhase.CURATION
                     )
                     return false

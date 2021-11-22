@@ -79,16 +79,30 @@ internal class CurationManager(
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
     /**
-     * The method takes the reporter's output, gets rid off the reported "hasIssues", prioritizes the
+     * The method takes the reporter's output, checks and updates the reported "hasIssues", prioritizes the
      * package modifiers, applies the curations, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
+        // 0. Reset hasIssues = false - will be newly set at the end by "fun handleOSCakeIssues"
+        project.hasIssues = false
+        project.packs.forEach { pack ->
+            pack.hasIssues = false
+            pack.defaultLicensings.forEach {
+                it.hasIssues = false
+            }
+            pack.dirLicensings.forEach {
+                it.licenses.forEach {
+                    it.hasIssues = false
+                }
+            }
+        }
         // 1. handle packageModifiers
         val orderByModifier = packageModifierMap.keys.withIndex().associate { it.value to it.index }
         curationProvider.packageCurations.sortedBy { orderByModifier[it.packageModifier] }.forEach { packageCuration ->
             when (packageCuration.packageModifier) {
                 "insert" -> if (project.packs.none { it.id == packageCuration.id }) {
-                   Pack(packageCuration.id, packageCuration.repository ?: "", "").apply {
+                    eliminateIssueFromRoot(project.issueList, packageCuration.id.toCoordinates())
+                    Pack(packageCuration.id, packageCuration.repository ?: "", "").apply {
                             project.packs.add(this)
                             reuseCompliant = checkReuseCompliance(this, packageCuration)
                         }
@@ -97,7 +111,10 @@ internal class CurationManager(
                             Level.INFO, phase = ProcessingPhase.CURATION
                         )
                     }
-                "delete" -> deletePackage(packageCuration, archiveDir)
+                "delete" -> {
+                    eliminateIssueFromRoot(project.issueList, packageCuration.id.toCoordinates())
+                    deletePackage(packageCuration, archiveDir)
+                }
             }
         }
 
@@ -113,9 +130,49 @@ internal class CurationManager(
         if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger,
             config.oscakeCurations?.issueLevel ?: -1)
 
-        // 4. generate .zip and .oscc files
+        // 4. take care of issue level settings
+        takeCareOfIssueLevel()
+
+        // 5. generate .zip and .oscc files
         createResultingFiles()
     }
+
+    private fun takeCareOfIssueLevel() {
+        eliminateIssuesFromLevel(project.issueList)
+        project.packs.forEach { pack ->
+            eliminateIssuesFromLevel(pack.issueList)
+            pack.defaultLicensings.forEach {
+                eliminateIssuesFromLevel(it.issueList)
+            }
+            pack.dirLicensings.forEach { dirLicensing ->
+                dirLicensing.licenses.forEach {
+                    eliminateIssuesFromLevel(it.issueList)
+                }
+            }
+        }
+    }
+
+    private fun eliminateIssuesFromLevel(issueList: IssueList) {
+        val issLevel = config.oscakeCurations?.issueLevel ?: -1
+        if (issLevel == -1) {
+            issueList.infos.clear()
+            issueList.warnings.clear()
+            issueList.errors.clear()
+        }
+        if (issLevel == 0) {
+            issueList.infos.clear()
+            issueList.warnings.clear()
+        }
+        if (issLevel == 1) issueList.infos.clear()
+    }
+
+
+    private fun eliminateIssueFromRoot(issueList: IssueList, idStr: String) {
+        issueList.infos.removeAll { it.id == "I_$idStr" }
+        issueList.warnings.removeAll { it.id == "W_$idStr" }
+        issueList.errors.removeAll { it.id == "E_$idStr" }
+    }
+
 
     private fun checkReuseCompliance(pack: Pack, packageCuration: PackageCuration): Boolean =
         packageCuration.curations?.any {

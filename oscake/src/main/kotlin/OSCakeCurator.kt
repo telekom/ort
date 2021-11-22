@@ -43,7 +43,7 @@ class OSCakeCurator(private val config: OSCakeConfiguration, private val osccFil
             val json = osccFile.readText()
             project = mapper.readValue<Project>(json)
         } catch (e: IOException) {
-            logger.log("Invalid json format found in file: \"$osccFile\".\n ${e.stackTraceToString()} ",
+            logger.log("Invalid json format found in file: \"$osccFile\".\n ${e.message} ",
                 Level.ERROR, phase = ProcessingPhase.CURATION)
         } finally {
             project?.let {

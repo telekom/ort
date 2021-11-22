@@ -52,6 +52,11 @@ internal data class PackageCuration(
      */
     @JsonProperty("package_modifier") val packageModifier: String,
     /**
+     * List of issue ids which are treated by the curation e.g. "E01", "W02", etc.
+     * only allowed for packageModifier != "insert"
+     */
+    @JsonProperty("resolved_issues") val resolvedIssues: List<String>? = mutableListOf(),
+    /**
      * An optional [comment] discusses the reason for this curation.
      */
     val comment: String? = null,
@@ -112,6 +117,7 @@ internal data class PackageCuration(
      */
     internal fun curate(pack: Pack, archiveDir: File, fileStore: File, scopePatterns: List<String>) {
         if (packageModifier == "insert" || packageModifier == "update") {
+            eliminateIssueFromPackage(pack)
             curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
                 val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
                 curationFileItem.fileLicenses?.sortedBy { orderLicenseByModifier[packageModifier]?.get(it.modifier)
@@ -454,5 +460,52 @@ internal data class PackageCuration(
             }
         }
         return targetFileDeDup.name
+    }
+
+    private fun eliminateIssueFromPackage(pack: Pack) {
+        // generate list of all reported oscc-issues (ERRORs and WARNINGs) in this package
+        val issueList2resolve = mutableListOf<String>()
+        issueList2resolve.addAll(pack.issueList.warnings.map { it.id })
+        issueList2resolve.addAll(pack.issueList.errors.map { it.id })
+        issueList2resolve.addAll(pack.defaultLicensings.map { it.issueList.warnings.map { it.id } }.flatten())
+        issueList2resolve.addAll(pack.defaultLicensings.map { it.issueList.errors.map { it.id } }.flatten())
+        pack.dirLicensings.forEach {
+            it.licenses.forEach {
+                issueList2resolve.addAll(it.issueList.warnings.map { it.id })
+                issueList2resolve.addAll(it.issueList.errors.map { it.id })
+            }
+        }
+        // issues in curation for this package
+        val remedyList = (resolvedIssues?.filter { it [0] == 'E' ||  it[0] == 'W'} ?: emptyList<String>()).toMutableList()
+        val issueList2resolveClone = issueList2resolve.toList()
+        val remedyListClone = remedyList.toList()
+        issueList2resolve.removeAll(remedyList)
+        if (issueList2resolve.isNotEmpty())
+            logger.log("Not every issue is resolved from package, the following issues still " +
+                    "remain: $issueList2resolve", Level.WARN, pack.id, phase = ProcessingPhase.CURATION)
+        remedyList.removeAll(issueList2resolveClone)
+        if (remedyList.isNotEmpty())
+            logger.log("Curation treats more issues, than the package really has: " +
+                    " $remedyList", Level.WARN, pack.id, phase = ProcessingPhase.CURATION)
+
+        // remove curated issues
+        pack.issueList.infos.removeAll { remedyListClone.contains(it.id) }
+        pack.issueList.warnings.removeAll { remedyListClone.contains(it.id) }
+        pack.issueList.errors.removeAll { remedyListClone.contains(it.id) }
+
+        pack.defaultLicensings.forEach {
+            it.issueList.infos.removeAll { remedyListClone.contains(it.id) }
+            it.issueList.warnings.removeAll { remedyListClone.contains(it.id) }
+            it.issueList.errors.removeAll { remedyListClone.contains(it.id) }
+        }
+
+        pack.dirLicensings.forEach {
+            it.licenses.forEach {
+                it.issueList.infos.removeAll { remedyListClone.contains(it.id) }
+                it.issueList.warnings.removeAll { remedyListClone.contains(it.id) }
+                it.issueList.errors.removeAll { remedyListClone.contains(it.id) }
+            }
+        }
+
     }
 }

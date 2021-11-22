@@ -141,43 +141,54 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
 
     // Root-Level: handle OSCakeIssues with no package info
     issuesPerPackage[null]?.forEach {
-        val rc = addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage.get(null)!!)
-        project.hasIssues = project.hasIssues || rc
+        addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage.get(null)!!)
     }
     // Package-Level: handle OSCakeIssues with package but no reference info
     project.packs.forEach { pack ->
         issuesPerPackage[pack.id.toCoordinates()]?.
             forEach {
                 if (it.reference == null || !(it.reference is DefaultLicense || it.reference is DirLicense)) {
-                    val rc = addIssue(it, pack.issueList, issuesLevel,
-                        issueNumberPerPackage.get(pack.id.toCoordinates())!!)
-                    pack.hasIssues = pack.hasIssues || rc
+                    addIssue(it, pack.issueList, issuesLevel, issueNumberPerPackage.get(pack.id.toCoordinates())!!)
                 }
         }
     }
 
     // Default/Dir-Level: handle OSCakeIssues with package and reference for Default/Dir level
     project.packs.forEach { pack ->
-        var pkgHasIssues = false
         issuesPerPackage[pack.id.toCoordinates()]?.forEach {
             when (it.reference) {
                 is DefaultLicense -> {
-                    it.reference.hasIssues = addIssue(it, it.reference.issueList, issuesLevel,
+                    addIssue(it, it.reference.issueList, issuesLevel,
                         issueNumberPerPackage.get(pack.id.toCoordinates())!!)
-                    pkgHasIssues = pkgHasIssues || it.reference.hasIssues
                 }
                 is DirLicense -> {
-                    it.reference.hasIssues = addIssue(it, it.reference.issueList, issuesLevel,
+                    addIssue(it, it.reference.issueList, issuesLevel,
                         issueNumberPerPackage.get(pack.id.toCoordinates())!!)
-                    pkgHasIssues = pkgHasIssues || it.reference.hasIssues
                 }
             }
         }
-        pack.hasIssues = pack.hasIssues || pkgHasIssues
     }
 
-    // propagate hasIssue from Package to Project
-    project.hasIssues = project.hasIssues || project.packs.any { it.hasIssues }
+    // propagate hasIssue from the different levels: DefaultLicensing, DirLicensing, Package to Project
+    var projectHasIssues = false
+    project.packs.forEach { pack ->
+        var pkgHasIssues = false
+        pack.defaultLicensings.forEach {
+            it.hasIssues = it.issueList.errors.isNotEmpty() || it.issueList.warnings.isNotEmpty()
+            pkgHasIssues = pkgHasIssues || it.hasIssues
+        }
+        pack.dirLicensings.forEach { dirLicensing ->
+            dirLicensing.licenses.forEach {
+                it.hasIssues = it.issueList.errors.isNotEmpty() || it.issueList.warnings.isNotEmpty()
+                pkgHasIssues = pkgHasIssues || it.hasIssues
+            }
+        }
+        pkgHasIssues = pkgHasIssues || (pack.issueList.errors.isNotEmpty() || pack.issueList.warnings.isNotEmpty())
+        pack.hasIssues = pkgHasIssues
+        projectHasIssues = projectHasIssues || pack.hasIssues
+    }
+    project.hasIssues = projectHasIssues || (project.issueList.errors.isNotEmpty() || project.issueList.warnings.isNotEmpty())
+
 }
 
 /**
@@ -188,20 +199,20 @@ internal fun addIssue(oscakeIssue: OSCakeIssue, issueList: IssueList, issuesLeve
         Boolean {
         val prePrefix = if (oscakeIssue.phase == ProcessingPhase.CURATION) "Cur_" else ""
 
-        when (oscakeIssue.level) {
-            Level.DEBUG -> return false
-            Level.INFO -> {
-                if (issuesLevel > 1) issueList.infos.add(Issue(getNextNo('I', no, prePrefix), oscakeIssue.msg))
-                return false
-            }
+    return when (oscakeIssue.level) {
+        Level.DEBUG -> false
+        Level.INFO -> {
+            if (issuesLevel > 1) issueList.infos.add(Issue(getNextNo('I', no, prePrefix), oscakeIssue.msg))
+            false
+        }
         Level.WARN -> { if (issuesLevel > 0) issueList.warnings.add(Issue(getNextNo('W', no, prePrefix), oscakeIssue.msg))
-            return true
+            true
         }
         Level.ERROR -> { if (issuesLevel > -1) issueList.errors.add(Issue(getNextNo('E', no, prePrefix), oscakeIssue.msg))
-            return true
+            true
         }
-        else -> return false
-        }
+        else -> false
+    }
 }
 /**
  * [getNextNo] returns the next id for an issue depending on the type: INFO, WARN, ERROR represented by the [prefix]
