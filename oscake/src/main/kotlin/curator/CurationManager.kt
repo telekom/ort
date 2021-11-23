@@ -55,7 +55,11 @@ internal class CurationManager(
     /**
      * Configuration in ort.conf
      */
-    val config: OSCakeConfiguration
+    val config: OSCakeConfiguration,
+    /**
+     * option which indicates that the Warnings on root level are removed
+     */
+    val ignoreRootWarnings: Boolean
     ) {
 
     /**
@@ -83,7 +87,7 @@ internal class CurationManager(
      * package modifiers, applies the curations, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
-        // 0. Reset hasIssues = false - will be newly set at the end by "fun handleOSCakeIssues"
+        // 0. Reset hasIssues = false - will be newly set at the end of the process
         project.hasIssues = false
         project.packs.forEach { pack ->
             pack.hasIssues = false
@@ -130,13 +134,31 @@ internal class CurationManager(
         if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger,
             config.oscakeCurations?.issueLevel ?: -1)
 
-        // 4. take care of issue level settings
+        // 4. eliminate root level warnings (only warnings from reporter) when option is set
+        if (ignoreRootWarnings) eliminateRootWarnings()
+
+        // 5. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
 
-        // 5. generate .zip and .oscc files
+        // 6. generate .zip and .oscc files
         createResultingFiles()
     }
 
+    /**
+     * Remove warnings from project issueList with format: "Wxx" - theses are warnings created by the reporter and
+     * can be overriden manually by option
+     */
+    private fun eliminateRootWarnings() {
+        val pattern = "W\\d\\d".toRegex()
+        val idList = project.issueList.warnings.filter { pattern.matches(it.id) }.map { it.id }
+        project.issueList.warnings.removeAll { idList.contains(it.id) }
+        propagateHasIssues(project)
+    }
+
+    /**
+     * Clear all lists in issueLists (project, package,..) depending on the issueLevel - set in ort.conf, in order
+     * to produce the correct output
+     */
     private fun takeCareOfIssueLevel() {
         eliminateIssuesFromLevel(project.issueList)
         project.packs.forEach { pack ->
@@ -152,6 +174,9 @@ internal class CurationManager(
         }
     }
 
+    /**
+     * Clear the [issueList]s depending on issue level
+     */
     private fun eliminateIssuesFromLevel(issueList: IssueList) {
         val issLevel = config.oscakeCurations?.issueLevel ?: -1
         if (issLevel == -1) {
@@ -166,13 +191,14 @@ internal class CurationManager(
         if (issLevel == 1) issueList.infos.clear()
     }
 
-
+    /**
+     * Remove issues with specific format: e.g. "W_Maven:org.yaml:snakeyaml:1.28"
+     */
     private fun eliminateIssueFromRoot(issueList: IssueList, idStr: String) {
         issueList.infos.removeAll { it.id == "I_$idStr" }
         issueList.warnings.removeAll { it.id == "W_$idStr" }
         issueList.errors.removeAll { it.id == "E_$idStr" }
     }
-
 
     private fun checkReuseCompliance(pack: Pack, packageCuration: PackageCuration): Boolean =
         packageCuration.curations?.any {

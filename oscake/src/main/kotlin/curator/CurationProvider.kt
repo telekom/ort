@@ -86,7 +86,8 @@ internal class CurationProvider(
     internal fun getCurationFor(pkgId: Identifier): PackageCuration? {
         packageCurations.filter { it.isApplicable(pkgId) }.apply {
             if (size > 1) logger.log("Error: more than one curation was found for" +
-                    " package: $pkgId - don't know which one to take!", Level.ERROR, pkgId, phase = ProcessingPhase.CURATION
+                    " package: $pkgId - don't know which one to take!", Level.ERROR, pkgId,
+                phase = ProcessingPhase.CURATION
             )
             if (size != 1) return null
             return first()

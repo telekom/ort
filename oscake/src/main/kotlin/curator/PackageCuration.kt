@@ -476,16 +476,15 @@ internal data class PackageCuration(
             }
         }
         // issues in curation for this package
-        val remedyList = (resolvedIssues?.filter { it [0] == 'E' ||  it[0] == 'W'} ?: emptyList<String>()).toMutableList()
+        val remedyList = (resolvedIssues?.filter { it [0] == 'E' || it[0] == 'W' } ?: emptyList<String>())
+            .toMutableList()
         val issueList2resolveClone = issueList2resolve.toList()
         val remedyListClone = remedyList.toList()
         issueList2resolve.removeAll(remedyList)
-        if (issueList2resolve.isNotEmpty())
-            logger.log("Not every issue is resolved from package, the following issues still " +
-                    "remain: $issueList2resolve", Level.WARN, pack.id, phase = ProcessingPhase.CURATION)
+        if (issueList2resolve.isNotEmpty()) logger.log("Not every issue is resolved from package, the following" +
+                " issues still remain: $issueList2resolve", Level.WARN, pack.id, phase = ProcessingPhase.CURATION)
         remedyList.removeAll(issueList2resolveClone)
-        if (remedyList.isNotEmpty())
-            logger.log("Curation treats more issues, than the package really has: " +
+        if (remedyList.isNotEmpty()) logger.log("Curation treats more issues, than the package really has: " +
                     " $remedyList", Level.WARN, pack.id, phase = ProcessingPhase.CURATION)
 
         // remove curated issues
@@ -506,6 +505,5 @@ internal data class PackageCuration(
                 it.issueList.errors.removeAll { remedyListClone.contains(it.id) }
             }
         }
-
     }
 }

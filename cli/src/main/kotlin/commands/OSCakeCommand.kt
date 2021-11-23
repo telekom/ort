@@ -22,20 +22,55 @@ package org.ossreviewtoolkit.cli.commands
 import com.github.ajalt.clikt.core.BadParameterValue
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.requireObject
+import com.github.ajalt.clikt.parameters.groups.OptionGroup
+import com.github.ajalt.clikt.parameters.groups.groupChoice
+import com.github.ajalt.clikt.parameters.groups.required
 import com.github.ajalt.clikt.parameters.options.convert
+import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
 import org.ossreviewtoolkit.cli.GlobalOptions
-import org.ossreviewtoolkit.cli.utils.outputGroup
 import org.ossreviewtoolkit.oscake.OSCakeApplication
 import org.ossreviewtoolkit.oscake.OSCakeCurator
 import org.ossreviewtoolkit.oscake.isValidDirectory
 import org.ossreviewtoolkit.utils.expandTilde
 
-class OSCakeCommand : CliktCommand(name = "oscake", help = "Check dependencies for security vulnerabilities.") {
-    private val allOSCakeApplications = OSCakeApplication.ALL.associateBy { it.toString() }.toSortedMap(String.CASE_INSENSITIVE_ORDER)
+sealed class OscakeConfig(name: String) : OptionGroup(name)
+
+/**
+ * Contains the options for the curator application
+ */
+class CuratorOptions : OscakeConfig("Options for oscake application: curator") {
+    val osccFile by option(
+        "--oscc-file", "-i",
+        help = "An oscc file produced by an OSCake-Reporter."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+
+    val outputDir by option(
+        "--output-dir", "-o",
+        help = "The directory to write the curated oscc file."
+    ).convert { it.expandTilde() }
+        .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+
+    val ignoreRootWarnings by option("--ignoreRootWarnings", help = "Ignore Root-Level WARNINGS").flag()
+}
+
+/**
+ * Contains the options for the merger application
+ */
+class MergerOptions : OscakeConfig("Options for oscake application: merger") {
+}
+
+class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake applications: curator, merger, etc.") {
+    private val allOSCakeApplications = OSCakeApplication.ALL.associateBy { it.toString() }
+        .toSortedMap(String.CASE_INSENSITIVE_ORDER)
 
     private val oscakeApp by option(
         "--app", "-a",
@@ -45,40 +80,31 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Check dependencies f
             ?: throw BadParameterValue(
                 "OSCake '$name' is not one of ${allOSCakeApplications.keys}."
             )
-    }.required()
-
-    private val osccFile by option(
-        "--oscc-file", "-i",
-        help = "An oscc file produced by an OSCake-Reporter."
-    ).convert { it.expandTilde() }
-        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
-        .convert { it.absoluteFile.normalize() }
-        .required()
-
-   private val outputDir by option(
-        "--output-dir", "-o",
-        help = "The directory to write the curated oscc file."
-    ).convert { it.expandTilde() }
-        .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
-        .convert { it.absoluteFile.normalize() }
-        .required()
-        .outputGroup()
+    }.groupChoice(
+        "curator" to CuratorOptions(),
+        "merger" to MergerOptions()
+    ).required()
 
     private val globalOptionsForSubcommands by requireObject<GlobalOptions>()
 
-
+    /**
+     * runs the configured oscake application, passed by parameter
+     */
     override fun run() {
         val config = globalOptionsForSubcommands.config
 
-        when (oscakeApp) {
-            "curator" -> {
+        when (val it = oscakeApp) {
+            is CuratorOptions -> {
                 require(isValidDirectory(config.oscake.oscakeCurations?.fileStore)) {
                     "Directory for \"config.oscake.oscakeCurations.fileStore\" is not set correctly in ort.conf"
                 }
                 require(isValidDirectory(config.oscake.oscakeCurations?.directory)) {
                     "Directory for \"config.oscake.oscakeCurations.directory\" is not set correctly in ort.conf"
                 }
-                OSCakeCurator(config.oscake, osccFile, outputDir).execute()
+                OSCakeCurator(config.oscake, it.osccFile, it.outputDir, it.ignoreRootWarnings).execute()
+            }
+            is MergerOptions -> {
+                // todo
             }
         }
     }

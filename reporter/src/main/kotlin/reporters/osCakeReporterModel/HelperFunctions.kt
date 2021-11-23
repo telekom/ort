@@ -136,8 +136,12 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
     // create Map with key = package (package may also be null)
     val issuesPerPackage = logger.osCakeIssues.groupBy { it.id?.toCoordinates() }
     // keeps next number for the issue id, starting at 1
-    val issueNumberPerPackage = issuesPerPackage.keys.associateBy({ it }, { mutableMapOf("errno" to 1,
-        "warno" to 1, "infno" to 1) }).toMutableMap()
+    val issueNumberPerPackage = issuesPerPackage.keys.associateBy({ it }, {
+        mutableMapOf(
+            "errno" to 1,
+            "warno" to 1, "infno" to 1
+        )
+    }).toMutableMap()
 
     // Root-Level: handle OSCakeIssues with no package info
     issuesPerPackage[null]?.forEach {
@@ -145,11 +149,10 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
     }
     // Package-Level: handle OSCakeIssues with package but no reference info
     project.packs.forEach { pack ->
-        issuesPerPackage[pack.id.toCoordinates()]?.
-            forEach {
-                if (it.reference == null || !(it.reference is DefaultLicense || it.reference is DirLicense)) {
-                    addIssue(it, pack.issueList, issuesLevel, issueNumberPerPackage.get(pack.id.toCoordinates())!!)
-                }
+        issuesPerPackage[pack.id.toCoordinates()]?.forEach {
+            if (it.reference == null || !(it.reference is DefaultLicense || it.reference is DirLicense)) {
+                addIssue(it, pack.issueList, issuesLevel, issueNumberPerPackage.get(pack.id.toCoordinates())!!)
+            }
         }
     }
 
@@ -158,18 +161,27 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
         issuesPerPackage[pack.id.toCoordinates()]?.forEach {
             when (it.reference) {
                 is DefaultLicense -> {
-                    addIssue(it, it.reference.issueList, issuesLevel,
-                        issueNumberPerPackage.get(pack.id.toCoordinates())!!)
+                    addIssue(
+                        it, it.reference.issueList, issuesLevel,
+                        issueNumberPerPackage.get(pack.id.toCoordinates())!!
+                    )
                 }
                 is DirLicense -> {
-                    addIssue(it, it.reference.issueList, issuesLevel,
-                        issueNumberPerPackage.get(pack.id.toCoordinates())!!)
+                    addIssue(
+                        it, it.reference.issueList, issuesLevel,
+                        issueNumberPerPackage.get(pack.id.toCoordinates())!!
+                    )
                 }
             }
         }
     }
+    propagateHasIssues(project)
+}
 
-    // propagate hasIssue from the different levels: DefaultLicensing, DirLicensing, Package to Project
+/**
+ *  sets and propagates hasIssue from the different levels: DefaultLicensing, DirLicensing, Package to Project
+ */
+fun propagateHasIssues(project: Project) {
     var projectHasIssues = false
     project.packs.forEach { pack ->
         var pkgHasIssues = false
@@ -187,8 +199,8 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
         pack.hasIssues = pkgHasIssues
         projectHasIssues = projectHasIssues || pack.hasIssues
     }
-    project.hasIssues = projectHasIssues || (project.issueList.errors.isNotEmpty() || project.issueList.warnings.isNotEmpty())
-
+    project.hasIssues = projectHasIssues || (project.issueList.errors.isNotEmpty() ||
+            project.issueList.warnings.isNotEmpty())
 }
 
 /**
@@ -205,10 +217,12 @@ internal fun addIssue(oscakeIssue: OSCakeIssue, issueList: IssueList, issuesLeve
             if (issuesLevel > 1) issueList.infos.add(Issue(getNextNo('I', no, prePrefix), oscakeIssue.msg))
             false
         }
-        Level.WARN -> { if (issuesLevel > 0) issueList.warnings.add(Issue(getNextNo('W', no, prePrefix), oscakeIssue.msg))
+        Level.WARN -> { if (issuesLevel > 0) issueList.warnings.add(Issue(getNextNo('W', no, prePrefix),
+            oscakeIssue.msg))
             true
         }
-        Level.ERROR -> { if (issuesLevel > -1) issueList.errors.add(Issue(getNextNo('E', no, prePrefix), oscakeIssue.msg))
+        Level.ERROR -> { if (issuesLevel > -1) issueList.errors.add(Issue(getNextNo('E', no, prePrefix),
+            oscakeIssue.msg))
             true
         }
         else -> false

@@ -32,10 +32,13 @@ import org.ossreviewtoolkit.oscake.curator.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
 class OSCakeCurator(private val config: OSCakeConfiguration, private val osccFile: File,
-                     private val outputDir: File) {
+                     private val outputDir: File, private val ignoreRootWarnings: Boolean) {
 
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
+    /**
+     * Generates the json from file and starts the curation process
+     */
     fun execute() {
         val mapper = jacksonObjectMapper()
         var project: Project? = null
@@ -55,9 +58,9 @@ class OSCakeCurator(private val config: OSCakeConfiguration, private val osccFil
                         it.declared = it.license == FOUND_IN_FILE_SCOPE_DECLARED
                     }
                 }
-                val osc = OSCakeRoot(project.complianceArtifactCollection.cid)
+                val osc = OSCakeRoot()
                 osc.project = project
-                CurationManager(osc.project, outputDir, osccFile.absolutePath, config).manage()
+                CurationManager(osc.project, outputDir, osccFile.absolutePath, config, ignoreRootWarnings).manage()
             }
         }
     }

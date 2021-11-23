@@ -54,4 +54,3 @@ data class ComplianceArtifactCollection(
      */
     var archiveType: String = "ZIP"
 )
-
