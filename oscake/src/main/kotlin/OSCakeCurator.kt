@@ -55,7 +55,7 @@ class OSCakeCurator(private val config: OSCakeConfiguration, private val osccFil
                     pack.namespace = pack.id.namespace
                     pack.type = pack.id.type
                     pack.defaultLicensings.forEach {
-                        it.declared = it.license == FOUND_IN_FILE_SCOPE_DECLARED
+                        it.declared = it.path == FOUND_IN_FILE_SCOPE_DECLARED
                     }
                 }
                 val osc = OSCakeRoot()

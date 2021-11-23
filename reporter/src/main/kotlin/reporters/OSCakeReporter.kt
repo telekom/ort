@@ -89,7 +89,7 @@ class OSCakeReporter : Reporter {
 
         OSCakeConfiguration.params.forceIncludePackages.filter { !it.value }.forEach {
             logger.log("Package \"${it.key}\" is configured to be present due to \"forceIncludePackages-List\", " +
-                    "but was not found!", Level.WARN, phase = ProcessingPhase.POST)
+                    "but was not found!", Level.WARN, it.key, phase = ProcessingPhase.POST)
         }
 
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) {
@@ -232,7 +232,7 @@ class OSCakeReporter : Reporter {
 
         cfg.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
             logger.log("packageRestrictions are enabled, but the package [$identifier] was not found",
-                Level.WARN, phase = ProcessingPhase.PROCESS)
+                Level.WARN, identifier, phase = ProcessingPhase.PROCESS)
         }
         return osc
     }
@@ -309,7 +309,7 @@ class OSCakeReporter : Reporter {
                 } catch (fileNotFound: FileNotFoundException) {
                     // if native scan results are not found for one package, we continue, but log an error
                     logger.log("Native scan result was not found: ${fileNotFound.message}",
-                        Level.ERROR, null, phase = ProcessingPhase.SCANRESULT)
+                        Level.ERROR, key, phase = ProcessingPhase.SCANRESULT)
                 }
             }
         }
@@ -345,7 +345,7 @@ class OSCakeReporter : Reporter {
             path = "$oscakeScanResultsDir"
             if (ortScanResultsDir != null && !File("$oscakeScanResultsDir/$subfolder").exists()) {
                 logger.log("Scan results for $subfolder does not exist - neither in $ortScanResultsDir nor in " +
-                            "$oscakeScanResultsDir", Level.ERROR, phase = ProcessingPhase.SCANRESULT
+                            "$oscakeScanResultsDir", Level.ERROR, id, phase = ProcessingPhase.SCANRESULT
                 )
             }
         }

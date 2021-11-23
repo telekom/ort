@@ -147,6 +147,17 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
     issuesPerPackage[null]?.forEach {
         addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage.get(null)!!)
     }
+
+    // Package-Level, but package does not exist --> put into Root-Level
+    val idList = issuesPerPackage.keys
+    val packIdList = project.packs.map { it.id.toCoordinates() }
+    idList.filterNot { packIdList.contains(it) || it == null }.forEach { idString ->
+        issuesPerPackage[idString]?.forEach {
+            addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage.get(null)!!,
+                it.id?.toCoordinates() ?: "")
+        }
+    }
+
     // Package-Level: handle OSCakeIssues with package but no reference info
     project.packs.forEach { pack ->
         issuesPerPackage[pack.id.toCoordinates()]?.forEach {
@@ -207,21 +218,22 @@ fun propagateHasIssues(project: Project) {
  * Adds issue to the issues list depending on Level information;
  * return true for Warnings and Errors
  */
-internal fun addIssue(oscakeIssue: OSCakeIssue, issueList: IssueList, issuesLevel: Int, no: MutableMap<String, Int>):
-        Boolean {
-        val prePrefix = if (oscakeIssue.phase == ProcessingPhase.CURATION) "Cur_" else ""
+internal fun addIssue(oscakeIssue: OSCakeIssue, issueList: IssueList, issuesLevel: Int, no: MutableMap<String, Int>,
+                      suffix: String = ""): Boolean {
+
+    val prePrefix = if (oscakeIssue.phase == ProcessingPhase.CURATION) "Cur_" else ""
 
     return when (oscakeIssue.level) {
         Level.DEBUG -> false
         Level.INFO -> {
-            if (issuesLevel > 1) issueList.infos.add(Issue(getNextNo('I', no, prePrefix), oscakeIssue.msg))
+            if (issuesLevel > 1) issueList.infos.add(Issue(getNextNo('I', no, prePrefix, suffix), oscakeIssue.msg))
             false
         }
-        Level.WARN -> { if (issuesLevel > 0) issueList.warnings.add(Issue(getNextNo('W', no, prePrefix),
+        Level.WARN -> { if (issuesLevel > 0) issueList.warnings.add(Issue(getNextNo('W', no, prePrefix, suffix),
             oscakeIssue.msg))
             true
         }
-        Level.ERROR -> { if (issuesLevel > -1) issueList.errors.add(Issue(getNextNo('E', no, prePrefix),
+        Level.ERROR -> { if (issuesLevel > -1) issueList.errors.add(Issue(getNextNo('E', no, prePrefix, suffix),
             oscakeIssue.msg))
             true
         }
@@ -232,21 +244,34 @@ internal fun addIssue(oscakeIssue: OSCakeIssue, issueList: IssueList, issuesLeve
  * [getNextNo] returns the next id for an issue depending on the type: INFO, WARN, ERROR represented by the [prefix]
  * e.g. E01 or W01
  */
-private fun getNextNo(prefix: Char, no: MutableMap<String, Int>, prePrefix: String): String = when (prefix) {
+private fun getNextNo(prefix: Char, no: MutableMap<String, Int>, prePrefix: String, suffix: String = ""):
+        String = when (prefix) {
         'I' -> {
-            var next = no["infno"]!!
-            no["infno"] = next + 1
-            prePrefix + prefix.toString() + "%02d".format(next)
+            if (suffix.isEmpty()) {
+                var next = no["infno"]!!
+                no["infno"] = next + 1
+                prePrefix + prefix.toString() + "%02d".format(next)
+            } else {
+                prefix.toString() + "_" + suffix
+            }
         }
         'W' -> {
-            var next = no["warno"]!!
-            no["warno"] = next + 1
-            prePrefix + prefix.toString() + "%02d".format(next)
+            if (suffix.isEmpty()) {
+                var next = no["warno"]!!
+                no["warno"] = next + 1
+                prePrefix + prefix.toString() + "%02d".format(next)
+            } else {
+                prefix.toString() + "_" + suffix
+            }
         }
         'E' -> {
-            var next = no["errno"]!!
-            no["errno"] = next + 1
-            prePrefix + prefix.toString() + "%02d".format(next)
+            if (suffix.isEmpty()) {
+                var next = no["errno"]!!
+                no["errno"] = next + 1
+                prePrefix + prefix.toString() + "%02d".format(next)
+            } else {
+                prefix.toString() + "_" + suffix
+            }
         }
         else -> "No no found!"
     }
