@@ -38,14 +38,14 @@ val packageModifierMap = hashMapOf("delete" to listOf(setOf(), setOf()),
 /**
  * [orderLicenseByModifier] defines the sort order of curations for licenses.
  */
-val orderLicenseByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(0)?.
-withIndex()?.associate { it.value to it.index } }.toMap()
+val orderLicenseByModifier = packageModifierMap.map { it.key to packageModifierMap[it.key]?.get(0)?.
+withIndex()?.associate { a -> a.value to a.index } }.toMap()
 
 /**
  * [orderCopyrightByModifier] defines the sort order of curations for copyrights.
  */
-val orderCopyrightByModifier = packageModifierMap.map { it.key to packageModifierMap.get(it.key)?.get(1)?.
-withIndex()?.associate { it.value to it.index } }.toMap()
+val orderCopyrightByModifier = packageModifierMap.map { it.key to packageModifierMap[it.key]?.get(1)?.
+withIndex()?.associate { a -> a.value to a.index } }.toMap()
 
 /**
  * checks if the value of the optionName in map is a valid file

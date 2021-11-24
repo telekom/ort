@@ -57,6 +57,10 @@ internal data class PackageCuration(
      */
     @JsonProperty("resolved_issues") val resolvedIssues: List<String>? = mutableListOf(),
     /**
+     * Defines the directory where the source files are found - may be in a subdirectory of a package
+     */
+    @JsonProperty("source_root") val packageRoot: String? = "",
+    /**
      * An optional [comment] discusses the reason for this curation.
      */
     val comment: String? = null,
@@ -112,7 +116,7 @@ internal data class PackageCuration(
 
     /**
      * The method handles curations for the [packageModifier]s "insert" and "update". Additionally, it manages
-     * the special case of [fileScope] == CURATION_DEFAULT_LICENSING (This special processing is necessary if
+     * the special case of "fileScope" == CURATION_DEFAULT_LICENSING (This special processing is necessary if
      * defaultLicensings exist, which are not based on fileLicensings - aka "declared license").
      */
     internal fun curate(pack: Pack, archiveDir: File, fileStore: File, scopePatterns: List<String>) {
@@ -161,9 +165,7 @@ internal data class PackageCuration(
                                     curationFileLicenseItem.license == "*") &&
                                     (it.licenseTextInArchive == curationFileLicenseItem.licenseTextInArchive ||
                                             curationFileLicenseItem.licenseTextInArchive == "*")
-                        }.also {
-                            it.forEach { deleteFromArchive(it.licenseTextInArchive, archiveDir) }
-                        }.also {
+                        }.onEach { deleteFromArchive(it.licenseTextInArchive, archiveDir) }.also {
                             pack.defaultLicensings.removeAll(it)
                         }
                         "update" -> pack.defaultLicensings.filter {
@@ -371,19 +373,19 @@ internal data class PackageCuration(
         // two consecutive "*" are not allowed
         if (wildCardString.contains("**")) return false
 
-        if (wildCardString.length == 0 && compareString.length == 0) return true
+        if (wildCardString.isEmpty() && compareString.isEmpty()) return true
 
-        if (wildCardString.length > 1 && wildCardString[0] == '*' && compareString.length == 0) return false
+        if (wildCardString.length > 1 && wildCardString[0] == '*' && compareString.isEmpty()) return false
 
         @Suppress("ComplexCondition")
         if (wildCardString.length > 1 && wildCardString[0] == '?' ||
-            wildCardString.length != 0 && compareString.length != 0 && wildCardString[0] == compareString[0]
+            wildCardString.isNotEmpty() && compareString.isNotEmpty() && wildCardString[0] == compareString[0]
         ) return match(
             wildCardString.substring(1),
             compareString.substring(1)
         )
 
-        return if (wildCardString.length > 0 && wildCardString[0] == '*') match(wildCardString.substring(1),
+        return if (wildCardString.isNotEmpty() && wildCardString[0] == '*') match(wildCardString.substring(1),
             compareString) || match(wildCardString, compareString.substring(1)) else false
     }
 
@@ -400,7 +402,7 @@ internal data class PackageCuration(
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
-            if (pack.reuseCompliant && !licenses.isEmpty()) {
+            if (pack.reuseCompliant && licenses.isNotEmpty()) {
                 logger.log("In REUSE compliant projects only one license per is file allowed --> curation " +
                         "insert ignored!", Level.WARN, pack.id, curationFileItem.fileScope)
                 return
@@ -434,7 +436,7 @@ internal data class PackageCuration(
         }
         if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
             val dirScope = getDirScopePath(pack, fileScope)
-            (pack.dirLicensings.firstOrNull() { it.scope == dirScope } ?: run
+            (pack.dirLicensings.firstOrNull { it.scope == dirScope } ?: run
                 {
                     DirLicensing(dirScope).apply { pack.dirLicensings.add(this) }
                 }).apply {
@@ -463,20 +465,20 @@ internal data class PackageCuration(
     }
 
     private fun eliminateIssueFromPackage(pack: Pack) {
-        // generate list of all reported oscc-issues (ERRORs and WARNINGs) in this package
+        // generate list of all reported oscc-issues (ERRORS and WARNINGS) in this package
         val issueList2resolve = mutableListOf<String>()
         issueList2resolve.addAll(pack.issueList.warnings.map { it.id })
         issueList2resolve.addAll(pack.issueList.errors.map { it.id })
-        issueList2resolve.addAll(pack.defaultLicensings.map { it.issueList.warnings.map { it.id } }.flatten())
-        issueList2resolve.addAll(pack.defaultLicensings.map { it.issueList.errors.map { it.id } }.flatten())
-        pack.dirLicensings.forEach {
-            it.licenses.forEach {
-                issueList2resolve.addAll(it.issueList.warnings.map { it.id })
-                issueList2resolve.addAll(it.issueList.errors.map { it.id })
+        issueList2resolve.addAll(pack.defaultLicensings.map { it.issueList.warnings.map { m -> m.id } }.flatten())
+        issueList2resolve.addAll(pack.defaultLicensings.map { it.issueList.errors.map { m -> m.id } }.flatten())
+        pack.dirLicensings.forEach { dirLicensing ->
+            dirLicensing.licenses.forEach { dirLicense ->
+                issueList2resolve.addAll(dirLicense.issueList.warnings.map { it.id })
+                issueList2resolve.addAll(dirLicense.issueList.errors.map { it.id })
             }
         }
         // issues in curation for this package
-        val remedyList = (resolvedIssues?.filter { it [0] == 'E' || it[0] == 'W' } ?: emptyList<String>())
+        val remedyList = (resolvedIssues?.filter { it [0] == 'E' || it[0] == 'W' } ?: emptyList())
             .toMutableList()
         val issueList2resolveClone = issueList2resolve.toList()
         val remedyListClone = remedyList.toList()
@@ -492,17 +494,17 @@ internal data class PackageCuration(
         pack.issueList.warnings.removeAll { remedyListClone.contains(it.id) }
         pack.issueList.errors.removeAll { remedyListClone.contains(it.id) }
 
-        pack.defaultLicensings.forEach {
-            it.issueList.infos.removeAll { remedyListClone.contains(it.id) }
-            it.issueList.warnings.removeAll { remedyListClone.contains(it.id) }
-            it.issueList.errors.removeAll { remedyListClone.contains(it.id) }
+        pack.defaultLicensings.forEach { defaultLicense ->
+            defaultLicense.issueList.infos.removeAll { remedyListClone.contains(it.id) }
+            defaultLicense.issueList.warnings.removeAll { remedyListClone.contains(it.id) }
+            defaultLicense.issueList.errors.removeAll { remedyListClone.contains(it.id) }
         }
 
-        pack.dirLicensings.forEach {
-            it.licenses.forEach {
-                it.issueList.infos.removeAll { remedyListClone.contains(it.id) }
-                it.issueList.warnings.removeAll { remedyListClone.contains(it.id) }
-                it.issueList.errors.removeAll { remedyListClone.contains(it.id) }
+        pack.dirLicensings.forEach { dirLicensing ->
+            dirLicensing.licenses.forEach { dirLicense ->
+                dirLicense.issueList.infos.removeAll { remedyListClone.contains(it.id) }
+                dirLicense.issueList.warnings.removeAll { remedyListClone.contains(it.id) }
+                dirLicense.issueList.errors.removeAll { remedyListClone.contains(it.id) }
             }
         }
     }

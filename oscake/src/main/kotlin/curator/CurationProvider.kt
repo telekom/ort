@@ -60,8 +60,8 @@ internal class CurationProvider(
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
     /**
-     * The init method walks through the folder hierarchy - starting at [curationDirectory] - and creates a list
-     * of [PackageCuration]s.
+     * The init method walks through the folder hierarchy - starting at "curationDirectory" - and creates a list
+     * of "PackageCurations".
      */
     init {
         if (curationDirectory.isDirectory) {
@@ -113,7 +113,7 @@ internal class CurationProvider(
         // 2. check packageModifier
         if (!packageModifierMap.containsKey(packageCuration.packageModifier)) {
             logger.log("$errorPrefix package_modifier <${packageCuration.packageModifier}> not valid! " +
-                    "$errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
+                    errorSuffix, Level.WARN, phase = ProcessingPhase.CURATION
             )
             return false
         }
@@ -209,7 +209,7 @@ internal class CurationProvider(
                     if (!File(fileStore.path + "/" + it.licenseTextInArchive).exists()) {
                         logger.log("$errorPrefix file <${it.licenseTextInArchive}> does not exist in " +
                                 "configured file store found in file_scope: <${curationFileItem.fileScope}>! " +
-                                "$errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
+                                errorSuffix, Level.WARN, phase = ProcessingPhase.CURATION
                         )
                         return false
                     }

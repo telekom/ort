@@ -43,7 +43,7 @@ internal class CurationManager(
     /**
      * The [project] contains the processed output from the OSCakeReporter - specifically a list of packages.
      */
-    val project: Project,
+    private val project: Project,
     /**
      * The generated files are stored in the folder [outputDir]
      */
@@ -59,7 +59,7 @@ internal class CurationManager(
     /**
      * option which indicates that the Warnings on root level are removed
      */
-    val ignoreRootWarnings: Boolean
+    private val ignoreRootWarnings: Boolean
     ) {
 
     /**
@@ -94,8 +94,8 @@ internal class CurationManager(
             pack.defaultLicensings.forEach {
                 it.hasIssues = false
             }
-            pack.dirLicensings.forEach {
-                it.licenses.forEach {
+            pack.dirLicensings.forEach { dirLicensing ->
+                dirLicensing.licenses.forEach {
                     it.hasIssues = false
                 }
             }
@@ -106,7 +106,8 @@ internal class CurationManager(
             when (packageCuration.packageModifier) {
                 "insert" -> if (project.packs.none { it.id == packageCuration.id }) {
                     eliminateIssueFromRoot(project.issueList, packageCuration.id.toCoordinates())
-                    Pack(packageCuration.id, packageCuration.repository ?: "", "").apply {
+                    Pack(packageCuration.id, packageCuration.repository ?: "", packageCuration.packageRoot ?: "")
+                        .apply {
                             project.packs.add(this)
                             reuseCompliant = checkReuseCompliance(this, packageCuration)
                         }
@@ -146,7 +147,7 @@ internal class CurationManager(
 
     /**
      * Remove warnings from project issueList with format: "Wxx" - theses are warnings created by the reporter and
-     * can be overriden manually by option
+     * can be overridden manually by option
      */
     private fun eliminateRootWarnings() {
         val pattern = "W\\d\\d".toRegex()
@@ -156,7 +157,7 @@ internal class CurationManager(
     }
 
     /**
-     * Clear all lists in issueLists (project, package,..) depending on the issueLevel - set in ort.conf, in order
+     * Clear all lists in issueLists (project, package, ...) depending on the issueLevel - set in ort.conf, in order
      * to produce the correct output
      */
     private fun takeCareOfIssueLevel() {
@@ -245,7 +246,7 @@ internal class CurationManager(
         }
         // consistency check: direction from archive to pack
         missingFiles.clear()
-        archiveDir.listFiles().forEach { file ->
+        archiveDir.listFiles()?.forEach { file ->
             var found = false
             val fileName = file.name
             project.packs.forEach { pack ->
@@ -302,7 +303,7 @@ internal class CurationManager(
             it.write(objectMapper.writeValueAsString(project))
         }
 
-        println("Successfully curated the 'OSCake' at [" + outputFile + "]")
+        println("Successfully curated the 'OSCake' at [$outputFile]")
     }
 
     /** generates a new file name based on the original report file name: e.g.

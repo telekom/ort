@@ -36,7 +36,7 @@ internal data class CurationFileLicenseItem(
     /**
      * The [license] is used to identify the specific license text; it may contain a valid license string,
      * a placeholder "*" or null (null is treated like a specific license in order to curate license text entries with
-     * null.
+     * null).
      */
     val license: String?,
     /**
