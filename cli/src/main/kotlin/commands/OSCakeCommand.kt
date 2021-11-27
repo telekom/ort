@@ -30,12 +30,14 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
+import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.cli.GlobalOptions
-import org.ossreviewtoolkit.oscake.OSCakeApplication
-import org.ossreviewtoolkit.oscake.OSCakeCurator
-import org.ossreviewtoolkit.oscake.isValidDirectory
+import org.ossreviewtoolkit.oscake.*
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.utils.expandTilde
+import java.io.File
 
 sealed class OscakeConfig(name: String) : OptionGroup(name)
 
@@ -66,6 +68,47 @@ class CuratorOptions : OscakeConfig("Options for oscake application: curator") {
  * Contains the options for the merger application
  */
 class MergerOptions : OscakeConfig("Options for oscake application: merger") {
+    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(MERGER_LOGGER) }
+
+    private val inputDir by option("--inputDirectory", "-id", help = "The path to a folder containing oscc " +
+            "files and their corresponding archives. May also consist of subdirectories.")
+        .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
+        .required()
+
+    private val outputDirArg by option("--outputDirectory", "-od", help = "The path to the output folder.")
+        .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = true, mustBeReadable = true)
+
+    internal val cid by option("--cid", "-c", help = "Id of the Compliance Artifact Collection - IVY format preferred.")
+        .required()
+
+    private val outputFileArg by option("--outputFile", "-of", help = "Name of the output file. When -o is " +
+            "also specified, the path to the outputFile is stripped to its name.")
+        .file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
+
+    internal lateinit var outputFile: File
+
+    internal fun resolveArgs() {
+        require (!(outputDirArg == null && outputFileArg == null)) { "Either <outputDirectory> and/or <outputFile> " +
+                "must be specified!" }
+
+        outputFile = if (outputFileArg == null) {
+            val fileName = cid.replace(":", ".")
+            require(isValidFilePathName(fileName)) { "$fileName - output file name not valid - it may contain + " +
+                    "special characters!" }
+
+            File("$fileName.oscc")
+        } else {
+            require(isValidFilePathName(outputFileArg!!.name)) { "$outputFileArg - output file name not " +
+                    "valid - it may contain special characters!" }
+            outputFileArg as File
+        }
+
+        // if output directory is given, strip the output files to their file names
+        if (outputDirArg != null) {
+            outputFile = outputDirArg!!.resolve(outputFile.name)
+        }
+    }
+
 }
 
 class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake applications: curator, merger, etc.") {
@@ -104,6 +147,9 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
                 OSCakeCurator(config.oscake, it.osccFile, it.outputDir, it.ignoreRootWarnings).execute()
             }
             is MergerOptions -> {
+                it.resolveArgs()
+                println(it.cid)
+                println(it.outputFile.path)
                 // todo
             }
         }

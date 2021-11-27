@@ -20,9 +20,11 @@
 package org.ossreviewtoolkit.oscake
 
 import java.io.File
+import java.io.IOException
 
 const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
-const val CURATION_LOGGER = "OSCakeCuration"
+const val CURATION_LOGGER = "OSCakeCurator"
+const val MERGER_LOGGER = "OSCakeMerger"
 
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
@@ -56,3 +58,17 @@ fun isValidDirectory(dirName: String?): Boolean =
 object OSCakeApplication {
    val ALL by lazy { listOf("curator", "merger") }
 }
+
+/**
+ * Checks if the [path] contains invalid characters for file names
+ */
+@Suppress("SwallowedException")
+fun isValidFilePathName(path: String): Boolean =
+    try {
+        File(path).canonicalPath
+        true
+    } catch (e: IOException) {
+        false
+    }
+
+
