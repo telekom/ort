@@ -19,6 +19,7 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
 import java.time.LocalDateTime
@@ -27,7 +28,8 @@ import java.time.LocalDateTime
  * The class [ComplianceArtifactCollection] contains meta information about the run of the OSCakeReporter. Currently,
  * only zip archives are supported.
  */
-@JsonPropertyOrder("cid", "author", "release", "date", "archivePath", "archiveType")
+@JsonPropertyOrder("cid", "author", "release", "date", "archivePath", "archiveType", "mergedCids")
+@JsonInclude(value = JsonInclude.Include.NON_EMPTY)
 data class ComplianceArtifactCollection(
     /**
      * [cid] is the Identifier of this project e.g.: "Maven:de.tdosca.tc06:tdosca-tc06:1.0".
@@ -53,4 +55,9 @@ data class ComplianceArtifactCollection(
      * In current versions only zip files are used.
      */
     var archiveType: String = "ZIP"
-)
+) {
+    /**
+     * used for OSCakeMerger: contains list of CIDs which are merged
+     */
+    var mergedIds: MutableList<String> = mutableListOf()
+}

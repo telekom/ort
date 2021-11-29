@@ -68,9 +68,7 @@ class CuratorOptions : OscakeConfig("Options for oscake application: curator") {
  * Contains the options for the merger application
  */
 class MergerOptions : OscakeConfig("Options for oscake application: merger") {
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(MERGER_LOGGER) }
-
-    private val inputDir by option("--inputDirectory", "-id", help = "The path to a folder containing oscc " +
+    internal val inputDir by option("--inputDirectory", "-id", help = "The path to a folder containing oscc " +
             "files and their corresponding archives. May also consist of subdirectories.")
         .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
         .required()
@@ -108,7 +106,6 @@ class MergerOptions : OscakeConfig("Options for oscake application: merger") {
             outputFile = outputDirArg!!.resolve(outputFile.name)
         }
     }
-
 }
 
 class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake applications: curator, merger, etc.") {
@@ -148,9 +145,7 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
             }
             is MergerOptions -> {
                 it.resolveArgs()
-                println(it.cid)
-                println(it.outputFile.path)
-                // todo
+                OSCakeMerger(it.cid, it.inputDir, it.outputFile).execute()
             }
         }
     }

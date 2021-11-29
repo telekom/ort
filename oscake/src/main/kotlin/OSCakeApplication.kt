@@ -25,6 +25,9 @@ import java.io.IOException
 const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
 const val CURATION_LOGGER = "OSCakeCurator"
 const val MERGER_LOGGER = "OSCakeMerger"
+const val MERGER_VERSION = "0.1"
+const val OSCAKE_MERGER_AUTHOR = "OSCake-Merger"
+const val OSCAKE_MERGER_ARCHIVE_TYPE = "zip"
 
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated

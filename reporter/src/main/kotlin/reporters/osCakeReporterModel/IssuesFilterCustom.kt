@@ -26,6 +26,8 @@ class IssuesFilterCustom {
         if (other is IssueList) {
             if (other.errors.isEmpty() && other.infos.isEmpty() && other.warnings.isEmpty()) return true
         }
+        if (other == null) return true
+
         return false
     }
 }

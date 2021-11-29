@@ -57,7 +57,7 @@ class OSCakeLogger(
         var jsonPath = ""
         OSCakeIssue(msg, level, id, fileScope, reference, scope, phase).also {
             if (level != Level.DEBUG) osCakeIssues.add(it)
-            if (phase != ProcessingPhase.CURATION) {
+            if (phase != ProcessingPhase.CURATION && phase != ProcessingPhase.MERGING) {
                 if (OSCakeConfiguration.params.includeJsonPathInLogfile4ErrorsAndWarnings &&
                     (level == Level.ERROR || level == Level.WARN)
                 ) jsonPath = it.generateJSONPath()
