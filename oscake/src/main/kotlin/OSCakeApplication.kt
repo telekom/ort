@@ -73,5 +73,3 @@ fun isValidFilePathName(path: String): Boolean =
     } catch (e: IOException) {
         false
     }
-
-

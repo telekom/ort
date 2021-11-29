@@ -22,6 +22,16 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
+
+import java.io.File
+import java.io.FileOutputStream
+import java.security.MessageDigest
+import java.util.Enumeration
+import java.util.Locale
+import java.util.zip.ZipEntry
+
+import kotlin.system.exitProcess
+
 import org.apache.commons.compress.archivers.ArchiveException
 import org.apache.commons.compress.archivers.ArchiveOutputStream
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
@@ -29,13 +39,8 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipFile
 import org.apache.commons.compress.utils.IOUtils
 import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.model.Identifier
-import java.io.File
-import java.io.FileOutputStream
-import java.security.MessageDigest
-import java.util.*
-import java.util.zip.ZipEntry
-import kotlin.system.exitProcess
 
 /**
  * The class [Project] wraps the meta information ([complianceArtifactCollection]) of the OSCakeReporter as well
@@ -64,7 +69,7 @@ data class Project(
      * [packs] is a list of packages [Pack] which are part of the project.
      */
     @get:JsonProperty("complianceArtifactPackages") val packs: MutableList<Pack> = mutableListOf<Pack>()
-){
+) {
     companion object {
         private lateinit var zipOutput: ArchiveOutputStream
         private lateinit var zipOutputStream: FileOutputStream
@@ -252,7 +257,8 @@ data class Project(
      */
     private fun getNewPrefix(project: Project): String {
         val key = project.complianceArtifactCollection.cid
-        return DIGEST.digest(key.toByteArray()).joinToString("") { String.format("%02x", it) } + "-"
+        return DIGEST.digest(key.toByteArray()).joinToString("") {
+             String.format(Locale.GERMAN, "%02x", it) } + "-"
     }
 
     /**
@@ -313,5 +319,4 @@ data class Project(
     }
 
     private fun containsID(id: Identifier): Boolean = this.packs.any { it.id == id }
-
 }

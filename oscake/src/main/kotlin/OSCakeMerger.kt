@@ -20,13 +20,21 @@
 package org.ossreviewtoolkit.oscake
 
 import com.fasterxml.jackson.databind.ObjectMapper
+
+import java.io.File
+
 import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.oscake.merger.ProjectProvider
-import java.io.File
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
-class OSCakeMerger (private val cid: String, private val inputDir: File, private val outputFile: File){
+/**
+ * The [OSCakeMerger] combines different *.oscc files (only with hasIssues = false) into a new
+ * ComplianceArtifactCollection. The referenced license files are copied from the origin to the new zip-file.
+ * In order to create unique file references the path to the files gets a hash code as a prefix
+ */
+class OSCakeMerger(private val cid: String, private val inputDir: File, private val outputFile: File) {
 
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(MERGER_LOGGER) }
     private val identifier = Identifier(cid)
@@ -51,8 +59,9 @@ class OSCakeMerger (private val cid: String, private val inputDir: File, private
             ProjectProvider.getProject(file.absoluteFile)?.let { project ->
                 if (mergedProject.merge(project, file)) {
                     cac.mergedIds.add(project.complianceArtifactCollection.cid)
-                    if (project.complianceArtifactCollection.mergedIds.isNotEmpty())
+                    if (project.complianceArtifactCollection.mergedIds.isNotEmpty()) {
                         cac.mergedIds.addAll(project.complianceArtifactCollection.mergedIds)
+                    }
                     inputFileCounter++
                     val mergedFile = file.relativeToOrNull(inputDir) ?: ""
                     logger.log("File: <$mergedFile> successfully merged!", Level.INFO, phase = ProcessingPhase.MERGING)

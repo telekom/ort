@@ -30,14 +30,16 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
-import org.apache.logging.log4j.Level
+
+import java.io.File
 
 import org.ossreviewtoolkit.cli.GlobalOptions
-import org.ossreviewtoolkit.oscake.*
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
+import org.ossreviewtoolkit.oscake.OSCakeApplication
+import org.ossreviewtoolkit.oscake.OSCakeCurator
+import org.ossreviewtoolkit.oscake.OSCakeMerger
+import org.ossreviewtoolkit.oscake.isValidDirectory
+import org.ossreviewtoolkit.oscake.isValidFilePathName
 import org.ossreviewtoolkit.utils.expandTilde
-import java.io.File
 
 sealed class OscakeConfig(name: String) : OptionGroup(name)
 
@@ -86,7 +88,7 @@ class MergerOptions : OscakeConfig("Options for oscake application: merger") {
     internal lateinit var outputFile: File
 
     internal fun resolveArgs() {
-        require (!(outputDirArg == null && outputFileArg == null)) { "Either <outputDirectory> and/or <outputFile> " +
+        require(!(outputDirArg == null && outputFileArg == null)) { "Either <outputDirectory> and/or <outputFile> " +
                 "must be specified!" }
 
         outputFile = if (outputFileArg == null) {

@@ -31,6 +31,10 @@ import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.curator.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
+/**
+ * The [OSCakeCurator] provides a mechanism to curate issues (WARNINGS & ERRORS) in an *.oscc file. Additionally,
+ * ComplianceArtifactPackages can be added and/or deleted.
+ */
 class OSCakeCurator(private val config: OSCakeConfiguration, private val osccFile: File,
                      private val outputDir: File, private val ignoreRootWarnings: Boolean) {
 
