@@ -28,7 +28,7 @@ import java.time.LocalDateTime
  * The class [ComplianceArtifactCollection] contains meta information about the run of the OSCakeReporter. Currently,
  * only zip archives are supported.
  */
-@JsonPropertyOrder("cid", "author", "release", "date", "archivePath", "archiveType", "mergedCids")
+@JsonPropertyOrder("cid", "author", "release", "date", "archivePath", "archiveType", "mergedIds")
 @JsonInclude(value = JsonInclude.Include.NON_EMPTY)
 data class ComplianceArtifactCollection(
     /**
