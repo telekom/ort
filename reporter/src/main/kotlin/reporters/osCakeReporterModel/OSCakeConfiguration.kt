@@ -77,9 +77,15 @@ Wrapper class for the [OSCakeConfiguration] class - reads the file passed by opt
  */
 data class OSCakeConfiguration(
     /**
-     *  [scopePatterns] contains a list of glob patterns which are used to determine the corresponding [ScopeLevel].
+     *  [scopePatterns] contains a list of glob patterns which are used to determine the corresponding [ScopeLevel]
+     *  of licenses.
      */
     val scopePatterns: List<String> = mutableListOf(),
+    /**
+     *  [copyrightScopePatterns] contains a list of glob patterns which are used to determine the
+     *  corresponding [ScopeLevel] for copyrights - is an extension to scopePatterns
+     */
+    val copyrightScopePatterns: List<String> = mutableListOf(),
     /**
      * [sourceCodesDir] folders where to find or save the source code.
      */
@@ -207,9 +213,11 @@ data class OSCakeConfiguration(
             params.scopePatterns = osCakeConfig.scopePatterns
             if (params.dependencyGranularity != Int.MAX_VALUE) commandLineParams["dependency-granularity"] =
                 params.dependencyGranularity.toString()
+            params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns + osCakeConfig.scopePatterns).toList()
 
-            osCakeConfigInfo = OSCakeConfigInfo(OSCakeConfiguration.commandLineParams,
-                OSCakeConfiguration.osCakeConfig)
+            params.dedupLicensesAndCopyrights = options.containsKey("--dedupLicensesAndCopyrights")
+
+            osCakeConfigInfo = OSCakeConfigInfo(commandLineParams, osCakeConfig)
         }
         /**
          * fetches the options which were passed via "-O OSCake=...=..."

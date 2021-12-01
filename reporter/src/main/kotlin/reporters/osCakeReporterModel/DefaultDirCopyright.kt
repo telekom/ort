@@ -22,21 +22,13 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
-/**
- * The class DirLicensing is a collection of [DirLicense] instances for the given path (stored in [scope])
- */
-@JsonPropertyOrder("scope", "licenses")
-data class DirLicensing(
+@JsonPropertyOrder("foundInFileScope", "copyright")
+class DefaultDirCopyright(
     /**
-     * [scope] contains the name of the folder to which the licenses belong.
+     * Shows the [path] to the file where the copyright was found.
      */
-    @get:JsonProperty("dirScope") val scope: String) {
+    @get:JsonProperty("foundInFileScope") val path: String?,
     /**
-     * [licenses] contains a list of [DirLicense]s.
+     * [copyright] contains the copyright string.
      */
-    @JsonProperty("dirLicenses") val licenses = mutableListOf<DirLicense>()
-    /**
-     * [copyrights] contains a list of [DefaultDirCopyright]s.
-     */
-    @JsonProperty("dirCopyrights") val copyrights = mutableListOf<DefaultDirCopyright>()
-}
+    val copyright: String?)

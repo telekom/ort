@@ -62,7 +62,7 @@ internal class ModeDefault(
          */
         @Suppress("SwallowedException")
         try {
-            scanDict[pack.id]?.forEach { fileName, fib ->
+            scanDict[pack.id]?.forEach { (fileName, fib) ->
                 val scopeLevel = getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params.scopePatterns)
                 if ((scopeLevel == ScopeLevel.DIR || scopeLevel == ScopeLevel.DEFAULT) &&
                     fib.licenseTextEntries.size > 0) {
@@ -86,7 +86,7 @@ internal class ModeDefault(
          *           generate license texts (depending on license-category in license-classifications.yml) for each
          *           file which contains an "isLicenseText" entry
          */
-        scanDict[pack.id]?.forEach { fileName, fib ->
+        scanDict[pack.id]?.forEach { (fileName, fib) ->
             // sort necessary for Wekan #85 - priority logic for handling LicenseTextEntries with equal licenses
             fib.licenseTextEntries.sortedWith(LicenseTextEntry).forEach {
                 val dedupFileName = handleDirDefaultEntriesAndLicenseTextsOnAllScopes(pack, sourceCodeDir, tmpDirectory,
@@ -107,7 +107,7 @@ internal class ModeDefault(
             if (it.path.startsWith(pack.packageRoot) && pack.packageRoot != "") path = path.replaceFirst(
                 pack.packageRoot, "").substring(1)
 
-            val fl = pack.fileLicensings.firstOrNull { it.scope == path } ?: FileLicensing(path).apply {
+            val fl = pack.fileLicensings.firstOrNull { lic -> lic.scope == path } ?: FileLicensing(path).apply {
                 licenses.add(FileLicense(null))
                 pack.fileLicensings.add(this)
             }
@@ -120,7 +120,7 @@ internal class ModeDefault(
         /*
          * Phase IV: transfer Copyright text entries
          */
-        scanDict[pack.id]?.forEach { _, fib ->
+        scanDict[pack.id]?.forEach { (_, fib) ->
             if (fib.copyrightTextEntries.size > 0) {
                 (pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?:
                 FileLicensing(getPathName(pack, fib)).apply { pack.fileLicensings.add(this) })
@@ -129,6 +129,20 @@ internal class ModeDefault(
                             copyrights.add(FileCopyright(it.matchedText!!))
                         }
                     }
+                val scopeLevel = getScopeLevel(fib.path, pack.packageRoot, OSCakeConfiguration.params.copyrightScopePatterns)
+                if (scopeLevel == ScopeLevel.DEFAULT) {
+                    fib.copyrightTextEntries.forEach {
+                        pack.defaultCopyrights.add(DefaultDirCopyright(getPathName(pack, fib), it.matchedText!!))
+                    }
+                }
+                if (scopeLevel == ScopeLevel.DIR) {
+                    (pack.dirLicensings.firstOrNull { it.scope == getDirScopePath(pack, fib.path) } ?:
+                    DirLicensing(getPathName(pack, fib)).apply { pack.dirLicensings.add(this) })
+                        .apply { fib.copyrightTextEntries.forEach {
+                            copyrights.add(DefaultDirCopyright(getPathName(pack, fib),it.matchedText!!))
+                        }
+                    }
+                }
             }
         }
     }
@@ -250,7 +264,7 @@ internal class ModeDefault(
         }
         if (copyrightStartLine > licenseTextEntry.endLine) {
             logger.log("Line markers $copyrightStartLine : ${licenseTextEntry.endLine} not valid in: " +
-                    "${fileInfoBlock.path}", Level.ERROR, pack.id, fileInfoBlock.path, phase = ProcessingPhase.PROCESS)
+                    fileInfoBlock.path, Level.ERROR, pack.id, fileInfoBlock.path, phase = ProcessingPhase.PROCESS)
             return null
         }
         return getLinesFromFile(fileName, copyrightStartLine, licenseTextEntry.endLine)
@@ -306,7 +320,7 @@ internal class ModeDefault(
         }
         /* special case #2: sometimes the scanner identifies a license text correctly, but the text itself includes
         already the copyright, therefore the standard mechanism (copyright start line is lower than the start line of
-        the license text) does not work. Solution: find copyright (start and endline) inside of a license text entry.
+        the license text) does not work. Solution: find copyright (start and endline) inside a license text entry.
          */
         line ?: lastLicenseTextEntry?.run {
             if (completeList.filterIsInstance<CopyrightTextEntry>().any {
@@ -334,6 +348,73 @@ internal class ModeDefault(
 
     override fun postActivities() {
         if (pack.defaultLicensings.size == 0) prepareEntryForScopeDefault(pack, reporterInput)
+        if (OSCakeConfiguration.params.dedupLicensesAndCopyrights) deduplicateLicenses()
+    }
+
+    private fun deduplicateLicenses() {
+        // keep list of removed fileLicenses
+        val fileLicenses2Remove = mutableListOf<FileLicense>()
+        // 1. go through all "fileLicensings"
+        // 2. check if path (fileScope) without filename corresponds to a dirLicensings.dirScope
+        //      find the best match of path with dirLicensings.dirScope
+        //      if there is no dirLicensings.dirScope at all check defaultLicense
+        // 3. go through all "fileLicensings" and remove fileLicense from list; remove referenced file from zip archive
+        pack.fileLicensings.forEach { fileLicensing ->
+            containedInDirScope(getDirScopePath(pack, fileLicensing.scope), fileLicensing.licenses)?.let {
+                println("Dir: ${fileLicensing.scope} - ${it.license}")
+                fileLicenses2Remove.add(it)
+            }
+            containedInDefaultScope(getDirScopePath(pack, fileLicensing.scope), fileLicensing.licenses)?.let {
+                println("Default: ${fileLicensing.scope} - ${it.license}")
+                fileLicenses2Remove.add(it)
+            }
+        }
+        println(fileLicenses2Remove.size)
+
+    }
+
+    private fun containedInDefaultScope(path: String, licenses: List<FileLicense>): FileLicense? {
+        val dirList = mutableListOf<Pair<DirLicensing, Int>>()
+        if (path.isNotEmpty()) {
+            pack.dirLicensings.forEach { dirLicensing ->
+                if (path.startsWith(dirLicensing.scope)) {
+                    val residual = path.replaceFirst(dirLicensing.scope, "").length
+                    dirList.add(Pair(dirLicensing, residual))
+                }
+            }
+        }
+        if (dirList.isEmpty()) {
+            pack.defaultLicensings.forEach { defaultLicense ->
+                licenses.forEach { fileLicense ->
+                    if (fileLicense.license == defaultLicense.license)
+                        return fileLicense
+                }
+            }
+        }
+        return null
+    }
+
+    private fun containedInDirScope(path: String, licenses: List<FileLicense>): FileLicense? {
+        if (path.isEmpty()) return null
+
+        val dirList = mutableListOf<Pair<DirLicensing, Int>>()
+        pack.dirLicensings.forEach { dirLicensing ->
+            if (path.startsWith(dirLicensing.scope)) {
+                val residual = path.replaceFirst(dirLicensing.scope, "").length
+                dirList.add(Pair(dirLicensing, residual))
+            }
+        }
+        if (dirList.isNotEmpty()) {
+            val score = dirList.minOf { it.second }
+            val bestMatchedDirLicensing = dirList.first{ it.second == score }
+            bestMatchedDirLicensing.first.licenses.forEach { dirLicense ->
+                licenses.forEach { fileLicense ->
+                    if (fileLicense.license == dirLicense.license)
+                        return fileLicense
+                }
+            }
+        }
+        return null
     }
 
     /**

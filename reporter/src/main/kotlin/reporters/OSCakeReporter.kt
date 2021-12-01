@@ -117,7 +117,7 @@ class OSCakeReporter : Reporter {
                 // create a map consisting of key=license, value=List of LicenseTextEntry
                 val licMap: MutableMap<String, MutableList<LicenseTextEntry>> = mutableMapOf()
                 fib.licenseTextEntries.forEach {
-                    (licMap.getOrPut(it.license!!) { mutableListOf<LicenseTextEntry>() }).add(it)
+                    (licMap.getOrPut(it.license!!) { mutableListOf() }).add(it)
                 }
                 if (licMap.isNotEmpty()) {
                     val lteToRemove = mutableListOf<LicenseTextEntry>()
@@ -146,7 +146,7 @@ class OSCakeReporter : Reporter {
      * Ingest analyzer output:
      *      1. create an entry for each project and included package which should be handled
      *      2. create a temporary folder to hold the identified files to archive
-     *      3. download sources when needed (e.g. for instanced licenes)
+     *      3. download sources when needed (e.g. for instanced licenses)
      *      4. process the infos from the scanner
      */
     private fun ingestAnalyzerOutput(
@@ -418,7 +418,7 @@ class OSCakeReporter : Reporter {
         id: Identifier
     ): Boolean {
         var rc = false
-        // include package despite of the dependency-granularity level
+        // include package despite the dependency-granularity level
         if (OSCakeConfiguration.params.forceIncludePackages.contains(id)) {
             OSCakeConfiguration.params.forceIncludePackages[id] = true
             return true

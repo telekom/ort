@@ -64,11 +64,18 @@ data class OSCakeConfigParams(
      */
     var scopePatterns: List<String> = mutableListOf(),
     /**
+     *  [scopePatterns] contains a list of glob patterns which are used to determine the corresponding [ScopeLevel].
+     */
+    var copyrightScopePatterns: List<String> = mutableListOf(),
+    /**
      * [onlyIncludePackages] include the named packages - if they would be excluded by the commandline
      * option: dependency-granularity
      */
     var forceIncludePackages: MutableMap<Identifier, Boolean> = mutableMapOf(),
-
+    /**
+     *  commandline parameter defines if the licenses and copyrights should be deduplicated
+     */
+    var dedupLicensesAndCopyrights: Boolean = false
 ) {
     constructor(includeJsonPathInLogfile: Boolean) : this(
         includeJsonPathInLogfile4ErrorsAndWarnings = includeJsonPathInLogfile,

@@ -104,7 +104,10 @@ fun getDirScopePath(pack: Pack, fileScope: String): String {
     val lastIndex = p.lastIndexOf("/")
     var start = 0
     if (p[0] == '/' || p[0] == '\\') start = 1
-    return p.substring(start, lastIndex)
+    return if (lastIndex >= start)
+        p.substring(start, lastIndex)
+    else
+        ""
 }
 
 fun getPathWithoutPackageRoot(pack: Pack, fileScope: String): String {

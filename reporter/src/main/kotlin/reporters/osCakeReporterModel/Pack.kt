@@ -35,7 +35,7 @@ import org.ossreviewtoolkit.model.Identifier
  * root directory of the repository (e.g. git), than the property [packageRoot] shows the path to the root directory
   */
 @JsonPropertyOrder("pid", "release", "repository", "id", "sourceRoot", "reuseCompliant", "hasIssues", "issues",
-    "defaultLicensings", "dirLicensings", "reuseLicensings", "fileLicensings")
+    "defaultLicenses", "defaultCopyrights", "dirLicensings", "reuseLicensings", "fileLicensings")
 @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
 data class Pack(
     /**
@@ -89,7 +89,11 @@ data class Pack(
     /**
      *  [defaultLicensings] contains a list of [DefaultLicense]s  for non-REUSE compliant packages.
      */
-    val defaultLicensings = mutableListOf<DefaultLicense>()
+    @JsonProperty("defaultLicenses") val defaultLicensings = mutableListOf<DefaultLicense>()
+    /**
+     *  [defaultCopyrights] contains a list of [DefaultCopyright]s  for non-REUSE compliant packages.
+     */
+    val defaultCopyrights = mutableListOf<DefaultDirCopyright>()
     /**
      *  This list is only filled for REUSE-compliant packages and contains a list of [DefaultLicense]s.
      */
