@@ -45,7 +45,7 @@ internal abstract class ModeSelector {
     /**
      * Defines program steps after terminating the [fetchInfosFromScanDictionary] method
      */
-    internal abstract fun postActivities()
+    internal abstract fun postActivities(tmpDirectory: File)
 
     /**
      * Defines if the source code has to be downloaded

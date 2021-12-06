@@ -135,7 +135,7 @@ internal class ModeREUSE(
                 }
             }
 
-    override fun postActivities() {
+    override fun postActivities(tmpDirectory: File) {
         // nothing to do for REUSE projects
     }
 

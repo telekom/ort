@@ -220,7 +220,7 @@ class OSCakeReporter : Reporter {
                     val provenance = input.ortResult.scanner?.results?.scanResults!![pack.id]!!.first().provenance
                     downloadSourcesWhenNeeded(pack, scanDict, provenance)
                     fetchInfosFromScanDictionary(OSCakeConfiguration.params.sourceCodesDir, tmpDirectory, provenance)
-                    postActivities()
+                    postActivities(tmpDirectory)
                 }
             }
         }
