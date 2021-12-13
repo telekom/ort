@@ -356,6 +356,15 @@ internal class ModeDefault(
             deduplicateDirDirCopyrights()
             deduplicateDirDefaultLicenses(tmpDirectory)
             deduplicateDirDefaultCopyrights()
+
+            // clean up empty entities
+            val fileLicensings2Remove = mutableListOf<FileLicensing>()
+            pack.fileLicensings.forEach { fileLicensing ->
+                if (fileLicensing.licenses.isEmpty() && fileLicensing.copyrights.isEmpty() &&
+                    fileLicensing.fileContentInArchive == null) fileLicensings2Remove.add(fileLicensing)
+            }
+            pack.fileLicensings.removeAll(fileLicensings2Remove)
+            pack.dirLicensings.removeAll(pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() })
         }
     }
 
@@ -364,104 +373,6 @@ internal class ModeDefault(
             val file = tmpDirectory.resolve(path)
             if (file.exists()) file.delete()
         }
-    }
-
-    private fun deduplicateDirDefaultCopyrights() {
-        val dirCopyrights2Remove = mutableListOf<DefaultDirCopyright>()
-        pack.dirLicensings.forEach { dirLicensing ->
-            val clonedDirCopyrights = dirLicensing.copyrights.toMutableList()
-            if (dirLicensing.copyrights.size == pack.defaultCopyrights.size) {
-                pack.defaultCopyrights.forEach { defaultCopyright ->
-                    clonedDirCopyrights.removeAll {
-                        if (it.copyright != null && defaultCopyright.copyright != null) {
-                            it.copyright.trim() == defaultCopyright.copyright.trim()
-                        } else false
-                    }
-                }
-                if (clonedDirCopyrights.isEmpty()) {
-                    dirLicensing.copyrights.forEach { dirCopyright ->
-                        dirCopyrights2Remove.add(dirCopyright)
-                    }
-                    dirCopyrights2Remove.forEach { d2r ->
-                        dirLicensing.copyrights.removeAll { it.copyright === d2r.copyright }
-                    }
-                }
-            }
-        }
-        pack.dirLicensings.removeAll(pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() })
-    }
-
-    private fun deduplicateDirDirCopyrights() {
-        pack.dirLicensings.forEach { dirLicensing ->
-            val dirCopyrights2Remove = mutableListOf<DefaultDirCopyright>()
-            getParentDirLicensing(dirLicensing)?.let { parentDirLicensing ->
-                if (dirLicensing.copyrights.size == parentDirLicensing.copyrights.size) {
-                    val clonedDirCopyrights = dirLicensing.copyrights.toMutableList()
-                    parentDirLicensing.copyrights.forEach { dirCopyright ->
-                        clonedDirCopyrights.removeAll {
-                            if (it.copyright != null && dirCopyright.copyright != null) {
-                                it.copyright.trim() == dirCopyright.copyright.trim()
-                            } else false
-                        }
-                    }
-                    if (clonedDirCopyrights.isEmpty()) {
-                        dirLicensing.copyrights.forEach { dirCopyrights ->
-                            dirCopyrights2Remove.add(dirCopyrights)
-                        }
-                    }
-                }
-            }
-            dirCopyrights2Remove.forEach { d2r ->
-                dirLicensing.copyrights.removeAll { it.copyright === d2r.copyright }
-            }
-        }
-        pack.dirLicensings.removeAll(pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() })
-    }
-
-    private fun deduplicateDirDefaultLicenses(tmpDirectory: File) {
-        val dirLicenses2Remove = mutableListOf<DirLicense>()
-        pack.dirLicensings.forEach { dirLicensing ->
-            val clonedDirLicenses = dirLicensing.licenses.toMutableList()
-            if (dirLicensing.licenses.size == pack.defaultLicensings.size) {
-                pack.defaultLicensings.forEach { defaultLicense ->
-                    clonedDirLicenses.removeAll { it.license == defaultLicense.license && it.license != "NOASSERTION" }
-                }
-                if (clonedDirLicenses.isEmpty()) {
-                    dirLicensing.licenses.forEach { dirLicense ->
-                        dedupRemoveFile(tmpDirectory, dirLicense.path)
-                        dirLicenses2Remove.add(dirLicense)
-                    }
-                    dirLicenses2Remove.forEach { d2r ->
-                        dirLicensing.licenses.removeAll { it.license === d2r.license }
-                    }
-                }
-            }
-        }
-        pack.dirLicensings.removeAll(pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() })
-    }
-
-    private fun deduplicateDirDirLicenses(tmpDirectory: File) {
-        pack.dirLicensings.forEach { dirLicensing ->
-            val dirLicenses2Remove = mutableListOf<DirLicense>()
-            getParentDirLicensing(dirLicensing)?.let { parentDirLicensing ->
-                if (dirLicensing.licenses.size == parentDirLicensing.licenses.size) {
-                    val clonedDirLicenses = dirLicensing.licenses.toMutableList()
-                    parentDirLicensing.licenses.forEach { dirLicense ->
-                        clonedDirLicenses.removeAll { it.license == dirLicense.license && it.license != "NOASSERTION" }
-                    }
-                    if (clonedDirLicenses.isEmpty()) {
-                        dirLicensing.licenses.forEach { dirLicense ->
-                            dedupRemoveFile(tmpDirectory, dirLicense.path)
-                            dirLicenses2Remove.add(dirLicense)
-                        }
-                    }
-                }
-            }
-            dirLicenses2Remove.forEach { d2r ->
-                dirLicensing.licenses.removeAll { it.license === d2r.license }
-            }
-        }
-        pack.dirLicensings.removeAll(pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() })
     }
 
     private fun getParentDirLicensing(dl: DirLicensing): DirLicensing? {
@@ -477,71 +388,70 @@ internal class ModeDefault(
         return null
     }
 
-    private fun deduplicateFileCopyrights() {
-        val fileCopyrights2Remove = mutableListOf<FileCopyright>()
-        pack.fileLicensings.forEach { fileLicensing ->
-            if (copyrightsContainedInScope(getDirScopePath(pack, fileLicensing.scope), fileLicensing.copyrights)) {
-                fileCopyrights2Remove.addAll(fileLicensing.copyrights)
-            }
-        }
-        val fileLicensings2Remove = mutableListOf<FileLicensing>()
-        pack.fileLicensings.forEach { fileLicensing ->
-            fileCopyrights2Remove.forEach { f2r ->
-                fileLicensing.copyrights.removeAll { it.copyright === f2r.copyright }
-            }
-            if (fileLicensing.licenses.isEmpty() && fileLicensing.copyrights.isEmpty() &&
-                fileLicensing.fileContentInArchive == null) fileLicensings2Remove.add(fileLicensing)
-        }
-        pack.fileLicensings.removeAll(fileLicensings2Remove)
-    }
-
-    private fun copyrightsContainedInScope(path: String, copyrights: List<FileCopyright>): Boolean {
-        val dirList = mutableListOf<Pair<DirLicensing, Int>>()
-        val clonedFileCopyrights = copyrights.toMutableList()
-        bestMatchedDirLicensing(path, dirList)?.let { dirLicensing ->
-            if (dirLicensing.copyrights.size == copyrights.size) {
-                dirLicensing.copyrights.forEach { dirCopyright ->
-                    if (dirCopyright.copyright != null) {
-                        clonedFileCopyrights.removeAll { it.copyright.trim() == dirCopyright.copyright.trim() }
-                    }
-                }
-            }
-            if (clonedFileCopyrights.isEmpty()) return true
-        }
-        if (dirList.isEmpty()) {
-            pack.defaultCopyrights.forEach { defaultCopyright ->
-                if (defaultCopyright.copyright != null) {
-                    clonedFileCopyrights.removeAll { it.copyright.trim() == defaultCopyright.copyright.trim() }
-                }
-                if (clonedFileCopyrights.isEmpty()) return true
-            }
-        }
-        return false
-    }
-
     private fun deduplicateFileLicenses(tmpDirectory: File) {
-        val fileLicenses2Remove = mutableListOf<FileLicense>()
         pack.fileLicensings.forEach { fileLicensing ->
             if (licensesContainedInScope(getDirScopePath(pack, fileLicensing.scope), fileLicensing.licenses)) {
-                fileLicenses2Remove.addAll(fileLicensing.licenses)
+                // remove files from archive
+                fileLicensing.licenses.filter { it.licenseTextInArchive != null }.forEach {
+                    dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
+                }
+                fileLicensing.licenses.clear()
             }
         }
-        // remove files from archive
-        fileLicenses2Remove.filter { it.licenseTextInArchive != null }.forEach {
-            dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
-        }
-        val fileLicensings2Remove = mutableListOf<FileLicensing>()
-        pack.fileLicensings.forEach { fileLicensing ->
-            fileLicenses2Remove.forEach { f2r ->
-                fileLicensing.licenses.removeAll { it.license === f2r.license }
-            }
-            if (fileLicensing.licenses.isEmpty() && fileLicensing.copyrights.isEmpty() &&
-                fileLicensing.fileContentInArchive == null) fileLicensings2Remove.add(fileLicensing)
-        }
-        pack.fileLicensings.removeAll(fileLicensings2Remove)
     }
 
-    private fun bestMatchedDirLicensing(path: String, dirList: MutableList<Pair<DirLicensing, Int>>): DirLicensing? {
+    private fun deduplicateFileCopyrights() =
+        pack.fileLicensings.filter { copyrightsContainedInScope(getDirScopePath(pack, it.scope), it.copyrights) }
+            .forEach { fileLicensing -> fileLicensing.copyrights.clear()
+        }
+
+    private fun deduplicateDirDirLicenses(tmpDirectory: File) {
+        pack.dirLicensings.forEach { dirLicensing ->
+            val dirLicensesList = dirLicensing.licenses.map { it.license }
+            getParentDirLicensing(dirLicensing)?.let { parentDirLicensing ->
+                val parentDirLicensingList = parentDirLicensing.licenses.map { it.license }
+                if (isEqual(dirLicensesList, parentDirLicensingList)) {
+                    dirLicensing.licenses.forEach { dirLicense ->
+                        dedupRemoveFile(tmpDirectory, dirLicense.path)
+                    }
+                    dirLicensing.licenses.clear()
+                }
+            }
+        }
+    }
+    private fun deduplicateDirDirCopyrights() {
+        pack.dirLicensings.forEach { dirLicensing ->
+            val dirCopyrightsList = dirLicensing.copyrights.map { it.copyright }
+            getParentDirLicensing(dirLicensing)?.let { parentDirLicensing ->
+                val parentDirCopyrightsList = parentDirLicensing.copyrights.map { it.copyright }
+                if (isEqual(dirCopyrightsList, parentDirCopyrightsList)) dirLicensing.copyrights.clear()
+            }
+        }
+    }
+
+    private fun deduplicateDirDefaultLicenses(tmpDirectory: File) {
+        val defaultLicensesList = pack.defaultLicensings.map { it.license }
+        pack.dirLicensings.forEach { dirLicensing ->
+            val dirLicensesList = dirLicensing.licenses.map { it.license }.toList()
+            if (isEqual(defaultLicensesList, dirLicensesList) && !dirLicensesList.contains("NOASSERTION")) {
+                dirLicensing.licenses.forEach { dirLicense ->
+                    dedupRemoveFile(tmpDirectory, dirLicense.path)
+                }
+                dirLicensing.licenses.clear()
+            }
+        }
+    }
+
+    private fun deduplicateDirDefaultCopyrights() {
+        val defaultCopyrightsList = pack.defaultCopyrights.map { it.copyright }
+        pack.dirLicensings.forEach { dirLicensing ->
+            val dirCopyrightsList = dirLicensing.copyrights.map { it.copyright }.toList()
+            if (isEqual(defaultCopyrightsList, dirCopyrightsList)) dirLicensing.copyrights.clear()
+        }
+    }
+
+    private fun bestMatchedDirLicensing(path: String): DirLicensing? {
+        val dirList = mutableListOf<Pair<DirLicensing, Int>>()
         if (path.isNotEmpty()) {
             pack.dirLicensings.filter { path.startsWith(it.scope) }.forEach { dirLicensing ->
                 dirList.add(Pair(dirLicensing, path.replaceFirst(dirLicensing.scope, "").length))
@@ -556,24 +466,32 @@ internal class ModeDefault(
     }
 
     private fun licensesContainedInScope(path: String, licenses: List<FileLicense>): Boolean {
-        val dirList = mutableListOf<Pair<DirLicensing, Int>>()
-        val clonedFileLicenses = licenses.toMutableList()
-
-        bestMatchedDirLicensing(path, dirList)?.let { dirLicensing ->
-            if (dirLicensing.licenses.size == licenses.size) {
-                dirLicensing.licenses.forEach { dirLicense ->
-                    clonedFileLicenses.removeAll { it.license == dirLicense.license && it.license != "NOASSERTION" }
-                }
-            }
-            if (clonedFileLicenses.isEmpty()) return true
-        }
-        if (dirList.isEmpty()) {
-            pack.defaultLicensings.forEach { defaultLicense ->
-                clonedFileLicenses.removeAll { it.license == defaultLicense.license && it.license != "NOASSERTION" }
-                if (clonedFileLicenses.isEmpty()) return true
-            }
+        val licensesList = licenses.map { it.license }.toList()
+        val dirLicensing = bestMatchedDirLicensing(path)
+        if (dirLicensing != null) {
+            if (isEqual(dirLicensing.licenses.map { it.license }.toList(), licensesList)) return true
+        } else {
+            if (isEqual(pack.defaultLicensings.map { it.license }.toList(), licensesList) &&
+                !licensesList.contains("NOASSERTION")) return true
         }
         return false
+    }
+
+    private fun copyrightsContainedInScope(path: String, copyrights: List<FileCopyright>): Boolean {
+        val copyrightsList = copyrights.mapNotNull { it.copyright }.toList()
+        val dirLicensing = bestMatchedDirLicensing(path)
+        if (dirLicensing != null) {
+            if (isEqual(dirLicensing.copyrights.mapNotNull { it.copyright }.toList(), copyrightsList)) return true
+        } else {
+            if (isEqual(pack.defaultCopyrights.map { it.copyright }.toList(), copyrightsList)) return true
+        }
+        return false
+    }
+
+    private inline fun <reified T> isEqual(first: List<T>, second: List<T>): Boolean {
+        if (first.size != second.size) return false
+        return first.sortedBy { it.toString() }.toTypedArray() contentEquals second.sortedBy { it.toString() }
+            .toTypedArray()
     }
 
     /**

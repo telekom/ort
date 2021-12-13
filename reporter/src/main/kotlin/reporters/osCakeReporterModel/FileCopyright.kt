@@ -27,4 +27,6 @@ data class FileCopyright(
      * Copyright statement.
      */
     val copyright: String
-)
+) {
+    override fun equals(other: Any?) = (other is FileCopyright) && copyright.trim() == other.copyright.trim()
+}
