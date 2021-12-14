@@ -124,6 +124,8 @@ data class OSCakeConfiguration(
         lateinit var params: OSCakeConfigParams
         lateinit var osCakeConfigInfo: OSCakeConfigInfo
 
+        fun isParamsInitialized() = ::params.isInitialized
+
         /**
          * [setConfigParams] contains logical checks and combinations of configuration entries set in
          * osCakeConfig

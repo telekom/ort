@@ -216,76 +216,6 @@ internal class CurationManager(
         } ?: false
 
     /**
-     * The method is used for quality assurance only. It ensures that every referenced file is existing in the
-     * archive and vice versa. Possible discrepancies are logged.
-     */
-    private fun compareLTIAwithArchive() {
-        // consistency check: direction from pack to archive
-        val missingFiles = mutableListOf<String>()
-        project.packs.forEach { pack ->
-            pack.defaultLicensings.filter { it.licenseTextInArchive != null &&
-                    !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
-                missingFiles.add(it.licenseTextInArchive.toString())
-            }
-            pack.reuseLicensings.filter { it.licenseTextInArchive != null &&
-                    !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
-                missingFiles.add(it.licenseTextInArchive.toString())
-            }
-            pack.dirLicensings.forEach { dirLicensing ->
-                dirLicensing.licenses.filter { it.licenseTextInArchive != null &&
-                        !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
-                    missingFiles.add(it.licenseTextInArchive.toString())
-                }
-            }
-            pack.fileLicensings.forEach { fileLicensing ->
-                if (fileLicensing.fileContentInArchive != null && !File(archiveDir.path + "/" +
-                            fileLicensing.fileContentInArchive).exists()) {
-                    missingFiles.add(fileLicensing.fileContentInArchive!!)
-                }
-                fileLicensing.licenses.filter { it.licenseTextInArchive != null && !File(archiveDir.path +
-                        "/" + it.licenseTextInArchive).exists() }.forEach {
-                    missingFiles.add(it.licenseTextInArchive.toString())
-                }
-            }
-        }
-        missingFiles.forEach {
-            logger.log("File: \"${it}\" not found in archive! --> Inconsistency",
-                Level.ERROR, phase = ProcessingPhase.CURATION
-            )
-        }
-        // consistency check: direction from archive to pack
-        missingFiles.clear()
-        archiveDir.listFiles()?.forEach { file ->
-            var found = false
-            val fileName = file.name
-            project.packs.forEach { pack ->
-                pack.defaultLicensings.filter { it.licenseTextInArchive != null }.forEach {
-                    if (it.licenseTextInArchive == fileName) found = true
-                }
-                pack.dirLicensings.forEach { dirLicensing ->
-                    dirLicensing.licenses.filter { it.licenseTextInArchive != null }.forEach {
-                        if (it.licenseTextInArchive == fileName) found = true
-                    }
-                }
-                pack.fileLicensings.forEach { fileLicensing ->
-                    if (fileLicensing.fileContentInArchive != null && fileLicensing.fileContentInArchive == fileName) {
-                        found = true
-                    }
-                    fileLicensing.licenses.filter { it.licenseTextInArchive != null }.forEach {
-                        if (it.licenseTextInArchive == fileName) found = true
-                    }
-                }
-            }
-            if (!found) missingFiles.add(fileName)
-        }
-        missingFiles.forEach {
-            logger.log("Archived file: \"${it}\": no reference found in oscc-file! Inconsistency",
-                Level.ERROR, phase = ProcessingPhase.CURATION
-            )
-        }
-    }
-
-    /**
      * The method writes the output file in oscc format (json file named  "..._curated.oscc") and creates a zip file
      * containing license text files named "..._curated.zip"
      */
@@ -295,7 +225,7 @@ internal class CurationManager(
         val targetFile = File(outputDir.path, newZipFileName)
 
         if (archiveDir.exists()) {
-            compareLTIAwithArchive()
+            compareLTIAwithArchive(project, archiveDir, logger, ProcessingPhase.CURATION)
             if (targetFile.exists()) targetFile.delete()
             archiveDir.packZip(targetFile)
             archiveDir.deleteRecursively()

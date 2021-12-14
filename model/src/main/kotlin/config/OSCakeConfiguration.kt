@@ -26,7 +26,12 @@ import com.fasterxml.jackson.annotation.JsonInclude
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class OSCakeConfiguration(
-    val oscakeCurations: OSCakeCurations? = null
+    val oscakeCurations: OSCakeCurations? = null,
+    val deduplicator: OSCakeDeduplicator? = null
+)
+
+data class OSCakeDeduplicator(
+    val shrink: String? = null
 )
 
 data class OSCakeCurations(

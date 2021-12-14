@@ -36,6 +36,7 @@ import java.io.File
 import org.ossreviewtoolkit.cli.GlobalOptions
 import org.ossreviewtoolkit.oscake.OSCakeApplication
 import org.ossreviewtoolkit.oscake.OSCakeCurator
+import org.ossreviewtoolkit.oscake.OSCakeDeduplicator
 import org.ossreviewtoolkit.oscake.OSCakeMerger
 import org.ossreviewtoolkit.oscake.isValidDirectory
 import org.ossreviewtoolkit.oscake.isValidFilePathName
@@ -110,6 +111,19 @@ class MergerOptions : OscakeConfig("Options for oscake application: merger") {
     }
 }
 
+/**
+ * Contains the options for the deduplicator application
+ */
+class DeduplicatorOptions : OscakeConfig("Options for oscake application: deduplicator") {
+    val osccFile by option(
+        "--osccFile", "-if",
+        help = "An oscc file produced by an OSCake-Reporter or OSCake-Curator."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+}
+
 class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake applications: curator, merger, etc.") {
     private val allOSCakeApplications = OSCakeApplication.ALL.associateBy { it.toString() }
         .toSortedMap(String.CASE_INSENSITIVE_ORDER)
@@ -124,7 +138,8 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
             )
     }.groupChoice(
         "curator" to CuratorOptions(),
-        "merger" to MergerOptions()
+        "merger" to MergerOptions(),
+        "deduplicator" to DeduplicatorOptions(),
     ).required()
 
     private val globalOptionsForSubcommands by requireObject<GlobalOptions>()
@@ -148,6 +163,9 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
             is MergerOptions -> {
                 it.resolveArgs()
                 OSCakeMerger(it.cid, it.inputDir, it.outputFile).execute()
+            }
+            is DeduplicatorOptions -> {
+                OSCakeDeduplicator(config.oscake, it.osccFile).execute()
             }
         }
     }

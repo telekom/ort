@@ -19,10 +19,17 @@
 @file:Suppress("TooManyFunctions")
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
+
 import java.io.File
+import java.io.IOException
 import java.lang.StringBuilder
 import java.nio.file.FileSystems
 import java.security.MessageDigest
+
+import kotlin.system.exitProcess
 
 import org.apache.logging.log4j.Level
 
@@ -34,6 +41,7 @@ import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
+import org.ossreviewtoolkit.utils.packZip
 import org.ossreviewtoolkit.utils.toHexString
 
 const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
@@ -323,4 +331,137 @@ internal fun getHash(provenance: Provenance): String {
     }
 
     return SHA1_DIGEST.digest(key.toByteArray()).toHexString()
+}
+
+/**
+ * The method is used for quality assurance only. It ensures that every referenced file is existing in the
+ * archive and vice versa. Possible discrepancies are logged.
+ */
+fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLogger, processingPhase: ProcessingPhase):
+        Boolean {
+    // consistency check: direction from pack to archive
+    val missingFiles = mutableListOf<String>()
+    project.packs.forEach { pack ->
+        pack.defaultLicensings.filter { it.licenseTextInArchive != null &&
+                !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
+            missingFiles.add(it.licenseTextInArchive.toString())
+        }
+        pack.reuseLicensings.filter { it.licenseTextInArchive != null &&
+                !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
+            missingFiles.add(it.licenseTextInArchive.toString())
+        }
+        pack.dirLicensings.forEach { dirLicensing ->
+            dirLicensing.licenses.filter { it.licenseTextInArchive != null &&
+                    !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
+                missingFiles.add(it.licenseTextInArchive.toString())
+            }
+        }
+        pack.fileLicensings.forEach { fileLicensing ->
+            if (fileLicensing.fileContentInArchive != null && !File(archiveDir.path + "/" +
+                        fileLicensing.fileContentInArchive).exists()) {
+                missingFiles.add(fileLicensing.fileContentInArchive!!)
+            }
+            fileLicensing.licenses.filter { it.licenseTextInArchive != null && !File(archiveDir.path +
+                    "/" + it.licenseTextInArchive).exists() }.forEach {
+                missingFiles.add(it.licenseTextInArchive.toString())
+            }
+        }
+    }
+    missingFiles.forEach {
+        logger.log("File: \"${it}\" not found in archive! --> Inconsistency",
+            Level.ERROR, phase = processingPhase
+        )
+    }
+    if (missingFiles.isNotEmpty()) return true
+    // consistency check: direction from archive to pack
+    missingFiles.clear()
+    archiveDir.listFiles()?.forEach { file ->
+        var found = false
+        val fileName = file.name
+        project.packs.forEach { pack ->
+            pack.defaultLicensings.filter { it.licenseTextInArchive != null }.forEach {
+                if (it.licenseTextInArchive == fileName) found = true
+            }
+            pack.dirLicensings.forEach { dirLicensing ->
+                dirLicensing.licenses.filter { it.licenseTextInArchive != null }.forEach {
+                    if (it.licenseTextInArchive == fileName) found = true
+                }
+            }
+            pack.fileLicensings.forEach { fileLicensing ->
+                if (fileLicensing.fileContentInArchive != null && fileLicensing.fileContentInArchive == fileName) {
+                    found = true
+                }
+                fileLicensing.licenses.filter { it.licenseTextInArchive != null }.forEach {
+                    if (it.licenseTextInArchive == fileName) found = true
+                }
+            }
+        }
+        if (!found) missingFiles.add(fileName)
+    }
+    missingFiles.forEach {
+        logger.log("Archived file: \"${it}\": no reference found in oscc-file! Inconsistency",
+            Level.ERROR, phase = processingPhase
+        )
+    }
+    if (missingFiles.isNotEmpty()) return true
+    return false
+}
+
+fun osccToJson(osccFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): OSCakeRoot {
+    val mapper = jacksonObjectMapper()
+    val osc = OSCakeRoot()
+    var project: Project? = null
+    try {
+        val json = osccFile.readText()
+        project = mapper.readValue<Project>(json)
+    } catch (e: IOException) {
+        logger.log("EXIT: Invalid json format found in file: \"$osccFile\".\n ${e.message} ",
+            Level.ERROR, phase = processingPhase)
+        exitProcess(3)
+    } finally {
+        if (project != null) {
+            osc.project = project
+            completeModel(osc.project)
+        }
+    }
+    return osc
+}
+
+// rebuild info for model completeness built on information in oscc
+private fun completeModel(project: Project) {
+    project.packs.forEach { pack ->
+        pack.namespace = pack.id.namespace
+        pack.type = pack.id.type
+        pack.defaultLicensings.forEach {
+            it.declared = it.path == FOUND_IN_FILE_SCOPE_DECLARED
+        }
+    }
+}
+
+fun jsonToOscc(osc: OSCakeRoot, outputFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): Boolean {
+    val objectMapper = ObjectMapper()
+    try {
+        outputFile.bufferedWriter().use {
+            it.write(objectMapper.writeValueAsString(osc.project))
+        }
+    } catch (e: IOException) {
+        logger.log("Error when writing json file: \"$outputFile\".\n ${e.message} ",
+            Level.ERROR, phase = processingPhase)
+        return true
+    }
+    return false
+}
+
+fun zipAndCleanUp(outputDir: File, tmpDirectory: File, zipFileName: String, logger: OSCakeLogger,
+                  processingPhase: ProcessingPhase): Boolean {
+    val targetFile = File(outputDir.path + "/" + zipFileName)
+    if (targetFile.exists()) targetFile.delete()
+    try {
+        tmpDirectory.packZip(targetFile)
+        tmpDirectory.deleteRecursively()
+    } catch (e: IOException) {
+        logger.log("Error during zip and cleanup!\n ${e.message} ", Level.ERROR, phase = processingPhase)
+        return true
+    }
+    return false
 }

@@ -25,9 +25,11 @@ import java.io.IOException
 const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
 const val CURATION_LOGGER = "OSCakeCurator"
 const val MERGER_LOGGER = "OSCakeMerger"
+const val DEDUPLICATION_LOGGER = "OSCakeDeduplicator"
 const val MERGER_VERSION = "0.1"
 const val OSCAKE_MERGER_AUTHOR = "OSCake-Merger"
 const val OSCAKE_MERGER_ARCHIVE_TYPE = "zip"
+const val DEDUPLICATION_FILE_PREFIX = "dedup_"
 
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
@@ -59,7 +61,7 @@ fun isValidDirectory(dirName: String?): Boolean =
     if (dirName != null) File(dirName).exists() && File(dirName).isDirectory else false
 
 object OSCakeApplication {
-   val ALL by lazy { listOf("curator", "merger") }
+   val ALL by lazy { listOf("curator", "merger", "deduplicator") }
 }
 
 /**

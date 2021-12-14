@@ -52,7 +52,6 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ScopeLevel
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.getLicensesFolderPrefix
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.isInstancedLicense
-import org.ossreviewtoolkit.utils.packZip
 
 /**
  * A Reporter that creates the output for the Tdosca/OSCake projects
@@ -228,7 +227,8 @@ class OSCakeReporter : Reporter {
         osc.project.complianceArtifactCollection.archivePath = "./" +
                 input.ortResult.getProjects().first().id.name + ".zip"
 
-        zipAndCleanUp(outputDir, tmpDirectory, osc.project.complianceArtifactCollection.archivePath)
+        zipAndCleanUp(outputDir, tmpDirectory, osc.project.complianceArtifactCollection.archivePath,
+            logger, ProcessingPhase.POST)
 
         cfg.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
             logger.log("packageRestrictions are enabled, but the package [$identifier] was not found",
@@ -399,13 +399,6 @@ class OSCakeReporter : Reporter {
                 }
             }
         }
-    }
-
-    private fun zipAndCleanUp(outputDir: File, tmpDirectory: File, zipFileName: String) {
-        val targetFile = File(outputDir.path + "/" + zipFileName)
-        if (targetFile.exists()) targetFile.delete()
-        tmpDirectory.packZip(targetFile)
-        tmpDirectory.deleteRecursively()
     }
 
     /**
