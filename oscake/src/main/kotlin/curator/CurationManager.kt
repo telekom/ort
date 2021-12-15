@@ -26,11 +26,7 @@ import kotlin.io.path.createTempDirectory
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.oscake.CURATION_AUTHOR
-import org.ossreviewtoolkit.oscake.CURATION_FILE_SUFFIX
-import org.ossreviewtoolkit.oscake.CURATION_LOGGER
-import org.ossreviewtoolkit.oscake.CURATION_VERSION
-import org.ossreviewtoolkit.oscake.packageModifierMap
+import org.ossreviewtoolkit.oscake.*
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.utils.unpackZip
 
@@ -220,6 +216,8 @@ internal class CurationManager(
      * containing license text files named "..._curated.zip"
      */
     private fun createResultingFiles() {
+        val reportFile = File(File(reportFilename).parent).resolve(extendFilename(File(reportFilename),
+            CURATION_FILE_SUFFIX))
         val sourceZipFileName = File(stripRelativePathIndicators(project.complianceArtifactCollection.archivePath))
         val newZipFileName = extendFilename(sourceZipFileName, CURATION_FILE_SUFFIX)
 
@@ -236,10 +234,10 @@ internal class CurationManager(
             val targetFile = File(outputDir.path, newZipFileName)
             File(outputDir, sourceZipFileName.name).copyTo(targetFile, true)
         }
-        rc = rc || modelToOscc(project, File(reportFilename), logger, ProcessingPhase.CURATION)
+        rc = rc || modelToOscc(project, reportFile, logger, ProcessingPhase.CURATION)
 
         if (!rc) {
-            logger.log("Curator terminated successfully! Result is written to: $reportFilename", Level.INFO,
+            logger.log("Curator terminated successfully! Result is written to: ${reportFile.name}", Level.INFO,
                 phase = ProcessingPhase.CURATION)
         } else logger.log("Curator terminated with errors!", Level.ERROR, phase = ProcessingPhase.CURATION)
     }

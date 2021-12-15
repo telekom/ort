@@ -31,7 +31,9 @@ data class OSCakeConfiguration(
 )
 
 data class OSCakeDeduplicator(
-    val shrink: String? = null
+    val keepEmptyScopes: Boolean? = true,
+    val createUnifiedCopyrights: Boolean? = false,
+    val preserveFileScope: Boolean? = true,
 )
 
 data class OSCakeCurator(
