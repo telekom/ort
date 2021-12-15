@@ -26,7 +26,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class OSCakeConfiguration(
-    val oscakeCurations: OSCakeCurations? = null,
+    val curator: OSCakeCurator? = null,
     val deduplicator: OSCakeDeduplicator? = null
 )
 
@@ -34,7 +34,7 @@ data class OSCakeDeduplicator(
     val shrink: String? = null
 )
 
-data class OSCakeCurations(
+data class OSCakeCurator(
     /**
      * The [directory] where to find the yml files to be used for curations
      */

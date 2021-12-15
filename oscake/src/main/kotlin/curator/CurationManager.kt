@@ -74,8 +74,8 @@ internal class CurationManager(
     /**
      * The [curationProvider] contains a list of [PackageCuration]s to be applied.
      */
-    private var curationProvider = CurationProvider(File(config.oscakeCurations?.directory!!),
-        File(config.oscakeCurations?.fileStore!!))
+    private var curationProvider = CurationProvider(File(config.curator?.directory!!),
+        File(config.curator?.fileStore!!))
 
     /**
      * The [logger] is only initialized, if there is something to log.
@@ -137,12 +137,12 @@ internal class CurationManager(
         val scopePatterns = project.config?.osCakeConfigFile?.scopePatterns ?: emptyList()
         project.packs.forEach {
             curationProvider.getCurationFor(it.id)?.curate(it, archiveDir,
-                File(config.oscakeCurations?.fileStore!!), scopePatterns)
+                File(config.curator?.fileStore!!), scopePatterns)
         }
 
         // 3. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger,
-            config.oscakeCurations?.issueLevel ?: -1)
+            config.curator?.issueLevel ?: -1)
 
         // 4. eliminate root level warnings (only warnings from reporter) when option is set
         if (ignoreRootWarnings) eliminateRootWarnings()
@@ -188,7 +188,7 @@ internal class CurationManager(
      * Clear the [issueList]s depending on issue level
      */
     private fun eliminateIssuesFromLevel(issueList: IssueList) {
-        val issLevel = config.oscakeCurations?.issueLevel ?: -1
+        val issLevel = config.curator?.issueLevel ?: -1
         if (issLevel == -1) {
             issueList.infos.clear()
             issueList.warnings.clear()

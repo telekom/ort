@@ -152,11 +152,11 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
 
         when (val it = oscakeApp) {
             is CuratorOptions -> {
-                require(isValidDirectory(config.oscake.oscakeCurations?.fileStore)) {
-                    "Directory for \"config.oscake.oscakeCurations.fileStore\" is not set correctly in ort.conf"
+                require(isValidDirectory(config.oscake.curator?.fileStore)) {
+                    "Directory for \"config.oscake.curator.fileStore\" is not set correctly in ort.conf"
                 }
-                require(isValidDirectory(config.oscake.oscakeCurations?.directory)) {
-                    "Directory for \"config.oscake.oscakeCurations.directory\" is not set correctly in ort.conf"
+                require(isValidDirectory(config.oscake.curator?.directory)) {
+                    "Directory for \"config.oscake.curator.directory\" is not set correctly in ort.conf"
                 }
                 OSCakeCurator(config.oscake, it.osccFile, it.outputDir, it.ignoreRootWarnings).execute()
             }
