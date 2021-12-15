@@ -217,8 +217,6 @@ data class OSCakeConfiguration(
                 params.dependencyGranularity.toString()
             params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns + osCakeConfig.scopePatterns).toList()
 
-            params.dedupLicensesAndCopyrights = options.containsKey("--dedupLicensesAndCopyrights")
-
             osCakeConfigInfo = OSCakeConfigInfo(commandLineParams, osCakeConfig)
         }
         /**
