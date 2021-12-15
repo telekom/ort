@@ -45,13 +45,13 @@ class OSCakeMerger(private val cid: String, private val inputDir: File, private 
      */
     fun execute() {
 
-        val archiveFileRelativeName = "./${identifier.name}.$OSCAKE_MERGER_ARCHIVE_TYPE"
+        val archiveFileRelativeName = "./${identifier.name}.zip"
         val archiveFile = outputFile.parentFile.resolve(archiveFileRelativeName)
         var inputFileCounter = 0
 
         // merge all packages into new project
 
-        val cac = ComplianceArtifactCollection(cid, OSCAKE_MERGER_AUTHOR, MERGER_VERSION,
+        val cac = ComplianceArtifactCollection(cid, MERGER_AUTHOR, MERGER_VERSION,
             archivePath = archiveFileRelativeName)
         val mergedProject = Project.initialize(cac, archiveFile, logger)
 

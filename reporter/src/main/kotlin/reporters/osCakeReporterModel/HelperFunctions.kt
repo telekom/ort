@@ -407,7 +407,7 @@ fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLog
     return false
 }
 
-fun osccToJson(osccFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): OSCakeRoot {
+fun osccToModel(osccFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): OSCakeRoot {
     val mapper = jacksonObjectMapper()
     val osc = OSCakeRoot()
     var project: Project? = null
@@ -438,11 +438,11 @@ private fun completeModel(project: Project) {
     }
 }
 
-fun jsonToOscc(osc: OSCakeRoot, outputFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): Boolean {
+fun modelToOscc(project: Project, outputFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): Boolean {
     val objectMapper = ObjectMapper()
     try {
         outputFile.bufferedWriter().use {
-            it.write(objectMapper.writeValueAsString(osc.project))
+            it.write(objectMapper.writeValueAsString(project))
         }
     } catch (e: IOException) {
         logger.log("Error when writing json file: \"$outputFile\".\n ${e.message} ",
@@ -464,4 +464,17 @@ fun zipAndCleanUp(outputDir: File, tmpDirectory: File, zipFileName: String, logg
         return true
     }
     return false
+}
+
+/** generates a new file name based on the original report file name: e.g.
+ *  OSCake-Report.oscc --> OSCake-Report_curated.oscc
+ */
+fun extendFilename(reportFile: File, suffix: String): String = "${if (reportFile.parent != null
+) reportFile.parent + "/" else ""}${reportFile.nameWithoutExtension}$suffix.${reportFile.extension}"
+
+fun stripRelativePathIndicators(name: String): String {
+    if (name.startsWith("./")) return name.substring(2)
+    if (name.startsWith(".\\")) return name.substring(2)
+    if (name.startsWith(".")) return name.substring(1)
+    return name
 }

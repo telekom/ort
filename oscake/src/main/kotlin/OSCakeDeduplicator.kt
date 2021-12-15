@@ -44,19 +44,25 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
      * as a zip file.
      */
     fun execute() {
-        val reportFile = File(osccFile.parent).resolve("$DEDUPLICATION_FILE_PREFIX${osccFile.name}")
-        val osc = osccToJson(osccFile, logger, ProcessingPhase.DEDUPLICATION)
+        val reportFile = File(osccFile.parent).resolve(extendFilename(File(osccFile.name), DEDUPLICATION_FILE_SUFFIX))
+        val osc = osccToModel(osccFile, logger, ProcessingPhase.DEDUPLICATION)
         val archiveDir = createTempDirectory(prefix = "oscakeDed_").toFile().apply {
             File(osccFile.parent, osc.project.complianceArtifactCollection.archivePath).unpackZip(this)
         }
         osc.project.packs.forEach {
             PackDeduplicator(it, archiveDir).deduplicate()
         }
-        val archivePath = File(osc.project.complianceArtifactCollection.archivePath)
-        osc.project.complianceArtifactCollection.archivePath = "./$DEDUPLICATION_FILE_PREFIX${archivePath.name}"
+
+        val sourceZipFileName = File(stripRelativePathIndicators(osc.project.complianceArtifactCollection.archivePath))
+        val newZipFileName = extendFilename(sourceZipFileName, DEDUPLICATION_FILE_SUFFIX)
+
+        osc.project.complianceArtifactCollection.archivePath =
+                File(osc.project.complianceArtifactCollection.archivePath).parentFile.name + "/" + newZipFileName
+        osc.project.complianceArtifactCollection.author = DEDUPLICATION_AUTHOR
+        osc.project.complianceArtifactCollection.release = DEDUPLICATION_VERSION
 
         var rc = compareLTIAwithArchive(osc.project, archiveDir, logger, ProcessingPhase.DEDUPLICATION)
-        rc = rc || jsonToOscc(osc, reportFile, logger, ProcessingPhase.DEDUPLICATION)
+        rc = rc || modelToOscc(osc.project, reportFile, logger, ProcessingPhase.DEDUPLICATION)
         rc = rc || zipAndCleanUp(File(osccFile.parent), archiveDir,
             osc.project.complianceArtifactCollection.archivePath, logger, ProcessingPhase.DEDUPLICATION)
         if (rc) {

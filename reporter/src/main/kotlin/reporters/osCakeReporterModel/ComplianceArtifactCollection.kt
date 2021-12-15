@@ -38,11 +38,11 @@ data class ComplianceArtifactCollection(
     /**
      * Responsible for the content
      */
-    val author: String = "OSCake-Reporter",
+    var author: String = "OSCake-Reporter",
     /**
      * Represents the release number of the OSCakeReporter which was used when creating the file.
      */
-    val release: String = Release.NUMBER,
+    var release: String = Release.NUMBER,
     /**
      * [date] keeps the creation timestamp of the report.
      */

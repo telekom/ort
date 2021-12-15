@@ -19,8 +19,6 @@
 
 package org.ossreviewtoolkit.oscake.curator
 
-import com.fasterxml.jackson.databind.ObjectMapper
-
 import java.io.File
 
 import kotlin.io.path.createTempDirectory
@@ -28,10 +26,12 @@ import kotlin.io.path.createTempDirectory
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
+import org.ossreviewtoolkit.oscake.CURATION_AUTHOR
+import org.ossreviewtoolkit.oscake.CURATION_FILE_SUFFIX
 import org.ossreviewtoolkit.oscake.CURATION_LOGGER
+import org.ossreviewtoolkit.oscake.CURATION_VERSION
 import org.ossreviewtoolkit.oscake.packageModifierMap
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
-import org.ossreviewtoolkit.utils.packZip
 import org.ossreviewtoolkit.utils.unpackZip
 
 /**
@@ -221,41 +221,27 @@ internal class CurationManager(
      */
     private fun createResultingFiles() {
         val sourceZipFileName = File(stripRelativePathIndicators(project.complianceArtifactCollection.archivePath))
-        val newZipFileName = extendFilename(sourceZipFileName)
-        val targetFile = File(outputDir.path, newZipFileName)
+        val newZipFileName = extendFilename(sourceZipFileName, CURATION_FILE_SUFFIX)
 
-        if (archiveDir.exists()) {
-            compareLTIAwithArchive(project, archiveDir, logger, ProcessingPhase.CURATION)
-            if (targetFile.exists()) targetFile.delete()
-            archiveDir.packZip(targetFile)
-            archiveDir.deleteRecursively()
-        } else {
-            File(outputDir, sourceZipFileName.name).copyTo(targetFile, true)
-        }
+        var rc = false
         project.complianceArtifactCollection.archivePath =
             File(project.complianceArtifactCollection.archivePath).parentFile.name + "/" + newZipFileName
+        project.complianceArtifactCollection.author = CURATION_AUTHOR
+        project.complianceArtifactCollection.release = CURATION_VERSION
 
-        // write *_curated.oscc file
-        val objectMapper = ObjectMapper()
-        val outputFile = outputDir.resolve(extendFilename(File(reportFilename)))
-        outputFile.bufferedWriter().use {
-            it.write(objectMapper.writeValueAsString(project))
+        if (archiveDir.exists()) {
+            rc = rc || compareLTIAwithArchive(project, archiveDir, logger, ProcessingPhase.CURATION)
+            rc = rc || zipAndCleanUp(outputDir, archiveDir, newZipFileName, logger, ProcessingPhase.CURATION)
+        } else {
+            val targetFile = File(outputDir.path, newZipFileName)
+            File(outputDir, sourceZipFileName.name).copyTo(targetFile, true)
         }
+        rc = rc || modelToOscc(project, File(reportFilename), logger, ProcessingPhase.CURATION)
 
-        println("Successfully curated the 'OSCake' at [$outputFile]")
-    }
-
-    /** generates a new file name based on the original report file name: e.g.
-     *  OSCake-Report.oscc --> OSCake-Report_curated.oscc
-    */
-    private fun extendFilename(reportFile: File): String = "${if (reportFile.parent != null
-        ) reportFile.parent + "/" else ""}${reportFile.nameWithoutExtension}_curated.${reportFile.extension}"
-
-    private fun stripRelativePathIndicators(name: String): String {
-            if (name.startsWith("./")) return name.substring(2)
-            if (name.startsWith(".\\")) return name.substring(2)
-            if (name.startsWith(".")) return name.substring(1)
-        return name
+        if (!rc) {
+            logger.log("Curator terminated successfully! Result is written to: $reportFilename", Level.INFO,
+                phase = ProcessingPhase.CURATION)
+        } else logger.log("Curator terminated with errors!", Level.ERROR, phase = ProcessingPhase.CURATION)
     }
 
     private fun deletePackage(packageCuration: PackageCuration, archiveDir: File) {

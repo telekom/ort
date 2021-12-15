@@ -24,12 +24,18 @@ import java.io.IOException
 
 const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
 const val CURATION_LOGGER = "OSCakeCurator"
+const val CURATION_FILE_SUFFIX = "_curated"
+const val CURATION_AUTHOR = "OSCake-Curator"
+const val CURATION_VERSION = "0.1"
+
 const val MERGER_LOGGER = "OSCakeMerger"
-const val DEDUPLICATION_LOGGER = "OSCakeDeduplicator"
 const val MERGER_VERSION = "0.1"
-const val OSCAKE_MERGER_AUTHOR = "OSCake-Merger"
-const val OSCAKE_MERGER_ARCHIVE_TYPE = "zip"
-const val DEDUPLICATION_FILE_PREFIX = "dedup_"
+const val MERGER_AUTHOR = "OSCake-Merger"
+
+const val DEDUPLICATION_LOGGER = "OSCakeDeduplicator"
+const val DEDUPLICATION_FILE_SUFFIX = "_dedup"
+const val DEDUPLICATION_AUTHOR = "OSCake-Deduplicator"
+const val DEDUPLICATION_VERSION = "0.1"
 
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
