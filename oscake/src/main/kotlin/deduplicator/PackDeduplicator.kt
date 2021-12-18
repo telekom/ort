@@ -20,13 +20,15 @@ package org.ossreviewtoolkit.oscake.deduplicator
 
 import java.io.File
 
+import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
 /**
     The [PackDeduplicator] deduplicates file licenses and copyrights on all scopes for a specific [pack]age. The
     [tmpDirectory] holds a reference to the directory where the license files are stored (unzipped archive).
  */
-class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File) {
+class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
+                       private val config: OSCakeConfiguration) {
 
     fun deduplicate() {
         deduplicateFileLicenses()
@@ -44,6 +46,18 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File) {
         }
         pack.fileLicensings.removeAll(fileLicensings2Remove)
         pack.dirLicensings.removeAll(pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() })
+
+        config.deduplicator?.keepEmptyScopes?.let {
+            if (!it) removeEmptyFileScopes()
+        }
+    }
+
+    private fun removeEmptyFileScopes() {
+        val fileLicensings2Remove = pack.fileLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() }
+        fileLicensings2Remove.forEach {
+            dedupRemoveFile(tmpDirectory, it.fileContentInArchive)
+        }
+        pack.fileLicensings.removeAll(fileLicensings2Remove)
     }
 
     /**
@@ -201,6 +215,7 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File) {
             cnt += dirLicensing.licenses.count { it.licenseTextInArchive == path }
         }
         pack.fileLicensings.forEach { fileLicensing ->
+            if (fileLicensing.fileContentInArchive == path) cnt++
             cnt += fileLicensing.licenses.count { it.licenseTextInArchive == path }
         }
         return cnt

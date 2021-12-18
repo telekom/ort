@@ -50,7 +50,7 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
             File(osccFile.parent, osc.project.complianceArtifactCollection.archivePath).unpackZip(this)
         }
         osc.project.packs.forEach {
-            PackDeduplicator(it, archiveDir).deduplicate()
+            PackDeduplicator(it, archiveDir, config).deduplicate()
         }
 
         val sourceZipFileName = File(stripRelativePathIndicators(osc.project.complianceArtifactCollection.archivePath))

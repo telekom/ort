@@ -26,7 +26,11 @@ import kotlin.io.path.createTempDirectory
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.oscake.*
+import org.ossreviewtoolkit.oscake.CURATION_AUTHOR
+import org.ossreviewtoolkit.oscake.CURATION_FILE_SUFFIX
+import org.ossreviewtoolkit.oscake.CURATION_LOGGER
+import org.ossreviewtoolkit.oscake.CURATION_VERSION
+import org.ossreviewtoolkit.oscake.packageModifierMap
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.utils.unpackZip
 
