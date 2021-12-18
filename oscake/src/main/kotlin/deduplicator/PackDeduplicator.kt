@@ -110,18 +110,18 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
 
     private fun deduplicateDirDirCopyrights() {
         pack.dirLicensings.forEach { dirLicensing ->
-            val dirCopyrightsList = dirLicensing.copyrights.map { it.copyright }
+            val dirCopyrightsList = dirLicensing.copyrights.mapNotNull { it.copyright }
             getParentDirLicensing(dirLicensing)?.let { parentDirLicensing ->
-                val parentDirCopyrightsList = parentDirLicensing.copyrights.map { it.copyright }
+                val parentDirCopyrightsList = parentDirLicensing.copyrights.mapNotNull { it.copyright }
                 if (isEqual(dirCopyrightsList, parentDirCopyrightsList)) dirLicensing.copyrights.clear()
             }
         }
     }
 
     private fun deduplicateDirDefaultLicenses() {
-        val defaultLicensesList = pack.defaultLicensings.map { it.license }
+        val defaultLicensesList = pack.defaultLicensings.mapNotNull { it.license }
         pack.dirLicensings.forEach { dirLicensing ->
-            val dirLicensesList = dirLicensing.licenses.map { it.license }.toList()
+            val dirLicensesList = dirLicensing.licenses.mapNotNull { it.license }.toList()
             if (isEqual(defaultLicensesList, dirLicensesList) && !dirLicensesList.contains("NOASSERTION")) {
                 dirLicensing.licenses.forEach { dirLicense ->
                     dedupRemoveFile(tmpDirectory, dirLicense.licenseTextInArchive)
@@ -132,9 +132,9 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
     }
 
     private fun deduplicateDirDefaultCopyrights() {
-        val defaultCopyrightsList = pack.defaultCopyrights.map { it.copyright }
+        val defaultCopyrightsList = pack.defaultCopyrights.mapNotNull { it.copyright }
         pack.dirLicensings.forEach { dirLicensing ->
-            val dirCopyrightsList = dirLicensing.copyrights.map { it.copyright }.toList()
+            val dirCopyrightsList = dirLicensing.copyrights.mapNotNull { it.copyright }.toList()
             if (isEqual(defaultCopyrightsList, dirCopyrightsList)) dirLicensing.copyrights.clear()
         }
     }
@@ -161,12 +161,13 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
      * Checks if the [licenses] are contained as licenses in a higher scope
      */
     private fun licensesContainedInScope(path: String, licenses: List<FileLicense>): Boolean {
-        val licensesList = licenses.map { it.license }.toList()
+        val licensesList = licenses.mapNotNull { it.license }.toList()
         val dirLicensing = bestMatchedDirLicensing(path)
         if (dirLicensing != null) {
-            if (isEqual(dirLicensing.licenses.map { it.license }.toList(), licensesList)) return true
+            if (isEqual(dirLicensing.licenses.mapNotNull { it.license }.toList(), licensesList) &&
+                !licensesList.contains("NOASSERTION")) return true
         } else {
-            if (isEqual(pack.defaultLicensings.map { it.license }.toList(), licensesList) &&
+            if (isEqual(pack.defaultLicensings.mapNotNull { it.license }.toList(), licensesList) &&
                 !licensesList.contains("NOASSERTION")) return true
         }
         return false
@@ -181,7 +182,7 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
         if (dirLicensing != null) {
             if (isEqual(dirLicensing.copyrights.mapNotNull { it.copyright }.toList(), copyrightsList)) return true
         } else {
-            if (isEqual(pack.defaultCopyrights.map { it.copyright }.toList(), copyrightsList)) return true
+            if (isEqual(pack.defaultCopyrights.mapNotNull { it.copyright }.toList(), copyrightsList)) return true
         }
         return false
     }
@@ -190,8 +191,15 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
      * Compares two lists for equality
      */
     private inline fun <reified T> isEqual(first: List<T>, second: List<T>): Boolean {
-        if (first.size != second.size) return false
-        return first.sortedBy { it.toString() }.toTypedArray() contentEquals second.sortedBy { it.toString() }
+        var firstList = first
+        var secondList = second
+
+        if (config.deduplicator?.compareOnlyDistinctLicensesCopyrights == true) {
+            firstList = first.distinct().toList()
+            secondList = second.distinct().toList()
+        }
+        if (firstList.size != secondList.size) return false
+        return firstList.sortedBy { it.toString() }.toTypedArray() contentEquals secondList.sortedBy { it.toString() }
             .toTypedArray()
     }
 
