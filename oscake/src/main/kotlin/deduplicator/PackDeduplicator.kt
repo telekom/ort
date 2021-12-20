@@ -174,16 +174,17 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
      * Checks if the [licenses] are contained as licenses in a higher scope
      */
     private fun licensesContainedInScope(path: String, fileLicensing: FileLicensing): Boolean {
+        val cfgPreserveFileScopes = config.deduplicator?.preserveFileScopes == true
         val licensesList = fileLicensing.licenses.mapNotNull { it.license }.toList()
         val dirLicensing = bestMatchedDirLicensing(path)
         if (dirLicensing != null) {
-            if (licensePreservedByConfig(dirLicensing.scope, fileLicensing)) return false
+            if (dirPreservedByConfig(dirLicensing.scope, fileLicensing)) return false
+            if (!cfgPreserveFileScopes && dirLicensing.licenses.any { it.path == fileLicensing.scope }) return true
             if (isEqual(dirLicensing.licenses.mapNotNull { it.license }.toList(), licensesList) &&
                 !licensesList.contains("NOASSERTION")) return true
         } else {
-            if (copyrightPreservedByConfig(fileLicensing)) return false
-            if (config.deduplicator?.preserveFileScopes == true &&
-                pack.defaultLicensings.any { it.path == fileLicensing.scope }) return false
+            if (defaultPreservedByConfig(fileLicensing)) return false
+            if (pack.defaultLicensings.any { it.path == fileLicensing.scope }) return !cfgPreserveFileScopes
             if (isEqual(pack.defaultLicensings.mapNotNull { it.license }.toList(), licensesList) &&
                 !licensesList.contains("NOASSERTION")) return true
         }
@@ -194,22 +195,25 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
      * Checks if the [copyrights] are contained as copyrights in a higher scope
      */
     private fun copyrightsContainedInScope(path: String, fileLicensing: FileLicensing): Boolean {
+        val cfgPreserveFileScopes = config.deduplicator?.preserveFileScopes == true
         val copyrightsList = fileLicensing.copyrights.mapNotNull { it.copyright }.toList()
         val dirLicensing = bestMatchedDirLicensing(path)
         if (dirLicensing != null) {
-            if (licensePreservedByConfig(dirLicensing.scope, fileLicensing)) return false
+            if (dirPreservedByConfig(dirLicensing.scope, fileLicensing)) return false
+            if (!cfgPreserveFileScopes && dirLicensing.copyrights.any { it.path == fileLicensing.scope }) return true
             if (isEqual(dirLicensing.copyrights.mapNotNull { it.copyright }.toList(), copyrightsList)) return true
         } else {
-            if (copyrightPreservedByConfig(fileLicensing)) return false
+            if (defaultPreservedByConfig(fileLicensing)) return false
+            if (pack.defaultCopyrights.any { it.path == fileLicensing.scope }) return !cfgPreserveFileScopes
             if (isEqual(pack.defaultCopyrights.mapNotNull { it.copyright }.toList(), copyrightsList)) return true
         }
         return false
     }
 
-    private fun licensePreservedByConfig(parentScope: String, fileLicensing: FileLicensing) = (config.deduplicator?.
+    private fun dirPreservedByConfig(parentScope: String, fileLicensing: FileLicensing) = (config.deduplicator?.
         preserveFileScopes == true && parentScope == fileLicensing.scope)
 
-    private fun copyrightPreservedByConfig(fileLicensing: FileLicensing) = (config.deduplicator?.
+    private fun defaultPreservedByConfig(fileLicensing: FileLicensing) = (config.deduplicator?.
         preserveFileScopes == true && pack.defaultLicensings.any { it.path == fileLicensing.scope })
 
     /**
