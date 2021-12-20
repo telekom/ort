@@ -48,7 +48,10 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
         pack.dirLicensings.removeAll(pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() })
 
         config.deduplicator?.keepEmptyScopes?.let {
-            if (!it) removeEmptyFileScopes()
+            if (!it) {
+                removeEmptyFileScopes()
+                removeEmptyDirScopes()
+            }
         }
     }
 
@@ -58,6 +61,16 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
             dedupRemoveFile(tmpDirectory, it.fileContentInArchive)
         }
         pack.fileLicensings.removeAll(fileLicensings2Remove)
+    }
+
+    private fun removeEmptyDirScopes() {
+        val dirLicensings2Remove = pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() }
+        dirLicensings2Remove.forEach { dirLicensing ->
+            dirLicensing.licenses.forEach {
+                dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
+            }
+        }
+        pack.dirLicensings.removeAll(dirLicensings2Remove.toSet())
     }
 
     /**
