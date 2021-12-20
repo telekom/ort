@@ -33,6 +33,7 @@ import org.ossreviewtoolkit.oscake.CURATION_VERSION
 import org.ossreviewtoolkit.oscake.packageModifierMap
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.utils.unpackZip
+import kotlin.system.exitProcess
 
 /**
  * The [CurationManager] handles the entire curation process: reads and analyzes the curation files,
@@ -243,7 +244,10 @@ internal class CurationManager(
         if (!rc) {
             logger.log("Curator terminated successfully! Result is written to: ${reportFile.name}", Level.INFO,
                 phase = ProcessingPhase.CURATION)
-        } else logger.log("Curator terminated with errors!", Level.ERROR, phase = ProcessingPhase.CURATION)
+        } else {
+            logger.log("Curator terminated with errors!", Level.ERROR, phase = ProcessingPhase.CURATION)
+            exitProcess(4)
+        }
     }
 
     private fun deletePackage(packageCuration: PackageCuration, archiveDir: File) {

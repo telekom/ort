@@ -29,6 +29,7 @@ import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.deduplicator.PackDeduplicator
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.utils.unpackZip
+import kotlin.system.exitProcess
 
 /**
  * The [OSCakeDeduplicator] deduplicates licenses and copyrights in all scopes
@@ -67,6 +68,7 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
             osc.project.complianceArtifactCollection.archivePath, logger, ProcessingPhase.DEDUPLICATION)
         if (rc) {
             logger.log("Deduplicator terminated with errors!", Level.ERROR, phase = ProcessingPhase.DEDUPLICATION)
+            exitProcess(3)
         } else {
             logger.log(
                 "Deduplicator terminated successfully! Result is written to: $reportFile", Level.INFO,
