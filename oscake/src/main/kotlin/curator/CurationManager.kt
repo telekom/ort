@@ -22,6 +22,7 @@ package org.ossreviewtoolkit.oscake.curator
 import java.io.File
 
 import kotlin.io.path.createTempDirectory
+import kotlin.system.exitProcess
 
 import org.apache.logging.log4j.Level
 
@@ -33,7 +34,6 @@ import org.ossreviewtoolkit.oscake.CURATION_VERSION
 import org.ossreviewtoolkit.oscake.packageModifierMap
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.utils.unpackZip
-import kotlin.system.exitProcess
 
 /**
  * The [CurationManager] handles the entire curation process: reads and analyzes the curation files,
