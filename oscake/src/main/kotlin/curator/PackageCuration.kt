@@ -119,7 +119,8 @@ internal data class PackageCuration(
      * the special case of "fileScope" == CURATION_DEFAULT_LICENSING (This special processing is necessary if
      * defaultLicensings exist, which are not based on fileLicensings - aka "declared license").
      */
-    internal fun curate(pack: Pack, archiveDir: File, fileStore: File, scopePatterns: List<String>) {
+    internal fun curate(pack: Pack, archiveDir: File, fileStore: File, scopePatterns: List<String>,
+                        copyrightScopePatterns: List<String>) {
         if (packageModifier == "insert" || packageModifier == "update") {
             eliminateIssueFromPackage(pack)
             curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
@@ -141,9 +142,11 @@ internal data class PackageCuration(
                 curationFileItem.fileCopyrights?.sortedBy { orderCopyrightByModifier[packageModifier]?.get(it.modifier)
                     }?.forEach { curationFileCopyrightItem ->
                     when (curationFileCopyrightItem.modifier) {
-                        "insert" -> curateCopyrightInsert(fileScope, curationFileCopyrightItem, pack)
-                        "delete" -> curateCopyrightDelete(fileScope, pack, curationFileCopyrightItem.copyright!!)
-                        "delete-all" -> curateCopyrightDeleteAll(fileScope, pack)
+                        "insert" -> curateCopyrightInsert(fileScope, curationFileCopyrightItem, pack,
+                            copyrightScopePatterns)
+                        "delete" -> curateCopyrightDelete(fileScope, pack, curationFileCopyrightItem.copyright!!,
+                            copyrightScopePatterns)
+                        "delete-all" -> curateCopyrightDeleteAll(fileScope, pack, copyrightScopePatterns)
                     }
                 }
             }
@@ -322,51 +325,96 @@ internal data class PackageCuration(
         pack.fileLicensings.removeAll(fileLicensingsToDelete)
     }
 
-    private fun curateCopyrightInsert(fileScope: String, curFileCopyrightItem: CurationFileCopyrightItem, pack: Pack) =
-        (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: (FileLicensing(fileScope).apply {
-            pack.fileLicensings.add(this) })
-                ).apply {
-                    copyrights.add(
-                        FileCopyright(curFileCopyrightItem.copyright!!.replace("\\?", "?"
-                        ).replace("\\*", "*"))
-                    )
-                }
+    private fun curateCopyrightInsert(fileScope: String, curFileCopyrightItem: CurationFileCopyrightItem, pack: Pack,
+                                      copyrightScopePatterns: List<String>) {
+        val copyrightStatement = curFileCopyrightItem.copyright!!.replace("\\?", "?").replace("\\*", "*")
+        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns)
 
-    private fun curateCopyrightDeleteAll(fileScope: String, pack: Pack) {
+        (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: (FileLicensing(fileScope).apply {
+            pack.fileLicensings.add(this)
+        })).apply {
+                copyrights.add(FileCopyright(copyrightStatement))
+        }
+
+        if (scopeLevel == ScopeLevel.DEFAULT) {
+            pack.defaultCopyrights.add(DefaultDirCopyright(fileScope, copyrightStatement))
+        }
+        if (scopeLevel == ScopeLevel.DIR) {
+            (pack.dirLicensings.firstOrNull { it.scope == getDirScopePath(pack, fileScope) } ?:
+            DirLicensing(fileScope).apply { pack.dirLicensings.add(this) })
+                .apply {
+                    copyrights.add(DefaultDirCopyright(fileScope, copyrightStatement))
+                }
+        }
+    }
+
+    private fun curateCopyrightDeleteAll(fileScope: String, pack: Pack, copyrightScopePatterns: List<String>) {
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
         val fileSystem = FileSystems.getDefault()
+        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns)
         pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
             File(it.scope).toPath()
         ) }.forEach { fileLicensing ->
                 fileLicensing.copyrights.clear()
-                if (fileLicensing.licenses.size == 0 && fileLicensing.copyrights.size == 0) {
+                if (fileLicensing.licenses.isEmpty() && fileLicensing.copyrights.isEmpty()) {
                     fileLicensingsToDelete.add(fileLicensing)
                 }
-        }
+                if (scopeLevel == ScopeLevel.DEFAULT) {
+                    pack.defaultCopyrights.removeAll(
+                        pack.defaultCopyrights.filter { it.copyright != null && it.path == fileLicensing.scope }
+                    )
+                }
+                if (scopeLevel == ScopeLevel.DIR) {
+                    pack.dirLicensings.forEach { dirLicensing ->
+                        dirLicensing.copyrights.removeAll(
+                            dirLicensing.copyrights.filter { it.path == fileLicensing.scope }
+                        )
+                    }
+                }
+          }
         pack.fileLicensings.removeAll(fileLicensingsToDelete)
     }
 
-    private fun curateCopyrightDelete(fileScope: String, pack: Pack, copyrightMatch: String) {
+    private fun curateCopyrightDelete(fileScope: String, pack: Pack, copyrightMatch: String,
+                                      copyrightScopePatterns: List<String>) {
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
+        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns)
         val fileSystem = FileSystems.getDefault()
         pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
             File(it.scope).toPath()
         ) }.forEach { fileLicensing ->
             val copyrightsToDelete = mutableListOf<FileCopyright>()
-            fileLicensing.copyrights.forEach {
-                // simple pattern matching
-                // replace escaped characters with arbitrary character
-                if (match(copyrightMatch.replace("\\*", "Ä").replace("\\?", "Ö"),
-                        it.copyright.replace("*", "Ä").replace("?", "Ö"))) {
-                    copyrightsToDelete.add(it)
-                }
+            fileLicensing.copyrights.filter { matchExt(copyrightMatch, it.copyright) }.forEach {
+                copyrightsToDelete.add(it)
             }
             fileLicensing.copyrights.removeAll(copyrightsToDelete)
-            if (fileLicensing.licenses.size == 0 && fileLicensing.copyrights.size == 0) {
+            if (fileLicensing.licenses.isEmpty() && fileLicensing.copyrights.isEmpty()) {
                 fileLicensingsToDelete.add(fileLicensing)
+            }
+
+            if (scopeLevel == ScopeLevel.DEFAULT) {
+                pack.defaultCopyrights.removeAll(
+                    pack.defaultCopyrights.filter { it.copyright != null && it.path == fileLicensing.scope &&
+                            matchExt(copyrightMatch, it.copyright!!) }
+                )
+            }
+            if (scopeLevel == ScopeLevel.DIR) {
+                pack.dirLicensings.forEach { dirLicensing ->
+                    dirLicensing.copyrights.removeAll(
+                        dirLicensing.copyrights.filter { it.path == fileLicensing.scope &&
+                            matchExt(copyrightMatch, it.copyright!!) }
+                    )
+                }
             }
         }
         pack.fileLicensings.removeAll(fileLicensingsToDelete)
+    }
+
+    // simple pattern matching
+    // replace escaped characters with arbitrary character
+    private fun matchExt(copyrightMatch: String, compareString: String): Boolean {
+        return match(copyrightMatch.replace("\\*", "Ä").replace("\\?", "Ö"),
+            compareString.replace("*", "Ä").replace("?", "Ö"))
     }
 
     private fun match(wildCardString: String, compareString: String): Boolean {
