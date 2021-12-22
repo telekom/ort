@@ -263,7 +263,7 @@ class OSCakeReporter : Reporter {
             if (pp.size > 1) logger.log("Package has more than one provenance! " +
                             "Only the first one is taken!", Level.WARN, key, phase = ProcessingPhase.SCANRESULT)
             if (cfg.onlyIncludePackages.isNotEmpty()) cfg.onlyIncludePackages[key] = true
-            pp.first().also {
+            pp.first().also { scanResult ->
                 try {
                     val fileInfoBlockDict = HashMap<String, FileInfoBlock>()
                     val nsr = getNativeScanResultJson(
@@ -272,20 +272,13 @@ class OSCakeReporter : Reporter {
                             cfg.oscakeScanResultsDir)
                     )
 
-                    it.summary.licenseFindings.forEach {
+                    scanResult.summary.licenseFindings
+                        .filter { !(it.license.toString() == "NOASSERTION" && cfg.ignoreNOASSERTION) }.forEach {
                         val fileInfoBlock =
                             fileInfoBlockDict.getOrPut(it.location.path) { FileInfoBlock(it.location.path) }
 
                         LicenseTextEntry().apply {
                             license = it.license.toString()
-                            // NOTE:
-//                            if (it.license.toString().startsWith("LicenseRef-")) {
-//                                logger.log(
-//                                    "Changed <${it.license}> to <NOASSERTION> in package: " +
-//                                            "${key.name} - ${it.location.path}", Level.INFO, key, fileInfoBlock.path
-//                                )
-//                                license = "NOASSERTION"
-//                            }
                             isInstancedLicense = isInstancedLicense(input, it.license.toString())
                             startLine = it.location.startLine
                             endLine = it.location.endLine
@@ -293,7 +286,7 @@ class OSCakeReporter : Reporter {
                             fileInfoBlock.licenseTextEntries.add(this)
                         }
                     }
-                    it.summary.copyrightFindings.forEach {
+                    scanResult.summary.copyrightFindings.forEach {
                         fileInfoBlockDict.getOrPut(it.location.path) {
                             FileInfoBlock(it.location.path)
                         }.apply {

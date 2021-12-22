@@ -115,7 +115,10 @@ data class OSCakeConfiguration(
      * defines if the log messages should be enriched with json paths concerning the oscc file
      */
     val includeJsonPathInLogfile4ErrorsAndWarnings: Boolean? = false,
-
+    /**
+     * defines if license findings for license "NOASSERTION" is ignored
+     */
+    val ignoreNOASSERTION: Boolean? = false
     ) {
     companion object {
         private lateinit var osCakeConfig: OSCakeConfiguration
@@ -217,6 +220,7 @@ data class OSCakeConfiguration(
                 params.dependencyGranularity.toString()
             params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns + osCakeConfig.scopePatterns).toList()
 
+            params.ignoreNOASSERTION = osCakeConfig.ignoreNOASSERTION ?: false
             osCakeConfigInfo = OSCakeConfigInfo(commandLineParams, osCakeConfig)
         }
         /**
