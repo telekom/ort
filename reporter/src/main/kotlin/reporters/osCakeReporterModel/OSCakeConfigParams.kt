@@ -72,6 +72,7 @@ data class OSCakeConfigParams(
      * option: dependency-granularity
      */
     var forceIncludePackages: MutableMap<Identifier, Boolean> = mutableMapOf(),
+    var ignoreNOASSERTION: Boolean = false
 ) {
     constructor(includeJsonPathInLogfile: Boolean) : this(
         includeJsonPathInLogfile4ErrorsAndWarnings = includeJsonPathInLogfile,
