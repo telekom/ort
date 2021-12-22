@@ -47,6 +47,11 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
     fun execute() {
         val reportFile = File(osccFile.parent).resolve(extendFilename(File(osccFile.name), DEDUPLICATION_FILE_SUFFIX))
         val osc = osccToModel(osccFile, logger, ProcessingPhase.DEDUPLICATION)
+        if (osc.project.complianceArtifactCollection.author == DEDUPLICATION_AUTHOR) {
+            logger.log("The file \"${osccFile.name}\" cannot be processed, because it was already deduplicated" +
+                    " in a former run!", Level.ERROR, phase = ProcessingPhase.DEDUPLICATION)
+            exitProcess(10)
+        }
         val archiveDir = createTempDirectory(prefix = "oscakeDed_").toFile().apply {
             File(osccFile.parent, osc.project.complianceArtifactCollection.archivePath).unpackZip(this)
         }

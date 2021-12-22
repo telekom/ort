@@ -57,7 +57,7 @@ class OSCakeMerger(private val cid: String, private val inputDir: File, private 
 
         inputDir.walkTopDown().filter { it.isFile && it.extension == "oscc" }.forEach { file ->
             ProjectProvider.getProject(file.absoluteFile)?.let { project ->
-                if (mergedProject.merge(project, file)) {
+                if (mergedProject.merge(project, file, DEDUPLICATION_AUTHOR)) {
                     cac.mergedIds.add(project.complianceArtifactCollection.cid)
                     if (project.complianceArtifactCollection.mergedIds.isNotEmpty()) {
                         cac.mergedIds.addAll(project.complianceArtifactCollection.mergedIds)

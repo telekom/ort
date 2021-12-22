@@ -122,11 +122,16 @@ data class Project(
     /**
      * merges the given project into the initialProject
      */
-    fun merge(project: Project, originFile: File): Boolean {
+    fun merge(project: Project, originFile: File, prohibitedAuthor: String): Boolean {
         // merge only for [initialized] project allowed
         if (!isInitialProject) return false
         // do not process, if definitions in [complianceArtifactCollection] or itself are missing
         if (project.complianceArtifactCollection.cid == "") return false
+        if (project.complianceArtifactCollection.author == prohibitedAuthor) {
+            logger.log("The file \"${originFile.name}\" cannot be processed, because it was already deduplicated" +
+                    " in a former run!", Level.WARN, phase = ProcessingPhase.MERGING)
+            return false
+        }
 
         val packagesToAdd = mutableListOf<Pack>()
         val filesToArchive = mutableListOf<String>()
