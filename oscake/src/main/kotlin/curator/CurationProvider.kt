@@ -49,16 +49,17 @@ internal class CurationProvider(
      */
     fileStore: File
 ) {
+    companion object {
+        var errors = false
+    }
     /**
      * List of available [PackageCuration]s
      */
     internal val packageCurations = mutableListOf<PackageCuration>()
-
     /**
      * The [logger] is only initialized, if there is something to log.
      */
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
-
     /**
      * The init method walks through the folder hierarchy - starting at "curationDirectory" - and creates a list
      * of "PackageCurations".
@@ -74,6 +75,7 @@ internal class CurationProvider(
                     logger.log("Error while processing file: ${it.absoluteFile}! - Curation not applied! ${e.message}",
                         Level.ERROR, phase = ProcessingPhase.CURATION
                     )
+                    CurationProvider.errors = true
                 }
             }
         }

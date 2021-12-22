@@ -88,15 +88,6 @@ internal class CurationManager(
      * package modifiers, applies the curations, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
-        // A merged oscc-file cannot be curated because there is no config information anymore (scopePatterns
-        // are missing); additionally the tag "mergedIDs" contains a list of merged ComplianceArtifactCollection
-        if (project.complianceArtifactCollection.mergedIds.isNotEmpty()) {
-            logger.log(
-                "The given project is a merged project and cannot be curated anymore!",
-                Level.ERROR, phase = ProcessingPhase.CURATION
-            )
-            return
-        }
         // 0. Reset hasIssues = false - will be newly set at the end of the process
         project.hasIssues = false
         project.packs.forEach { pack ->
@@ -243,6 +234,7 @@ internal class CurationManager(
         }
         rc = rc || modelToOscc(project, reportFile, logger, ProcessingPhase.CURATION)
 
+        rc = rc || CurationProvider.errors
         if (!rc) {
             logger.log("Curator terminated successfully! Result is written to: ${reportFile.name}", Level.INFO,
                 phase = ProcessingPhase.CURATION)
