@@ -34,7 +34,8 @@ data class OSCakeDeduplicator(
     val keepEmptyScopes: Boolean? = false,
     val createUnifiedCopyrights: Boolean? = false,
     val preserveFileScopes: Boolean? = true,
-    val compareOnlyDistinctLicensesCopyrights: Boolean? = false
+    val compareOnlyDistinctLicensesCopyrights: Boolean? = false,
+    val processPackagesWithIssues: Boolean? = true
 )
 
 data class OSCakeCurator(

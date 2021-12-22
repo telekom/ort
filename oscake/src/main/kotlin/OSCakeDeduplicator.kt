@@ -51,7 +51,18 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
             File(osccFile.parent, osc.project.complianceArtifactCollection.archivePath).unpackZip(this)
         }
         osc.project.packs.forEach {
-            PackDeduplicator(it, archiveDir, config).deduplicate()
+            var process = true
+            if (config.deduplicator?.processPackagesWithIssues == true) {
+                if (it.hasIssues) logger.log("Package will be deduplicated, although \"hasIssues=true\"",
+                        Level.INFO, it.id, phase = ProcessingPhase.DEDUPLICATION)
+            } else {
+                if (it.hasIssues) {
+                    logger.log("Package is not deduplicated, because \"hasIssues=true\"",
+                        Level.INFO, it.id, phase = ProcessingPhase.DEDUPLICATION)
+                    process = false
+                }
+            }
+            if (process) PackDeduplicator(it, archiveDir, config).deduplicate()
         }
 
         val sourceZipFileName = File(stripRelativePathIndicators(osc.project.complianceArtifactCollection.archivePath))
