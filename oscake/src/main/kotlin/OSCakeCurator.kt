@@ -36,15 +36,17 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.osccToModel
  * The [OSCakeCurator] provides a mechanism to curate issues (WARNINGS & ERRORS) in an *.oscc file. Additionally,
  * ComplianceArtifactPackages can be added and/or deleted.
  */
-class OSCakeCurator(private val config: OSCakeConfiguration, private val osccFile: File,
-                     private val outputDir: File, private val ignoreRootWarnings: Boolean) {
-
+class OSCakeCurator(private val config: OSCakeConfiguration, private val commandLineParams: Map<String, String>) {
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
     /**
      * Generates the json from file and starts the curation process
      */
     fun execute() {
+        val osccFile = File(commandLineParams["osccFile"]!!)
+        val outputDir = File(commandLineParams["outputDir"]!!)
+        val ignoreRootWarnings = commandLineParams.getOrDefault("ignoreRootWarnings", "false").toBoolean()
+
         val osc = osccToModel(osccFile, logger, ProcessingPhase.CURATION)
         if (osc.project.complianceArtifactCollection.author == DEDUPLICATION_AUTHOR) {
             logger.log("The file \"${osccFile.name}\" cannot be processed, because it was already deduplicated" +
@@ -60,6 +62,7 @@ class OSCakeCurator(private val config: OSCakeConfiguration, private val osccFil
             )
             exitProcess(11)
         }
+        addParamsToConfig(config, osc, commandLineParams, this)
 
         CurationManager(osc.project, outputDir, osccFile.absolutePath, config, ignoreRootWarnings).manage()
     }

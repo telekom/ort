@@ -19,7 +19,23 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+import com.fasterxml.jackson.annotation.JsonInclude
+
 /**
- * The class [OSCakeConfigInfo] wraps the config information for the reporter in oscc file
+ * This block contains the input of [commandLineParams] and [configFile]
  */
-data class OSCakeConfigInfo(val commandLineParams: Map<String, String>, val configFile: OSCakeConfiguration)
+data class ConfigBlockInfo(
+    var commandLineParams: Map<String, String>,
+    val configFile: Map<String, String>)
+
+/**
+ * The class [ConfigInfo] wraps the config information to be present in oscc file
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+data class ConfigInfo(
+    val reporter: OSCakeConfigInfo? = null
+) {
+    var curator: ConfigBlockInfo? = null
+    var deduplicator: ConfigBlockInfo? = null
+    var merger: ConfigBlockInfo? = null
+}

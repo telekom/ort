@@ -22,6 +22,12 @@ package org.ossreviewtoolkit.oscake
 import java.io.File
 import java.io.IOException
 
+import kotlin.reflect.full.memberProperties
+
+import org.ossreviewtoolkit.model.config.OSCakeConfiguration
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ConfigBlockInfo
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
+
 const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
 const val CURATION_LOGGER = "OSCakeCurator"
 const val CURATION_FILE_SUFFIX = "_curated"
@@ -81,3 +87,37 @@ fun isValidFilePathName(path: String): Boolean =
     } catch (e: IOException) {
         false
     }
+
+/**
+ * Creates config information for oscc-config-section (deduplicator, curator); every entry in config file is
+ * transferred to output format. If some parameters are added to the config, the entries will be automatically
+ * transferred
+ */
+fun addParamsToConfig(config: OSCakeConfiguration, osc: OSCakeRoot, commandLineParams: Map<String, String>,
+                      clazz: Any) {
+    val fields = OSCakeConfiguration::class.memberProperties
+    fields.forEach { member ->
+        when (val v = member.get(config)) {
+            is org.ossreviewtoolkit.model.config.OSCakeCurator -> {
+                if (clazz is OSCakeCurator) {
+                    val paramMap = mutableMapOf<String, String>()
+                    org.ossreviewtoolkit.model.config.OSCakeCurator::class.memberProperties.forEach { member2 ->
+                        paramMap[member2.name] = member2.get(v).toString()
+                    }
+                    if (osc.project.config != null) osc.project.config?.curator =
+                        ConfigBlockInfo(commandLineParams, paramMap)
+                }
+            }
+            is org.ossreviewtoolkit.model.config.OSCakeDeduplicator -> {
+                if (clazz is OSCakeDeduplicator) {
+                    val paramMap = mutableMapOf<String, String>()
+                    org.ossreviewtoolkit.model.config.OSCakeDeduplicator::class.memberProperties.forEach { member2 ->
+                        paramMap[member2.name] = member2.get(v).toString()
+                    }
+                    if (osc.project.config != null) osc.project.config?.deduplicator =
+                        ConfigBlockInfo(commandLineParams, paramMap)
+                }
+            }
+        }
+    }
+}

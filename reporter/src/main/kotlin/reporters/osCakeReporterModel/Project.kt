@@ -60,7 +60,7 @@ data class Project(
     /**
      * contains the runtime configuration - commandline parameters and oscake.conf
      */
-    var config: OSCakeConfigInfo? = null,
+    var config: ConfigInfo? = null,
     /**
      * [complianceArtifactCollection] contains metadata about the project.
      */

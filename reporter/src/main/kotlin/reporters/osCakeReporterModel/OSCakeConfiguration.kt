@@ -135,7 +135,6 @@ data class OSCakeConfiguration(
          */
         internal fun setConfigParams(options: Map<String, String>) {
             osCakeConfig = getOSCakeConfiguration(options["configFile"]!!)
-            commandLineParams["configFile"] = options["configFile"]!!
             require(isValidFolder(osCakeConfig.sourceCodesDir)) {
                 "Invalid or missing config entry found for \"sourceCodesDir\" in oscake.conf"
             }
@@ -146,7 +145,6 @@ data class OSCakeConfiguration(
             var scanResultsCacheEnabled = false
             var oscakeScanResultsDir: String? = null
             val deleteOrtNativeScanResults = options.containsKey("--deleteOrtNativeScanResults")
-            if (deleteOrtNativeScanResults) commandLineParams["deleteOrtNativeScanResults"] = true.toString()
             if (osCakeConfig.scanResultsCache?.get("enabled").toBoolean()) {
                 scanResultsCacheEnabled = true
                 require(isValidFolder(osCakeConfig.scanResultsCache?.getOrDefault("directory", ""))) {
@@ -216,11 +214,13 @@ data class OSCakeConfiguration(
             params.issuesLevel = issueLevel
             params.sourceCodesDir = osCakeConfig.sourceCodesDir
             params.scopePatterns = osCakeConfig.scopePatterns
-            if (params.dependencyGranularity != Int.MAX_VALUE) commandLineParams["dependency-granularity"] =
-                params.dependencyGranularity.toString()
             params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns + osCakeConfig.scopePatterns).toList()
 
             params.ignoreNOASSERTION = osCakeConfig.ignoreNOASSERTION ?: false
+
+            options.forEach {
+                commandLineParams[it.key] = it.value
+            }
             osCakeConfigInfo = OSCakeConfigInfo(commandLineParams, osCakeConfig)
         }
         /**

@@ -34,7 +34,8 @@ import org.ossreviewtoolkit.utils.unpackZip
 /**
  * The [OSCakeDeduplicator] deduplicates licenses and copyrights in all scopes
  */
-class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val osccFile: File) {
+class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val osccFile: File,
+                         private val commandLineParams: Map<String, String>) {
 
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(DEDUPLICATION_LOGGER) }
 
@@ -55,6 +56,7 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
         val archiveDir = createTempDirectory(prefix = "oscakeDed_").toFile().apply {
             File(osccFile.parent, osc.project.complianceArtifactCollection.archivePath).unpackZip(this)
         }
+        addParamsToConfig(config, osc, commandLineParams, this)
         osc.project.packs.forEach {
             var process = true
             if (config.deduplicator?.processPackagesWithIssues == true) {

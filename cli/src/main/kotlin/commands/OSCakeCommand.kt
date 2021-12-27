@@ -41,6 +41,8 @@ import org.ossreviewtoolkit.oscake.OSCakeMerger
 import org.ossreviewtoolkit.oscake.isValidDirectory
 import org.ossreviewtoolkit.oscake.isValidFilePathName
 import org.ossreviewtoolkit.utils.expandTilde
+import java.nio.file.Paths
+import kotlin.reflect.full.memberProperties
 
 sealed class OscakeConfig(name: String) : OptionGroup(name)
 
@@ -76,13 +78,13 @@ class MergerOptions : OscakeConfig("Options for oscake application: merger") {
         .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
         .required()
 
-    private val outputDirArg by option("--outputDirectory", "-od", help = "The path to the output folder.")
+    internal val outputDirArg by option("--outputDirectory", "-od", help = "The path to the output folder.")
         .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = true, mustBeReadable = true)
 
     internal val cid by option("--cid", "-c", help = "Id of the Compliance Artifact Collection - IVY format preferred.")
         .required()
 
-    private val outputFileArg by option("--outputFile", "-of", help = "Name of the output file. When -o is " +
+    internal val outputFileArg by option("--outputFile", "-of", help = "Name of the output file. When -o is " +
             "also specified, the path to the outputFile is stripped to its name.")
         .file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
 
@@ -149,6 +151,7 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
      */
     override fun run() {
         val config = globalOptionsForSubcommands.config
+        val fields2hide = OscakeConfig::class.memberProperties.map { it.name }
 
         when (val it = oscakeApp) {
             is CuratorOptions -> {
@@ -158,15 +161,44 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
                 require(isValidDirectory(config.oscake.curator?.directory)) {
                     "Directory for \"config.oscake.curator.directory\" is not set correctly in ort.conf"
                 }
-                OSCakeCurator(config.oscake, it.osccFile, it.outputDir, it.ignoreRootWarnings).execute()
+                OSCakeCurator(config.oscake, getCuratorCommandLineParams(it, fields2hide)).execute()
+            }
+            is DeduplicatorOptions -> {
+                OSCakeDeduplicator(config.oscake, it.osccFile, getDeduplicatorCommandLineParams(it, fields2hide)).execute()
             }
             is MergerOptions -> {
                 it.resolveArgs()
-                OSCakeMerger(it.cid, it.inputDir, it.outputFile).execute()
-            }
-            is DeduplicatorOptions -> {
-                OSCakeDeduplicator(config.oscake, it.osccFile).execute()
+                OSCakeMerger(it.cid, it.inputDir, it.outputFile, getMergerCommandLineParams(it, fields2hide)).execute()
             }
         }
     }
+
+
+    private fun getCuratorCommandLineParams(it: CuratorOptions, fields2hide: List<String>): Map<String, String>  {
+        val commandLineParams = mutableMapOf<String, String>()
+        CuratorOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
+            commandLineParams[member.name] = if (member.get(it) is java.io.File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
+        }
+        return commandLineParams
+    }
+
+    private fun getDeduplicatorCommandLineParams(it: DeduplicatorOptions, fields2hide: List<String>): Map<String, String>  {
+        val commandLineParams = mutableMapOf<String, String>()
+        DeduplicatorOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
+            commandLineParams[member.name] = if (member.get(it) is java.io.File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
+        }
+        return commandLineParams
+    }
+
+    private fun getMergerCommandLineParams(it: MergerOptions, fields2hide: List<String>): Map<String, String>  {
+        val commandLineParams = mutableMapOf<String, String>()
+        MergerOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
+            commandLineParams[member.name] = if (member.get(it) is java.io.File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
+        }
+        return commandLineParams
+    }
+
+    private fun getRelativeFileName(file: File): String =
+        file.relativeTo(Paths.get("").toAbsolutePath().toFile()).toString()
+
 }

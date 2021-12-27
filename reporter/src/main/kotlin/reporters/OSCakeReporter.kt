@@ -94,7 +94,7 @@ class OSCakeReporter : Reporter {
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) {
             handleOSCakeIssues(osc.project, logger, OSCakeConfiguration.params.issuesLevel)
         }
-        osc.project.config = OSCakeConfiguration.osCakeConfigInfo
+        osc.project.config = ConfigInfo(OSCakeConfiguration.osCakeConfigInfo)
 
         // transform result into json output
         val objectMapper = ObjectMapper()
