@@ -47,12 +47,37 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
         pack.fileLicensings.removeAll(fileLicensings2Remove)
         pack.dirLicensings.removeAll(pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() })
 
-        config.deduplicator?.keepEmptyScopes?.let {
-            if (!it) {
-                removeEmptyFileScopes()
-                removeEmptyDirScopes()
-            }
+        if (config.deduplicator?.createUnifiedCopyrights == true) {
+            makeUnifiedCopyrights()
+            removeEmptyFileScopes()
+            removeEmptyDirScopes()
         }
+        if (config.deduplicator?.keepEmptyScopes != true) {
+            removeEmptyFileScopes()
+            removeEmptyDirScopes()
+        }
+    }
+
+    /**
+     * collect every copyright from file-, dir-, and default scope and assign this list to
+     * the property "unifiedCopyrights" in the package; the collected copyrights are removed
+     * from every scope
+     */
+    private fun makeUnifiedCopyrights() {
+        val unified = mutableListOf<String>()
+        pack.fileLicensings.filter { it.copyrights.isNotEmpty() }.forEach { fileLicensing ->
+            unified.addAll(fileLicensing.copyrights.map { it.copyright })
+            fileLicensing.copyrights.clear()
+        }
+        // take also the copyrights from dir- and default scope, because some copyrights may already have
+        // been deduplicated
+        pack.dirLicensings.filter { it.copyrights.isNotEmpty() }.forEach { dirLicensing ->
+            unified.addAll(dirLicensing.copyrights.mapNotNull { it.copyright })
+            dirLicensing.copyrights.clear()
+        }
+        unified.addAll(pack.defaultCopyrights.mapNotNull { it.copyright })
+        pack.defaultCopyrights.clear()
+        pack.unifiedCopyrights = unified.distinct().sorted().toList()
     }
 
     private fun removeEmptyFileScopes() {
