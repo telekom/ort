@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
+import java.io.File
 import java.util.SortedSet
 
 import org.ossreviewtoolkit.model.Identifier
@@ -110,4 +111,29 @@ data class Pack(
      * [origin] contains the name of the source file and is set during deserialization
      */
     @JsonIgnore var origin: String = ""
+
+    /**
+     * Removes the file specified in [path] from the directory, if there is no reference to it anymore
+     */
+    fun dedupRemoveFile(tmpDirectory: File, path: String?) {
+        if (path != null) {
+            val file = tmpDirectory.resolve(path)
+            if (findReferences(path) == 1 && file.exists()) file.delete()
+        }
+    }
+    /**
+     * Finds the amount of references for the file passed in [path]
+     */
+    private fun findReferences(path: String): Int {
+        var cnt = 0
+        cnt += defaultLicensings.count { it.licenseTextInArchive == path }
+        dirLicensings.forEach { dirLicensing ->
+            cnt += dirLicensing.licenses.count { it.licenseTextInArchive == path }
+        }
+        fileLicensings.forEach { fileLicensing ->
+            if (fileLicensing.fileContentInArchive == path) cnt++
+            cnt += fileLicensing.licenses.count { it.licenseTextInArchive == path }
+        }
+        return cnt
+    }
 }

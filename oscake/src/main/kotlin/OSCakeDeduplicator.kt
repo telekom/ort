@@ -53,6 +53,12 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
                     " in a former run!", Level.ERROR, phase = ProcessingPhase.DEDUPLICATION)
             exitProcess(10)
         }
+        if (osc.project.containsHiddenSections == true) {
+            logger.log("The file \"${osccFile.name}\" cannot be processed, because some sections are missing!" +
+                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
+                phase = ProcessingPhase.DEDUPLICATION)
+            exitProcess(11)
+        }
         val archiveDir = createTempDirectory(prefix = "oscakeDed_").toFile().apply {
             File(osccFile.parent, osc.project.complianceArtifactCollection.archivePath).unpackZip(this)
         }
@@ -79,6 +85,12 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
                 File(osc.project.complianceArtifactCollection.archivePath).parentFile.name + "/" + newZipFileName
         osc.project.complianceArtifactCollection.author = DEDUPLICATION_AUTHOR
         osc.project.complianceArtifactCollection.release = DEDUPLICATION_VERSION
+
+        if (config.deduplicator?.hideSections?.isNotEmpty() == true) {
+            if (osc.project.hideSections(config.deduplicator!!.hideSections ?: emptyList(), archiveDir)) {
+                osc.project.containsHiddenSections = true
+            }
+        }
 
         var rc = compareLTIAwithArchive(osc.project, archiveDir, logger, ProcessingPhase.DEDUPLICATION)
         rc = rc || modelToOscc(osc.project, reportFile, logger, ProcessingPhase.DEDUPLICATION)

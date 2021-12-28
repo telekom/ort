@@ -58,7 +58,7 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
     private fun removeEmptyFileScopes() {
         val fileLicensings2Remove = pack.fileLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() }
         fileLicensings2Remove.forEach {
-            dedupRemoveFile(tmpDirectory, it.fileContentInArchive)
+            pack.dedupRemoveFile(tmpDirectory, it.fileContentInArchive)
         }
         pack.fileLicensings.removeAll(fileLicensings2Remove)
     }
@@ -67,7 +67,7 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
         val dirLicensings2Remove = pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() }
         dirLicensings2Remove.forEach { dirLicensing ->
             dirLicensing.licenses.forEach {
-                dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
+                pack.dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
             }
         }
         pack.dirLicensings.removeAll(dirLicensings2Remove.toSet())
@@ -94,7 +94,7 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
             if (licensesContainedInScope(getDirScopePath(pack, fileLicensing.scope), fileLicensing)) {
                 // remove files from archive
                 fileLicensing.licenses.filter { it.licenseTextInArchive != null }.forEach {
-                    dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
+                    pack.dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
                 }
                 fileLicensing.licenses.clear()
             }
@@ -113,7 +113,7 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
                 val parentDirLicensingList = parentDirLicensing.licenses.map { it.license }
                 if (isEqual(dirLicensesList, parentDirLicensingList)) {
                     dirLicensing.licenses.forEach { dirLicense ->
-                        dedupRemoveFile(tmpDirectory, dirLicense.licenseTextInArchive)
+                        pack.dedupRemoveFile(tmpDirectory, dirLicense.licenseTextInArchive)
                     }
                     dirLicensing.licenses.clear()
                 }
@@ -137,7 +137,7 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
             val dirLicensesList = dirLicensing.licenses.mapNotNull { it.license }.toList()
             if (isEqual(defaultLicensesList, dirLicensesList) && !dirLicensesList.contains("NOASSERTION")) {
                 dirLicensing.licenses.forEach { dirLicense ->
-                    dedupRemoveFile(tmpDirectory, dirLicense.licenseTextInArchive)
+                    pack.dedupRemoveFile(tmpDirectory, dirLicense.licenseTextInArchive)
                 }
                 dirLicensing.licenses.clear()
             }
@@ -220,31 +220,5 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
         if (firstList.size != secondList.size) return false
         return firstList.sortedBy { it.toString() }.toTypedArray() contentEquals secondList.sortedBy { it.toString() }
             .toTypedArray()
-    }
-
-    /**
-     * Removes the file specified in [path] from the directory, if there is no reference to it anymore
-     */
-    private fun dedupRemoveFile(tmpDirectory: File, path: String?) {
-        if (path != null) {
-            val file = tmpDirectory.resolve(path)
-            if (findReferences(path) == 1 && file.exists()) file.delete()
-        }
-    }
-
-    /**
-     * Finds the amount of references for the file passed in [path]
-     */
-    private fun findReferences(path: String): Int {
-        var cnt = 0
-        cnt += pack.defaultLicensings.count { it.licenseTextInArchive == path }
-        pack.dirLicensings.forEach { dirLicensing ->
-            cnt += dirLicensing.licenses.count { it.licenseTextInArchive == path }
-        }
-        pack.fileLicensings.forEach { fileLicensing ->
-            if (fileLicensing.fileContentInArchive == path) cnt++
-            cnt += fileLicensing.licenses.count { it.licenseTextInArchive == path }
-        }
-        return cnt
     }
 }

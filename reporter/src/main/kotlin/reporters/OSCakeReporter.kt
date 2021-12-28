@@ -94,11 +94,6 @@ class OSCakeReporter : Reporter {
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) {
             handleOSCakeIssues(osc.project, logger, OSCakeConfiguration.params.issuesLevel)
         }
-        osc.project.config = ConfigInfo(OSCakeConfiguration.osCakeConfigInfo)
-
-        if (OSCakeConfiguration.params.hideSections.isNotEmpty() == true)
-            osc.project.hideSections(OSCakeConfiguration.params.hideSections)
-
         // transform result into json output
         val objectMapper = ObjectMapper()
         val outputFile = outputDir.resolve(reportFilename)
@@ -229,6 +224,14 @@ class OSCakeReporter : Reporter {
 
         osc.project.complianceArtifactCollection.archivePath = "./" +
                 input.ortResult.getProjects().first().id.name + ".zip"
+
+        osc.project.config = ConfigInfo(OSCakeConfiguration.osCakeConfigInfo)
+
+        if (OSCakeConfiguration.params.hideSections.isNotEmpty() == true) {
+            if (osc.project.hideSections(OSCakeConfiguration.params.hideSections, tmpDirectory)) {
+                osc.project.containsHiddenSections = true
+            }
+        }
 
         zipAndCleanUp(outputDir, tmpDirectory, osc.project.complianceArtifactCollection.archivePath,
             logger, ProcessingPhase.POST)

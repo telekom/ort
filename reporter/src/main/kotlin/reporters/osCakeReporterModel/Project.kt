@@ -46,13 +46,18 @@ import org.ossreviewtoolkit.model.Identifier
  * The class [Project] wraps the meta information ([complianceArtifactCollection]) of the OSCakeReporter as well
  * as a list of included projects and packages store in instances of [Pack]
  */
-@JsonPropertyOrder("hasIssues", "issues", "config", "complianceArtifactCollection", "complianceArtifactPackages")
+@JsonPropertyOrder("hasIssues", "containsHiddenSections", "issues", "config", "complianceArtifactCollection",
+    "complianceArtifactPackages")
 @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
 data class Project(
     /**
      * [hasIssues] shows if problems occurred during processing the data.
      */
     var hasIssues: Boolean = false,
+    /**
+     * [containsHiddenSections] shows if sections are missing in oscc
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL) var containsHiddenSections: Boolean? = null,
     /**
      * contains issues for the project level
      */
@@ -325,23 +330,50 @@ data class Project(
 
     private fun containsID(id: Identifier): Boolean = this.packs.any { it.id == id }
 
-    internal fun hideSections(sectionList: List<String>) {
+    fun hideSections(sectionList: List<String>, tmpDirectory: File): Boolean {
+        var haveHidden = false
         sectionList.forEach {
             when (it) {
-                "config" -> this.config = null
-                "reuselicensings", "dirlicensings", "filelicensings" -> hideInPackages(it)
+                "config" -> {
+                    this.config = null
+                    haveHidden = true
+                }
+                "reuselicensings", "dirlicensings", "filelicensings" -> {
+                    hideInPackages(it, tmpDirectory)
+                    haveHidden = true
+                }
             }
         }
+        return haveHidden
     }
 
-    private fun hideInPackages(section: String) {
-        this.packs.forEach {
+    private fun hideInPackages(section: String, tmpDirectory: File) {
+        this.packs.forEach { pack ->
             when (section) {
-                "reuselicensings" -> it.reuseLicensings.clear()
-                "dirlicensings" -> it.dirLicensings.clear()
-                "filelicensings" -> it.fileLicensings.clear()
+                "reuselicensings" -> {
+                    pack.reuseLicensings.forEach { reuseLicensing ->
+                        pack.dedupRemoveFile(tmpDirectory, reuseLicensing.licenseTextInArchive)
+                    }
+                    pack.reuseLicensings.clear()
+                }
+                "dirlicensings" -> {
+                    pack.dirLicensings.forEach { dirLicensing ->
+                        dirLicensing.licenses.forEach { dirLicense ->
+                            pack.dedupRemoveFile(tmpDirectory, dirLicense.licenseTextInArchive)
+                        }
+                    }
+                    pack.dirLicensings.clear()
+                }
+                "filelicensings" -> {
+                    pack.fileLicensings.forEach { fileLicensing ->
+                        pack.dedupRemoveFile(tmpDirectory, fileLicensing.fileContentInArchive)
+                        fileLicensing.licenses.forEach { fileLicense ->
+                            pack.dedupRemoveFile(tmpDirectory, fileLicense.licenseTextInArchive)
+                        }
+                    }
+                    pack.fileLicensings.clear()
+                }
             }
         }
     }
-
 }
