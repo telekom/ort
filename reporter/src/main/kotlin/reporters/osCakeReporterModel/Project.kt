@@ -137,6 +137,12 @@ data class Project(
                     " in a former run!", Level.WARN, phase = ProcessingPhase.MERGING)
             return false
         }
+        if (project.containsHiddenSections == true) {
+            logger.log("The file \"${originFile.name}\" cannot be processed, because some sections are missing!" +
+                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
+                phase = ProcessingPhase.MERGING)
+            return false
+        }
 
         val packagesToAdd = mutableListOf<Pack>()
         val filesToArchive = mutableListOf<String>()

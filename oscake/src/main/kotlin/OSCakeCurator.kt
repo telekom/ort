@@ -48,9 +48,16 @@ class OSCakeCurator(private val config: OSCakeConfiguration, private val command
         val ignoreRootWarnings = commandLineParams.getOrDefault("ignoreRootWarnings", "false").toBoolean()
 
         val osc = osccToModel(osccFile, logger, ProcessingPhase.CURATION)
+
+        if (osc.project.containsHiddenSections == true) {
+            logger.log("The file \"${osccFile.name}\" cannot be processed, because some sections are missing!" +
+                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
+                phase = ProcessingPhase.CURATION)
+            exitProcess(12)
+        }
         if (osc.project.complianceArtifactCollection.author == DEDUPLICATION_AUTHOR) {
             logger.log("The file \"${osccFile.name}\" cannot be processed, because it was already deduplicated" +
-                    " in a former run!", Level.ERROR, phase = ProcessingPhase.DEDUPLICATION)
+                    " in a former run!", Level.ERROR, phase = ProcessingPhase.CURATION)
             exitProcess(10)
         }
         // A merged oscc-file cannot be curated because there is no config information anymore (scopePatterns
