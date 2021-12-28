@@ -96,6 +96,9 @@ class OSCakeReporter : Reporter {
         }
         osc.project.config = ConfigInfo(OSCakeConfiguration.osCakeConfigInfo)
 
+        if (OSCakeConfiguration.params.hideSections.isNotEmpty() == true)
+            osc.project.hideSections(OSCakeConfiguration.params.hideSections)
+
         // transform result into json output
         val objectMapper = ObjectMapper()
         val outputFile = outputDir.resolve(reportFilename)

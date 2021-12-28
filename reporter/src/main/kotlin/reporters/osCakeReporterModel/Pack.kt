@@ -97,15 +97,15 @@ data class Pack(
     /**
      *  This list is only filled for REUSE-compliant packages and contains a list of [DefaultLicense]s.
      */
-    val reuseLicensings = mutableListOf<ReuseLicense>()
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) var reuseLicensings = mutableListOf<ReuseLicense>()
     /**
      *  [dirLicensings] contains a list of [DirLicensing]s for non-REUSE compliant packages.
      */
-    val dirLicensings = mutableListOf<DirLicensing>()
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) var dirLicensings = mutableListOf<DirLicensing>()
     /**
      *  [fileLicensings] contains a list of [fileLicensings]s.
      */
-    val fileLicensings = mutableListOf<FileLicensing>()
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) var fileLicensings = mutableListOf<FileLicensing>()
     /**
      * [origin] contains the name of the source file and is set during deserialization
      */

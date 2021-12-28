@@ -324,4 +324,24 @@ data class Project(
     }
 
     private fun containsID(id: Identifier): Boolean = this.packs.any { it.id == id }
+
+    internal fun hideSections(sectionList: List<String>) {
+        sectionList.forEach {
+            when (it) {
+                "config" -> this.config = null
+                "reuselicensings", "dirlicensings", "filelicensings" -> hideInPackages(it)
+            }
+        }
+    }
+
+    private fun hideInPackages(section: String) {
+        this.packs.forEach {
+            when (section) {
+                "reuselicensings" -> it.reuseLicensings.clear()
+                "dirlicensings" -> it.dirLicensings.clear()
+                "filelicensings" -> it.fileLicensings.clear()
+            }
+        }
+    }
+
 }

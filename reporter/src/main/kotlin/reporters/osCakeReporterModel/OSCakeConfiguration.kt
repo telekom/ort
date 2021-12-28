@@ -118,7 +118,11 @@ data class OSCakeConfiguration(
     /**
      * defines if license findings for license "NOASSERTION" is ignored
      */
-    val ignoreNOASSERTION: Boolean? = false
+    val ignoreNOASSERTION: Boolean? = false,
+    /**
+     *
+     */
+    val hideSections: List<String>? = emptyList()
     ) {
     companion object {
         private lateinit var osCakeConfig: OSCakeConfiguration
@@ -217,6 +221,7 @@ data class OSCakeConfiguration(
             params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns + osCakeConfig.scopePatterns).toList()
 
             params.ignoreNOASSERTION = osCakeConfig.ignoreNOASSERTION ?: false
+            params.hideSections = osCakeConfig.hideSections ?: emptyList()
 
             options.forEach {
                 commandLineParams[it.key] = it.value
