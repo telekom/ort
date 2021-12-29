@@ -167,8 +167,8 @@ data class OSCakeConfiguration(
                 }
             }
 
-            params.dependencyGranularity = if (options["dependency-granularity"]?.
-                toIntOrNull() != null) options["dependency-granularity"]!!.toInt() else Int.MAX_VALUE
+            params.dependencyGranularity = if (options["--dependency-granularity"]?.
+                toIntOrNull() != null) options["--dependency-granularity"]!!.toInt() else Int.MAX_VALUE
 
             val onlyIncludePackagesMap: MutableMap<Identifier, Boolean> = mutableMapOf()
             osCakeConfig.packageRestrictions?.let { packageRestriction ->

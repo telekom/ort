@@ -203,13 +203,17 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
         val licensesList = fileLicensing.licenses.mapNotNull { it.license }.toList()
         val dirLicensing = bestMatchedDirLicensing(path)
         if (dirLicensing != null) {
-            if (dirLicensing.licenses.any { it.path == fileLicensing.scope }) return !cfgPreserveFileScopes
             if (isEqual(dirLicensing.licenses.mapNotNull { it.license }.toList(), licensesList) &&
-                !licensesList.contains("NOASSERTION")) return true
+                !licensesList.contains("NOASSERTION")) {
+                if (dirLicensing.licenses.any { it.path == fileLicensing.scope } && cfgPreserveFileScopes) return false
+                return true
+            }
         } else {
-            if (pack.defaultLicensings.any { it.path == fileLicensing.scope }) return !cfgPreserveFileScopes
             if (isEqual(pack.defaultLicensings.mapNotNull { it.license }.toList(), licensesList) &&
-                !licensesList.contains("NOASSERTION")) return true
+                !licensesList.contains("NOASSERTION")) {
+                if (pack.defaultLicensings.any { it.path == fileLicensing.scope } && cfgPreserveFileScopes) return false
+                return true
+            }
         }
         return false
     }
