@@ -91,6 +91,7 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
                 osc.project.containsHiddenSections = true
             }
         }
+        if (config.deduplicator?.createUnifiedCopyrights == true) osc.project.containsHiddenSections = true
 
         var rc = compareLTIAwithArchive(osc.project, archiveDir, logger, ProcessingPhase.DEDUPLICATION)
         rc = rc || modelToOscc(osc.project, reportFile, logger, ProcessingPhase.DEDUPLICATION)
