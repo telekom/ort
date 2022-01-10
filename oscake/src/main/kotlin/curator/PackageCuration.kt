@@ -336,10 +336,10 @@ internal data class PackageCuration(
                 copyrights.add(FileCopyright(copyrightStatement))
         }
 
-        if (scopeLevel == ScopeLevel.DEFAULT) {
+        if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
             pack.defaultCopyrights.add(DefaultDirCopyright(fileScope, copyrightStatement))
         }
-        if (scopeLevel == ScopeLevel.DIR) {
+        if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
             (pack.dirLicensings.firstOrNull { it.scope == getDirScopePath(pack, fileScope) } ?:
             DirLicensing(fileScope).apply { pack.dirLicensings.add(this) })
                 .apply {
@@ -359,12 +359,12 @@ internal data class PackageCuration(
                 if (fileLicensing.licenses.isEmpty() && fileLicensing.copyrights.isEmpty()) {
                     fileLicensingsToDelete.add(fileLicensing)
                 }
-                if (scopeLevel == ScopeLevel.DEFAULT) {
+                if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
                     pack.defaultCopyrights.removeAll(
                         pack.defaultCopyrights.filter { it.copyright != null && it.path == fileLicensing.scope }
                     )
                 }
-                if (scopeLevel == ScopeLevel.DIR) {
+                if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
                     pack.dirLicensings.forEach { dirLicensing ->
                         dirLicensing.copyrights.removeAll(
                             dirLicensing.copyrights.filter { it.path == fileLicensing.scope }
@@ -392,13 +392,13 @@ internal data class PackageCuration(
                 fileLicensingsToDelete.add(fileLicensing)
             }
 
-            if (scopeLevel == ScopeLevel.DEFAULT) {
+            if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
                 pack.defaultCopyrights.removeAll(
                     pack.defaultCopyrights.filter { it.copyright != null && it.path == fileLicensing.scope &&
                             matchExt(copyrightMatch, it.copyright!!) }
                 )
             }
-            if (scopeLevel == ScopeLevel.DIR) {
+            if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
                 pack.dirLicensings.forEach { dirLicensing ->
                     dirLicensing.copyrights.removeAll(
                         dirLicensing.copyrights.filter { it.path == fileLicensing.scope &&
