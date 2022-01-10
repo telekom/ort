@@ -46,11 +46,11 @@ internal class ModeREUSE(
      */
     override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance
     ) {
-        scanDict[pack.id]?.forEach { _, fib ->
+        scanDict[pack.id]?.forEach { (_, fib) ->
             val isInLicensesFolder = fib.path.startsWith(getLicensesFolderPrefix(pack.packageRoot))
             if (fib.licenseTextEntries.any { it.isLicenseText && !isInLicensesFolder }) logger.log("Found a " +
                     "license text in \"${fib.path}\" - this is outside of the LICENSES folder" +
-                        " - will be ignored!", Level.WARN, pack.id, fib.path)
+                        " - will be ignored!", Level.WARN, pack.id, fib.path, phase = ProcessingPhase.PROCESS)
 
             // Phase I: inspect ./LICENSES/* folder
             if (isInLicensesFolder) handleLicenses(fib, sourceCodeDir, tmpDirectory, getHash(provenance))
@@ -85,7 +85,8 @@ internal class ModeREUSE(
         // check if there is no licenseTextEntry for a file without this extension
         if (scanDict[pack.id]?.any { it.key == fileNameWithoutExtension } == true) {
             logger.log("File \"${fileNameWithoutExtension}\" shows license infos although \"${fib.path}\" " +
-                        "also exists! --> Files ignored!", Level.WARN, pack.id, fib.path)
+                        "also exists! --> Files ignored!", Level.WARN, pack.id, fib.path,
+                phase = ProcessingPhase.PROCESS)
             return
         }
         FileLicensing(fileNameWithoutExtension).apply {
@@ -114,11 +115,12 @@ internal class ModeREUSE(
             pack.reuseLicensings.add(ReuseLicense(it.license, fib.path, pathFlat))
         }
         if (fib.licenseTextEntries.any { it.isLicenseText && fib.licenseTextEntries.size > 1 }) {
-            logger.log("More then one license text was found for file: ${fib.path}", Level.WARN, pack.id, fib.path)
+            logger.log("More then one license text was found for file: ${fib.path}", Level.WARN, pack.id, fib.path,
+                phase = ProcessingPhase.PROCESS)
         }
         if (fib.licenseTextEntries.any { it.isLicenseNotice }) {
             logger.log("License Notice was found for a file in LICENSES folder in file: ${fib.path}", Level.WARN,
-                pack.id, fib.path)
+                pack.id, fib.path, phase = ProcessingPhase.PROCESS)
         }
     }
 
