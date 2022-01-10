@@ -139,6 +139,7 @@ data class Pack(
             if (fileLicensing.fileContentInArchive == path) cnt++
             cnt += fileLicensing.licenses.count { it.licenseTextInArchive == path }
         }
+        cnt += reuseLicensings.count { it.licenseTextInArchive == path }
         return cnt
     }
 }

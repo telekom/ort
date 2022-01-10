@@ -75,6 +75,11 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
                     process = false
                 }
             }
+            if (it.reuseCompliant) {
+                logger.log("Package is REUSE compliant and is not deduplicated!",
+                    Level.INFO, it.id, phase = ProcessingPhase.DEDUPLICATION)
+                process = false
+            }
             if (process) PackDeduplicator(it, archiveDir, config).deduplicate()
         }
 
@@ -91,7 +96,8 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
                 osc.project.containsHiddenSections = true
             }
         }
-        if (config.deduplicator?.createUnifiedCopyrights == true) osc.project.containsHiddenSections = true
+        if (config.deduplicator?.createUnifiedCopyrights == true && osc.project.packs.any { !it.reuseCompliant })
+            osc.project.containsHiddenSections = true
 
         var rc = compareLTIAwithArchive(osc.project, archiveDir, logger, ProcessingPhase.DEDUPLICATION)
         rc = rc || modelToOscc(osc.project, reportFile, logger, ProcessingPhase.DEDUPLICATION)
