@@ -32,6 +32,9 @@ import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
 import java.io.File
+import java.nio.file.Paths
+
+import kotlin.reflect.full.memberProperties
 
 import org.ossreviewtoolkit.cli.GlobalOptions
 import org.ossreviewtoolkit.oscake.OSCakeApplication
@@ -41,8 +44,6 @@ import org.ossreviewtoolkit.oscake.OSCakeMerger
 import org.ossreviewtoolkit.oscake.isValidDirectory
 import org.ossreviewtoolkit.oscake.isValidFilePathName
 import org.ossreviewtoolkit.utils.expandTilde
-import java.nio.file.Paths
-import kotlin.reflect.full.memberProperties
 
 sealed class OscakeConfig(name: String) : OptionGroup(name)
 
@@ -164,7 +165,8 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
                 OSCakeCurator(config.oscake, getCuratorCommandLineParams(it, fields2hide)).execute()
             }
             is DeduplicatorOptions -> {
-                OSCakeDeduplicator(config.oscake, it.osccFile, getDeduplicatorCommandLineParams(it, fields2hide)).execute()
+                OSCakeDeduplicator(config.oscake, it.osccFile,
+                    getDeduplicatorCommandLineParams(it, fields2hide)).execute()
             }
             is MergerOptions -> {
                 it.resolveArgs()
@@ -173,32 +175,34 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
         }
     }
 
-
-    private fun getCuratorCommandLineParams(it: CuratorOptions, fields2hide: List<String>): Map<String, String>  {
+    private fun getCuratorCommandLineParams(it: CuratorOptions, fields2hide: List<String>): Map<String, String> {
         val commandLineParams = mutableMapOf<String, String>()
         CuratorOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
-            commandLineParams[member.name] = if (member.get(it) is java.io.File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
+            commandLineParams[member.name] =
+                if (member.get(it) is File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
         }
         return commandLineParams
     }
 
-    private fun getDeduplicatorCommandLineParams(it: DeduplicatorOptions, fields2hide: List<String>): Map<String, String>  {
+    private fun getDeduplicatorCommandLineParams(it: DeduplicatorOptions, fields2hide: List<String>):
+            Map<String, String> {
         val commandLineParams = mutableMapOf<String, String>()
         DeduplicatorOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
-            commandLineParams[member.name] = if (member.get(it) is java.io.File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
+            commandLineParams[member.name] =
+                if (member.get(it) is File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
         }
         return commandLineParams
     }
 
-    private fun getMergerCommandLineParams(it: MergerOptions, fields2hide: List<String>): Map<String, String>  {
+    private fun getMergerCommandLineParams(it: MergerOptions, fields2hide: List<String>): Map<String, String> {
         val commandLineParams = mutableMapOf<String, String>()
         MergerOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
-            commandLineParams[member.name] = if (member.get(it) is java.io.File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
+            commandLineParams[member.name] =
+                if (member.get(it) is File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
         }
         return commandLineParams
     }
 
     private fun getRelativeFileName(file: File): String =
         file.relativeTo(Paths.get("").toAbsolutePath().toFile()).toString()
-
 }
