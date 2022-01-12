@@ -226,15 +226,18 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
         val copyrightsList = fileLicensing.copyrights.mapNotNull { it.copyright }.toList()
         val dirLicensing = bestMatchedDirLicensing(path)
         if (dirLicensing != null) {
-            if (dirLicensing.copyrights.any { it.path == fileLicensing.scope }) return !cfgPreserveFileScopes
-            if (isEqual(dirLicensing.copyrights.mapNotNull { it.copyright }.toList(), copyrightsList)) return true
+            if (isEqual(dirLicensing.copyrights.mapNotNull { it.copyright }.toList(), copyrightsList)) {
+               if (dirLicensing.copyrights.any { it.path == fileLicensing.scope } && cfgPreserveFileScopes) return false
+               return true
+            }
         } else {
-            if (pack.defaultCopyrights.any { it.path == fileLicensing.scope }) return !cfgPreserveFileScopes
-            if (isEqual(pack.defaultCopyrights.mapNotNull { it.copyright }.toList(), copyrightsList)) return true
+            if (isEqual(pack.defaultCopyrights.mapNotNull { it.copyright }.toList(), copyrightsList)) {
+                if (pack.defaultCopyrights.any { it.path == fileLicensing.scope } && cfgPreserveFileScopes) return false
+                return true
+            }
         }
         return false
     }
-
     /**
      * Compares two lists for equality
      */
