@@ -42,7 +42,7 @@ import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.model.orEmpty
-import org.ossreviewtoolkit.utils.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
 
 /**
  * The [Carthage](https://github.com/Carthage/Carthage) package manager for Objective-C / Swift.
@@ -65,7 +65,7 @@ class Carthage(
         ) = Carthage(managerName, analysisRoot, analyzerConfig, repoConfig)
     }
 
-    override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
+    override fun resolveDependencies(definitionFile: File, labels: Map<String, String>): List<ProjectAnalyzerResult> {
         // Transitive dependencies are only supported if the dependency itself uses Carthage.
         // See: https://github.com/Carthage/Carthage#nested-dependencies
         val workingDir = definitionFile.parentFile

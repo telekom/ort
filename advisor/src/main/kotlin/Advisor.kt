@@ -32,26 +32,30 @@ import org.ossreviewtoolkit.model.AdvisorRun
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.AdvisorConfiguration
-import org.ossreviewtoolkit.utils.Environment
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.core.Environment
+import org.ossreviewtoolkit.utils.core.log
 
 /**
- * The class to manage [VulnerabilityProvider]s that retrieve security advisories.
+ * The class to manage [AdviceProvider]s. It invokes the configured providers and adds their findings to the current
+ * [OrtResult].
  */
 class Advisor(
-    private val providerFactories: List<VulnerabilityProviderFactory>,
+    private val providerFactories: List<AdviceProviderFactory>,
     private val config: AdvisorConfiguration
 ) {
     companion object {
-        private val LOADER = ServiceLoader.load(VulnerabilityProviderFactory::class.java)!!
+        private val LOADER = ServiceLoader.load(AdviceProviderFactory::class.java)!!
 
         /**
-         * The list of all available [VulnerabilityProvider]s in the classpath.
+         * The set of all available [advice provider factories][AdviceProviderFactory] in the classpath, sorted by name.
          */
-        val ALL by lazy { LOADER.iterator().asSequence().toList() }
+        val ALL: Set<AdviceProviderFactory> by lazy {
+            LOADER.iterator().asSequence().toSortedSet(compareBy { it.providerName })
+        }
     }
 
-    fun retrieveVulnerabilityInformation(ortResult: OrtResult, skipExcluded: Boolean = false): OrtResult {
+    @JvmOverloads
+    fun retrieveFindings(ortResult: OrtResult, skipExcluded: Boolean = false): OrtResult {
         val startTime = Instant.now()
 
         if (ortResult.analyzer == null) {
@@ -63,21 +67,25 @@ class Advisor(
             return ortResult
         }
 
-        val providers = providerFactories.map { it.create(config) }
-
         val results = sortedMapOf<Identifier, List<AdvisorResult>>()
 
         val packages = ortResult.getPackages(skipExcluded).map { it.pkg }
+        if (packages.isEmpty()) {
+            log.info { "There are no packages to give advice for." }
+        } else {
 
-        runBlocking {
-            providers.map { provider ->
-                async {
-                    provider.retrievePackageVulnerabilities(packages)
-                }
-            }.forEach { providerResults ->
-                providerResults.await().forEach { (pkg, advisorResults) ->
-                    results.merge(pkg.id, advisorResults) { oldResults, newResults ->
-                        oldResults + newResults
+            val providers = providerFactories.map { it.create(config) }
+
+            runBlocking {
+                providers.map { provider ->
+                    async {
+                        provider.retrievePackageFindings(packages)
+                    }
+                }.forEach { providerResults ->
+                    providerResults.await().forEach { (pkg, advisorResults) ->
+                        results.merge(pkg.id, advisorResults) { oldResults, newResults ->
+                            oldResults + newResults
+                        }
                     }
                 }
             }

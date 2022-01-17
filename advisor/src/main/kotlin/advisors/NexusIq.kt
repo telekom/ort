@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Bosch.IO GmbH
+ * Copyright (C) 2020-2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,9 +23,10 @@ import java.io.IOException
 import java.net.URI
 import java.time.Instant
 
-import org.ossreviewtoolkit.advisor.AbstractVulnerabilityProviderFactory
-import org.ossreviewtoolkit.advisor.VulnerabilityProvider
+import org.ossreviewtoolkit.advisor.AbstractAdviceProviderFactory
+import org.ossreviewtoolkit.advisor.AdviceProvider
 import org.ossreviewtoolkit.clients.nexusiq.NexusIqService
+import org.ossreviewtoolkit.model.AdvisorCapability
 import org.ossreviewtoolkit.model.AdvisorDetails
 import org.ossreviewtoolkit.model.AdvisorResult
 import org.ossreviewtoolkit.model.AdvisorSummary
@@ -37,23 +38,26 @@ import org.ossreviewtoolkit.model.config.NexusIqConfiguration
 import org.ossreviewtoolkit.model.utils.PurlType
 import org.ossreviewtoolkit.model.utils.getPurlType
 import org.ossreviewtoolkit.model.utils.toPurl
-import org.ossreviewtoolkit.utils.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.common.enumSetOf
+import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.core.log
 
 import retrofit2.HttpException
 
 /**
  * The number of packages to request from Nexus IQ in one request.
  */
-private const val REQUEST_CHUNK_SIZE = 100
+private const val BULK_REQUEST_SIZE = 128
 
 /**
  * A wrapper for [Nexus IQ Server](https://help.sonatype.com/iqserver) security vulnerability data.
  */
-class NexusIq(name: String, private val nexusIqConfig: NexusIqConfiguration) : VulnerabilityProvider(name) {
-    class Factory : AbstractVulnerabilityProviderFactory<NexusIq>("NexusIQ") {
+class NexusIq(name: String, private val nexusIqConfig: NexusIqConfiguration) : AdviceProvider(name) {
+    class Factory : AbstractAdviceProviderFactory<NexusIq>("NexusIQ") {
         override fun create(config: AdvisorConfiguration) = NexusIq(providerName, config.forProvider { nexusIq })
     }
+
+    override val details: AdvisorDetails = AdvisorDetails(providerName, enumSetOf(AdvisorCapability.VULNERABILITIES))
 
     private val service by lazy {
         NexusIqService.create(
@@ -64,7 +68,7 @@ class NexusIq(name: String, private val nexusIqConfig: NexusIqConfiguration) : V
         )
     }
 
-    override suspend fun retrievePackageVulnerabilities(packages: List<Package>): Map<Package, List<AdvisorResult>> {
+    override suspend fun retrievePackageFindings(packages: List<Package>): Map<Package, List<AdvisorResult>> {
         val startTime = Instant.now()
 
         val components = packages.map { pkg ->
@@ -83,7 +87,7 @@ class NexusIq(name: String, private val nexusIqConfig: NexusIqConfiguration) : V
         return try {
             val componentDetails = mutableMapOf<String, NexusIqService.ComponentDetails>()
 
-            components.chunked(REQUEST_CHUNK_SIZE).forEach { chunk ->
+            components.chunked(BULK_REQUEST_SIZE).forEach { chunk ->
                 val requestResults = getComponentDetails(service, chunk).componentDetails.associateBy {
                     it.component.packageUrl.substringBefore("?")
                 }
@@ -94,12 +98,12 @@ class NexusIq(name: String, private val nexusIqConfig: NexusIqConfiguration) : V
             val endTime = Instant.now()
 
             packages.mapNotNullTo(mutableListOf()) { pkg ->
-                componentDetails[pkg.id.toPurl()]?.let { details ->
+                componentDetails[pkg.id.toPurl()]?.let { pkgDetails ->
                     pkg to listOf(
                         AdvisorResult(
-                            details.securityData.securityIssues.mapNotNull { it.toVulnerability() },
-                            AdvisorDetails(providerName),
-                            AdvisorSummary(startTime, endTime)
+                            details,
+                            AdvisorSummary(startTime, endTime),
+                            vulnerabilities = pkgDetails.securityData.securityIssues.map { it.toVulnerability() }
                         )
                     )
                 }
@@ -110,11 +114,9 @@ class NexusIq(name: String, private val nexusIqConfig: NexusIqConfiguration) : V
     }
 
     /**
-     * Construct a [Vulnerability] from the data stored in this issue. As a [VulnerabilityReference] requires a
-     * non-null URI, issues without an URI yield *null* results. (This is rather a paranoia check, as issues are
-     * expected to have a URI.)
+     * Construct a [Vulnerability] from the data stored in this issue.
      */
-    private fun NexusIqService.SecurityIssue.toVulnerability(): Vulnerability? {
+    private fun NexusIqService.SecurityIssue.toVulnerability(): Vulnerability {
         val references = mutableListOf<VulnerabilityReference>()
 
         val browseUrl = URI("${nexusIqConfig.browseUrl}/assets/index.html#/vulnerabilities/$reference")

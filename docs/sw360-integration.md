@@ -17,7 +17,7 @@ To add packages found by ORT to projects and releases in SW360.
 ### Prerequisites
 
 In order to be able to upload ORT results to SW360, first set the connection parameters to your SW360 instance.
-You can do this by defining a `sw360Configuration` scanner storage in the `storages` section of your `ort.conf` file (e.g. in `${HOME}/.ort/conf`)or pass it to the ORT command with the `--config` option) as shown below.
+You can do this by defining a `sw360Configuration` scanner storage in the `storages` section of your `ort.conf` file (e.g. in `${HOME}/.ort/conf`) or pass it to the ORT command with the `--config` option as shown below.
 
 ```
 ort {
@@ -41,7 +41,7 @@ For a complete example of the `ort.conf` file see [reference.conf](../model/src/
 
 ### Command Line
 
-Uploading to SW360 is a stand-alone ORT command](../cli/src/main/kotlin/commands/UploadResultToSw360Command.kt), which:
+Uploading to SW360 is a stand-alone [ORT command](../cli/src/main/kotlin/commands/UploadResultToSw360Command.kt), which:
 
 1. Takes an _analyzer_ result file as an input,
 2. Creates components/releases in SW360 for the packages and ...
@@ -60,7 +60,7 @@ If you prefer to use the SW360 web frontend to correct package metadata instead 
 
 Note:
 
-1. Currently only the SW360 fields `concludedLicenses`, `homepageUrl`, `binaryArtifact` and `sourceArtifact` are used for curations, all
+1. Currently, only the SW360 fields `concludedLicenses`, `homepageUrl`, `binaryArtifact` and `sourceArtifact` are used for curations, all
    other SW360 fields are ignored as there are no corresponding fields for them in ORT.
 2. A release in SW360 needs to be in the approved clearing state, otherwise the curated data will not be used.
 
@@ -109,7 +109,7 @@ If you prefer to use the SW360 to store the ORT _scanner_ results instead of the
 
 In order to be able to store ORT _scanner_ results SW360, first set the connection parameters to your SW360 instance.
 You can do this by defining a `sw360Configuration` scanner storage in the `storages` section of your `ort.conf` file
-(e.g. in `${HOME}/.ort/conf`) or pass it to the ORT command with the `--config` option) as shown below.
+(e.g. in `${HOME}/.ort/conf`) or pass it to the ORT command with the `--config` option as shown below.
 
 ```
 ort {

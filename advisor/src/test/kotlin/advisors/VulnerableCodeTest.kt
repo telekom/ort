@@ -21,12 +21,10 @@
 package org.ossreviewtoolkit.advisor.advisors
 
 import com.github.tomakehurst.wiremock.WireMockServer
-import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.equalTo
 import com.github.tomakehurst.wiremock.client.WireMock.equalToJson
 import com.github.tomakehurst.wiremock.client.WireMock.post
-import com.github.tomakehurst.wiremock.client.WireMock.stubFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 
@@ -42,8 +40,8 @@ import io.kotest.matchers.shouldBe
 import java.io.File
 import java.net.URI
 
-import kotlinx.coroutines.runBlocking
-
+import org.ossreviewtoolkit.model.AdvisorCapability
+import org.ossreviewtoolkit.model.AdvisorDetails
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Package
@@ -53,42 +51,42 @@ import org.ossreviewtoolkit.model.VulnerabilityReference
 import org.ossreviewtoolkit.model.config.VulnerableCodeConfiguration
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.utils.toPurl
+import org.ossreviewtoolkit.utils.common.enumSetOf
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class VulnerableCodeTest : WordSpec({
-    val wiremock = WireMockServer(
+    val server = WireMockServer(
         WireMockConfiguration.options()
             .dynamicPort()
             .usingFilesUnderDirectory(TEST_FILES_ROOT)
     )
 
     beforeSpec {
-        wiremock.start()
-        WireMock.configureFor(wiremock.port())
+        server.start()
     }
 
     afterSpec {
-        wiremock.stop()
+        server.stop()
     }
 
-    beforeTest {
-        wiremock.resetAll()
+    beforeEach {
+        server.resetAll()
     }
 
     "VulnerableCode" should {
         "return vulnerability information" {
-            wiremock.stubPackagesRequest("response_packages.json")
-            val vulnerableCode = createVulnerableCode(wiremock)
+            server.stubPackagesRequest("response_packages.json")
+            val vulnerableCode = createVulnerableCode(server)
             val packagesToAdvise = inputPackages()
 
-            val result = vulnerableCode.retrievePackageVulnerabilities(packagesToAdvise).mapKeys { it.key.id }
+            val result = vulnerableCode.retrievePackageFindings(packagesToAdvise).mapKeys { it.key.id }
 
             result.shouldNotBeEmpty()
             result.keys should containExactlyInAnyOrder(idLang, idStruts)
 
             val langResults = result.getValue(idLang)
             langResults shouldHaveSize(1)
-            langResults[0].advisor.name shouldBe ADVISOR_NAME
+            langResults[0].advisor shouldBe vulnerableCode.details
             val expLangVulnerability = Vulnerability(
                 id = "CVE-2014-8242",
                 listOf(
@@ -146,40 +144,67 @@ class VulnerableCodeTest : WordSpec({
         }
 
         "handle a failure response from the server" {
-            stubFor(
+            server.stubFor(
                 post(urlPathEqualTo("/api/packages/bulk_search/"))
                     .willReturn(
                         aResponse().withStatus(500)
                     )
             )
+            val vulnerableCode = createVulnerableCode(server)
+            val packagesToAdvise = inputPackages()
 
-            expectErrorResult(wiremock)
+            val result = vulnerableCode.retrievePackageFindings(packagesToAdvise).mapKeys { it.key.id }
+
+            result shouldNotBeNull {
+                keys should containExactly(packageIdentifiers)
+
+                packageIdentifiers.forEach { pkg ->
+                    val pkgResults = getValue(pkg)
+                    pkgResults shouldHaveSize 1
+                    val pkgResult = pkgResults[0]
+                    pkgResult.advisor shouldBe vulnerableCode.details
+                    pkgResult.vulnerabilities should beEmpty()
+                    pkgResult.summary.issues shouldHaveSize 1
+                    val issue = pkgResult.summary.issues[0]
+                    issue.severity shouldBe Severity.ERROR
+                }
+            }
         }
 
         "filter out packages without vulnerabilities" {
-            wiremock.stubPackagesRequest("response_packages_no_vulnerabilities.json")
-            val vulnerableCode = createVulnerableCode(wiremock)
+            server.stubPackagesRequest("response_packages_no_vulnerabilities.json")
+            val vulnerableCode = createVulnerableCode(server)
             val packagesToAdvise = inputPackages()
 
-            val result = vulnerableCode.retrievePackageVulnerabilities(packagesToAdvise).mapKeys { it.key.id }
+            val result = vulnerableCode.retrievePackageFindings(packagesToAdvise).mapKeys { it.key.id }
 
             result.keys should containExactly(idStruts)
         }
 
         "handle unexpected packages in the query result" {
-            wiremock.stubPackagesRequest("response_unexpected_packages.json")
-            val vulnerableCode = createVulnerableCode(wiremock)
+            server.stubPackagesRequest("response_unexpected_packages.json")
+            val vulnerableCode = createVulnerableCode(server)
             val packagesToAdvise = inputPackages()
 
-            val result = vulnerableCode.retrievePackageVulnerabilities(packagesToAdvise).mapKeys { it.key.id }
+            val result = vulnerableCode.retrievePackageFindings(packagesToAdvise).mapKeys { it.key.id }
 
             result.keys should containExactlyInAnyOrder(idLang, idStruts)
+        }
+
+        "provide correct AdvisorDetails" {
+            val vulnerableCode = createVulnerableCode(server)
+
+            vulnerableCode.details shouldBe AdvisorDetails(
+                ADVISOR_NAME,
+                enumSetOf(AdvisorCapability.VULNERABILITIES)
+            )
         }
     }
 })
 
 private const val ADVISOR_NAME = "VulnerableCodeTestAdvisor"
-private const val TEST_FILES_ROOT = "src/test/assets/"
+private const val TEST_FILES_ROOT = "src/test/assets"
+private const val TEST_FILES_DIRECTORY = "vulnerable-code"
 private const val TEST_RESULT_NAME = "ort-analyzer-result.yml"
 
 private val idLang = Identifier("Maven:org.apache.commons:commons-lang3:3.5")
@@ -213,51 +238,24 @@ private fun WireMockServer.stubPackagesRequest(responseFile: String) {
             .withHeader("Content-Type", equalTo("application/json; charset=UTF-8"))
             .willReturn(
                 aResponse().withStatus(200)
-                    .withBodyFile(responseFile)
+                    .withBodyFile("$TEST_FILES_DIRECTORY/$responseFile")
             )
     )
 }
 
 /**
- * Run a test with the VulnerabilityCode provider against the given [test server][wiremock] and expect the
- * operation to fail. In this case, for all packages a result with an error issue should have been created.
+ * Create a configuration for the [VulnerableCode] vulnerability provider that points to the local [server].
  */
-private fun expectErrorResult(wiremock: WireMockServer) {
-    val vulnerableCode = createVulnerableCode(wiremock)
-    val packagesToAdvise = inputPackages()
-
-    val result = runBlocking {
-        vulnerableCode.retrievePackageVulnerabilities(packagesToAdvise).mapKeys { it.key.id }
-    }
-
-    result shouldNotBeNull {
-        keys should containExactly(packageIdentifiers)
-
-        packageIdentifiers.forEach { pkg ->
-            val pkgResults = getValue(pkg)
-            pkgResults shouldHaveSize 1
-            val pkgResult = pkgResults[0]
-            pkgResult.vulnerabilities should beEmpty()
-            pkgResult.summary.issues shouldHaveSize 1
-            val issue = pkgResult.summary.issues[0]
-            issue.severity shouldBe Severity.ERROR
-        }
-    }
-}
-
-/**
- * Create a configuration for the [VulnerableCode] vulnerability provider that points to the local [wireMockServer].
- */
-private fun createConfig(wireMockServer: WireMockServer): VulnerableCodeConfiguration {
-    val url = "http://localhost:${wireMockServer.port()}"
+private fun createConfig(server: WireMockServer): VulnerableCodeConfiguration {
+    val url = "http://localhost:${server.port()}"
     return VulnerableCodeConfiguration(url)
 }
 
 /**
- * Create a test instance of [VulnerableCode] that communicates with the local [wireMockServer].
+ * Create a test instance of [VulnerableCode] that communicates with the local [server].
  */
-private fun createVulnerableCode(wireMockServer: WireMockServer): VulnerableCode =
-    VulnerableCode(ADVISOR_NAME, createConfig(wireMockServer))
+private fun createVulnerableCode(server: WireMockServer): VulnerableCode =
+    VulnerableCode(ADVISOR_NAME, createConfig(server))
 
 /**
  * Return the test file with an analyzer result.

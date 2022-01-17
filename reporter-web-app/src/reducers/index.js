@@ -42,11 +42,24 @@ const initState = {
             },
             issues: {
                 filteredInfo: {},
-                sortedInfo: {}
+                sortedInfo: {
+                    order: 'ascend',
+                    field: 'severityIndex'
+                }
             },
             ruleViolations: {
                 filteredInfo: {},
-                sortedInfo: {}
+                sortedInfo: {
+                    order: 'ascend',
+                    field: 'severityIndex'
+                }
+            },
+            vulnerabilities: {
+                filteredInfo: {},
+                sortedInfo: {
+                    order: 'ascend',
+                    field: 'severityIndex'
+                }
             }
         },
         shouldComponentUpdate: false
@@ -260,7 +273,8 @@ const states = (state = initState, action) => {
         };
     }
     case 'SUMMARY::CHANGE_ISSUES_TABLE':
-    case 'SUMMARY::CHANGE_RULE_VIOLATIONS_TABLE': {
+    case 'SUMMARY::CHANGE_RULE_VIOLATIONS_TABLE':
+    case 'SUMMARY::CHANGE_VULNERABILITIES_TABLE': {
         const {
             columns
         } = action.payload;
@@ -329,8 +343,14 @@ const states = (state = initState, action) => {
                 ...state.table,
                 columns: {
                     filteredInfo: {},
+                    filterData: [],
                     sortedInfo: {},
-                    filterData: []
+                    showKeys: [
+                        'declaredLicensesProcessed',
+                        'detectedLicensesProcessed',
+                        'levels',
+                        'scopeIndexes'
+                    ]
                 }
             }
         };

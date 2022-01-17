@@ -32,8 +32,8 @@ import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.scanner.Scanner
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.core.log
 
 import org.reflections.Reflections
 
@@ -47,8 +47,7 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
         classes.filterNot {
             Modifier.isAbstract(it.modifiers) || it.isAnonymousClass || it.isLocalClass
         }.sortedBy { it.simpleName }.forEach {
-            @Suppress("TooGenericExceptionCaught")
-            try {
+            runCatching {
                 val kotlinObject = it.kotlin.objectInstance
 
                 var category = "Other tool"
@@ -69,7 +68,7 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
                         ).newInstance(
                             "",
                             File(""),
-                            AnalyzerConfiguration(ignoreToolVersions = false, allowDynamicVersions = false),
+                            AnalyzerConfiguration(allowDynamicVersions = false),
                             RepositoryConfiguration()
                         )
                     }
@@ -99,7 +98,7 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
                 if (instance.command().isNotEmpty()) {
                     allTools.getOrPut(category) { mutableListOf() } += instance
                 }
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 log.error { "There was an error instantiating $it: $e." }
                 throw ProgramResult(1)
             }

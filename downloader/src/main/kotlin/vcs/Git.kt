@@ -39,21 +39,21 @@ import org.eclipse.jgit.errors.UnsupportedCredentialItem
 import org.eclipse.jgit.lib.SymbolicRef
 import org.eclipse.jgit.transport.CredentialItem
 import org.eclipse.jgit.transport.CredentialsProvider
-import org.eclipse.jgit.transport.JschConfigSessionFactory
 import org.eclipse.jgit.transport.SshSessionFactory
 import org.eclipse.jgit.transport.URIish
+import org.eclipse.jgit.transport.ssh.jsch.JschConfigSessionFactory
 
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.downloader.WorkingTree
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.installAuthenticatorAndProxySelector
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.safeMkdirs
-import org.ossreviewtoolkit.utils.showStackTrace
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.safeMkdirs
+import org.ossreviewtoolkit.utils.core.installAuthenticatorAndProxySelector
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.showStackTrace
 
 // TODO: Make this configurable.
 const val GIT_HISTORY_DEPTH = 50
@@ -248,7 +248,8 @@ private object AuthenticatorCredentialsProvider : CredentialsProvider() {
         }
 
     override fun get(uri: URIish, vararg items: CredentialItem): Boolean {
-        log.debug { "JGit queries credentials for ${uri.host}." }
+        log.debug { "JGit queries credentials ${items.map { it.javaClass.simpleName }} for '${uri.host}'." }
+
         val auth = Authenticator.requestPasswordAuthentication(
             /* host = */ uri.host,
             /* addr = */ null,
@@ -258,13 +259,13 @@ private object AuthenticatorCredentialsProvider : CredentialsProvider() {
             /* scheme = */ null
         ) ?: return false
 
-        log.debug { "Passing credentials for ${uri.host} to JGit." }
+        log.debug { "Passing credentials for '${uri.host}' to JGit." }
 
         items.forEach { item ->
             when (item) {
                 is CredentialItem.Username -> item.value = auth.userName
                 is CredentialItem.Password -> item.value = auth.password
-                else -> throw UnsupportedCredentialItem(uri, "${item.javaClass.name}: ${item.promptText}")
+                else -> throw UnsupportedCredentialItem(uri, "${item.javaClass.simpleName}: ${item.promptText}")
             }
         }
 

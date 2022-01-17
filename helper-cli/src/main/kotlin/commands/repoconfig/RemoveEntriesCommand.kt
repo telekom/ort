@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2019 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,11 +38,10 @@ import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.LicenseFinding
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
-import org.ossreviewtoolkit.model.config.Resolutions
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
 import org.ossreviewtoolkit.model.utils.FindingCurationMatcher
-import org.ossreviewtoolkit.utils.expandTilde
+import org.ossreviewtoolkit.utils.common.expandTilde
 
 internal class RemoveEntriesCommand : CliktCommand(
     help = "Removes all non-matching path and scope excludes as well as rule violation resolutions. The output is " +
@@ -95,7 +95,7 @@ internal class RemoveEntriesCommand : CliktCommand(
 
         val scopeExcludes = ortResult
             .getProjects()
-            .flatMap(ortResult.dependencyNavigator::scopeNames)
+            .flatMap { project -> project.scopes.map { scope -> scope.name } }
             .let { projectScopes -> ortResult.getExcludes().scopes.minimize(projectScopes) }
 
         val licenseFindings = ortResult.getProjectLicenseFindings()
@@ -109,11 +109,9 @@ internal class RemoveEntriesCommand : CliktCommand(
             }
         }
 
-        val resolutionProvider = DefaultResolutionProvider().apply {
-            resolutionsFile?.readValue<Resolutions>()?.let { add(it) }
-        }
-        val notGloballyResolvedIssues = ortResult.collectIssues().values.flatten().filter {
-            resolutionProvider.getIssueResolutionsFor(it).isEmpty()
+        val resolutionProvider = DefaultResolutionProvider.create(resolutionsFile = resolutionsFile)
+        val notGloballyResolvedIssues = ortResult.collectIssues().values.flatten().filterNot {
+            resolutionProvider.isResolved(it)
         }
         val issueResolutions = ortResult.getResolutions().issues.filter { resolution ->
             notGloballyResolvedIssues.any { resolution.matches(it) }

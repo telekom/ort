@@ -46,15 +46,15 @@ import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.orEmpty
 import org.ossreviewtoolkit.model.readJsonFile
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.ProcessCapture
-import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.fieldNamesOrEmpty
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.showStackTrace
-import org.ossreviewtoolkit.utils.stashDirectories
-import org.ossreviewtoolkit.utils.textValueOrEmpty
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.ProcessCapture
+import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.fieldNamesOrEmpty
+import org.ossreviewtoolkit.utils.common.stashDirectories
+import org.ossreviewtoolkit.utils.common.textValueOrEmpty
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.showStackTrace
 
 const val COMPOSER_PHAR_BINARY = "composer.phar"
 const val COMPOSER_LOCK_FILE = "composer.lock"
@@ -111,16 +111,14 @@ class Composer(
     override fun beforeResolution(definitionFiles: List<File>) {
         // If all of the directories we are analyzing contain a composer.phar, no global installation of Composer is
         // required and hence we skip the version check.
-        if (definitionFiles.all { File(it.parentFile, COMPOSER_PHAR_BINARY).isFile }) {
-            return
-        }
+        if (definitionFiles.all { File(it.parentFile, COMPOSER_PHAR_BINARY).isFile }) return
 
         // We do not actually depend on any features specific to a version of Composer, but we still want to stick to
         // fixed versions to be sure to get consistent results.
-        checkVersion(analyzerConfig.ignoreToolVersions)
+        checkVersion()
     }
 
-    override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
+    override fun resolveDependencies(definitionFile: File, labels: Map<String, String>): List<ProjectAnalyzerResult> {
         val workingDir = definitionFile.parentFile
 
         stashDirectories(workingDir.resolve("vendor")).use {

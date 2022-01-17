@@ -30,7 +30,7 @@ import io.mockk.mockk
 import java.util.SortedSet
 
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
-import org.ossreviewtoolkit.utils.Environment
+import org.ossreviewtoolkit.utils.core.Environment
 
 class CompatibilityDependencyNavigatorTest : WordSpec() {
     private val treeProject = createProject("tree", scopes = sortedSetOf(createScope("scope")))
@@ -78,6 +78,26 @@ class CompatibilityDependencyNavigatorTest : WordSpec() {
 
                 navigator shouldBe DependencyTreeNavigator
             }
+
+            "return a DependencyTreeNavigator for a result that does not contain any dependency graphs" {
+                val project = createProject("dummy", scopeNames = sortedSetOf())
+
+                val analyzerResult = AnalyzerResult(
+                    projects = sortedSetOf(project),
+                    packages = sortedSetOf(),
+                    dependencyGraphs = mapOf()
+                )
+                val analyzerRun = AnalyzerRun(
+                    result = analyzerResult,
+                    environment = Environment(),
+                    config = AnalyzerConfiguration()
+                )
+                val result = OrtResult.EMPTY.copy(analyzer = analyzerRun)
+
+                val navigator = CompatibilityDependencyNavigator.create(result)
+
+                navigator shouldBe DependencyTreeNavigator
+            }
         }
 
         "scopeNames" should {
@@ -107,7 +127,7 @@ class CompatibilityDependencyNavigatorTest : WordSpec() {
         "directDependencies" should {
             "return the dependencies of a dependency tree project" {
                 val scopeName = "someScope"
-                val dependencies = sequenceOf(mockk<DependencyNode>(), mockk<DependencyNode>())
+                val dependencies = sequenceOf(mockk<DependencyNode>(), mockk())
                 val treeNavigator = mockk<DependencyNavigator>()
                 val graphNavigator = mockk<DependencyNavigator>()
                 every { treeNavigator.directDependencies(treeProject, scopeName) } returns dependencies
@@ -119,7 +139,7 @@ class CompatibilityDependencyNavigatorTest : WordSpec() {
 
             "return the dependencies of a dependency graph project" {
                 val scopeName = "someScope"
-                val dependencies = sequenceOf(mockk<DependencyNode>(), mockk<DependencyNode>())
+                val dependencies = sequenceOf(mockk<DependencyNode>(), mockk())
                 val graphNavigator = mockk<DependencyNavigator>()
                 val treeNavigator = mockk<DependencyNavigator>()
                 every { graphNavigator.directDependencies(graphProject, scopeName) } returns dependencies

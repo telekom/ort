@@ -50,12 +50,12 @@ import org.ossreviewtoolkit.model.config.Sw360StorageConfiguration
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.model.utils.toPurl
 import org.ossreviewtoolkit.scanner.storages.Sw360Storage
-import org.ossreviewtoolkit.utils.archive
-import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.createOrtTempDir
-import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.common.archive
+import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.expandTilde
+import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.core.createOrtTempDir
+import org.ossreviewtoolkit.utils.core.log
 
 class UploadResultToSw360Command : CliktCommand(
     name = "upload-result-to-sw360",
@@ -119,7 +119,7 @@ class UploadResultToSw360Command : CliktCommand(
 
                         val uploadResult = sw360ReleaseClient.uploadAttachments(
                             AttachmentUploadRequest.builder(release)
-                                .addAttachment(archiveResult.getOrThrow().toPath(), SW360AttachmentType.SOURCE)
+                                .addAttachment(archiveResult.toPath(), SW360AttachmentType.SOURCE)
                                 .build()
                         )
 

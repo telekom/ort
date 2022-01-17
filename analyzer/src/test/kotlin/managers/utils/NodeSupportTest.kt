@@ -32,8 +32,8 @@ import io.kotest.matchers.shouldBe
 
 import java.io.File
 
-import org.ossreviewtoolkit.utils.ProtocolProxyMap
-import org.ossreviewtoolkit.utils.safeMkdirs
+import org.ossreviewtoolkit.utils.common.safeMkdirs
+import org.ossreviewtoolkit.utils.core.ProtocolProxyMap
 import org.ossreviewtoolkit.utils.test.containExactly as containExactlyEntries
 import org.ossreviewtoolkit.utils.test.createTestTempDir
 import org.ossreviewtoolkit.utils.test.toGenericString
@@ -283,15 +283,13 @@ class NodeSupportTest : WordSpec() {
     private lateinit var tempDir: File
     private val definitionFiles = mutableSetOf<File>()
 
-    override fun beforeTest(testCase: TestCase) {
-        super.beforeTest(testCase)
+    override fun beforeEach(testCase: TestCase) {
         tempDir = createTestTempDir()
         definitionFiles.clear()
     }
 
-    override fun afterTest(testCase: TestCase, result: TestResult) {
+    override fun afterEach(testCase: TestCase, result: TestResult) {
         definitionFiles.clear()
-        super.afterTest(testCase, result)
     }
 
     private fun setupProject(

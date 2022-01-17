@@ -56,6 +56,14 @@ Files: reporter-web-app/*
 Copyright: 2017-2020 HERE Europe B.V. <opensource@here.com>
 License: Apache-2.0
 
+Files: clients/github-graphql/src/main/assets/*
+Copyright: 2021 Bosch.IO GmbH <osm@bosch.com>
+License: Apache-2.0
+
+Files: integrations/schemas/*
+Copyright: 2021 Bosch.IO GmbH <osm@bosch.com>
+License: Apache-2.0
+
 # Third-party files.
 
 Files: gradlew*
@@ -66,18 +74,26 @@ Files: gradle/*
 Copyright: 2007-2020 The original author or authors <info@gradle.com>
 License: Apache-2.0
 
-Files: spdx-utils/src/main/resources/exceptions/*
+Files: clients/github-graphql/src/main/assets/schema.docs.graphql
+Copyright: 2017 Gregor Martynus
+License: MIT
+
+Files: reporter/src/funTest/assets/sample.fossinfo.json
+Copyright: 2020-2021 Bosch Rexroth AG
+License: MIT
+
+Files: utils/spdx/src/main/resources/exceptions/*
 Copyright: 2010-2020 Linux Foundation and its Contributors
 License: CC0-1.0
 
-Files: spdx-utils/src/main/resources/licenses/*
+Files: utils/spdx/src/main/resources/licenses/*
 Copyright: 2010-2020 Linux Foundation and its Contributors
 License: CC0-1.0
 
-Files: spdx-utils/src/main/resources/licenserefs/*
+Files: utils/spdx/src/main/resources/licenserefs/*
 Copyright: 2010-2020 Linux Foundation and its Contributors
 License: CC0-1.0
 
-Files: spdx-utils/src/test/resources/spdx-spec-examples/*
+Files: utils/spdx/src/test/assets/spdx-spec-examples/*
 Copyright: 2010-2020 Linux Foundation and its Contributors
 License: CC-BY-3.0

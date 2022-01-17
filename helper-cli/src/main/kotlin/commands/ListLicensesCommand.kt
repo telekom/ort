@@ -51,8 +51,8 @@ import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.TextLocation
-import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
-import org.ossreviewtoolkit.utils.expandTilde
+import org.ossreviewtoolkit.utils.common.expandTilde
+import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
 
 internal class ListLicensesCommand : CliktCommand(
     help = "Lists the license findings for a given package as distinct text locations."
@@ -185,7 +185,7 @@ internal class ListLicensesCommand : CliktCommand(
             )
             .mapValues { (provenance, locationsByLicense) ->
                 locationsByLicense.filter { (license, _) ->
-                    !offendingOnly || violatedRulesByLicense.contains(license)
+                    !offendingOnly || license in violatedRulesByLicense
                 }.mapValues { (license, locations) ->
                     locations.filter { location ->
                         (fileAllowList.isEmpty() || fileAllowList.any { it.matches(Paths.get(location.path)) }) &&

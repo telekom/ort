@@ -21,8 +21,6 @@ package org.ossreviewtoolkit.model.licenses
 
 import java.util.concurrent.ConcurrentHashMap
 
-import kotlin.io.path.createTempDirectory
-
 import org.ossreviewtoolkit.model.CopyrightFinding
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.KnownProvenance
@@ -39,13 +37,13 @@ import org.ossreviewtoolkit.model.utils.FindingCurationMatcher
 import org.ossreviewtoolkit.model.utils.FindingsMatcher
 import org.ossreviewtoolkit.model.utils.RootLicenseMatcher
 import org.ossreviewtoolkit.model.utils.prependPath
-import org.ossreviewtoolkit.spdx.SpdxExpression
-import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
-import org.ossreviewtoolkit.utils.ORT_NAME
+import org.ossreviewtoolkit.utils.core.createOrtTempDir
+import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
 
 class LicenseInfoResolver(
-    val provider: LicenseInfoProvider,
-    val copyrightGarbage: CopyrightGarbage,
+    private val provider: LicenseInfoProvider,
+    private val copyrightGarbage: CopyrightGarbage,
+    val addAuthorsToCopyrights: Boolean,
     val archiver: FileArchiver?,
     val licenseFilenamePatterns: LicenseFilenamePatterns = LicenseFilenamePatterns.DEFAULT
 ) {
@@ -82,7 +80,7 @@ class LicenseInfoResolver(
         concludedLicenses.forEach { license ->
             license.builder().apply {
                 licenseInfo.concludedLicenseInfo.concludedLicense?.let {
-                    originalExpressions[LicenseSource.CONCLUDED] = setOf(it)
+                    originalExpressions += ResolvedOriginalExpression(expression = it, source = LicenseSource.CONCLUDED)
                 }
             }
         }
@@ -91,14 +89,14 @@ class LicenseInfoResolver(
         declaredLicenses.forEach { license ->
             license.builder().apply {
                 licenseInfo.declaredLicenseInfo.processed.spdxExpression?.let {
-                    originalExpressions[LicenseSource.DECLARED] = setOf(it)
+                    originalExpressions += ResolvedOriginalExpression(expression = it, source = LicenseSource.DECLARED)
                 }
 
                 originalDeclaredLicenses.addAll(
                     licenseInfo.declaredLicenseInfo.processed.mapped.filterValues { it == license }.keys
                 )
 
-                licenseInfo.declaredLicenseInfo.authors.takeIf { it.isNotEmpty() }?.let {
+                if (addAuthorsToCopyrights && licenseInfo.declaredLicenseInfo.authors.isNotEmpty()) {
                     locations.add(ResolvedLicenseLocation(
                         provenance = UnknownProvenance,
                         location = UNDEFINED_TEXT_LOCATION,
@@ -127,13 +125,30 @@ class LicenseInfoResolver(
 
         val unmatchedCopyrights = mutableMapOf<Provenance, MutableSet<CopyrightFinding>>()
         val resolvedLocations = resolveLocations(filteredDetectedLicenseInfo, unmatchedCopyrights)
+        val detectedLicenses = licenseInfo.detectedLicenseInfo.findings.flatMapTo(mutableSetOf()) { findings ->
+            FindingCurationMatcher().applyAll(
+                findings.licenses,
+                findings.licenseFindingCurations,
+                findings.relativeFindingsPath
+            ).mapNotNull { curationResult ->
+                val licenseFinding = curationResult.curatedFinding ?: return@mapNotNull null
+
+                licenseFinding.license to findings.pathExcludes.any { pathExclude ->
+                    pathExclude.matches(licenseFinding.location.prependPath(findings.relativeFindingsPath))
+                }
+            }
+        }.groupBy(keySelector = { it.first }, valueTransform = { it.second }).mapValues { (_, excluded) ->
+            excluded.all { it }
+        }
 
         resolvedLocations.keys.forEach { license ->
             license.builder().apply {
                 resolvedLocations[license]?.let { locations.addAll(it) }
 
-                licenseInfo.detectedLicenseInfo.findings.forEach { findings ->
-                    originalExpressions[LicenseSource.DETECTED] = findings.licenses.mapTo(mutableSetOf()) { it.license }
+                originalExpressions += detectedLicenses.entries.filter { (expression, _) ->
+                    license in expression.decompose()
+                }.map { (expression, isDetectedExcluded) ->
+                    ResolvedOriginalExpression(expression, LicenseSource.DETECTED, isDetectedExcluded)
                 }
             }
         }
@@ -238,7 +253,7 @@ class LicenseInfoResolver(
         licenseInfo.flatMapTo(mutableSetOf()) { resolvedLicense ->
             resolvedLicense.locations.map { it.provenance }
         }.forEach { provenance ->
-            val archiveDir = createTempDirectory("$ORT_NAME-archive").toFile().apply { deleteOnExit() }
+            val archiveDir = createOrtTempDir("archive").apply { deleteOnExit() }
 
             when (provenance) {
                 is UnknownProvenance -> return@forEach
@@ -272,7 +287,7 @@ class LicenseInfoResolver(
 
 private class ResolvedLicenseBuilder(val license: SpdxSingleLicenseExpression) {
     var originalDeclaredLicenses = mutableSetOf<String>()
-    var originalExpressions = mutableMapOf<LicenseSource, Set<SpdxExpression>>()
+    var originalExpressions = mutableSetOf<ResolvedOriginalExpression>()
     var locations = mutableSetOf<ResolvedLicenseLocation>()
 
     fun build() = ResolvedLicense(license, originalDeclaredLicenses, originalExpressions, locations)

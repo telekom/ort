@@ -758,14 +758,24 @@ rule_violations:
     \ that overflow:scroll is working as expected.\n```"
 vulnerabilities_resolutions: []
 vulnerabilities:
-- id: "VULCOID-VULNERABILITY_ID"
+- _id: 0
+  id: "VULCOID-VULNERABILITY_ID"
   pkg: 2
   references:
   - url: "https://registry.vulnerability-url/"
     scoring_system: "SCORING_SYSTEM_NAME"
     severity: "ERROR"
+    severity_mapped: "UNKNOWN"
   resolutions: []
 statistics:
+  repository_configuration:
+    path_excludes: 2
+    scope_excludes: 1
+    license_choices: 2
+    license_finding_curations: 0
+    issue_resolutions: 0
+    rule_violation_resolutions: 1
+    vulnerability_resolutions: 0
   open_issues:
     errors: 1
     warnings: 0
@@ -774,6 +784,7 @@ statistics:
     errors: 1
     warnings: 1
     hints: 0
+  open_vulnerabilities: 0
   dependency_tree:
     included_projects: 1
     excluded_projects: 1
@@ -838,6 +849,8 @@ repository:
         license_choices:
         - given: "MPL-2.0 OR EPL-1.0"
           choice: "MPL-2.0"
+severe_issue_threshold: "WARNING"
+severe_rule_violation_threshold: "WARNING"
 repository_configuration: "---\nexcludes:\n  paths:\n  - pattern: \"sub/module/project/build.gradle\"\
   \n    reason: \"EXAMPLE_OF\"\n    comment: \"The project is an example.\"\n  - pattern:\
   \ \"**.java\"\n    reason: \"EXAMPLE_OF\"\n    comment: \"These are example files.\"\

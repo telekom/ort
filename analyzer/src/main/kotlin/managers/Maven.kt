@@ -43,7 +43,7 @@ import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.utils.DependencyGraphBuilder
-import org.ossreviewtoolkit.utils.searchUpwardsForSubdirectory
+import org.ossreviewtoolkit.utils.common.searchUpwardsForSubdirectory
 
 /**
  * The [Maven](https://maven.apache.org/) package manager for Java.
@@ -104,7 +104,7 @@ class Maven(
     override fun createPackageManagerResult(projectResults: Map<File, List<ProjectAnalyzerResult>>) =
         PackageManagerResult(projectResults, graphBuilder.build(), graphBuilder.packages())
 
-    override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
+    override fun resolveDependencies(definitionFile: File, labels: Map<String, String>): List<ProjectAnalyzerResult> {
         val workingDir = definitionFile.parentFile
         val projectBuildingResult = mvn.buildMavenProject(definitionFile)
         val mavenProject = projectBuildingResult.project
@@ -145,7 +145,7 @@ class Maven(
             vcs = vcsFromPackage,
             vcsProcessed = processProjectVcs(projectDir, vcsFromPackage, *vcsFallbackUrls),
             homepageUrl = homepageUrl.orEmpty(),
-            scopeNames = projectBuildingResult.dependencies.mapTo(sortedSetOf()) { it.dependency.scope }
+            scopeNames = graphBuilder.scopesFor(projectId)
         )
 
         val packages = graphBuilder.packages().toSortedSet()

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,6 +74,8 @@ class WebAppRuleViolation {
 
             if (Number.isInteger(obj.pkg)) {
                 this.#packageIndex = obj.pkg;
+            } else {
+                this.#packageIndex = -1;
             }
 
             if (obj.severity) {
@@ -146,30 +148,6 @@ class WebAppRuleViolation {
         return this.#package ? this.#package.id : '';
     }
 
-    get severity() {
-        return this.#severity;
-    }
-
-    get severityIndex() {
-        if (this.isResolved) {
-            return 3;
-        }
-
-        if (this.#severity === 'ERROR') {
-            return 0;
-        }
-
-        if (this.#severity === 'WARNING') {
-            return 1;
-        }
-
-        if (this.#severity === 'HINT') {
-            return 2;
-        }
-
-        return -1;
-    }
-
     get resolutionIndexes() {
         return this.#resolutionIndexes;
     }
@@ -206,8 +184,36 @@ class WebAppRuleViolation {
         return this.#rule;
     }
 
+    get severity() {
+        return this.#severity;
+    }
+
+    get severityIndex() {
+        if (this.isResolved) {
+            return 3;
+        }
+
+        if (this.#severity === 'ERROR') {
+            return 0;
+        }
+
+        if (this.#severity === 'WARNING') {
+            return 1;
+        }
+
+        if (this.#severity === 'HINT') {
+            return 2;
+        }
+
+        return -1;
+    }
+
     hasHowToFix() {
         return !!this.#howToFix;
+    }
+
+    hasPackage() {
+        return !!this.#package;
     }
 }
 

@@ -26,8 +26,8 @@ import java.nio.file.Paths
 
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.normalizeVcsUrl
-import org.ossreviewtoolkit.utils.toUri
+import org.ossreviewtoolkit.utils.common.toUri
+import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
 
 /**
  * An enum to handle VCS-host-specific information.
@@ -180,18 +180,13 @@ enum class VcsHost(
                 else -> VcsType.UNKNOWN
             }
 
-            var url = projectUrl.scheme + "://" + projectUrl.authority
+            var url = "${projectUrl.scheme}://${projectUrl.authority}"
 
             // Append the first two path components that denote the user and project to the base URL.
             val pathIterator = Paths.get(projectUrl.path).iterator()
 
-            if (pathIterator.hasNext()) {
-                url += "/${pathIterator.next()}"
-            }
-
-            if (pathIterator.hasNext()) {
-                url += "/${pathIterator.next()}"
-            }
+            if (pathIterator.hasNext()) url += "/${pathIterator.next()}"
+            if (pathIterator.hasNext()) url += "/${pathIterator.next()}"
 
             var revision = ""
             var path = ""
@@ -259,7 +254,11 @@ enum class VcsHost(
          * Return all [VcsInfo] that can be parsed from [projectUrl] without actually making a network request.
          */
         fun toVcsInfo(projectUrl: String): VcsInfo {
-            val vcsInfoFromHost = projectUrl.toUri { toVcsHost(it)?.toVcsInfoInternal(it) }.getOrNull()
+            val unknownVcs = VcsInfo(type = VcsType.UNKNOWN, url = projectUrl, revision = "")
+            val projectUri = projectUrl.takeUnless { it.isBlank() }?.toUri()?.getOrNull() ?: return unknownVcs
+
+            fun URI.isTfsGitUrl() = path != null && host != null &&
+                    ("/tfs/" in path || ".visualstudio.com" in host) && "/_git/" in path
 
             // Fall back to generic URL detection for unknown VCS hosts.
             val svnBranchOrTagMatch = SVN_BRANCH_OR_TAG_PATTERN.matchEntire(projectUrl)
@@ -286,7 +285,7 @@ enum class VcsHost(
                     revision = ""
                 )
 
-                projectUrl.contains(".git/") -> {
+                ".git/" in projectUrl -> {
                     val url = normalizeVcsUrl(projectUrl.substringBefore(".git/"))
                     val path = projectUrl.substringAfter(".git/")
 
@@ -298,24 +297,34 @@ enum class VcsHost(
                     )
                 }
 
-                projectUrl.contains(".git#") || GIT_REVISION_FRAGMENT.matches(projectUrl) -> {
+                ".git#" in projectUrl || GIT_REVISION_FRAGMENT.matches(projectUrl) -> {
                     val url = normalizeVcsUrl(projectUrl.substringBeforeLast('#'))
                     val revision = projectUrl.substringAfterLast('#')
 
                     VcsInfo(
                         type = VcsType.GIT,
                         url = url,
-                        revision = revision,
+                        revision = revision
                     )
                 }
 
-                else -> VcsInfo(
-                    type = VcsType.UNKNOWN,
-                    url = projectUrl,
-                    revision = ""
-                )
+                projectUri.isTfsGitUrl() -> {
+                    val url = "${projectUri.scheme}://${projectUri.authority}${projectUri.path}"
+                    val query = projectUri.query.orEmpty().split('&')
+                        .associate { it.substringBefore('=') to it.substringAfter('=') }
+                    val revision = query["version"].orEmpty().substringAfter("GB")
+
+                    VcsInfo(
+                        type = VcsType.GIT,
+                        url = url,
+                        revision = revision
+                    )
+                }
+
+                else -> unknownVcs
             }
 
+            val vcsInfoFromHost = toVcsHost(projectUri)?.toVcsInfoInternal(projectUri)
             return vcsInfoFromHost?.merge(vcsInfoFromUrl) ?: vcsInfoFromUrl
         }
 
@@ -438,7 +447,7 @@ private fun projectUrlToUserOrOrgAndProject(projectUrl: URI): Pair<String, Strin
 }
 
 private fun gitProjectUrlToVcsInfo(projectUrl: URI, pathParser: (String, Iterator<Path>) -> VcsInfo): VcsInfo {
-    var baseUrl = projectUrl.scheme + "://" + projectUrl.authority
+    var baseUrl = "${projectUrl.scheme}://${projectUrl.authority}"
 
     // Append the first two path components that denote the user and project to the base URL.
     val pathIterator = Paths.get(projectUrl.path).iterator()
@@ -450,9 +459,7 @@ private fun gitProjectUrlToVcsInfo(projectUrl: URI, pathParser: (String, Iterato
     if (pathIterator.hasNext()) {
         baseUrl += "/${pathIterator.next()}"
 
-        if (!baseUrl.endsWith(".git")) {
-            baseUrl += ".git"
-        }
+        if (!baseUrl.endsWith(".git")) baseUrl += ".git"
     }
 
     return pathParser(baseUrl, pathIterator)

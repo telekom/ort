@@ -31,9 +31,9 @@ import java.io.File
 
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.downloader.vcs.Git
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.ProcessCapture
-import org.ossreviewtoolkit.utils.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.ProcessCapture
+import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
 import org.ossreviewtoolkit.utils.test.DEFAULT_ANALYZER_CONFIGURATION
 import org.ossreviewtoolkit.utils.test.DEFAULT_REPOSITORY_CONFIGURATION
 import org.ossreviewtoolkit.utils.test.ExpensiveTag
@@ -50,8 +50,8 @@ class GradleFunTest : StringSpec() {
     private val isJava9OrAbove = System.getProperty("java.version").split('.').first().toInt() >= 9
 
     override fun afterSpec(spec: Spec) {
-        // Reset the Gradle version in the test project to clean up after the tests.
-        Git().run(projectDir, "checkout", ".")
+        // Reset the Gradle wrapper files to the committed state.
+        Git().run(projectDir, "checkout", "gradle/", "gradlew*")
     }
 
     init {

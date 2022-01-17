@@ -52,6 +52,7 @@ class FossIdConfigTest : WordSpec({
                 "waitForResult" to "false",
                 "deltaScans" to "true",
                 "deltaScanLimit" to "42",
+                "timeout" to "300",
                 "addAuthenticationToUrl" to "false"
             )
             val scannerConfig = options.toScannerConfig()
@@ -68,6 +69,7 @@ class FossIdConfigTest : WordSpec({
                 deltaScans = true,
                 deltaScanLimit = 42,
                 addAuthenticationToUrl = false,
+                timeout = 300,
                 options = options
             )
         }
@@ -92,6 +94,7 @@ class FossIdConfigTest : WordSpec({
                 deltaScans = false,
                 deltaScanLimit = Int.MAX_VALUE,
                 addAuthenticationToUrl = false,
+                timeout = 60,
                 options = options
             )
         }
@@ -176,18 +179,19 @@ class FossIdConfigTest : WordSpec({
     "createService" should {
         "create a correctly configured FossIdRestService" {
             val loginPage = "Welcome to FossID"
-            val wiremock = WireMockServer(WireMockConfiguration.options().dynamicPort())
-            wiremock.start()
+            val server = WireMockServer(WireMockConfiguration.options().dynamicPort())
+
+            server.start()
 
             try {
-                val serverUrl = "http://localhost:${wiremock.port()}"
+                val serverUrl = "http://localhost:${server.port()}"
                 val scannerConfig = mapOf(
                     "serverUrl" to serverUrl,
                     "apiKey" to API_KEY,
                     "user" to USER
                 ).toScannerConfig()
 
-                wiremock.stubFor(
+                server.stubFor(
                     get(urlPathEqualTo("/index.php"))
                         .withQueryParam("form", equalTo("login"))
                         .willReturn(
@@ -201,7 +205,7 @@ class FossIdConfigTest : WordSpec({
 
                 service.getLoginPage().string() shouldBe loginPage
             } finally {
-                wiremock.stop()
+                server.stop()
             }
         }
     }

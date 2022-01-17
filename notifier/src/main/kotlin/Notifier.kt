@@ -26,17 +26,20 @@ import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.NotifierConfiguration
 import org.ossreviewtoolkit.notifier.modules.JiraNotifier
 import org.ossreviewtoolkit.notifier.modules.MailNotifier
-import org.ossreviewtoolkit.utils.ScriptRunner
+import org.ossreviewtoolkit.utils.common.ScriptRunner
 
-class Notifier(ortResult: OrtResult = OrtResult.EMPTY, config: NotifierConfiguration = NotifierConfiguration()) :
-    ScriptRunner() {
+class Notifier(
+    ortResult: OrtResult = OrtResult.EMPTY,
+    config: NotifierConfiguration = NotifierConfiguration()
+) : ScriptRunner() {
     override val preface = """
             import org.ossreviewtoolkit.model.*
             import org.ossreviewtoolkit.model.config.*
             import org.ossreviewtoolkit.model.licenses.*
             import org.ossreviewtoolkit.model.utils.*
             import org.ossreviewtoolkit.notifier.modules.*
-            import org.ossreviewtoolkit.utils.*
+            import org.ossreviewtoolkit.utils.common.*
+            import org.ossreviewtoolkit.utils.core.*
 
             import java.util.*
 

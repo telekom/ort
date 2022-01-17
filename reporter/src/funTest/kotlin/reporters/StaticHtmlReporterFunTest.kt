@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +32,7 @@ import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
 import org.ossreviewtoolkit.reporter.HowToFixTextProvider
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.utils.Environment
+import org.ossreviewtoolkit.utils.core.Environment
 import org.ossreviewtoolkit.utils.test.createTestTempDir
 import org.ossreviewtoolkit.utils.test.patchExpectedResult
 import org.ossreviewtoolkit.utils.test.readOrtResult
@@ -71,7 +72,7 @@ class StaticHtmlReporterFunTest : WordSpec({
 private fun TestConfiguration.generateReport(ortResult: OrtResult): String {
     val input = ReporterInput(
         ortResult = ortResult,
-        resolutionProvider = DefaultResolutionProvider().add(ortResult.getResolutions()),
+        resolutionProvider = DefaultResolutionProvider.create(ortResult),
         howToFixTextProvider = HOW_TO_FIX_TEXT_PROVIDER
     )
 

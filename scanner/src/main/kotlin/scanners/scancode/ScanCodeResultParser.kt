@@ -34,10 +34,10 @@ import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.ScanSummary
 import org.ossreviewtoolkit.model.ScannerDetails
 import org.ossreviewtoolkit.model.TextLocation
-import org.ossreviewtoolkit.spdx.SpdxConstants
-import org.ossreviewtoolkit.spdx.SpdxConstants.LICENSE_REF_PREFIX
-import org.ossreviewtoolkit.spdx.calculatePackageVerificationCode
-import org.ossreviewtoolkit.utils.textValueOrEmpty
+import org.ossreviewtoolkit.utils.common.textValueOrEmpty
+import org.ossreviewtoolkit.utils.spdx.SpdxConstants
+import org.ossreviewtoolkit.utils.spdx.SpdxConstants.LICENSE_REF_PREFIX
+import org.ossreviewtoolkit.utils.spdx.calculatePackageVerificationCode
 
 private data class LicenseExpression(
     val expression: String,
@@ -117,7 +117,7 @@ internal fun generateSummary(
  */
 internal fun generateScannerDetails(result: JsonNode) =
     result["headers"]?.let { headers ->
-        generateScannerDetails(headers.first(), "options", "tool_version")
+        generateScannerDetails(headers.single(), "options", "tool_version")
     } ?: generateScannerDetails(result, "scancode_options", "scancode_version")
 
 /**
@@ -160,13 +160,16 @@ private fun generateScannerOptions(options: JsonNode?): String {
 
 /**
  * Get the license findings from the given [result]. If [parseExpressions] is true and license expressions are contained
- * in the result, these are preferred over separate license findings. Otherwise only separate license findings are
+ * in the result, these are preferred over separate license findings. Otherwise, only separate license findings are
  * parsed.
  */
 private fun getLicenseFindings(result: JsonNode, parseExpressions: Boolean): List<LicenseFinding> {
     val licenseFindings = mutableListOf<LicenseFinding>()
 
-    val files = result["files"]?.asSequence().orEmpty()
+    val header = result["headers"]?.singleOrNull()
+    val input = header?.get("options")?.get("input")?.singleOrNull()?.textValue()?.let { "$it/" }.orEmpty()
+    val files = result["files"]?.asSequence().orEmpty().filter { it["type"].textValue() == "file" }
+
     files.flatMapTo(licenseFindings) { file ->
         val licenses = file["licenses"]?.asSequence().orEmpty()
 
@@ -190,7 +193,7 @@ private fun getLicenseFindings(result: JsonNode, parseExpressions: Boolean): Lis
             LicenseFinding(
                 license = spdxLicenseExpression,
                 location = TextLocation(
-                    path = file["path"].textValue(),
+                    path = file["path"].textValue().removePrefix(input),
                     startLine = licenseExpression.startLine,
                     endLine = licenseExpression.endLine
                 )

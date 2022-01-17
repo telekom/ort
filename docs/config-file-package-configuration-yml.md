@@ -44,7 +44,7 @@ to fix incorrect scan results, for example if a wrong license was detected, or i
 
 The entries for path excludes and license finding curations have the same syntax and semantics as in the `ort.yml` file,
 see [excluding paths](config-file-ort-yml.md#excluding-paths) and
-[curating license findings](config-file-ort-yml.md#curating-license-findings) for details.
+[curating license findings](config-file-ort-yml.md#curating-project-license-findings) for details.
 
 ```yaml
   id: "Pip::example-package:0.0.1"
@@ -86,7 +86,7 @@ cli/build/install/ort/bin/ort evaluate
   --license-classifications-file $ORT_CONFIG_DIR/license-classifications.yml
   --package-curations-file $ORT_CONFIG_DIR/curations.yml
   --package-configuration-dir $ORT_CONFIG_DIR/packages
-  --rules-file $ORT_CONFIG_DIR/rules.kts
+  --rules-file $ORT_CONFIG_DIR/evaluator.rules.kts
 ```
 
 or to the _reporter_:
@@ -113,7 +113,7 @@ cli/build/install/ort/bin/ort evaluate
   --license-classifications-file $ORT_CONFIG_DIR/license-classifications.yml
   --package-curations-file $ORT_CONFIG_DIR/curations.yml
   --package-configuration-file $ORT_CONFIG_DIR/packages.yml
-  --rules-file $ORT_CONFIG_DIR/rules.kts
+  --rules-file $ORT_CONFIG_DIR/evaluator.rules.kts
 ```
 
 or to the _reporter_:

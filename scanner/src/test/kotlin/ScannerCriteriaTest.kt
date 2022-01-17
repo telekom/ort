@@ -43,7 +43,30 @@ class ScannerCriteriaTest : WordSpec({
         }
     }
 
-    "ScannerCriteria.isCompatible()" should {
+    "ScannerCriteria.forDetails()" should {
+        "create criteria that only match the passed details by default" {
+            val criteria = ScannerCriteria.forDetails(testDetails)
+            val nextPatchVersion = Semver(testDetails.version).nextPatch().toString()
+            val testDetailsForNextPatchVersion = testDetails.copy(version = nextPatchVersion)
+
+            criteria.matches(testDetails) shouldBe true
+            criteria.matches(testDetailsForNextPatchVersion) shouldBe false
+        }
+
+        "can create criteria that match details with respect to a version difference" {
+            val criteria = ScannerCriteria.forDetails(testDetails, Semver.VersionDiff.PATCH)
+            val nextPatchVersion = Semver(testDetails.version).nextPatch().toString()
+            val testDetailsForNextPatchVersion = testDetails.copy(version = nextPatchVersion)
+            val nextMinorVersion = Semver(testDetails.version).nextMinor().toString()
+            val testDetailsForNextMinorVersion = testDetails.copy(version = nextMinorVersion)
+
+            criteria.matches(testDetails) shouldBe true
+            criteria.matches(testDetailsForNextPatchVersion) shouldBe true
+            criteria.matches(testDetailsForNextMinorVersion) shouldBe false
+        }
+    }
+
+    "ScannerCriteria.matches()" should {
         "accept matching details" {
             matchingCriteria.matches(testDetails) shouldBe true
         }
@@ -63,7 +86,7 @@ class ScannerCriteriaTest : WordSpec({
         "detect a scanner version that is too old" {
             val criteria = matchingCriteria.copy(
                 minVersion = matchingCriteria.maxVersion,
-                maxVersion = Semver("2.0.0")
+                maxVersion = Semver("4.0.0")
             )
 
             criteria.matches(testDetails) shouldBe false
@@ -89,7 +112,7 @@ class ScannerCriteriaTest : WordSpec({
 })
 
 /** Test details to match against. */
-private val testDetails = ScannerDetails("ScannerCriteriaTest", "1.2.3.beta-47", "a b c")
+private val testDetails = ScannerDetails("ScannerCriteriaTest", "3.2.1-rc2", "--command-line-option")
 
 /** A test instance which should accept the test details. */
 private val matchingCriteria = ScannerCriteria(

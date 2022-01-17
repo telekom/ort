@@ -153,7 +153,9 @@ curations:
     concluded_license: "Apache-2.0"
  ```
 
-For findings in third-party dependencies package-configurations can be used to replace findings:
+To correct identified licenses in a dependency you can use a package configuration to overwrite scanner findings.
+Note that this feature requires `enableRepositoryPackageConfigurations` to be enabled in the `ort.conf` see
+[reference.conf](../model/src/main/resources/reference.conf).
 ```yaml
 package_configurations:
 - id: 'Maven:com.example:package:1.2.3'
@@ -178,15 +180,18 @@ The list of available options for `reason` are defined in
 Package curations can be added if you want to correct metadata of third-party dependencies.
 
 The following example corrects the source-artifact URL of the package with the id `Maven:com.example:dummy:0.0.1`.
+Note that this feature requires `enableRepositoryPackageCurations` to be enabled in the `ort.conf`, see
+[reference.conf](../model/src/main/resources/reference.conf).
 
 e.g.:
 ```yaml
 curations:
   packages:
   - id: "Maven:com.example:dummy:0.0.1"
-    comment: "An explanation why the curation is needed."
-    source_artifact:
-      url: "https://example.com/sources.zip"
+    curations:
+      comment: "An explanation why the curation is needed."
+      source_artifact:
+        url: "https://example.com/sources.zip"
 ```
 
 For more information about package curations see

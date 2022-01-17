@@ -30,11 +30,9 @@ plugins {
 dependencies {
     api("com.squareup.retrofit2:retrofit:$retrofitVersion")
 
-    implementation(project(":utils"))
-
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
     implementation("com.squareup.retrofit2:converter-jackson:$retrofitVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion")
 
-    testImplementation("com.github.tomakehurst:wiremock:$wiremockVersion")
+    testImplementation("com.github.tomakehurst:wiremock-jre8:$wiremockVersion")
 }

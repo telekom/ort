@@ -26,15 +26,20 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
-import org.ossreviewtoolkit.helper.common.findFilesRecursive
+import org.ossreviewtoolkit.helper.common.VcsUrlMapping
+import org.ossreviewtoolkit.helper.common.getRepositoryPath
+import org.ossreviewtoolkit.helper.common.getRepositoryPaths
 import org.ossreviewtoolkit.helper.common.importPathExcludes
 import org.ossreviewtoolkit.helper.common.mergePathExcludes
+import org.ossreviewtoolkit.helper.common.orEmpty
+import org.ossreviewtoolkit.helper.common.readOrtResult
 import org.ossreviewtoolkit.helper.common.replacePathExcludes
 import org.ossreviewtoolkit.helper.common.sortPathExcludes
 import org.ossreviewtoolkit.helper.common.write
+import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.utils.expandTilde
+import org.ossreviewtoolkit.utils.common.expandTilde
 
 internal class ImportPathExcludesCommand : CliktCommand(
     help = "Import path excludes by repository from a file into the given repository configuration."
@@ -47,12 +52,11 @@ internal class ImportPathExcludesCommand : CliktCommand(
         .convert { it.absoluteFile.normalize() }
         .required()
 
-    private val sourceCodeDir by option(
-        "--source-code-dir",
-        help = "A directory containing the sources of the project(s) for which the imported path excludes are " +
-                "supposed to be used."
+    private val ortFile by option(
+        "--ort-file",
+        help = "The ORT file containing the findings the imported path excludes need to match against."
     ).convert { it.expandTilde() }
-        .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
         .convert { it.absoluteFile.normalize() }
         .required()
 
@@ -69,8 +73,18 @@ internal class ImportPathExcludesCommand : CliktCommand(
         help = "If enabled, only entries are imported for which an entry with the same pattern already exists."
     ).flag()
 
+    private val vcsUrlMappingFile by option(
+        "--vcs-url-mapping-file",
+        help = "A YAML or JSON file containing a mapping of VCS URLs to other VCS URLs which will be replaced during " +
+                "the import."
+    ).convert { it.expandTilde() }
+        .file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
+        .convert { it.absoluteFile.normalize() }
+
     override fun run() {
-        val allFiles = findFilesRecursive(sourceCodeDir)
+        val ortResult = readOrtResult(ortFile)
+        val allFiles = ortResult.getProjectFindingFiles()
+        val vcsUrlMapping = vcsUrlMappingFile?.readValue<VcsUrlMapping>().orEmpty()
 
         val repositoryConfiguration = if (repositoryConfigurationFile.isFile) {
             repositoryConfigurationFile.readValue()
@@ -79,9 +93,9 @@ internal class ImportPathExcludesCommand : CliktCommand(
         }
 
         val existingPathExcludes = repositoryConfiguration.excludes.paths
-        val importedPathExcludes = importPathExcludes(sourceCodeDir, pathExcludesFile).filter { pathExclude ->
-            allFiles.any { pathExclude.matches(it) }
-        }
+        val repositoryPaths = ortResult.getRepositoryPaths()
+        val importedPathExcludes = importPathExcludes(repositoryPaths, pathExcludesFile, vcsUrlMapping)
+            .filter { pathExclude -> allFiles.any { pathExclude.matches(it) } }
 
         val pathExcludes = existingPathExcludes.mergePathExcludes(importedPathExcludes, updateOnlyExisting)
 
@@ -90,4 +104,21 @@ internal class ImportPathExcludesCommand : CliktCommand(
             .sortPathExcludes()
             .write(repositoryConfigurationFile)
     }
+}
+
+private fun OrtResult.getProjectFindingFiles(): Set<String> {
+    val result = mutableSetOf<String>()
+
+    getProjects().forEach { project ->
+        getScanResultsForId(project.id).forEach { scanResult ->
+            val repositoryPath = project.getRepositoryPath(this)
+
+            with(scanResult.summary) {
+                licenseFindings.mapTo(result) { "$repositoryPath/${it.location.path}" }
+                copyrightFindings.mapTo(result) { "$repositoryPath/${it.location.path}" }
+            }
+        }
+    }
+
+    return result
 }

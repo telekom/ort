@@ -42,8 +42,8 @@ import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.config.Sw360StorageConfiguration
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.model.orEmpty
-import org.ossreviewtoolkit.spdx.SpdxExpression
-import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
+import org.ossreviewtoolkit.utils.core.DeclaredLicenseProcessor
+import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 
 /**
  * A [PackageCurationProvider] for curated package metadata from the configured SW360 instance using the REST API.
@@ -54,7 +54,12 @@ class Sw360PackageCurationProvider(sw360Configuration: Sw360StorageConfiguration
         jsonMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
     )
 
-    override fun getCurationsFor(pkgId: Identifier): List<PackageCuration> {
+    override fun getCurationsFor(pkgIds: Collection<Identifier>) =
+        pkgIds.mapNotNull { pkgId ->
+            getCurationsFor(pkgId).takeUnless { it.isEmpty() }?.let { pkgId to it }
+        }.toMap()
+
+    private fun getCurationsFor(pkgId: Identifier): List<PackageCuration> {
         val name = listOfNotNull(pkgId.namespace, pkgId.name).joinToString("/")
         val sw360ReleaseClient = sw360Connection.releaseAdapter
 

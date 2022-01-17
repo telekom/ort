@@ -32,7 +32,7 @@ import com.sksamuel.hoplite.parsers.toNode
 import java.io.File
 
 import org.ossreviewtoolkit.model.Severity
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.core.log
 
 /**
  * The configuration model for all ORT components.
@@ -44,9 +44,33 @@ data class OrtConfiguration(
     val licenseFilePatterns: LicenseFilenamePatterns = LicenseFilenamePatterns.DEFAULT,
 
     /**
+     * A flag to indicate whether authors should be considered as copyright holders.
+     */
+    val addAuthorsToCopyrights: Boolean = false,
+
+    /**
      * The threshold from which on issues count as severe.
      */
     val severeIssueThreshold: Severity = Severity.WARNING,
+
+    /**
+     * The threshold from which on rule violations count as severe.
+     */
+    val severeRuleViolationThreshold: Severity = Severity.WARNING,
+
+    /**
+     * Enable the usage of project-local package curations from the [RepositoryConfiguration]. If set to true, apply
+     * package curations from a local .ort.yml file before applying those specified via the command line i.e. curations
+     * from the.ort.yml take precedence.
+     */
+    val enableRepositoryPackageCurations: Boolean = false,
+
+    /**
+     * Enable the usage of project-local package configurations from the [RepositoryConfiguration]. If set to true,
+     * apply package configurations from a local .ort.yml file before applying those specified via the command line i.e.
+     * configurations from the .ort.yml take precedence.
+     */
+    val enableRepositoryPackageConfigurations: Boolean = false,
 
     /**
      * The configuration of the analyzer.

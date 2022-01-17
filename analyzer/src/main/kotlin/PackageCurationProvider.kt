@@ -30,11 +30,15 @@ fun interface PackageCurationProvider {
         /**
          * A provider that does not provide any curations.
          */
-        val EMPTY = PackageCurationProvider { emptyList() }
+        @JvmField
+        val EMPTY = PackageCurationProvider { emptyMap() }
     }
 
     /**
-     * Get all available [PackageCuration]s for the provided [pkgId].
+     * Return all available [PackageCuration]s for the provided [pkgIds], associated by the package's [Identifier]. Each
+     * list of curations must be non-empty; if no curation is available for a package, the returned map must not contain
+     * a key for that package's identifier at all.
      */
-    fun getCurationsFor(pkgId: Identifier): List<PackageCuration>
+    // TODO: Maybe make this a suspend function, then all implementing classes could deal with coroutines more easily.
+    fun getCurationsFor(pkgIds: Collection<Identifier>): Map<Identifier, List<PackageCuration>>
 }

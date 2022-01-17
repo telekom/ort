@@ -43,12 +43,13 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
-import org.ossreviewtoolkit.spdx.VCS_DIRECTORIES
-import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.isSymbolicLink
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.normalizeVcsUrl
-import org.ossreviewtoolkit.utils.showStackTrace
+import org.ossreviewtoolkit.utils.common.VCS_DIRECTORIES
+import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.isSymbolicLink
+import org.ossreviewtoolkit.utils.core.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.core.showStackTrace
 
 typealias ManagedProjectFiles = Map<PackageManagerFactory, List<File>>
 
@@ -67,15 +68,18 @@ abstract class PackageManager(
         private val LOADER = ServiceLoader.load(PackageManagerFactory::class.java)!!
 
         /**
-         * The list of all available package managers in the classpath.
+         * The set of all available [package manager factories][PackageManagerFactory] in the classpath, sorted by name.
          */
-        val ALL by lazy { LOADER.iterator().asSequence().toList() }
+        val ALL: Set<PackageManagerFactory> by lazy {
+            LOADER.iterator().asSequence().toSortedSet(compareBy { it.managerName })
+        }
 
         private val PACKAGE_MANAGER_DIRECTORIES = listOf(
             // Ignore intermediate build system directories.
             ".gradle",
             "node_modules",
             // Ignore resources in a standard Maven / Gradle project layout.
+            "META-INF/maven",
             "src/main/resources",
             "src/test/resources",
             // Ignore virtual environments in Python.
@@ -88,10 +92,10 @@ abstract class PackageManager(
         }
 
         /**
-         * Recursively search the [directory] for files managed by any of the [packageManagers].
+         * Recursively search the [directory] for files managed by any of the [packageManagers]. The search is performed
+         * depth-first so that root project files are found before any subproject files for a specific manager.
          */
-        fun findManagedFiles(directory: File, packageManagers: List<PackageManagerFactory> = ALL):
-                ManagedProjectFiles {
+        fun findManagedFiles(directory: File, packageManagers: Set<PackageManagerFactory> = ALL): ManagedProjectFiles {
             require(directory.isDirectory) {
                 "The provided path is not a directory: ${directory.absolutePath}"
             }
@@ -151,7 +155,7 @@ abstract class PackageManager(
 
             val fallbackVcs = fallbackUrls.mapTo(mutableListOf(VcsHost.toVcsInfo(normalizedVcsFromPackage.url))) {
                 VcsHost.toVcsInfo(normalizeVcsUrl(it))
-            }.firstOrNull {
+            }.find {
                 // Ignore fallback VCS information that changes a known type, or where the VCS type is unknown.
                 if (normalizedVcsFromPackage.type != VcsType.UNKNOWN) {
                     it.type == normalizedVcsFromPackage.type
@@ -216,9 +220,11 @@ abstract class PackageManager(
     /**
      * Return a tree of resolved dependencies (not necessarily declared dependencies, in case conflicts were resolved)
      * for all [definitionFiles] which were found by searching the [analysisRoot] directory. By convention, the
-     * [definitionFiles] must be absolute.
+     * [definitionFiles] must be absolute. The given [labels] are parameters to the overall analysis of the project and
+     * to further stages. They are not interpreted by ORT, but can be used to configure behavior of custom package
+     * manager implementations.
      */
-    open fun resolveDependencies(definitionFiles: List<File>): PackageManagerResult {
+    open fun resolveDependencies(definitionFiles: List<File>, labels: Map<String, String>): PackageManagerResult {
         definitionFiles.forEach { definitionFile ->
             requireNotNull(definitionFile.relativeToOrNull(analysisRoot)) {
                 "'$definitionFile' must be an absolute path below '$analysisRoot'."
@@ -235,15 +241,14 @@ abstract class PackageManager(
             log.info { "Resolving $managerName dependencies for '$relativePath'..." }
 
             val duration = measureTime {
-                @Suppress("TooGenericExceptionCaught")
-                try {
-                    result[definitionFile] = resolveDependencies(definitionFile)
-                } catch (e: Exception) {
-                    e.showStackTrace()
+                runCatching {
+                    result[definitionFile] = resolveDependencies(definitionFile, labels)
+                }.onFailure {
+                    it.showStackTrace()
 
                     // In case of Maven we might be able to do better than inferring the name from the path.
-                    val id = if (e is ProjectBuildingException && e.projectId?.isEmpty() == false) {
-                        Identifier("Maven:${e.projectId}")
+                    val id = if (it is ProjectBuildingException && it.projectId?.isEmpty() == false) {
+                        Identifier("Maven:${it.projectId}")
                     } else {
                         Identifier.EMPTY.copy(type = managerName, name = relativePath)
                     }
@@ -260,7 +265,7 @@ abstract class PackageManager(
                         createAndLogIssue(
                             source = managerName,
                             message = "Resolving $managerName dependencies for '$relativePath' failed with: " +
-                                    e.collectMessagesAsString()
+                                    it.collectMessagesAsString()
                         )
                     )
 
@@ -278,9 +283,11 @@ abstract class PackageManager(
 
     /**
      * Resolve dependencies for a single absolute [definitionFile] and return a list of [ProjectAnalyzerResult]s, with
-     * one result for each project found in the definition file.
+     * one result for each project found in the definition file. The given [labels] are parameters to the overall
+     * analysis of the project and to further stages. They are not interpreted by ORT, but can be used to configure
+     * behavior of custom package manager implementations.
      */
-    abstract fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult>
+    abstract fun resolveDependencies(definitionFile: File, labels: Map<String, String>): List<ProjectAnalyzerResult>
 
     protected fun requireLockfile(workingDir: File, condition: () -> Boolean) {
         require(analyzerConfig.allowDynamicVersions || condition()) {
@@ -288,7 +295,7 @@ abstract class PackageManager(
                 .takeUnless { it.isEmpty() } ?: "."
 
             "No lockfile found in '$relativePathString'. This potentially results in unstable versions of " +
-                    "dependencies. To allow this, enable support for dynamic versions."
+                    "dependencies. To support this, enable the 'allowDynamicVersions' option in '$ORT_CONFIG_FILENAME'."
         }
     }
 }

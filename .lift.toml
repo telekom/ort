@@ -1,0 +1,12 @@
+# See https://help.sonatype.com/lift/configuration-reference.
+
+jdk11 = true
+
+disableTools = [ "detekt" ]
+
+ignoreFiles = """
+**/funTest/assets/
+**/funTest/resources/
+**/test/assets/
+**/test/resources/
+"""

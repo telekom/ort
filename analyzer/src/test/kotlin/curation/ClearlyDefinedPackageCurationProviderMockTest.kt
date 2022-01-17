@@ -20,56 +20,57 @@
 package org.ossreviewtoolkit.analyzer.curation
 
 import com.github.tomakehurst.wiremock.WireMockServer
-import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.anyUrl
 import com.github.tomakehurst.wiremock.client.WireMock.get
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 
 import io.kotest.core.spec.style.WordSpec
-import io.kotest.matchers.collections.beEmpty
+import io.kotest.matchers.maps.beEmpty
 import io.kotest.matchers.should
 
 import java.time.Duration
 
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.utils.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
 
 /**
  * A test for [ClearlyDefinedPackageCurationProvider], which uses a mock server. This allows testing some specific
  * error conditions.
  */
 class ClearlyDefinedPackageCurationProviderMockTest : WordSpec({
-    val wiremock = WireMockServer(
+    val server = WireMockServer(
         WireMockConfiguration.options()
             .dynamicPort()
             .usingFilesUnderDirectory("src/test/assets/")
     )
 
     beforeSpec {
-        wiremock.start()
-        WireMock.configureFor(wiremock.port())
+        server.start()
     }
 
     afterSpec {
-        wiremock.stop()
+        server.stop()
     }
 
-    beforeTest {
-        wiremock.resetAll()
+    beforeEach {
+        server.resetAll()
     }
 
     "ClearlyDefinedPackageCurationProvider" should {
         "handle a SocketTimeoutException" {
-            wiremock.stubFor(get(anyUrl())
-                .willReturn(aResponse().withFixedDelay(2000)))
+            server.stubFor(
+                get(anyUrl())
+                    .willReturn(aResponse().withFixedDelay(2000))
+            )
             val client = OkHttpClientHelper.buildClient {
                 readTimeout(Duration.ofSeconds(1))
             }
 
-            val provider = ClearlyDefinedPackageCurationProvider("http://localhost:${wiremock.port()}", client)
+            val provider = ClearlyDefinedPackageCurationProvider("http://localhost:${server.port()}", client)
+            val ids = listOf(Identifier("Maven:some-ns:some-component:1.2.3"))
 
-            provider.getCurationsFor(Identifier("Maven:some-ns:some-component:1.2.3")) should beEmpty()
+            provider.getCurationsFor(ids) should beEmpty()
         }
     }
 })

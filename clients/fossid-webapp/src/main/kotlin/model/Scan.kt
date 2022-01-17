@@ -20,10 +20,11 @@
 package org.ossreviewtoolkit.clients.fossid.model
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Scan(
-    val id: String?,
+    val id: Int,
     val created: String?,
     val updated: String?,
 
@@ -36,6 +37,7 @@ data class Scan(
     val description: String?,
     val comment: String?,
 
+    @JsonDeserialize(using = IntBooleanDeserializer::class)
     val isArchived: Boolean?,
 
     /**

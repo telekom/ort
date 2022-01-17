@@ -29,13 +29,13 @@ import java.nio.file.FileSystems
 import java.nio.file.PathMatcher
 
 import org.ossreviewtoolkit.model.readJsonFile
-import org.ossreviewtoolkit.utils.AuthenticatedProxy
-import org.ossreviewtoolkit.utils.ProtocolProxyMap
-import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.determineProxyFromURL
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.showStackTrace
-import org.ossreviewtoolkit.utils.toUri
+import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.toUri
+import org.ossreviewtoolkit.utils.core.AuthenticatedProxy
+import org.ossreviewtoolkit.utils.core.ProtocolProxyMap
+import org.ossreviewtoolkit.utils.core.determineProxyFromURL
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.showStackTrace
 
 /**
  * A dummy object to provide a logger for top-level functions.
@@ -175,7 +175,7 @@ private fun getPackageJsonInfo(definitionFiles: Set<File>): Collection<PackageJs
             isYarnWorkspaceRoot = isYarnWorkspaceRoot(definitionFile),
             hasYarnLockfile = hasYarnLockFile(definitionFile.parentFile),
             hasNpmLockfile = hasNpmLockFile(definitionFile.parentFile),
-            isYarnWorkspaceSubmodule = yarnWorkspaceSubmodules.contains(definitionFile)
+            isYarnWorkspaceSubmodule = definitionFile in yarnWorkspaceSubmodules
         )
     }
 }

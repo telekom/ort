@@ -21,7 +21,7 @@ package org.ossreviewtoolkit.reporter
 
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.OrtResult
-import org.ossreviewtoolkit.utils.ScriptRunner
+import org.ossreviewtoolkit.utils.common.ScriptRunner
 
 /**
  * Provides how-to-fix texts in Markdown format for any given [OrtIssue].
@@ -54,7 +54,8 @@ private class HowToFixScriptRunner(ortResult: OrtResult) : ScriptRunner() {
             import org.ossreviewtoolkit.model.licenses.*
             import org.ossreviewtoolkit.model.utils.*
             import org.ossreviewtoolkit.reporter.HowToFixTextProvider
-            import org.ossreviewtoolkit.utils.*
+            import org.ossreviewtoolkit.utils.common.*
+            import org.ossreviewtoolkit.utils.core.*
 
         """.trimIndent()
 

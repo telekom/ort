@@ -19,6 +19,8 @@
 
 package org.ossreviewtoolkit.detekt
 
+import io.github.detekt.psi.toFilePath
+
 import io.gitlab.arturbosch.detekt.api.CodeSmell
 import io.gitlab.arturbosch.detekt.api.Debt
 import io.gitlab.arturbosch.detekt.api.Entity
@@ -46,30 +48,29 @@ class OrtPackageNaming : Rule() {
     override fun visitPackageDirective(directive: KtPackageDirective) {
         super.visitPackageDirective(directive)
 
-        if (directive.qualifiedName.isEmpty()) return
+        // Exclusion of packages starting with "test." is required for OrtLogTestExtension used by LoggerTest, which
+        // simulates an ORT extension class in a different package.
+        if (directive.qualifiedName.isEmpty() || directive.qualifiedName.startsWith("test.")) return
 
-        // This returns the absolute path with a system-dependent separator.
-        val path = directive.containingKtFile.name
+        val path = directive.containingKtFile.toFilePath().relativePath.toString()
+        if (pathPattern !in path) return
 
-        if (!path.contains(pathPattern)) return
-        val (pathPrefix, pathSuffix) = path.split(pathPattern, 2)
+        val (pathPrefix, pathSuffix) = path.split(pathPattern, 2).map { File(it) }
+        val projectDir = pathPrefix.name
+        val projectGroup = pathPrefix.parent?.let { ".$it" }.orEmpty()
 
         // Maintain a hard-coded mapping of exceptions to the general package naming rules.
-        val projectName = when (val projectDir = File(pathPrefix).name) {
+        val projectName = when (projectDir) {
             "buildSrc" -> ".gradle"
-            "clearly-defined" -> ".clients.clearlydefined"
             "detekt-rules" -> ".detekt"
-            "fossid-webapp" -> ".clients.fossid"
+            "fossid-webapp" -> ".fossid"
+            "github-graphql" -> ".github"
             "helper-cli" -> ".helper"
-            "nexus-iq" -> ".clients.nexusiq"
-            "spdx-utils" -> ".spdx"
-            "test-utils" -> ".utils.test"
-            "vulnerable-code" -> ".clients.vulnerablecode"
-            else -> ".$projectDir"
+            else -> ".${projectDir.replace("-", "")}"
         }
 
-        val nestedPath = File(pathSuffix).parent?.replace(forwardOrBackwardSlashPattern, ".")?.let { ".$it" }.orEmpty()
-        val expectedPackageName = ORT_PACKAGE_NAMESPACE + projectName + nestedPath
+        val nestedPath = pathSuffix.parent?.replace(forwardOrBackwardSlashPattern, ".")?.let { ".$it" }.orEmpty()
+        val expectedPackageName = ORT_PACKAGE_NAMESPACE + projectGroup + projectName + nestedPath
 
         if (directive.qualifiedName != expectedPackageName) {
             val message = "'${directive.qualifiedName}' should be '$expectedPackageName'"

@@ -60,17 +60,17 @@ import org.ossreviewtoolkit.model.orEmpty
 import org.ossreviewtoolkit.model.readJsonFile
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.utils.DependencyGraphBuilder
-import org.ossreviewtoolkit.spdx.SpdxConstants
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.fieldNamesOrEmpty
-import org.ossreviewtoolkit.utils.installAuthenticatorAndProxySelector
-import org.ossreviewtoolkit.utils.isSymbolicLink
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.realFile
-import org.ossreviewtoolkit.utils.stashDirectories
-import org.ossreviewtoolkit.utils.textValueOrEmpty
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.fieldNamesOrEmpty
+import org.ossreviewtoolkit.utils.common.isSymbolicLink
+import org.ossreviewtoolkit.utils.common.realFile
+import org.ossreviewtoolkit.utils.common.stashDirectories
+import org.ossreviewtoolkit.utils.common.textValueOrEmpty
+import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.core.installAuthenticatorAndProxySelector
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.spdx.SpdxConstants
 
 const val PUBLIC_NPM_REGISTRY = "https://registry.npmjs.org"
 
@@ -238,24 +238,22 @@ open class Npm(
             } else {
                 log.debug { "Resolving the package info for '$identifier' via NPM registry." }
 
-                OkHttpClientHelper.downloadText("$npmRegistry/$encodedName").onSuccess {
-                    val packageInfo = jsonMapper.readTree(it)
+                OkHttpClientHelper.downloadText("$npmRegistry/$encodedName/$version").onSuccess {
+                    val versionInfo = jsonMapper.readTree(it)
 
-                    packageInfo["versions"]?.get(version)?.let { versionInfo ->
-                        description = versionInfo["description"].textValueOrEmpty()
-                        homepageUrl = versionInfo["homepage"].textValueOrEmpty()
+                    description = versionInfo["description"].textValueOrEmpty()
+                    homepageUrl = versionInfo["homepage"].textValueOrEmpty()
 
-                        versionInfo["dist"]?.let { dist ->
-                            downloadUrl = dist["tarball"].textValueOrEmpty()
-                                // Work around the issue described at
-                                // https://npm.community/t/some-packages-have-dist-tarball-as-http-and-not-https/285/19.
-                                .replace("http://registry.npmjs.org/", "https://registry.npmjs.org/")
+                    versionInfo["dist"]?.let { dist ->
+                        downloadUrl = dist["tarball"].textValueOrEmpty()
+                            // Work around the issue described at
+                            // https://npm.community/t/some-packages-have-dist-tarball-as-http-and-not-https/285/19.
+                            .replace("http://registry.npmjs.org/", "https://registry.npmjs.org/")
 
-                            hash = Hash.create(dist["shasum"].textValueOrEmpty())
-                        }
-
-                        vcsFromPackage = parseVcsInfo(versionInfo)
+                        hash = Hash.create(dist["shasum"].textValueOrEmpty())
                     }
+
+                    vcsFromPackage = parseVcsInfo(versionInfo)
                 }.onFailure {
                     log.info {
                         "Could not retrieve package information for '$encodedName' from NPM registry $npmRegistry: " +
@@ -344,7 +342,7 @@ open class Npm(
     override fun beforeResolution(definitionFiles: List<File>) {
         // We do not actually depend on any features specific to an NPM version, but we still want to stick to a
         // fixed minor version to be sure to get consistent results.
-        checkVersion(analyzerConfig.ignoreToolVersions)
+        checkVersion()
     }
 
     override fun afterResolution(definitionFiles: List<File>) {
@@ -354,47 +352,55 @@ open class Npm(
     override fun createPackageManagerResult(projectResults: Map<File, List<ProjectAnalyzerResult>>) =
         PackageManagerResult(projectResults, graphBuilder.build(), graphBuilder.packages())
 
-    override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
+    override fun resolveDependencies(definitionFile: File, labels: Map<String, String>): List<ProjectAnalyzerResult> {
         val workingDir = definitionFile.parentFile
 
-        stashDirectories(workingDir.resolve("node_modules")).use {
-            // Actually installing the dependencies is the easiest way to get the metadata of all transitive
-            // dependencies (i.e. their respective "package.json" files). As NPM uses a global cache, the same
-            // dependency is only ever downloaded once.
-            installDependencies(workingDir)
-
-            // Create packages for all modules found in the workspace and add them to the graph builder. They are
-            // reused when they are referenced by scope dependencies.
-            val packages = parseInstalledModules(workingDir)
-            graphBuilder.addPackages(packages.values)
-
-            val project = parseProject(definitionFile)
-
-            val scopeNames = listOfNotNull(
-                // Optional dependencies are just like regular dependencies except that NPM ignores failures when
-                // installing them (see https://docs.npmjs.com/files/package.json#optionaldependencies), i.e. they are
-                // not a separate scope in our semantics.
-                buildDependencyGraphForScopes(
-                    project,
-                    workingDir,
-                    setOf(DEPENDENCIES_SCOPE, OPTIONAL_DEPENDENCIES_SCOPE),
-                    DEPENDENCIES_SCOPE
-                ),
-
-                buildDependencyGraphForScopes(
-                    project,
-                    workingDir,
-                    setOf(DEV_DEPENDENCIES_SCOPE),
-                    DEV_DEPENDENCIES_SCOPE
-                )
-            )
-
-            // TODO: add support for peerDependencies and bundledDependencies.
-
-            return listOf(
-                ProjectAnalyzerResult(project.copy(scopeNames = scopeNames.toSortedSet()), sortedSetOf())
-            )
+        return try {
+            stashDirectories(workingDir.resolve("node_modules")).use {
+                resolveDependenciesInternal(definitionFile)
+            }
+        } finally {
+            rawModuleInfoCache.clear()
         }
+    }
+
+    private fun resolveDependenciesInternal(definitionFile: File): List<ProjectAnalyzerResult> {
+        val workingDir = definitionFile.parentFile
+
+        // Actually installing the dependencies is the easiest way to get the metadata of all transitive
+        // dependencies (i.e. their respective "package.json" files). As NPM uses a global cache, the same
+        // dependency is only ever downloaded once.
+        installDependencies(workingDir)
+
+        // Create packages for all modules found in the workspace and add them to the graph builder. They are
+        // reused when they are referenced by scope dependencies.
+        val packages = parseInstalledModules(workingDir)
+        graphBuilder.addPackages(packages.values)
+
+        val project = parseProject(definitionFile)
+
+        val scopeNames = listOfNotNull(
+            // Optional dependencies are just like regular dependencies except that NPM ignores failures when
+            // installing them (see https://docs.npmjs.com/files/package.json#optionaldependencies), i.e. they are
+            // not a separate scope in our semantics.
+            buildDependencyGraphForScopes(
+                project,
+                workingDir,
+                setOf(DEPENDENCIES_SCOPE, OPTIONAL_DEPENDENCIES_SCOPE),
+                DEPENDENCIES_SCOPE
+            ),
+
+            buildDependencyGraphForScopes(
+                project,
+                workingDir,
+                setOf(DEV_DEPENDENCIES_SCOPE),
+                DEV_DEPENDENCIES_SCOPE
+            )
+        )
+
+        // TODO: add support for peerDependencies and bundledDependencies.
+
+        return listOf(ProjectAnalyzerResult(project.copy(scopeNames = scopeNames.toSortedSet()), sortedSetOf()))
     }
 
     private fun parseInstalledModules(rootDirectory: File): Map<String, Package> {
@@ -414,9 +420,7 @@ open class Npm(
     }
 
     private fun isValidNodeModulesDirectory(rootModulesDir: File, modulesDir: File?): Boolean {
-        if (modulesDir == null) {
-            return false
-        }
+        if (modulesDir == null) return false
 
         var currentDir: File = modulesDir
         while (currentDir != rootModulesDir) {
@@ -523,15 +527,12 @@ open class Npm(
             return null
         }
 
-        log.debug { "Building dependency tree for '${moduleInfo.name}' from directory '$moduleDir'." }
-
         val pathToRoot = listOf(moduleDir) + ancestorModuleDirs
         moduleInfo.dependencyNames.forEach { dependencyName ->
             val dependencyModuleDirPath = findDependencyModuleDir(dependencyName, pathToRoot)
 
             if (dependencyModuleDirPath.isNotEmpty()) {
                 val dependencyModuleDir = dependencyModuleDirPath.first()
-                log.debug { "Found module dir for '$dependencyName' at '$dependencyModuleDir'." }
 
                 getModuleInfo(
                     moduleDir = dependencyModuleDir,
@@ -563,36 +564,40 @@ open class Npm(
         val packageJson: File
     )
 
-    private fun parsePackageJson(moduleDir: File, scopes: Set<String>): RawModuleInfo {
-        val packageJsonFile = moduleDir.resolve("package.json")
-        val json = readJsonFile(packageJsonFile)
+    private val rawModuleInfoCache = mutableMapOf<Pair<File, Set<String>>, RawModuleInfo>()
 
-        val name = json["name"].textValueOrEmpty()
-        if (name.isBlank()) {
-            log.warn {
-                "The '$packageJsonFile' does not set a name, which is only allowed for unpublished packages."
+    private fun parsePackageJson(moduleDir: File, scopes: Set<String>): RawModuleInfo =
+        rawModuleInfoCache.getOrPut(moduleDir to scopes) {
+            val packageJsonFile = moduleDir.resolve("package.json")
+            log.debug { "Parsing module info from '${packageJsonFile.absolutePath}'." }
+            val json = readJsonFile(packageJsonFile)
+
+            val name = json["name"].textValueOrEmpty()
+            if (name.isBlank()) {
+                log.warn {
+                    "The '$packageJsonFile' does not set a name, which is only allowed for unpublished packages."
+                }
             }
-        }
 
-        val version = json["version"].textValueOrEmpty()
-        if (version.isBlank()) {
-            log.warn {
-                "The '$packageJsonFile' does not set a version, which is only allowed for unpublished packages."
+            val version = json["version"].textValueOrEmpty()
+            if (version.isBlank()) {
+                log.warn {
+                    "The '$packageJsonFile' does not set a version, which is only allowed for unpublished packages."
+                }
             }
-        }
 
-        val dependencyNames = scopes.flatMapTo(mutableSetOf()) { scope ->
-            // Yarn ignores "//" keys in the dependencies to allow comments, therefore ignore them here as well.
-            json[scope].fieldNamesOrEmpty().asSequence().filterNot { it == "//" }
-        }
+            val dependencyNames = scopes.flatMapTo(mutableSetOf()) { scope ->
+                // Yarn ignores "//" keys in the dependencies to allow comments, therefore ignore them here as well.
+                json[scope].fieldNamesOrEmpty().asSequence().filterNot { it == "//" }
+            }
 
-        return RawModuleInfo(
-            name = name,
-            version = version,
-            dependencyNames = dependencyNames,
-            packageJson = packageJsonFile
-        )
-    }
+            RawModuleInfo(
+                name = name,
+                version = version,
+                dependencyNames = dependencyNames,
+                packageJson = packageJsonFile
+            )
+        }
 
     private fun findDependencyModuleDir(dependencyName: String, searchModuleDirs: List<File>): List<File> {
         searchModuleDirs.forEachIndexed { index, moduleDir ->
@@ -651,7 +656,7 @@ open class Npm(
 
         // Install all NPM dependencies to enable NPM to list dependencies.
         if (hasLockFile(workingDir) && this::class.java == Npm::class.java) {
-            run(workingDir, "ci")
+            run(workingDir, "ci", *installParameters)
         } else {
             run(workingDir, "install", *installParameters)
         }

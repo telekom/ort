@@ -54,7 +54,6 @@ analyzer:
     variables: {}
     tool_versions: {}
   config:
-    ignore_tool_versions: false
     allow_dynamic_versions: false
   result:
     projects:
@@ -4317,8 +4316,8 @@ analyzer:
         source: "NPM"
         message: "Resolving NPM dependencies for 'submodules/test-data-npm/long.js/package.json'\
           \ failed with: IllegalArgumentException: No lockfile found in 'submodules/test-data-npm/long.js'.\
-          \ This potentially results in unstable versions of dependencies. To allow\
-          \ this, enable support for dynamic versions."
+          \ This potentially results in unstable versions of dependencies. To support\
+          \ this, enable the 'allowDynamicVersions' option in 'ort.conf'."
         severity: "ERROR"
     has_issues: true
 scanner: null

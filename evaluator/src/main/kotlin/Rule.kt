@@ -25,8 +25,8 @@ import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.RuleViolation
 import org.ossreviewtoolkit.model.Severity
-import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
 
 /**
  * The base class for an evaluator rule. Rules use a set of matchers to determine if they apply, and create a list of
@@ -127,8 +127,7 @@ abstract class Rule(
         object : RuleMatcher {
             override val description = "labelContains($label, $value)"
 
-            override fun matches() =
-                ruleSet.ortResult.labels[label]?.split(',')?.map { it.trim() }?.contains(value) ?: false
+            override fun matches() = value in ruleSet.ortResult.getLabelValues(label)
         }
 
     /**
@@ -143,7 +142,7 @@ abstract class Rule(
      */
     fun issue(
         severity: Severity,
-        pkgId: Identifier,
+        pkgId: Identifier?,
         license: SpdxSingleLicenseExpression?,
         licenseSource: LicenseSource?,
         message: String,
@@ -164,7 +163,7 @@ abstract class Rule(
      * Add a [hint][Severity.HINT] to the list of [violations].
      */
     fun hint(
-        pkgId: Identifier,
+        pkgId: Identifier?,
         license: SpdxSingleLicenseExpression?,
         licenseSource: LicenseSource?,
         message: String,
@@ -176,7 +175,7 @@ abstract class Rule(
      * Add a [warning][Severity.WARNING] to the list of [violations].
      */
     fun warning(
-        pkgId: Identifier,
+        pkgId: Identifier?,
         license: SpdxSingleLicenseExpression?,
         licenseSource: LicenseSource?,
         message: String,
@@ -188,7 +187,7 @@ abstract class Rule(
      * Add an [error][Severity.ERROR] to the list of [violations].
      */
     fun error(
-        pkgId: Identifier,
+        pkgId: Identifier?,
         license: SpdxSingleLicenseExpression?,
         licenseSource: LicenseSource?,
         message: String,

@@ -7,13 +7,15 @@ ORT:
 * Install ORT.
 * Analyze the dependencies of `mime-types` using the _analyzer_.
 * Scan the source code of `mime-types` and its dependencies using the `scanner`.
+* Run the evaluator to find any rule violations.
+* Generate reports to show the results.
 
 ## 1. Prerequisites
 
 ORT is tested to run on Linux, macOS, and Windows. This tutorial assumes that you are running on Linux, but it should be
 easy to adapt the commands to macOS or Windows.
 
-In addition to Java (version >= 8), for some of the supported package managers and Version Control Systems additional
+In addition to Java (version >= 11), for some supported package managers and Version Control Systems additional
 tools need to be installed. In the context of this tutorial the following tools are required:
 
 * Git (any recent version will do)
@@ -25,7 +27,7 @@ For the full list of supported package managers and Version Control Systems see 
 
 ## 2. Download & Install ORT
 
-In future we will provide binaries of the ORT tools, but currently you have to build the tools on your own. First
+In the future, we will provide binaries of the ORT tools, but currently you have to build the tools on your own. First
 download the source code (including Git submodules) from GitHub:
 
 ```bash
@@ -85,7 +87,7 @@ The following package managers are activated:
         Bower, Bundler, Cargo, Composer, DotNet, GoDep, Gradle, Maven, NPM, NuGet, PIP, SBT, Stack, Yarn
 Analyzing project path:
         [mime-types-dir]
-ERROR - Resolving dependencies for 'package.json' failed with: No lockfile found in '[mime-types-dir]'. This potentially results in unstable versions of dependencies. To allow this, enable support for dynamic versions.
+ERROR - Resolving dependencies for 'package.json' failed with: No lockfile found in '[mime-types-dir]'. This potentially results in unstable versions of dependencies. To support this, enable the 'allowDynamicVersions' option in 'ort.conf'.
 Writing analyzer result to '[analyzer-output-dir]/analyzer-result.yml'.
 ```
 
@@ -161,7 +163,6 @@ analyzer:
     tool_versions: {}
   # Configuration options of the analyzer.
   config:
-    ignore_tool_versions: false
     allow_dynamic_versions: true
   # The result of the dependency analysis.
   result:
@@ -294,7 +295,7 @@ Writing scan result to '[scanner-output-dir]/scan-result.yml'.
 
 The `scanner` writes a new ORT result file to `[scanner-output-dir]/scan-result.yml` containing the scan results in
 addition to the analyzer result from the input. This way belonging results are stored in the same place for
-traceability. If the input file already contained scan results they are replaced by the new scan results in the output.
+traceability. If the input file already contained scan results, they are replaced by the new scan results in the output.
 
 As you can see when checking the `scan-result.yml` file, the licenses detected by `ScanCode` match the licenses declared
 by the packages. This is because we scanned a small and well-maintained package in this example, but if you run the scan
@@ -303,9 +304,9 @@ on a bigger project you will see that `ScanCode` often finds more licenses than 
 ## 6. Running the evaluator
 
 The evaluator can apply a set of rules against the scan result created above.
-ORT provides examples for the policy rules file [(rules.kts)](../examples/rules.kts),
-[user-defined categorization of licenses (license-classifications.yml)](../examples/license-classifications.yml) and
-[user-defined package curations (curations.yml)](../examples/curations.yml) that can be used for testing the
+ORT provides examples for the policy rules file ([example.rules.kts](../examples/evaluator-rules/src/main/resources/example.rules.kts)),
+user-defined categorization of licenses ([license-classifications.yml](../examples/license-classifications.yml)) and
+user-defined package curations ([curations.yml](../examples/curations.yml)) that can be used for testing the
 _evaluator_. 
 
 To run the example rules use:
@@ -313,7 +314,7 @@ To run the example rules use:
 ```bash
 cli/build/install/ort/bin/ort evaluate
   --package-curations-file curations.yml
-  --rules-file rules.kts
+  --rules-file evaluator.rules.kts
   --license-classifications-file license-classifications.yml
   -i [scanner-output-dir]/scan-result.yml
   -o [evaluator-output-dir]/mime-types
@@ -331,7 +332,7 @@ Note that detailed documentation for writing custom rules is not yet available.
 The `evaluation-result.yml` file can now be used as input for the reporter to generate human-readable reports and open
 source notices. 
 
-For example, to generate a static HTML report, WebApp report and an open source notice by package, use:
+For example, to generate a static HTML report, WebApp report, and an open source notice by package, use:
 
 ```bash
 cli/build/install/ort/bin/ort report

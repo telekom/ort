@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,23 +36,27 @@ import org.ossreviewtoolkit.model.Repository
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.orEmpty
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.Environment
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.core.Environment
+import org.ossreviewtoolkit.utils.core.log
 
 /**
  * The class to run the analysis. The signatures of public functions in this class define the library API.
  */
-class Analyzer(private val config: AnalyzerConfiguration) {
-    fun analyze(
-        absoluteProjectPath: File,
-        packageManagers: List<PackageManagerFactory> = PackageManager.ALL,
-        curationProvider: PackageCurationProvider = PackageCurationProvider.EMPTY,
-        repositoryConfiguration: RepositoryConfiguration = RepositoryConfiguration()
-    ): OrtResult {
-        require(absoluteProjectPath.isAbsolute)
+class Analyzer(private val config: AnalyzerConfiguration, private val labels: Map<String, String> = emptyMap()) {
+    data class ManagedFileInfo(
+        val absoluteProjectPath: File,
+        val managedFiles: Map<PackageManager, List<File>>,
+        val repositoryConfiguration: RepositoryConfiguration
+    )
 
-        val startTime = Instant.now()
+    @JvmOverloads
+    fun findManagedFiles(
+        absoluteProjectPath: File,
+        packageManagers: Set<PackageManagerFactory> = PackageManager.ALL,
+        repositoryConfiguration: RepositoryConfiguration = RepositoryConfiguration()
+    ): ManagedFileInfo {
+        require(absoluteProjectPath.isAbsolute)
 
         log.debug { "Using the following configuration settings:\n$repositoryConfiguration" }
 
@@ -76,39 +81,39 @@ class Analyzer(private val config: AnalyzerConfiguration) {
             it.parentFile.absoluteFile == absoluteProjectPath
         }
 
-        if (factoryFiles.isEmpty() || !hasDefinitionFileInRootDirectory) {
-            Unmanaged.Factory().create(absoluteProjectPath, config, repositoryConfiguration).let {
+        val unmanagedFactory = packageManagers.find { it is Unmanaged.Factory }
+        if (unmanagedFactory != null && (factoryFiles.isEmpty() || !hasDefinitionFileInRootDirectory)) {
+            unmanagedFactory.create(absoluteProjectPath, config, repositoryConfiguration).let {
                 managedFiles[it] = listOf(absoluteProjectPath)
             }
         }
 
-        if (log.delegate.isInfoEnabled) {
-            // Log the summary of projects found per package manager.
-            managedFiles.forEach { (manager, files) ->
-                // No need to use curly-braces-syntax for logging here as the log level check is already done above.
-                log.info { "${manager.managerName} project(s) found in:" }
-                files.forEach { file ->
-                    log.info { "\t${file.toRelativeString(absoluteProjectPath).takeIf { it.isNotEmpty() } ?: "."}" }
-                }
-            }
-        }
+        return ManagedFileInfo(absoluteProjectPath, managedFiles, repositoryConfiguration)
+    }
+
+    @JvmOverloads
+    fun analyze(
+        info: ManagedFileInfo,
+        curationProvider: PackageCurationProvider = PackageCurationProvider.EMPTY
+    ): OrtResult {
+        val startTime = Instant.now()
 
         // Resolve dependencies per package manager.
-        val analyzerResult = analyzeInParallel(managedFiles, curationProvider)
+        val analyzerResult = analyzeInParallel(info.managedFiles, curationProvider)
 
-        val workingTree = VersionControlSystem.forDirectory(absoluteProjectPath)
+        val workingTree = VersionControlSystem.forDirectory(info.absoluteProjectPath)
         val vcs = workingTree?.getInfo().orEmpty()
         val nestedVcs = workingTree?.getNested()?.filter { (path, _) ->
             // Only include nested VCS if they are part of the analyzed directory.
-            workingTree.getRootPath().resolve(path).startsWith(absoluteProjectPath)
+            workingTree.getRootPath().resolve(path).startsWith(info.absoluteProjectPath)
         }.orEmpty()
-        val repository = Repository(vcs = vcs, nestedRepositories = nestedVcs, config = repositoryConfiguration)
+        val repository = Repository(vcs = vcs, nestedRepositories = nestedVcs, config = info.repositoryConfiguration)
 
         val endTime = Instant.now()
 
         val toolVersions = mutableMapOf<String, String>()
 
-        managedFiles.keys.forEach { manager ->
+        info.managedFiles.keys.forEach { manager ->
             if (manager is CommandLineTool) {
                 toolVersions[manager.managerName] = manager.getVersion()
             }
@@ -128,11 +133,18 @@ class Analyzer(private val config: AnalyzerConfiguration) {
         runBlocking(Dispatchers.IO) {
             managedFiles.map { (manager, files) ->
                 async {
-                    val results = manager.resolveDependencies(files)
+                    val results = manager.resolveDependencies(files, labels)
 
-                    // By convention, project ids must be of the type of the respective package manager.
+                    // By convention, project ids must be of the type of the respective package manager. An exception
+                    // for this is Pub with Flutter, which internally calls Gradle.
                     results.projectResults.forEach { (_, result) ->
-                        val invalidProjects = result.filter { it.project.id.type != manager.managerName }
+                        val invalidProjects = result.filterNot {
+                            val projectType = it.project.id.type
+
+                            projectType == manager.managerName ||
+                                    (manager.managerName == "Pub" && projectType == "Gradle")
+                        }
+
                         require(invalidProjects.isEmpty()) {
                             val projectString = invalidProjects.joinToString { "'${it.project.id.toCoordinates()}'" }
                             "Projects $projectString must be of type '${manager.managerName}'."

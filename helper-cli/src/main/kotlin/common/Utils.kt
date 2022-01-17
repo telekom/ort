@@ -29,9 +29,9 @@ import java.nio.file.Paths
 
 import kotlin.io.path.createTempDirectory
 
-import org.ossreviewtoolkit.analyzer.Analyzer
 import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.downloader.Downloader
+import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
@@ -47,7 +47,6 @@ import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.VcsInfo
-import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.CopyrightGarbage
 import org.ossreviewtoolkit.model.config.Curations
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
@@ -68,15 +67,15 @@ import org.ossreviewtoolkit.model.utils.SimplePackageConfigurationProvider
 import org.ossreviewtoolkit.model.utils.createLicenseInfoResolver
 import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.model.yamlMapper
-import org.ossreviewtoolkit.spdx.SpdxExpression
-import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
-import org.ossreviewtoolkit.utils.CopyrightStatementsProcessor
-import org.ossreviewtoolkit.utils.encodeOrUnknown
-import org.ossreviewtoolkit.utils.fileSystemEncode
-import org.ossreviewtoolkit.utils.isSymbolicLink
-import org.ossreviewtoolkit.utils.replaceCredentialsInUri
-import org.ossreviewtoolkit.utils.safeMkdirs
-import org.ossreviewtoolkit.utils.withoutPrefix
+import org.ossreviewtoolkit.utils.common.encodeOrUnknown
+import org.ossreviewtoolkit.utils.common.fileSystemEncode
+import org.ossreviewtoolkit.utils.common.isSymbolicLink
+import org.ossreviewtoolkit.utils.common.replaceCredentialsInUri
+import org.ossreviewtoolkit.utils.common.safeMkdirs
+import org.ossreviewtoolkit.utils.common.withoutPrefix
+import org.ossreviewtoolkit.utils.core.CopyrightStatementsProcessor
+import org.ossreviewtoolkit.utils.spdx.SpdxExpression
+import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
 
 const val ORTH_NAME = "orth"
 
@@ -121,10 +120,11 @@ internal fun findRepositoryPaths(directory: File): Map<String, Set<String>> {
 internal fun findRepositories(directory: File): Map<String, VcsInfo> {
     require(directory.isDirectory)
 
-    val analyzer = Analyzer(AnalyzerConfiguration(ignoreToolVersions = true, allowDynamicVersions = true))
-    val ortResult = analyzer.analyze(absoluteProjectPath = directory, packageManagers = emptyList())
-
-    return ortResult.repository.nestedRepositories
+    val workingTree = VersionControlSystem.forDirectory(directory)
+    return workingTree?.getNested()?.filter { (path, _) ->
+        // Only include nested VCS if they are part of the analyzed directory.
+        workingTree.getRootPath().resolve(path).startsWith(directory)
+    }.orEmpty()
 }
 
 /**
@@ -228,6 +228,7 @@ internal data class ProcessedCopyrightStatement(
 internal fun OrtResult.processAllCopyrightStatements(
     omitExcluded: Boolean = true,
     copyrightGarbage: Set<String> = emptySet(),
+    addAuthorsToCopyrights: Boolean = false,
     packageConfigurationProvider: PackageConfigurationProvider = SimplePackageConfigurationProvider.EMPTY
 ): List<ProcessedCopyrightStatement> {
     val result = mutableListOf<ProcessedCopyrightStatement>()
@@ -236,12 +237,13 @@ internal fun OrtResult.processAllCopyrightStatements(
 
     val licenseInfoResolver = createLicenseInfoResolver(
         packageConfigurationProvider = packageConfigurationProvider,
-        copyrightGarbage = CopyrightGarbage(copyrightGarbage.toSortedSet())
+        copyrightGarbage = CopyrightGarbage(copyrightGarbage.toSortedSet()),
+        addAuthorsToCopyrights = addAuthorsToCopyrights
     )
 
-    getProjectAndPackageIds().forEach { id ->
-        licenseInfoResolver.resolveLicenseInfo(id).forEach innerForEach@{ resolvedLicense ->
-            if (omitExcluded && resolvedLicense.isDetectedExcluded) return@innerForEach
+    collectProjectsAndPackages().forEach { id ->
+        licenseInfoResolver.resolveLicenseInfo(id).forEach inner@{ resolvedLicense ->
+            if (omitExcluded && resolvedLicense.isDetectedExcluded) return@inner
 
             val copyrights = resolvedLicense.getResolvedCopyrights(
                 process = false,
@@ -363,21 +365,9 @@ internal fun OrtResult.getPackageOrProject(id: Identifier): Package? =
     getProject(id)?.toPackage() ?: getPackage(id)?.pkg
 
 /**
- * Return the first [Provenance] matching the given [id] or null if there is no match.
+ * Return the [Provenance] of the first scan result matching the given [id] or null if there is no match.
  */
-internal fun OrtResult.getProvenance(id: Identifier): Provenance? {
-    val pkg = getPackageOrProject(id)!!
-
-    scanner?.results?.scanResults?.forEach { (_, results) ->
-        results.forEach { scanResult ->
-            if (scanResult.provenance.matches(pkg)) {
-                return scanResult.provenance
-            }
-        }
-    }
-
-    return null
-}
+internal fun OrtResult.getProvenance(id: Identifier): Provenance? = getScanResultsForId(id).firstOrNull()?.provenance
 
 /**
  * Return all issues from scan results. Issues for excludes [Project]s or [Package]s are not returned if and only if
@@ -577,16 +567,12 @@ internal fun RepositoryLicenseFindingCurations.mergeLicenseFindingCurations(
     val result: MutableMap<String, MutableMap<LicenseFindingCurationKey, LicenseFindingCuration>> = mutableMapOf()
 
     fun merge(repositoryUrl: String, curation: LicenseFindingCuration, updateOnlyUpdateExisting: Boolean = false) {
-        if (updateOnlyUpdateExisting && !result.containsKey(repositoryUrl)) {
-            return
-        }
+        if (updateOnlyUpdateExisting && repositoryUrl !in result) return
 
         val curations = result.getOrPut(repositoryUrl) { mutableMapOf() }
 
         val key = curation.key()
-        if (updateOnlyUpdateExisting && !curations.containsKey(key)) {
-            return
-        }
+        if (updateOnlyUpdateExisting && key !in curations) return
 
         curations[key] = curation
     }
@@ -631,14 +617,10 @@ internal fun RepositoryPathExcludes.mergePathExcludes(
     val result: MutableMap<String, MutableMap<String, PathExclude>> = mutableMapOf()
 
     fun merge(repositoryUrl: String, pathExclude: PathExclude, updateOnlyUpdateExisting: Boolean = false) {
-        if (updateOnlyUpdateExisting && !result.containsKey(repositoryUrl)) {
-            return
-        }
+        if (updateOnlyUpdateExisting && repositoryUrl !in result) return
 
         val pathExcludes = result.getOrPut(repositoryUrl) { mutableMapOf() }
-        if (updateOnlyUpdateExisting && !result.containsKey(pathExclude.pattern)) {
-            return
-        }
+        if (updateOnlyUpdateExisting && pathExclude.pattern !in result) return
 
         pathExcludes[pathExclude.pattern] = pathExclude
     }
@@ -673,6 +655,34 @@ internal fun RepositoryPathExcludes.write(targetFile: File) {
 }
 
 /**
+ * Apply the [vcsUrlMapping] to this [RepositoryPathExcludes].
+ */
+internal fun RepositoryPathExcludes.mapPathExcludesVcsUrls(vcsUrlMapping: VcsUrlMapping): RepositoryPathExcludes {
+    val result = mutableMapOf<String, MutableList<PathExclude>>()
+
+    forEach { (vcsUrl, pathExcludes) ->
+        result.getOrPut(vcsUrlMapping.map(vcsUrl)) { mutableListOf() } += pathExcludes
+    }
+
+    return result.mapValues { (_, pathExcludes) -> pathExcludes.distinct() }
+}
+
+/**
+ * Apply the [vcsUrlMapping] to this [RepositoryLicenseFindingCurations].
+ */
+internal fun RepositoryLicenseFindingCurations.mapLicenseFindingCurationsVcsUrls(
+    vcsUrlMapping: VcsUrlMapping
+): RepositoryLicenseFindingCurations {
+    val result = mutableMapOf<String, MutableList<LicenseFindingCuration>>()
+
+    forEach { (vcsUrl, curations) ->
+        result.getOrPut(vcsUrlMapping.map(vcsUrl)) { mutableListOf() } += curations
+    }
+
+    return result.mapValues { (_, pathExcludes) -> pathExcludes.distinct() }
+}
+
+/**
  * Merge the given [IssueResolution]s replacing entries with equal [IssueResolution.message].
  */
 internal fun Collection<IssueResolution>.mergeIssueResolutions(
@@ -701,9 +711,7 @@ internal fun Collection<LicenseFindingCuration>.mergeLicenseFindingCurations(
     associateByTo(result) { it.key() }
 
     other.forEach {
-        if (!updateOnlyExisting || result.containsKey(it.key())) {
-            result[it.key()] = it
-        }
+        if (!updateOnlyExisting || it.key() in result) result[it.key()] = it
     }
 
     return result.values.toList()
@@ -744,9 +752,7 @@ internal fun Collection<PathExclude>.mergePathExcludes(
     associateByTo(result) { it.pattern }
 
     other.forEach {
-        if (!updateOnlyExisting || result.containsKey(it.pattern)) {
-            result[it.pattern] = it
-        }
+        if (!updateOnlyExisting || it.pattern in result) result[it.pattern] = it
     }
 
     return result.values.toList()
@@ -874,18 +880,18 @@ private fun createBlockYamlMapper(): ObjectMapper =
         .disable(YAMLGenerator.Feature.SPLIT_LINES)
         .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
 
-internal fun importPathExcludes(sourceCodeDir: File, pathExcludesFile: File): List<PathExclude> {
-    println("Analyzing $sourceCodeDir...")
-    val repositoryPaths = findRepositoryPaths(sourceCodeDir)
-    println("Found ${repositoryPaths.size} repositories in ${repositoryPaths.values.sumOf { it.size }} locations.")
-
-    println("Loading $pathExcludesFile...")
+internal fun importPathExcludes(
+    repositoryPaths: Map<String, Set<String>>,
+    pathExcludesFile: File,
+    vcsUrlMapping: VcsUrlMapping
+): List<PathExclude> {
+    val result = mutableListOf<PathExclude>()
     val pathExcludes = pathExcludesFile.readValue<RepositoryPathExcludes>()
+
+    println("Found ${repositoryPaths.size} repositories in ${repositoryPaths.values.sumOf { it.size }} locations.")
     println("Found ${pathExcludes.values.sumOf { it.size }} excludes for ${pathExcludes.size} repositories.")
 
-    val result = mutableListOf<PathExclude>()
-
-    repositoryPaths.forEach { (vcsUrl, relativePaths) ->
+    repositoryPaths.mapKeys { vcsUrlMapping.map(it.key) }.forEach { (vcsUrl, relativePaths) ->
         pathExcludes[vcsUrl]?.let { pathExcludesForRepository ->
             pathExcludesForRepository.forEach { pathExclude ->
                 relativePaths.forEach { path ->
@@ -899,20 +905,17 @@ internal fun importPathExcludes(sourceCodeDir: File, pathExcludesFile: File): Li
 }
 
 internal fun importLicenseFindingCurations(
-    sourceCodeDir: File,
-    licenseFindingCurationsFile: File
+    repositoryPaths: Map<String, Set<String>>,
+    licenseFindingCurationsFile: File,
+    vcsUrlMapping: VcsUrlMapping
 ): List<LicenseFindingCuration> {
-    println("Analyzing $sourceCodeDir...")
-    val repositoryPaths = findRepositoryPaths(sourceCodeDir)
-    println("Found ${repositoryPaths.size} repositories in ${repositoryPaths.values.sumOf { it.size }} locations.")
-
-    println("Loading $licenseFindingCurationsFile...")
     val curations = licenseFindingCurationsFile.readValue<RepositoryLicenseFindingCurations>()
-    println("Found ${curations.values.sumOf { it.size }} curations for ${curations.size} repositories.")
-
     val result = mutableListOf<LicenseFindingCuration>()
 
-    repositoryPaths.forEach { (vcsUrl, relativePaths) ->
+    println("Found ${repositoryPaths.size} repositories in ${repositoryPaths.values.sumOf { it.size }} locations.")
+    println("Found ${curations.values.sumOf { it.size }} curations for ${curations.size} repositories.")
+
+    repositoryPaths.mapKeys { vcsUrlMapping.map(it.key) }.forEach { (vcsUrl, relativePaths) ->
         curations[vcsUrl]?.let { curationsForRepository ->
             curationsForRepository.forEach { curation ->
                 relativePaths.forEach { path ->
@@ -943,3 +946,31 @@ internal fun readOrtResult(ortFile: File): OrtResult = ortFile.readValue<OrtResu
  * Write the [ortResult] to [file].
  */
 internal fun writeOrtResult(ortResult: OrtResult, file: File): Unit = file.writeValue(ortResult)
+
+/**
+ * Return the URLs of the analyzed repository and its nested repository associated with their path(s) in the source
+ * tree.
+ */
+internal fun OrtResult.getRepositoryPaths(): Map<String, Set<String>> {
+    val result = mutableMapOf(repository.vcsProcessed.url to mutableSetOf(""))
+
+    repository.nestedRepositories.mapValues { (path, vcsInfo) ->
+        result.getOrPut(vcsInfo.url) { mutableSetOf() } += path
+    }
+
+    // For some Git-repo projects `OrtResult.repository.nestedRepositories´ misses some nested repositories for Git
+    // submodules. FIXME: Ensure that the OrtResult holds all nested repositories and remove below workaround.
+    getProjects().forEach { project ->
+        result.getOrPut(project.vcsProcessed.url) { mutableSetOf() } += project.getRepositoryPath(this)
+    }
+
+    return result
+}
+
+/**
+ * Return the path of the repository of this [Project] relative to the analyzer root.
+ */
+internal fun Project.getRepositoryPath(ortResult: OrtResult): String {
+    val projectPath = ortResult.getDefinitionFilePathRelativeToAnalyzerRoot(this).substringBeforeLast("/")
+    return projectPath.removeSuffix("/${vcsProcessed.path}")
+}

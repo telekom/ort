@@ -27,13 +27,16 @@ import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
 import org.ossreviewtoolkit.helper.common.RepositoryPathExcludes
+import org.ossreviewtoolkit.helper.common.VcsUrlMapping
 import org.ossreviewtoolkit.helper.common.getRepositoryPathExcludes
+import org.ossreviewtoolkit.helper.common.mapPathExcludesVcsUrls
 import org.ossreviewtoolkit.helper.common.mergePathExcludes
+import org.ossreviewtoolkit.helper.common.orEmpty
 import org.ossreviewtoolkit.helper.common.readOrtResult
 import org.ossreviewtoolkit.helper.common.replaceConfig
 import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.utils.expandTilde
+import org.ossreviewtoolkit.utils.common.expandTilde
 
 internal class ExportPathExcludesCommand : CliktCommand(
     help = "Export the path excludes to a path excludes file which maps repository URLs to the path excludes for the " +
@@ -67,16 +70,27 @@ internal class ExportPathExcludesCommand : CliktCommand(
         help = "If enabled, only entries are exported for which an entry with the same pattern already exists."
     ).flag()
 
+    private val vcsUrlMappingFile by option(
+        "--vcs-url-mapping-file",
+        help = "A YAML or JSON file containing a mapping of VCS URLs to other VCS URLs which will be replaced during " +
+                "the export."
+    ).convert { it.expandTilde() }
+        .file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
+        .convert { it.absoluteFile.normalize() }
+
     override fun run() {
+        val vcsUrlMapping = vcsUrlMappingFile?.readValue<VcsUrlMapping>().orEmpty()
+
         val localPathExcludes = readOrtResult(ortFile)
             .replaceConfig(repositoryConfigurationFile)
             .getRepositoryPathExcludes()
+            .mapPathExcludesVcsUrls(vcsUrlMapping)
 
         val globalPathExcludes = if (pathExcludesFile.isFile) {
             pathExcludesFile.readValue<RepositoryPathExcludes>()
         } else {
             mapOf()
-        }
+        }.mapPathExcludesVcsUrls(vcsUrlMapping)
 
         globalPathExcludes
             .mergePathExcludes(localPathExcludes, updateOnlyExisting = updateOnlyExisting)

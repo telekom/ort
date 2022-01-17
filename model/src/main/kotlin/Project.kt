@@ -26,10 +26,10 @@ import com.fasterxml.jackson.annotation.JsonProperty
 
 import java.util.SortedSet
 
-import org.ossreviewtoolkit.spdx.SpdxExpression
-import org.ossreviewtoolkit.spdx.SpdxOperator
-import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
-import org.ossreviewtoolkit.utils.ProcessedDeclaredLicense
+import org.ossreviewtoolkit.utils.core.DeclaredLicenseProcessor
+import org.ossreviewtoolkit.utils.core.ProcessedDeclaredLicense
+import org.ossreviewtoolkit.utils.spdx.SpdxExpression
+import org.ossreviewtoolkit.utils.spdx.SpdxOperator
 
 /**
  * A class describing a software project. A [Project] is very similar to a [Package] but contains some additional
@@ -43,6 +43,12 @@ data class Project(
      * project (e.g. "Gradle" for a Gradle project).
      */
     val id: Identifier,
+
+    /**
+     * An optional additional identifier in [CPE syntax](https://cpe.mitre.org/specification/).
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    val cpe: String? = null,
 
     /**
      * The path to the definition file of this project, relative to the root of the repository described in [vcs]

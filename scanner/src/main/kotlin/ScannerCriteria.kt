@@ -83,10 +83,41 @@ data class ScannerCriteria(
          * function can be used by scanners that are extremely sensitive about their configuration.
          */
         fun exactConfigMatcher(originalConfig: String): ScannerConfigMatcher = { config -> originalConfig == config }
+
+        /**
+         * Generate a [ScannerCriteria] object that is compatible with the given [details] and versions that differ only
+         * in the provided [versionDiff].
+         */
+        fun forDetails(
+            details: ScannerDetails,
+            versionDiff: Semver.VersionDiff = Semver.VersionDiff.NONE
+        ): ScannerCriteria {
+            val minVersion = Semver(details.version)
+
+            val maxVersion = when (versionDiff) {
+                Semver.VersionDiff.NONE, Semver.VersionDiff.SUFFIX, Semver.VersionDiff.BUILD -> minVersion.nextPatch()
+                Semver.VersionDiff.PATCH -> minVersion.nextMinor()
+                Semver.VersionDiff.MINOR -> minVersion.nextMajor()
+                else -> throw IllegalArgumentException("Invalid version difference $versionDiff")
+            }
+
+            return ScannerCriteria(
+                regScannerName = details.name,
+                minVersion = minVersion,
+                maxVersion = maxVersion,
+                configMatcher = exactConfigMatcher(details.configuration)
+            )
+        }
     }
 
     /** The regular expression to match for the scanner name. */
     private val nameRegex: Regex by lazy { Regex(regScannerName) }
+
+    init {
+        require(minVersion < maxVersion) {
+            "The `maxVersion` is exclusive and must be greater than the `minVersion`."
+        }
+    }
 
     /**
      * Check whether the [details] specified match the criteria stored in this object. Return true if and only if
@@ -94,11 +125,9 @@ data class ScannerCriteria(
      * object.
      */
     fun matches(details: ScannerDetails): Boolean {
-        if (!nameRegex.matches(details.name)) {
-            return false
-        }
+        if (!nameRegex.matches(details.name)) return false
 
         val version = Semver(details.version)
-        return minVersion <= version && maxVersion > version && configMatcher(details.configuration)
+        return minVersion <= version && version < maxVersion && configMatcher(details.configuration)
     }
 }

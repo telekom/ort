@@ -24,8 +24,9 @@ import com.fasterxml.jackson.annotation.JsonInclude
 
 import java.util.SortedSet
 
-import org.ossreviewtoolkit.spdx.SpdxExpression
-import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
+import org.ossreviewtoolkit.utils.common.zip
+import org.ossreviewtoolkit.utils.core.DeclaredLicenseProcessor
+import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 
 /**
  * This class contains curation data for a package. It is used to amend the automatically detected metadata for a
@@ -40,6 +41,16 @@ data class PackageCurationData(
      * created.
      */
     val comment: String? = null,
+
+    /**
+     * An additional identifier in [package URL syntax](https://github.com/package-url/purl-spec).
+     */
+    val purl: String? = null,
+
+    /**
+     * An optional additional identifier in [CPE syntax](https://cpe.mitre.org/specification/).
+     */
+    val cpe: String? = null,
 
     /**
      * The list of authors of this package.
@@ -96,55 +107,83 @@ data class PackageCurationData(
     val declaredLicenseMapping: Map<String, SpdxExpression> = emptyMap()
 ) {
     /**
-     * Apply the curation data to the provided [base] package by overriding all values of the original package with
+     * Apply the curation data to the provided [targetPackage] by overriding all values of the original package with
      * non-null values of the curation data, and return the curated package.
      */
-    fun apply(base: CuratedPackage): CuratedPackage = applyCurationToPackage(base, this)
-}
+    fun apply(targetPackage: CuratedPackage): CuratedPackage {
+        val original = targetPackage.pkg
 
-private fun applyCurationToPackage(targetPackage: CuratedPackage, curation: PackageCurationData): CuratedPackage {
-    val base = targetPackage.pkg
+        val vcsProcessed = vcs?.let {
+            // Curation data for VCS information is handled specially, so we can curate only individual properties.
+            VcsInfo(
+                type = it.type ?: original.vcsProcessed.type,
+                url = it.url ?: original.vcsProcessed.url,
+                revision = it.revision ?: original.vcsProcessed.revision,
+                path = it.path ?: original.vcsProcessed.path
+            ).normalize()
+        } ?: original.vcsProcessed
 
-    val vcs = curation.vcs?.let {
-        // Curation data for VCS information is handled specially so we can curate only individual properties.
-        VcsInfo(
-            type = it.type ?: base.vcs.type,
-            url = it.url ?: base.vcs.url,
-            revision = it.revision ?: base.vcs.revision,
-            path = it.path ?: base.vcs.path
+        val authors = authors ?: original.authors
+        val declaredLicenseMapping = targetPackage.getDeclaredLicenseMapping() + declaredLicenseMapping
+        val declaredLicensesProcessed = DeclaredLicenseProcessor.process(
+            original.declaredLicenses,
+            declaredLicenseMapping
         )
-    } ?: base.vcs
 
-    val authors = curation.authors ?: base.authors
-    val declaredLicenseMapping = targetPackage.getDeclaredLicenseMapping() + curation.declaredLicenseMapping
-    val declaredLicensesProcessed = DeclaredLicenseProcessor.process(base.declaredLicenses, declaredLicenseMapping)
+        val pkg = Package(
+            id = original.id,
+            purl = purl ?: original.purl,
+            cpe = cpe ?: original.cpe,
+            authors = authors,
+            declaredLicenses = original.declaredLicenses,
+            declaredLicensesProcessed = declaredLicensesProcessed,
+            concludedLicense = concludedLicense ?: original.concludedLicense,
+            description = description ?: original.description,
+            homepageUrl = homepageUrl ?: original.homepageUrl,
+            binaryArtifact = binaryArtifact ?: original.binaryArtifact,
+            sourceArtifact = sourceArtifact ?: original.sourceArtifact,
+            vcs = original.vcs,
+            vcsProcessed = vcsProcessed,
+            isMetaDataOnly = isMetaDataOnly ?: original.isMetaDataOnly,
+            isModified = isModified ?: original.isModified
+        )
 
-    val pkg = Package(
-        id = base.id,
-        authors = authors,
-        declaredLicenses = base.declaredLicenses,
-        declaredLicensesProcessed = declaredLicensesProcessed,
-        concludedLicense = curation.concludedLicense ?: base.concludedLicense,
-        description = curation.description ?: base.description,
-        homepageUrl = curation.homepageUrl ?: base.homepageUrl,
-        binaryArtifact = curation.binaryArtifact ?: base.binaryArtifact,
-        sourceArtifact = curation.sourceArtifact ?: base.sourceArtifact,
-        vcs = vcs,
-        isMetaDataOnly = curation.isMetaDataOnly ?: base.isMetaDataOnly,
-        isModified = curation.isModified ?: base.isModified
-    )
+        val declaredLicenseMappingDiff = mutableMapOf<String, SpdxExpression>().apply {
+            val previous = targetPackage.getDeclaredLicenseMapping().toList()
+            val current = declaredLicenseMapping.toList()
 
-    val declaredLicenseMappingDiff = mutableMapOf<String, SpdxExpression>().apply {
-        val previous = targetPackage.getDeclaredLicenseMapping().toList()
-        val current = declaredLicenseMapping.toList()
+            putAll(previous - current)
+        }
 
-        putAll(previous - current)
+        val curations = targetPackage.curations + PackageCurationResult(
+            base = original.diff(pkg).copy(declaredLicenseMapping = declaredLicenseMappingDiff),
+            curation = this
+        )
+
+        return CuratedPackage(pkg, curations)
     }
 
-    val curations = targetPackage.curations + PackageCurationResult(
-        base = base.diff(pkg).copy(declaredLicenseMapping = declaredLicenseMappingDiff),
-        curation = curation
-    )
-
-    return CuratedPackage(pkg, curations)
+    /**
+     * Merge with [other] curation data. The `comment` properties are joined but probably need to be adjusted before
+     * further processing as their meaning might have been distorted by the merge. For properties that cannot be merged,
+     * data in this instance has precedence over data in the other instance.
+     */
+    fun merge(other: PackageCurationData) =
+        PackageCurationData(
+            comment = setOfNotNull(comment, other.comment).joinToString("\n").takeIf { it.isNotEmpty() },
+            purl = purl ?: other.purl,
+            cpe = cpe ?: other.cpe,
+            authors = (authors.orEmpty() + other.authors.orEmpty()).toSortedSet(),
+            concludedLicense = setOfNotNull(concludedLicense, other.concludedLicense).reduce(SpdxExpression::and),
+            description = description ?: other.description,
+            homepageUrl = homepageUrl ?: other.homepageUrl,
+            binaryArtifact = binaryArtifact ?: other.binaryArtifact,
+            sourceArtifact = sourceArtifact ?: other.sourceArtifact,
+            vcs = vcs?.merge(other.vcs ?: vcs) ?: other.vcs,
+            isMetaDataOnly = isMetaDataOnly ?: other.isMetaDataOnly,
+            isModified = isModified ?: other.isModified,
+            declaredLicenseMapping = declaredLicenseMapping.zip(other.declaredLicenseMapping) { value, otherValue ->
+                (value ?: otherValue)!!
+            }
+        )
 }

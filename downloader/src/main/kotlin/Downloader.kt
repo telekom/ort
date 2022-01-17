@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2021 HERE Europe B.V.
  * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,6 @@ import java.io.File
 import java.io.IOException
 import java.net.URI
 
-import kotlin.io.path.createTempDirectory
 import kotlin.time.TimeSource
 
 import org.ossreviewtoolkit.downloader.vcs.GitRepo
@@ -39,16 +38,15 @@ import org.ossreviewtoolkit.model.SourceCodeOrigin
 import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
-import org.ossreviewtoolkit.utils.ORT_NAME
-import org.ossreviewtoolkit.utils.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.createOrtTempDir
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.perf
-import org.ossreviewtoolkit.utils.replaceCredentialsInUri
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
-import org.ossreviewtoolkit.utils.safeMkdirs
-import org.ossreviewtoolkit.utils.unpack
+import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.replaceCredentialsInUri
+import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.common.safeMkdirs
+import org.ossreviewtoolkit.utils.common.unpack
+import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.core.createOrtTempDir
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.perf
 
 /**
  * The class to download source code. The signatures of public functions in this class define the library API.
@@ -63,11 +61,10 @@ class Downloader(private val config: DownloaderConfiguration) {
     }
 
     /**
-     * Download the source code of the [package][pkg] to the [outputDirectory]. The [allowMovingRevisions] parameter
-     * indicates whether VCS downloads accept symbolic names, like branches, instead of only fixed revisions. A
-     * [Provenance] is returned on success or a [DownloadException] is thrown in case of failure.
+     * Download the source code of the [package][pkg] to the [outputDirectory]. A [Provenance] is returned on success or
+     * a [DownloadException] is thrown in case of failure.
      */
-    fun download(pkg: Package, outputDirectory: File, allowMovingRevisions: Boolean = false): Provenance {
+    fun download(pkg: Package, outputDirectory: File): Provenance {
         verifyOutputDirectory(outputDirectory)
 
         if (pkg.isMetaDataOnly) return UnknownProvenance
@@ -76,7 +73,7 @@ class Downloader(private val config: DownloaderConfiguration) {
 
         config.sourceCodeOrigins.forEach { origin ->
             val provenance = when (origin) {
-                SourceCodeOrigin.VCS -> handleVcsDownload(pkg, outputDirectory, allowMovingRevisions, exception)
+                SourceCodeOrigin.VCS -> handleVcsDownload(pkg, outputDirectory, exception)
                 SourceCodeOrigin.ARTIFACT -> handleSourceArtifactDownload(pkg, outputDirectory, exception)
             }
 
@@ -87,13 +84,12 @@ class Downloader(private val config: DownloaderConfiguration) {
     }
 
     /**
-     * Try to download the source code from VCS. Returns null if the download failed and sets the [exception] to the
-     * cause.
+     * Try to download the source code from VCS. Returns null if the download failed and adds the suppressed exception
+     * to [exception].
      */
     private fun handleVcsDownload(
         pkg: Package,
         outputDirectory: File,
-        allowMovingRevisions: Boolean,
         exception: DownloadException
     ): Provenance? {
         val vcsMark = TimeSource.Monotonic.markNow()
@@ -104,12 +100,11 @@ class Downloader(private val config: DownloaderConfiguration) {
             val isCargoPackageWithSourceArtifact = pkg.id.type == "Cargo" && pkg.sourceArtifact != RemoteArtifact.EMPTY
 
             if (!isCargoPackageWithSourceArtifact) {
-                val result = downloadFromVcs(pkg, outputDirectory, allowMovingRevisions)
+                val result = downloadFromVcs(pkg, outputDirectory)
                 val vcsInfo = (result as RepositoryProvenance).vcsInfo
 
                 log.perf {
-                    "Downloaded source code for '${pkg.id.toCoordinates()}' from $vcsInfo in " +
-                            "${vcsMark.elapsedNow().inWholeMilliseconds}ms."
+                    "Downloaded source code for '${pkg.id.toCoordinates()}' from $vcsInfo in ${vcsMark.elapsedNow()}."
                 }
 
                 return result
@@ -121,7 +116,7 @@ class Downloader(private val config: DownloaderConfiguration) {
 
             log.perf {
                 "Failed attempt to download source code for '${pkg.id.toCoordinates()}' from ${pkg.vcsProcessed} " +
-                        "took ${vcsMark.elapsedNow().inWholeMilliseconds}ms."
+                        "took ${vcsMark.elapsedNow()}."
             }
 
             // Clean up any left-over files (force to delete read-only files in ".git" directories on Windows).
@@ -135,8 +130,8 @@ class Downloader(private val config: DownloaderConfiguration) {
     }
 
     /**
-     * Try to download the source code from the sources artifact. Returns null if the download failed and sets the
-     * [exception] to the cause.
+     * Try to download the source code from the sources artifact. Returns null if the download failed adds the
+     * suppressed exception to [exception].
      */
     private fun handleSourceArtifactDownload(
         pkg: Package,
@@ -150,7 +145,7 @@ class Downloader(private val config: DownloaderConfiguration) {
 
             log.perf {
                 "Downloaded source code for '${pkg.id.toCoordinates()}' from ${pkg.sourceArtifact} in " +
-                        "${sourceArtifactMark.elapsedNow().inWholeMilliseconds}ms."
+                        "${sourceArtifactMark.elapsedNow()}."
             }
 
             return result
@@ -161,7 +156,7 @@ class Downloader(private val config: DownloaderConfiguration) {
 
             log.perf {
                 "Failed attempt to download source code for '${pkg.id.toCoordinates()}' from ${pkg.sourceArtifact} " +
-                        "took ${sourceArtifactMark.elapsedNow().inWholeMilliseconds}ms."
+                        "took ${sourceArtifactMark.elapsedNow()}."
             }
 
             // Clean up any left-over files.
@@ -175,12 +170,16 @@ class Downloader(private val config: DownloaderConfiguration) {
     }
 
     /**
-     * Download the source code of the [package][pkg] to the [outputDirectory] using its VCS information. The
-     * [allowMovingRevisions] parameter indicates whether the download accepts symbolic names, like branches, instead of
-     * only fixed revisions. A [Provenance] is returned on success or a [DownloadException] is thrown in case of
-     * failure.
+     * Download the source code of the [package][pkg] to the [outputDirectory] using its VCS information. If [recursive]
+     * is `true`, any nested repositories (like Git submodules or Mercurial subrepositories) are downloaded, too. A
+     * [Provenance] is returned on success or a [DownloadException] is thrown in case of failure.
      */
-    fun downloadFromVcs(pkg: Package, outputDirectory: File, allowMovingRevisions: Boolean): Provenance {
+    @JvmOverloads
+    fun downloadFromVcs(
+        pkg: Package,
+        outputDirectory: File,
+        recursive: Boolean = true
+    ): Provenance {
         verifyOutputDirectory(outputDirectory)
 
         log.info {
@@ -240,7 +239,7 @@ class Downloader(private val config: DownloaderConfiguration) {
         }
 
         val workingTree = try {
-            applicableVcs.download(pkg, outputDirectory, allowMovingRevisions)
+            applicableVcs.download(pkg, outputDirectory, config.allowMovingRevisions, recursive)
         } catch (e: DownloadException) {
             // TODO: We should introduce something like a "strict" mode and only do these kind of fallbacks in
             //       non-strict mode.
@@ -256,7 +255,7 @@ class Downloader(private val config: DownloaderConfiguration) {
                 outputDirectory.safeMkdirs()
 
                 val fallbackPkg = pkg.copy(vcsProcessed = pkg.vcsProcessed.copy(url = vcsUrlNoCredentials))
-                applicableVcs.download(fallbackPkg, outputDirectory, allowMovingRevisions)
+                applicableVcs.download(fallbackPkg, outputDirectory, config.allowMovingRevisions, recursive)
             } else {
                 throw e
             }
@@ -314,7 +313,7 @@ class Downloader(private val config: DownloaderConfiguration) {
         try {
             if (sourceArchive.extension == "gem") {
                 // Unpack the nested data archive for Ruby Gems.
-                val gemDirectory = createTempDirectory("$ORT_NAME-gem").toFile()
+                val gemDirectory = createOrtTempDir("gem")
                 val dataFile = gemDirectory.resolve("data.tar.gz")
 
                 try {

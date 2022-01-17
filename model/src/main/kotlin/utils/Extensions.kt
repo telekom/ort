@@ -33,7 +33,7 @@ import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.VcsInfoCurationData
-import org.ossreviewtoolkit.utils.percentEncode
+import org.ossreviewtoolkit.utils.common.percentEncode
 
 internal fun TextLocation.prependPath(prefix: String): String =
     if (prefix.isBlank()) path else "${prefix.removeSuffix("/")}/$path"
@@ -51,7 +51,7 @@ fun Identifier.toClearlyDefinedTypeAndProvider(): Pair<ComponentType, Provider>?
         "Crate" -> ComponentType.CRATE to Provider.CRATES_IO
         "DotNet", "NuGet" -> ComponentType.NUGET to Provider.NUGET
         "Gem" -> ComponentType.GEM to Provider.RUBYGEMS
-        "GoDep", "GoMod" -> ComponentType.GIT to Provider.GITHUB
+        "GoDep", "GoMod" -> ComponentType.GO to Provider.GOLANG
         "Maven" -> ComponentType.MAVEN to Provider.MAVEN_CENTRAL
         "NPM" -> ComponentType.NPM to Provider.NPM_JS
         "PyPI" -> ComponentType.PYPI to Provider.PYPI
@@ -120,6 +120,9 @@ fun Identifier.toClearlyDefinedSourceLocation(
     }
 }
 
+/**
+ * A subset of the Package URL types defined at https://github.com/package-url/purl-spec/blob/ad8a673/PURL-TYPES.rst.
+ */
 enum class PurlType(private val value: String) {
     ALPINE("alpine"),
     A_NAME("a-name"),
@@ -130,14 +133,13 @@ enum class PurlType(private val value: String) {
     CONAN("conan"),
     CONDA("conda"),
     CRAN("cran"),
-    DEBIAN("debian"),
+    DEBIAN("deb"),
     DRUPAL("drupal"),
     GEM("gem"),
     GOLANG("golang"),
     MAVEN("maven"),
     NPM("npm"),
     NUGET("nuget"),
-    PECOFF("pecoff"),
     PYPI("pypi"),
     RPM("rpm");
 
@@ -172,29 +174,54 @@ fun Identifier.getPurlType() =
  * [in the documentation](https://github.com/package-url/purl-spec/blob/master/README.rst#purl).
  * E.g. 'maven' for Gradle projects.
  */
-fun Identifier.toPurl() =
-    if (this == Identifier.EMPTY) {
-        ""
-    } else {
-        buildString {
-            append("pkg:")
-            append(getPurlType())
-
-            if (namespace.isNotEmpty()) {
-                append('/')
-                append(namespace.percentEncode())
-            }
-
-            append('/')
-            append(name.percentEncode())
-
-            append('@')
-            append(version.percentEncode())
-        }
-    }
+fun Identifier.toPurl() = if (this == Identifier.EMPTY) "" else createPurl(getPurlType(), namespace, name, version)
 
 /**
- * Return a list of [ScanResult]s where all results contains only findings from the same directory as the [project]'s
+ * Create the canonical [package URL](https://github.com/package-url/purl-spec) ("purl") based on given properties:
+ * [type] (which must be a String representation of a [PurlType] instance, [namespace], [name] and [version].
+ * Optional [qualifiers] may be given and will be appended to the purl as query parameters e.g.
+ * pkg:deb/debian/curl@7.50.3-1?arch=i386&distro=jessie
+ * Optional [subpath] may be given and will be appended to the purl e.g.
+ * pkg:golang/google.golang.org/genproto#googleapis/api/annotations
+ *
+ */
+fun createPurl(
+    type: String,
+    namespace: String,
+    name: String,
+    version: String,
+    qualifiers: Map<String, String> = emptyMap(),
+    subpath: String = ""
+): String = buildString {
+    append("pkg:")
+    append(type)
+
+    if (namespace.isNotEmpty()) {
+        append('/')
+        append(namespace.percentEncode())
+    }
+
+    append('/')
+    append(name.percentEncode())
+
+    append('@')
+    append(version.percentEncode())
+
+    qualifiers.onEachIndexed { index, entry ->
+        if (index == 0) append("?") else append("&")
+        append(entry.key.percentEncode())
+        append("=")
+        append(entry.value.percentEncode())
+    }
+
+    if (subpath.isNotEmpty()) {
+        val value = subpath.split('/').joinToString("/", prefix = "#") { it.percentEncode() }
+        append(value)
+    }
+}
+
+/**
+ * Return a list of [ScanResult]s where all results contain only findings from the same directory as the [project]'s
  * definition file.
  */
 fun List<ScanResult>.filterByProject(project: Project): List<ScanResult> {
@@ -208,3 +235,9 @@ fun List<ScanResult>.filterByProject(project: Project): List<ScanResult> {
         }
     }
 }
+
+/**
+ * Messages are not rendered using additional white spaces and newlines in the reports. However, resolutions are based
+ * on the messages. Therefore, characters that are not shown in the reports need to be replaced in the comparison.
+ */
+fun String.sanitizeMessage() = replace(Regex("\\s+"), " ").trim()

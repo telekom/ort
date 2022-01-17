@@ -18,7 +18,6 @@
  */
 
 import com.github.tomakehurst.wiremock.WireMockServer
-import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 
 import io.kotest.core.spec.style.StringSpec
@@ -39,7 +38,7 @@ private const val SCAN_CODE_2021_2 = "${PROJECT_CODE}_20201203_090342_21.2"
  * This client test tests the calls that have been changed for FossID 2021.2.
  */
 class FossId2021dot2Test : StringSpec({
-    val wiremock = WireMockServer(
+    val server = WireMockServer(
         WireMockConfiguration.options()
             .dynamicPort()
             .usingFilesUnderDirectory("src/test/assets/2021.2")
@@ -47,17 +46,16 @@ class FossId2021dot2Test : StringSpec({
     lateinit var service: FossIdServiceWithVersion
 
     beforeSpec {
-        wiremock.start()
-        WireMock.configureFor(wiremock.port())
-        service = FossIdServiceWithVersion.instance(FossIdRestService.create("http://localhost:${wiremock.port()}"))
+        server.start()
+        service = FossIdServiceWithVersion.instance(FossIdRestService.create("http://localhost:${server.port()}"))
     }
 
     afterSpec {
-        wiremock.stop()
+        server.stop()
     }
 
     beforeTest {
-        wiremock.resetAll()
+        server.resetAll()
     }
 
     "Version can be parsed of login page (2021.2)" {

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +20,6 @@
 
 package org.ossreviewtoolkit.scanner.scanners
 
-import com.fasterxml.jackson.databind.JsonNode
-
 import java.io.File
 import java.time.Instant
 
@@ -31,18 +30,21 @@ import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.model.readJsonFile
 import org.ossreviewtoolkit.scanner.AbstractScannerFactory
-import org.ossreviewtoolkit.scanner.LocalScanner
+import org.ossreviewtoolkit.scanner.BuildConfig
+import org.ossreviewtoolkit.scanner.CommandLineScanner
 import org.ossreviewtoolkit.scanner.ScanException
-import org.ossreviewtoolkit.spdx.calculatePackageVerificationCode
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.ProcessCapture
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.scanner.experimental.PathScannerWrapper
+import org.ossreviewtoolkit.scanner.experimental.ScanContext
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.ProcessCapture
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.spdx.calculatePackageVerificationCode
 
 class Licensee(
     name: String,
     scannerConfig: ScannerConfiguration,
     downloaderConfig: DownloaderConfiguration
-) : LocalScanner(name, scannerConfig, downloaderConfig) {
+) : CommandLineScanner(name, scannerConfig, downloaderConfig), PathScannerWrapper {
     class Factory : AbstractScannerFactory<Licensee>("Licensee") {
         override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
             Licensee(scannerName, scannerConfig, downloaderConfig)
@@ -52,9 +54,10 @@ class Licensee(
         val CONFIGURATION_OPTIONS = listOf("--json")
     }
 
-    override val expectedVersion = "9.13.0"
+    override val name = "Licensee"
+    override val criteria by lazy { getScannerCriteria() }
+    override val expectedVersion = BuildConfig.LICENSEE_VERSION
     override val configuration = CONFIGURATION_OPTIONS.joinToString(" ")
-    override val resultFileExt = "json"
 
     override fun command(workingDir: File?) =
         listOfNotNull(workingDir, if (Os.isWindows) "licensee.bat" else "licensee").joinToString(File.separator)
@@ -79,7 +82,7 @@ class Licensee(
         return File(userDir, "bin")
     }
 
-    override fun scanPathInternal(path: File, resultsFile: File): ScanSummary {
+    override fun scanPathInternal(path: File): ScanSummary {
         val startTime = Instant.now()
 
         val process = ProcessCapture(
@@ -91,26 +94,19 @@ class Licensee(
 
         val endTime = Instant.now()
 
-        if (process.stderr.isNotBlank()) {
-            log.debug { process.stderr }
-        }
+        return with(process) {
+            if (stderr.isNotBlank()) log.debug { stderr }
+            if (isError) throw ScanException(errorMessage)
 
-        with(process) {
-            if (isSuccess) {
-                stdoutFile.copyTo(resultsFile)
-                val result = getRawResult(resultsFile)
-                return generateSummary(startTime, endTime, path, result)
-            } else {
-                throw ScanException(errorMessage)
-            }
+            generateSummary(startTime, endTime, path, stdoutFile)
         }
     }
 
-    override fun getRawResult(resultsFile: File) = readJsonFile(resultsFile)
-
-    private fun generateSummary(startTime: Instant, endTime: Instant, scanPath: File, result: JsonNode): ScanSummary {
-        val matchedFiles = result["matched_files"]
+    private fun generateSummary(startTime: Instant, endTime: Instant, scanPath: File, resultFile: File): ScanSummary {
         val licenseFindings = sortedSetOf<LicenseFinding>()
+
+        val result = readJsonFile(resultFile)
+        val matchedFiles = result["matched_files"]
 
         matchedFiles.mapTo(licenseFindings) {
             val filePath = File(it["filename"].textValue())
@@ -133,4 +129,6 @@ class Licensee(
             issues = mutableListOf()
         )
     }
+
+    override fun scanPath(path: File, context: ScanContext) = scanPathInternal(path)
 }

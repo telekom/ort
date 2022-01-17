@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Bosch.IO GmbH
+ * Copyright (C) 2021 Sonatype, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +19,7 @@
  */
 
 val kotlinxCoroutinesVersion: String by project
+val mockkVersion: String by project
 val wiremockVersion: String by project
 
 plugins {
@@ -27,10 +29,13 @@ plugins {
 
 dependencies {
     api(project(":clients:nexus-iq"))
+    api(project(":clients:oss-index"))
     api(project(":clients:vulnerable-code"))
+    api(project(":clients:github-graphql"))
     api(project(":model"))
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion")
 
-    testImplementation("com.github.tomakehurst:wiremock:$wiremockVersion")
+    testImplementation("com.github.tomakehurst:wiremock-jre8:$wiremockVersion")
+    testImplementation("io.mockk:mockk:$mockkVersion")
 }

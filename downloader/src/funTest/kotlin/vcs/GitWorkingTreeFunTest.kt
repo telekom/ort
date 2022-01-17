@@ -31,9 +31,9 @@ import java.io.File
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.ortDataDirectory
+import org.ossreviewtoolkit.utils.common.unpack
+import org.ossreviewtoolkit.utils.core.ortDataDirectory
 import org.ossreviewtoolkit.utils.test.createSpecTempDir
-import org.ossreviewtoolkit.utils.unpack
 
 class GitWorkingTreeFunTest : StringSpec({
     val git = Git()
@@ -110,7 +110,9 @@ class GitWorkingTreeFunTest : StringSpec({
             "1.0.0",
             "2.0.0",
             "2.0.0b1",
-            "2.1.0"
+            "2.1.0",
+            "2.2.0",
+            "2.2.1"
         )
     }
 

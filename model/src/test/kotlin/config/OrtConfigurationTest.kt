@@ -47,7 +47,6 @@ class OrtConfigurationTest : WordSpec({
             val ortConfig = OrtConfiguration.load(file = refConfig)
 
             with(ortConfig.analyzer) {
-                ignoreToolVersions shouldBe true
                 allowDynamicVersions shouldBe true
 
                 sw360Configuration shouldNotBeNull {
@@ -58,6 +57,22 @@ class OrtConfigurationTest : WordSpec({
                     clientId shouldBe "clientId"
                     clientPassword shouldBe "clientPassword"
                     token shouldBe "token"
+                }
+            }
+
+            with(ortConfig.advisor) {
+                nexusIq shouldNotBeNull {
+                    serverUrl shouldBe "https://rest-api-url-of-your-nexus-iq-server"
+                    username shouldBe "username"
+                    password shouldBe "password"
+                }
+
+                vulnerableCode shouldNotBeNull {
+                    serverUrl shouldBe "http://localhost:8000"
+                }
+
+                options shouldNotBeNull {
+                    this["CustomAdvisor"]?.get("apiKey") shouldBe "<some_api_key>"
                 }
             }
 
@@ -135,6 +150,26 @@ class OrtConfigurationTest : WordSpec({
                 storageWriters shouldContainExactly listOf("postgres")
 
                 ignorePatterns shouldContainExactly listOf("**/META-INF/DEPENDENCIES")
+
+                provenanceStorage shouldNotBeNull {
+                    fileStorage shouldNotBeNull {
+                        httpFileStorage should beNull()
+                        localFileStorage shouldNotBeNull {
+                            directory shouldBe File("~/.ort/scanner/provenance")
+                        }
+                    }
+
+                    postgresStorage shouldNotBeNull {
+                        url shouldBe "jdbc:postgresql://your-postgresql-server:5444/your-database"
+                        schema shouldBe "public"
+                        username shouldBe "username"
+                        password shouldBe "password"
+                        sslmode shouldBe "required"
+                        sslcert shouldBe "/defaultdir/postgresql.crt"
+                        sslkey shouldBe "/defaultdir/postgresql.pk8"
+                        sslrootcert shouldBe "/defaultdir/root.crt"
+                    }
+                }
             }
 
             with(ortConfig.notifier) {
@@ -146,9 +181,7 @@ class OrtConfigurationTest : WordSpec({
                     useSsl shouldBe true
                     fromAddress shouldBe "no-reply@oss-review-toolkit.org"
                 }
-            }
 
-            with(ortConfig.notifier) {
                 jira shouldNotBeNull {
                     host shouldBe "localhost"
                     username shouldBe "user"
@@ -161,6 +194,9 @@ class OrtConfigurationTest : WordSpec({
                 patentFilenames shouldContainExactly listOf("patents")
                 rootLicenseFilenames shouldContainExactly listOf("readme*")
             }
+
+            ortConfig.enableRepositoryPackageCurations shouldBe true
+            ortConfig.enableRepositoryPackageConfigurations shouldBe true
         }
 
         "correctly prioritize the sources" {

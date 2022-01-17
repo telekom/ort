@@ -13,13 +13,13 @@ jobs:
   # Install required tools.
   - bash: |
       # Install apt packages.
-      sudo apt-get -qq install cvs
+      sudo apt-get -qq install ca-certificates cvs
 
       # Uninstall mono-devel because it contains the "lc" command which conflicts with BoyterLc.
       sudo apt-get -qq remove mono-devel
 
       # Install NPM packages.
-      sudo npm install -g bower@$BOWER_VERSION
+      sudo npm install -g npm@$NPM_VERSION bower@$BOWER_VERSION
 
       # Install Python packages.
       pip install --user \
@@ -27,9 +27,6 @@ jobs:
         pipenv==$PYTHON_PIPENV_VERSION \
         virtualenv==$VIRTUALENV_VERSION
       conan user # Create the conan data directory. Automatic detection of your arch, compiler, etc.
-
-      # Install Ruby packages.
-      sudo gem install bundler -v $BUNDLER_VERSION
 
       # Downgrade Rust, because the CargoSubcrateTest fails with the pre-installed version.
       rustup default $RUST_VERSION
@@ -143,6 +140,9 @@ jobs:
   - bash: ./gradlew --stop
     displayName: Stop Gradle Daemon
 
-  - script: bash <(curl -s https://codecov.io/bash) -X gcov -f '!*/src/*/assets/*';
+  - bash: |
+      curl -Os https://uploader.codecov.io/latest/linux/codecov
+      chmod +x codecov
+      ./codecov -X gcov -f '!*/src/*/assets/*';
     displayName: Upload to codecov.io
     condition: eq(variables['Build.Reason'], 'Schedule')

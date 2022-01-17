@@ -43,7 +43,7 @@ class CarthageTest : WordSpec() {
             "parse a github dependency" {
                 val cartfile = File("src/test/assets/carthage/Cartfile-github.resolved")
 
-                val result = carthage.resolveDependencies(cartfile).single()
+                val result = carthage.resolveDependencies(cartfile, emptyMap()).single()
 
                 with(result.packages) {
                     size shouldBe 1
@@ -58,7 +58,7 @@ class CarthageTest : WordSpec() {
             "parse a generic git dependency" {
                 val cartfile = File("src/test/assets/carthage/Cartfile-generic-git.resolved")
 
-                val result = carthage.resolveDependencies(cartfile).single()
+                val result = carthage.resolveDependencies(cartfile, emptyMap()).single()
 
                 with(result.packages) {
                     size shouldBe 1
@@ -78,7 +78,7 @@ class CarthageTest : WordSpec() {
 
                 val cartfile = File("src/test/assets/carthage/Cartfile-binary.resolved")
 
-                val result = carthage.resolveDependencies(cartfile).single()
+                val result = carthage.resolveDependencies(cartfile, emptyMap()).single()
                 with(result.packages) {
                     size shouldBe 1
                     single().apply {
@@ -96,16 +96,16 @@ class CarthageTest : WordSpec() {
 
                 val cartfile = File("src/test/assets/carthage/Cartfile-mixed.resolved")
 
-                val result = carthage.resolveDependencies(cartfile).single()
+                val result = carthage.resolveDependencies(cartfile, emptyMap()).single()
 
                 with(result.packages) {
                     size shouldBe 3
                     forEach {
                         it.id.type shouldBe "Carthage"
                     }
-                    count { it.vcs.url.contains("user/project") } shouldBe 1
-                    count { it.vcs.url.contains("user-2/project_2") } shouldBe 1
-                    count { it.binaryArtifact.url.contains("binary/dependency.zip") } shouldBe 1
+                    count { "user/project" in it.vcs.url } shouldBe 1
+                    count { "user-2/project_2" in it.vcs.url } shouldBe 1
+                    count { "binary/dependency.zip" in it.binaryArtifact.url } shouldBe 1
                 }
             }
 
@@ -113,7 +113,7 @@ class CarthageTest : WordSpec() {
                 val cartfile = File("src/test/assets/carthage/Cartfile-faulty.resolved")
 
                 shouldThrow<IllegalArgumentException> {
-                    carthage.resolveDependencies(cartfile)
+                    carthage.resolveDependencies(cartfile, emptyMap())
                 }
             }
         }

@@ -43,11 +43,11 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.utils.toPurl
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.ProcessCapture
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.ProcessCapture
+import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.core.log
 
 /**
  * The [Stack](https://haskellstack.org/) package manager for Haskell.
@@ -78,9 +78,9 @@ class Stack(
 
     override fun getVersionRequirement(): Requirement = Requirement.buildIvy("[2.1.1,)")
 
-    override fun beforeResolution(definitionFiles: List<File>) = checkVersion(analyzerConfig.ignoreToolVersions)
+    override fun beforeResolution(definitionFiles: List<File>) = checkVersion()
 
-    override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
+    override fun resolveDependencies(definitionFile: File, labels: Map<String, String>): List<ProjectAnalyzerResult> {
         val workingDir = definitionFile.parentFile
 
         // Parse project information from the *.cabal file.
@@ -283,9 +283,7 @@ class Stack(
 
                         // Within a multi-line value, lines with only a dot mark empty lines.
                         if (indentedLine == ".") {
-                            if (valueLines.isNotEmpty()) {
-                                valueLines += ""
-                            }
+                            if (valueLines.isNotEmpty()) valueLines += ""
                         } else {
                             valueLines += indentedLine
                         }

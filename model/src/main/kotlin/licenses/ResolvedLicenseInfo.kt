@@ -27,11 +27,11 @@ import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.config.CopyrightGarbage
 import org.ossreviewtoolkit.model.config.LicenseFindingCuration
 import org.ossreviewtoolkit.model.config.PathExclude
-import org.ossreviewtoolkit.spdx.SpdxExpression
-import org.ossreviewtoolkit.spdx.SpdxSingleLicenseExpression
-import org.ossreviewtoolkit.spdx.model.LicenseChoice
-import org.ossreviewtoolkit.utils.CopyrightStatementsProcessor
-import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
+import org.ossreviewtoolkit.utils.core.CopyrightStatementsProcessor
+import org.ossreviewtoolkit.utils.core.DeclaredLicenseProcessor
+import org.ossreviewtoolkit.utils.spdx.SpdxExpression
+import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
+import org.ossreviewtoolkit.utils.spdx.model.SpdxLicenseChoice
 
 /**
  * Resolved license information about a package (or project).
@@ -72,12 +72,12 @@ data class ResolvedLicenseInfo(
      * can be used as a final license of this [ResolvedLicenseInfo]. [licenseChoices] will be applied in the order they
      * are given to the function.
      */
-    fun effectiveLicense(licenseView: LicenseView, vararg licenseChoices: List<LicenseChoice>): SpdxExpression? {
+    fun effectiveLicense(licenseView: LicenseView, vararg licenseChoices: List<SpdxLicenseChoice>): SpdxExpression? {
         val resolvedLicenseInfo = filter(licenseView, filterSources = true)
 
-        return resolvedLicenseInfo.licenses.flatMap { it.originalExpressions.values }
-            .flatten()
-            .toSet()
+        return resolvedLicenseInfo.licenses.flatMap { resolvedLicense ->
+            resolvedLicense.originalExpressions.map { it.expression }
+        }.toSet()
             .reduceOrNull(SpdxExpression::and)
             ?.applyChoices(licenseChoices.asList().flatten())
             ?.validChoices()
@@ -119,7 +119,7 @@ data class ResolvedLicenseInfo(
      * Apply [licenseChoices] on the effective license of the [licenseView].
      */
     fun applyChoices(
-        licenseChoices: List<LicenseChoice>,
+        licenseChoices: List<SpdxLicenseChoice>,
         licenseView: LicenseView = LicenseView.ALL
     ): ResolvedLicenseInfo {
         val licenses = effectiveLicense(licenseView, licenseChoices)?.decompose().orEmpty()
@@ -153,9 +153,9 @@ data class ResolvedLicense(
     val originalDeclaredLicenses: Set<String>,
 
     /**
-     * The original SPDX expressions of this license grouped by [license source][LicenseSource].
+     * The original SPDX expressions of this license.
      */
-    val originalExpressions: Map<LicenseSource, Set<SpdxExpression>>,
+    val originalExpressions: Set<ResolvedOriginalExpression>,
 
     /**
      * All text locations where this license was found.
@@ -165,13 +165,19 @@ data class ResolvedLicense(
     /**
      * The sources where this license was found.
      */
-    val sources = originalExpressions.keys
+    val sources: Set<LicenseSource> = originalExpressions.mapTo(mutableSetOf()) { it.source }
 
     /**
      * True, if this license was [detected][LicenseSource.DETECTED] and all [locations] have matching path excludes.
      */
     val isDetectedExcluded by lazy {
         LicenseSource.DETECTED in sources && locations.all { it.matchingPathExcludes.isNotEmpty() }
+    }
+
+    init {
+        require(sources.isNotEmpty()) {
+            "A resolved license must have at least one license source."
+        }
     }
 
     /**
@@ -210,6 +216,20 @@ data class ResolvedLicense(
                 )
             }
         )
+
+    /**
+     * Filter all excluded original expressions. Detected license findings which have
+     * [matching path excludes][ResolvedCopyrightFinding.matchingPathExcludes] are removed. If the resolved license
+     * becomes empty, then null is returned.
+     */
+    fun filterExcludedOriginalExpressions(): ResolvedLicense? {
+        if (LicenseSource.DETECTED !in sources) return this
+
+        val filteredOriginalExpressions = originalExpressions.filterNotTo(mutableSetOf()) { it.isDetectedExcluded }
+        if (filteredOriginalExpressions.isEmpty()) return null
+
+        return copy(originalExpressions = filteredOriginalExpressions)
+    }
 }
 
 /**
@@ -279,14 +299,42 @@ data class ResolvedCopyrightFinding(
 )
 
 /**
+ * A resolved original expression.
+ */
+data class ResolvedOriginalExpression(
+    /**
+     * The license expression.
+     */
+    val expression: SpdxExpression,
+
+    /**
+     * The license source.
+     */
+    val source: LicenseSource,
+
+    /**
+     * Indicate whether all license findings corresponding to [expression] are excluded. Must be false if [source] does
+     * not equal [LicenseSource.DETECTED].
+     */
+    val isDetectedExcluded: Boolean = false
+) {
+    init {
+        require(!isDetectedExcluded || source == LicenseSource.DETECTED) {
+            "For license source '$source' the flag isDetectedExcluded must not be set."
+        }
+    }
+}
+
+/**
  * Filter all excluded licenses and copyrights. Licenses are removed if they are only
  * [detected][LicenseSource.DETECTED] and all [locations][ResolvedLicense.locations] have
  * [matching path excludes][ResolvedLicenseLocation.matchingPathExcludes]. Copyrights are removed if all
  * [findings][ResolvedCopyright.findings] have
- * [matching path excludes][ResolvedCopyrightFinding.matchingPathExcludes].
+ * [matching path excludes][ResolvedCopyrightFinding.matchingPathExcludes]. Original expressions are removed if all
+ * corresponding license findings have [matching path excludes][ResolvedLicenseLocation.matchingPathExcludes].
  */
 fun List<ResolvedLicense>.filterExcluded() =
-    filter { resolvedLicense ->
+    mapNotNull { it.filterExcludedOriginalExpressions() }.filter { resolvedLicense ->
         resolvedLicense.sources != setOf(LicenseSource.DETECTED) ||
                 resolvedLicense.locations.any { it.matchingPathExcludes.isEmpty() }
     }.map { it.filterExcludedCopyrights() }

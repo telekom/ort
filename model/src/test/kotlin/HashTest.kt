@@ -23,6 +23,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.shouldBe
 
+import java.io.File
 import java.lang.IllegalArgumentException
 
 class HashTest : WordSpec({
@@ -79,6 +80,15 @@ class HashTest : WordSpec({
             shouldThrow<IllegalArgumentException> {
                 Hash.create("0123456789", "MD5")
             }
+        }
+    }
+
+    "verify()" should {
+        "be insensitive to the hash's case" {
+            val licenseFile = File("../LICENSE")
+
+            Hash.create("c00ef43045659b53da5d71d49b8cd7e528c9d55b").verify(licenseFile) shouldBe true
+            Hash.create("C00EF43045659B53DA5D71D49B8CD7E528C9D55B").verify(licenseFile) shouldBe true
         }
     }
 })

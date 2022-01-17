@@ -33,10 +33,10 @@ import org.ossreviewtoolkit.model.config.LicenseFindingCuration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.Resolutions
 import org.ossreviewtoolkit.model.config.orEmpty
-import org.ossreviewtoolkit.spdx.model.LicenseChoice
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.perf
-import org.ossreviewtoolkit.utils.zipWithCollections
+import org.ossreviewtoolkit.utils.common.zipWithCollections
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.perf
+import org.ossreviewtoolkit.utils.spdx.model.SpdxLicenseChoice
 
 /**
  * The common output format for the analyzer and scanner. It contains information about the scanned repository, and the
@@ -209,16 +209,15 @@ data class OrtResult(
      * Return the set of all project or package identifiers in the result, optionally [including those of sub-projects]
      * [includeSubProjects].
      */
-    fun collectProjectsAndPackages(includeSubProjects: Boolean = true): SortedSet<Identifier> {
-        val projectsAndPackages = sortedSetOf<Identifier>()
+    fun collectProjectsAndPackages(includeSubProjects: Boolean = true): Set<Identifier> {
+        val projectsAndPackages = mutableSetOf<Identifier>()
+        val projects = getProjects()
 
-        getProjects().mapTo(projectsAndPackages) { it.id }
+        projects.mapTo(projectsAndPackages) { it.id }
 
         if (!includeSubProjects) {
-            val allSubProjects = sortedSetOf<Identifier>()
-
-            getProjects().forEach {
-                allSubProjects += dependencyNavigator.collectSubProjects(it)
+            val allSubProjects = projects.flatMapTo(mutableSetOf()) {
+                dependencyNavigator.collectSubProjects(it)
             }
 
             projectsAndPackages -= allSubProjects
@@ -386,16 +385,16 @@ data class OrtResult(
         }
 
     /**
-     * Return all [LicenseChoice]s for the [Package] with [id].
+     * Return all [SpdxLicenseChoice]s for the [Package] with [id].
      */
-    fun getPackageLicenseChoices(id: Identifier): List<LicenseChoice> =
+    fun getPackageLicenseChoices(id: Identifier): List<SpdxLicenseChoice> =
         repository.config.licenseChoices.packageLicenseChoices.find { it.packageId == id }?.licenseChoices.orEmpty()
 
     /**
-     * Return all [LicenseChoice]s applicable for the scope of the whole [repository].
+     * Return all [SpdxLicenseChoice]s applicable for the scope of the whole [repository].
      */
     @JsonIgnore
-    fun getRepositoryLicenseChoices(): List<LicenseChoice> =
+    fun getRepositoryLicenseChoices(): List<SpdxLicenseChoice> =
         repository.config.licenseChoices.repositoryLicenseChoices
 
     /**
@@ -430,6 +429,27 @@ data class OrtResult(
     }
 
     @JsonIgnore
+    fun getVulnerabilities(
+        omitResolved: Boolean = false,
+        omitExcluded: Boolean = false
+    ): Map<Identifier, List<Vulnerability>> {
+        val allVulnerabilities = advisor?.results?.getVulnerabilities().orEmpty()
+            .filterKeys { !omitExcluded || !isExcluded(it) }
+
+        return if (omitResolved) {
+            val resolutions = getResolutions().vulnerabilities
+
+            allVulnerabilities.mapValues { (_, vulnerabilities) ->
+                vulnerabilities.filter { vulnerability ->
+                    resolutions.none { it.matches(vulnerability) }
+                }
+            }.filterValues { it.isNotEmpty() }
+        } else {
+            allVulnerabilities
+        }
+    }
+
+    @JsonIgnore
     fun getExcludes(): Excludes = repository.config.excludes
 
     /**
@@ -443,20 +463,19 @@ data class OrtResult(
         }
 
     /**
+     * Retrieve all unresolved and non-excluded issues with severities equal to or over [minSeverity].
+     */
+    @JsonIgnore
+    fun getOpenIssues(minSeverity: Severity = Severity.WARNING) = collectIssues()
+        .mapNotNull { (id, issues) -> issues.takeUnless { isExcluded(id) } }
+        .flatten()
+        .filter { issue -> issue.severity >= minSeverity && getResolutions().issues.none { it.matches(issue) } }
+
+    /**
      * Return the [Resolutions] contained in the repository configuration of this [OrtResult].
      */
     @JsonIgnore
     fun getResolutions(): Resolutions = repository.config.resolutions.orEmpty()
-
-    /**
-     * Return the set of Identifiers of all [Package]s and [Project]s contained in this [OrtResult].
-     */
-    @JsonIgnore
-    fun getProjectAndPackageIds(): Set<Identifier> =
-        mutableSetOf<Identifier>().also { set ->
-            getPackages().mapTo(set) { it.pkg.id }
-            getProjects().mapTo(set) { it.id }
-        }
 
     /**
      * Return the list of [ScanResult]s for the given [id].
@@ -479,7 +498,7 @@ data class OrtResult(
     fun withResolvedScopes(): OrtResult =
         copy(
             analyzer = analyzer?.copy(
-                result = analyzer.result.withScopesResolved()
+                result = analyzer.result.withResolvedScopes()
             )
         )
 
@@ -488,4 +507,11 @@ data class OrtResult(
      * format, in which dependency information is stored.
      */
     private fun createDependencyNavigator(): DependencyNavigator = CompatibilityDependencyNavigator.create(this)
+
+    /**
+     * Return the label values corresponding to the given [key] split at the delimiter ',', or an empty set if the label
+     * is absent.
+     */
+    fun getLabelValues(key: String): Set<String> =
+        labels[key]?.split(',').orEmpty().mapTo(mutableSetOf()) { it.trim() }
 }

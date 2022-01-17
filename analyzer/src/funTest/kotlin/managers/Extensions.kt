@@ -24,7 +24,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 
 import java.io.File
-import java.util.SortedSet
 
 import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.analyzer.PackageManagerResult
@@ -38,7 +37,7 @@ import org.ossreviewtoolkit.model.yamlMapper
 fun Any?.toYaml() = yamlMapper.writeValueAsString(this)!!
 
 fun PackageManager.resolveSingleProject(definitionFile: File, resolveScopes: Boolean = false): ProjectAnalyzerResult {
-    val managerResult = resolveDependencies(listOf(definitionFile))
+    val managerResult = resolveDependencies(listOf(definitionFile), emptyMap())
 
     return managerResult.projectResults[definitionFile].let { resultList ->
         resultList.shouldNotBeNull()
@@ -69,7 +68,7 @@ fun PackageManagerResult.resolveScopes(projectResult: ProjectAnalyzerResult): Pr
  * NOTE: The project is known to use the scopes structure for storing its dependencies; therefore, a
  * [DependencyTreeNavigator] can be used to access this information.
  */
-private fun Project.filterReferencedPackages(allPackages: Set<Package>): SortedSet<Package> {
+private fun Project.filterReferencedPackages(allPackages: Set<Package>): List<Package> {
     val projectDependencies = DependencyTreeNavigator.projectDependencies(this)
-    return allPackages.filter { it.id in projectDependencies }.toSortedSet()
+    return allPackages.filter { it.id in projectDependencies }
 }

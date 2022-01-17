@@ -85,16 +85,21 @@ interface ClearlyDefinedService {
      */
     enum class Server(val url: String) {
         /**
-         * This creates PRs against https://github.com/clearlydefined/curated-data.
+         * The ClearlyDefined production server. When submitting curations, this will create PRs against the repository
+         * at https://github.com/clearlydefined/curated-data.
          */
         PRODUCTION("https://api.clearlydefined.io"),
 
         /**
-         * This creates PRs against https://github.com/clearlydefined/curated-data-dev.
+         * The ClearlyDefined development server. When submitting curations, this will create PRs against the repository
+         * at https://github.com/clearlydefined/curated-data-dev.
          */
         DEVELOPMENT("https://dev-api.clearlydefined.io"),
 
-        LOCALHOST("http://localhost:4000")
+        /**
+         * The ClearlyDefined server when running locally.
+         */
+        LOCAL("http://localhost:4000")
     }
 
     /**

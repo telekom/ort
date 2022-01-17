@@ -28,9 +28,9 @@ import io.kotest.matchers.shouldBe
 import java.io.File
 
 import org.ossreviewtoolkit.downloader.VersionControlSystem
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.normalizeVcsUrl
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
 import org.ossreviewtoolkit.utils.test.DEFAULT_ANALYZER_CONFIGURATION
 import org.ossreviewtoolkit.utils.test.DEFAULT_REPOSITORY_CONFIGURATION
 import org.ossreviewtoolkit.utils.test.USER_DIR
@@ -65,7 +65,7 @@ class MavenFunTest : StringSpec() {
             // jgnash-core depends on jgnash-resources, so we also have to pass the pom.xml of jgnash-resources to
             // resolveDependencies so that it is available in the Maven.projectsByIdentifier cache. Otherwise resolution
             // of transitive dependencies would not work.
-            val managerResult = createMaven().resolveDependencies(listOf(pomFileCore, pomFileResources))
+            val managerResult = createMaven().resolveDependencies(listOf(pomFileCore, pomFileResources), emptyMap())
             val result = managerResult.projectResults[pomFileCore]
 
             result.shouldNotBeNull()
@@ -98,7 +98,7 @@ class MavenFunTest : StringSpec() {
             // app depends on lib, so we also have to pass the pom.xml of lib to resolveDependencies so that it is
             // available in the Maven.projectsByIdentifier cache. Otherwise resolution of transitive dependencies would
             // not work.
-            val managerResult = createMaven().resolveDependencies(listOf(pomFileApp, pomFileLib))
+            val managerResult = createMaven().resolveDependencies(listOf(pomFileApp, pomFileLib), emptyMap())
             val result = managerResult.projectResults[pomFileApp]
 
             result.shouldNotBeNull()

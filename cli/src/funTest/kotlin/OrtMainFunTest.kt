@@ -32,9 +32,8 @@ import java.io.File
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.utils.normalizeVcsUrl
-import org.ossreviewtoolkit.utils.redirectStdout
-import org.ossreviewtoolkit.utils.test.convertToDependencyGraph
+import org.ossreviewtoolkit.utils.common.redirectStdout
+import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
 import org.ossreviewtoolkit.utils.test.createTestTempDir
 import org.ossreviewtoolkit.utils.test.patchActualResult
 import org.ossreviewtoolkit.utils.test.patchExpectedResult
@@ -108,13 +107,11 @@ class OrtMainFunTest : StringSpec() {
 
         "Analyzer creates correct output" {
             val analyzerOutputDir = outputDir.resolve("merged-results")
-            val expectedResult = convertToDependencyGraph(
-                patchExpectedResult(
-                    projectDir.resolve("gradle-all-dependencies-expected-result.yml"),
-                    url = vcsUrl,
-                    revision = vcsRevision,
-                    urlProcessed = normalizeVcsUrl(vcsUrl)
-                )
+            val expectedResult = patchExpectedResult(
+                projectDir.resolve("gradle-all-dependencies-expected-result.yml"),
+                url = vcsUrl,
+                revision = vcsRevision,
+                urlProcessed = normalizeVcsUrl(vcsUrl)
             )
 
             runMain(
@@ -132,13 +129,11 @@ class OrtMainFunTest : StringSpec() {
 
         "Package curation data file is applied correctly" {
             val analyzerOutputDir = outputDir.resolve("curations")
-            val expectedResult = convertToDependencyGraph(
-                patchExpectedResult(
-                    projectDir.resolve("gradle-all-dependencies-expected-result-with-curations.yml"),
-                    url = vcsUrl,
-                    revision = vcsRevision,
-                    urlProcessed = normalizeVcsUrl(vcsUrl)
-                )
+            val expectedResult = patchExpectedResult(
+                projectDir.resolve("gradle-all-dependencies-expected-result-with-curations.yml"),
+                url = vcsUrl,
+                revision = vcsRevision,
+                urlProcessed = normalizeVcsUrl(vcsUrl)
             )
 
             runMain(

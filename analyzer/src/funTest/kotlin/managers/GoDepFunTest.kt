@@ -32,8 +32,8 @@ import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
-import org.ossreviewtoolkit.utils.Ci
-import org.ossreviewtoolkit.utils.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.test.Ci
 import org.ossreviewtoolkit.utils.test.DEFAULT_ANALYZER_CONFIGURATION
 import org.ossreviewtoolkit.utils.test.DEFAULT_REPOSITORY_CONFIGURATION
 import org.ossreviewtoolkit.utils.test.USER_DIR
@@ -87,7 +87,7 @@ class GoDepFunTest : WordSpec() {
                 enabled = !Ci.isAzureWindows
             ) {
                 val manifestFile = projectsDir.resolve("synthetic/godep/no-lockfile/Gopkg.toml")
-                val config = AnalyzerConfiguration(ignoreToolVersions = false, allowDynamicVersions = true)
+                val config = AnalyzerConfiguration(allowDynamicVersions = true)
                 val result = createGoDep(config).resolveSingleProject(manifestFile)
 
                 with(result) {

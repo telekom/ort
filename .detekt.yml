@@ -29,6 +29,10 @@ formatting:
     active: false
   FinalNewline:
     active: false
+  ImportOrdering:
+    active: false
+  Indentation:
+    active: false
   MaximumLineLength:
     active: false
   NoUnusedImports:
@@ -67,8 +71,8 @@ style:
       org.ossreviewtoolkit.reporter.reporters.*,
       org.ossreviewtoolkit.scanner.scanners.*,
       org.ossreviewtoolkit.scanner.storages.*,
-      org.ossreviewtoolkit.spdx.SpdxLicense.*,
-      org.ossreviewtoolkit.spdx.SpdxLicenseException.*,
+      org.ossreviewtoolkit.utils.spdx.SpdxLicense.*,
+      org.ossreviewtoolkit.utils.spdx.SpdxLicenseException.*,
       kotlinx.html.*,
       kotlinx.html.dom.*
       '

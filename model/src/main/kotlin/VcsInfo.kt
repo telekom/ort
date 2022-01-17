@@ -28,9 +28,9 @@ import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 
 import kotlin.reflect.full.memberProperties
 
-import org.ossreviewtoolkit.utils.fieldNamesOrEmpty
-import org.ossreviewtoolkit.utils.normalizeVcsUrl
-import org.ossreviewtoolkit.utils.textValueOrEmpty
+import org.ossreviewtoolkit.utils.common.fieldNamesOrEmpty
+import org.ossreviewtoolkit.utils.common.textValueOrEmpty
+import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
 
 /**
  * Bundles general Version Control System information.
@@ -77,9 +77,7 @@ data class VcsInfo(
      * If in question, information in this instance has precedence over information in the other instance.
      */
     fun merge(other: VcsInfo): VcsInfo {
-        if (this == EMPTY) {
-            return other
-        }
+        if (this == EMPTY) return other
 
         return VcsInfo(
             type.takeUnless { it == EMPTY.type } ?: other.type,

@@ -38,7 +38,7 @@ import org.ossreviewtoolkit.model.PackageReference
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.Repository
 import org.ossreviewtoolkit.model.Scope
-import org.ossreviewtoolkit.utils.Environment
+import org.ossreviewtoolkit.utils.core.Environment
 
 class ExcludesTest : WordSpec() {
     private val id = Identifier("type", "namespace", "name", "version")
@@ -68,12 +68,12 @@ class ExcludesTest : WordSpec() {
 
     private lateinit var ortResult: OrtResult
 
-    override fun beforeTest(testCase: TestCase) {
+    override fun beforeEach(testCase: TestCase) {
         ortResult = OrtResult(
             repository = Repository.EMPTY,
             analyzer = AnalyzerRun(
                 environment = Environment(),
-                config = AnalyzerConfiguration(ignoreToolVersions = false, allowDynamicVersions = false),
+                config = AnalyzerConfiguration(allowDynamicVersions = false),
                 result = AnalyzerResult.EMPTY
             )
         )

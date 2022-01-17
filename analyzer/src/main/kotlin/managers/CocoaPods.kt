@@ -53,10 +53,10 @@ import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.orEmpty
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.yamlMapper
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.stashDirectories
-import org.ossreviewtoolkit.utils.textValueOrEmpty
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.stashDirectories
+import org.ossreviewtoolkit.utils.common.textValueOrEmpty
+import org.ossreviewtoolkit.utils.core.log
 
 /**
  * The [CocoaPods](https://cocoapods.org/) package manager for Objective-C.
@@ -95,9 +95,9 @@ class CocoaPods(
 
     override fun getVersionArguments() = "--version --allow-root"
 
-    override fun beforeResolution(definitionFiles: List<File>) = checkVersion(analyzerConfig.ignoreToolVersions)
+    override fun beforeResolution(definitionFiles: List<File>) = checkVersion()
 
-    override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
+    override fun resolveDependencies(definitionFile: File, labels: Map<String, String>): List<ProjectAnalyzerResult> {
         // CocoaPods originally used and may still use the Specs repository on GitHub [1] as package metadata database.
         // Using [1] requires an initial clone which is slow to do and consumes already more than 5 GB on disk, see
         // also [2]. (Final) CDN support has been added in version 1.7.2 [3] to speed things up.

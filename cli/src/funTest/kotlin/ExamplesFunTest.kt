@@ -56,15 +56,17 @@ import org.ossreviewtoolkit.model.utils.createLicenseInfoResolver
 import org.ossreviewtoolkit.notifier.Notifier
 import org.ossreviewtoolkit.reporter.HowToFixTextProvider
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.reporter.reporters.AsciiDocTemplateReporter
-import org.ossreviewtoolkit.spdx.toSpdx
-import org.ossreviewtoolkit.utils.ORT_REPO_CONFIG_FILENAME
+import org.ossreviewtoolkit.reporter.reporters.freemarker.asciidoc.PdfTemplateReporter
+import org.ossreviewtoolkit.utils.core.ORT_REPO_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.spdx.toSpdx
 import org.ossreviewtoolkit.utils.test.createSpecTempDir
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class ExamplesFunTest : StringSpec() {
     private val examplesDir = File("../examples")
-    private val exampleFiles = examplesDir.walk().filterTo(mutableListOf()) { it.isFile && it.extension != "md" }
+    private val exampleFiles = examplesDir.walk().maxDepth(1).filterTo(mutableListOf()) {
+        it.isFile && it.extension != "md"
+    }
 
     private fun takeExampleFile(name: String) = exampleFiles.single { it.name == name }.also { exampleFiles.remove(it) }
 
@@ -133,7 +135,7 @@ class ExamplesFunTest : StringSpec() {
             howToFixText shouldContain "Manually verify that the file does not contain any license information."
         }
 
-        "rules.kts can be compiled and executed" {
+        "example.rules.kts can be compiled and executed" {
             val resultFile = File("src/funTest/assets/semver4j-analyzer-result.yml")
             val licenseFile = File("../examples/license-classifications.yml")
             val ortResult = resultFile.readValue<OrtResult>()
@@ -143,17 +145,16 @@ class ExamplesFunTest : StringSpec() {
                 licenseClassifications = licenseFile.readValue()
             )
 
-            val script = takeExampleFile("rules.kts").readText()
+            val script = examplesDir.resolve("evaluator-rules/src/main/resources/example.rules.kts").readText()
 
             val result = evaluator.run(script)
 
-            result.violations shouldHaveSize 4
-            val failedRules = result.violations.map { it.rule }
-            failedRules shouldContainExactlyInAnyOrder listOf(
+            result.violations.map { it.rule } shouldContainExactlyInAnyOrder listOf(
                 "UNHANDLED_LICENSE",
                 "COPYLEFT_LIMITED_IN_SOURCE",
                 "VULNERABILITY_IN_PACKAGE",
-                "HIGH_SEVERITY_VULNERABILITY_IN_PACKAGE"
+                "HIGH_SEVERITY_VULNERABILITY_IN_PACKAGE",
+                "DEPRECATED_SCOPE_EXCLUDE_REASON_IN_ORT_YML"
             )
         }
 
@@ -162,7 +163,7 @@ class ExamplesFunTest : StringSpec() {
 
             takeExampleFile("asciidoctor-pdf-theme.yml")
 
-            val report = AsciiDocTemplateReporter().generateReport(
+            val report = PdfTemplateReporter().generateReport(
                 ReporterInput(OrtResult.EMPTY),
                 outputDir,
                 mapOf("pdf.theme.file" to examplesDir.resolve("asciidoctor-pdf-theme.yml").path)

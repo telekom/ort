@@ -42,10 +42,10 @@ import org.ossreviewtoolkit.model.utils.DatabaseUtils
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.transaction
 import org.ossreviewtoolkit.model.utils.rawParam
 import org.ossreviewtoolkit.scanner.storages.utils.ScanResults
-import org.ossreviewtoolkit.utils.ORT_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.ortConfigDirectory
+import org.ossreviewtoolkit.utils.common.expandTilde
+import org.ossreviewtoolkit.utils.core.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.ortConfigDirectory
 
 internal class DeleteCommand : CliktCommand(
     help = "Removes stored scan results matching the options or all results if no options are given."
@@ -61,7 +61,7 @@ internal class DeleteCommand : CliktCommand(
     private val configArguments by option(
         "-P",
         help = "Override a key-value pair in the configuration file. For example: " +
-                "-P scanner.postgresStorage.schema=testSchema"
+                "-P ort.scanner.storages.postgres.schema=testSchema"
     ).associate()
 
     private val sourceCodeOrigins by option(

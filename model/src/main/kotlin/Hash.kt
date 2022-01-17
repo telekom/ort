@@ -28,7 +28,7 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import java.io.File
 import java.util.Base64
 
-import org.ossreviewtoolkit.utils.toHexString
+import org.ossreviewtoolkit.utils.common.toHexString
 
 /**
  * A class that bundles a hash algorithm with its hash value.
@@ -89,7 +89,7 @@ data class Hash(
             "Cannot verify algorithm '$algorithm'. Supported algorithms are ${HashAlgorithm.VERIFIABLE}."
         }
 
-        return algorithm.calculate(file) == value
+        return algorithm.calculate(file).equals(value, ignoreCase = true)
     }
 }
 

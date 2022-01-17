@@ -2,6 +2,7 @@
  * Copyright (C) 2017-2019 HERE Europe B.V.
  * Copyright (C) 2019 Bosch Software Innovations GmbH
  * Copyright (C) 2020 Bosch.IO GmbH
+ * Copyright (C) 2021 Sonatype, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,21 +51,32 @@ include(":analyzer")
 include(":cli")
 include(":clients:clearly-defined")
 include(":clients:fossid-webapp")
+include(":clients:github-graphql")
 include(":clients:nexus-iq")
+include(":clients:oss-index")
 include(":clients:vulnerable-code")
 include(":detekt-rules")
 include(":downloader")
 include(":evaluator")
+include(":examples:evaluator-rules")
 include(":helper-cli")
 include(":model")
 include(":notifier")
 include(":reporter")
 include(":reporter-web-app")
 include(":scanner")
-include(":spdx-utils")
-include(":test-utils")
-include(":utils")
+include(":utils:common")
+include(":utils:core")
+include(":utils:scripting")
+include(":utils:spdx")
+include(":utils:test")
 include(":oscake")
+
+project(":utils:common").name = "common-utils"
+project(":utils:core").name = "core-utils"
+project(":utils:scripting").name = "scripting-utils"
+project(":utils:spdx").name = "spdx-utils"
+project(":utils:test").name = "test-utils"
 
 val buildCacheRetentionDays: String by settings
 

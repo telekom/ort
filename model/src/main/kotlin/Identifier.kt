@@ -22,7 +22,7 @@ package org.ossreviewtoolkit.model
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonValue
 
-import org.ossreviewtoolkit.utils.encodeOr
+import org.ossreviewtoolkit.utils.common.encodeOr
 
 /**
  * A unique identifier for a software package.
@@ -102,7 +102,7 @@ data class Identifier(
             val lowerName = name.lowercase()
             val vendorNamespace = when (type) {
                 "NPM" -> "@$lowerName"
-                "Gradle", "Maven", "SBT" -> "(com|io|net|org)\\.$lowerName(\\..+)?"
+                "Gradle", "Maven", "SBT" -> "((com|io|net|org)\\.)?$lowerName(\\..+)?"
                 else -> ""
             }
 

@@ -20,23 +20,23 @@ project:
     dependencies:
     - id: "PyPI::flask:0.12"
       dependencies:
-      - id: "PyPI::click:8.0.1"
+      - id: "PyPI::click:8.0.3"
         dependencies:
-        - id: "PyPI::importlib-metadata:4.8.1"
+        - id: "PyPI::importlib-metadata:4.8.3"
           dependencies:
-          - id: "PyPI::typing-extensions:3.10.0.2"
-          - id: "PyPI::zipp:3.5.0"
+          - id: "PyPI::typing-extensions:4.0.1"
+          - id: "PyPI::zipp:3.6.0"
       - id: "PyPI::itsdangerous:2.0.1"
       - id: "PyPI::jinja2:2.8.1"
         dependencies:
         - id: "PyPI::markupsafe:2.0.1"
-      - id: "PyPI::werkzeug:2.0.1"
+      - id: "PyPI::werkzeug:2.0.2"
         dependencies:
         - id: "PyPI::dataclasses:0.8"
     - id: "PyPI::gunicorn:19.6.0"
 packages:
-- id: "PyPI::click:8.0.1"
-  purl: "pkg:pypi/click@8.0.1"
+- id: "PyPI::click:8.0.3"
+  purl: "pkg:pypi/click@8.0.3"
   authors:
   - "Armin Ronacher"
   declared_licenses:
@@ -49,14 +49,14 @@ packages:
   description: "Composable command line interface toolkit"
   homepage_url: "https://palletsprojects.com/p/click/"
   binary_artifact:
-    url: "https://files.pythonhosted.org/packages/76/0a/b6c5f311e32aeb3b406e03c079ade51e905ea630fc19d1262a46249c1c86/click-8.0.1-py3-none-any.whl"
+    url: "https://files.pythonhosted.org/packages/48/58/c8aa6a8e62cc75f39fee1092c45d6b6ba684122697d7ce7d53f64f98a129/click-8.0.3-py3-none-any.whl"
     hash:
-      value: "b0ea4bceb2610bece94ded2424ce9448"
+      value: "f4399393e58c56b25d9b9e8a665d2255"
       algorithm: "MD5"
   source_artifact:
-    url: "https://files.pythonhosted.org/packages/21/83/308a74ca1104fe1e3197d31693a7a2db67c2d4e668f20f43a2fca491f9f7/click-8.0.1.tar.gz"
+    url: "https://files.pythonhosted.org/packages/f4/09/ad003f1e3428017d1c3da4ccc9547591703ffea548626f47ec74509c5824/click-8.0.3.tar.gz"
     hash:
-      value: "ff66f850b8eb4dc618b405d7fe22a0c2"
+      value: "6bcf62c52c6b58c9977c7d19b0d0cbf9"
       algorithm: "MD5"
   vcs:
     type: ""
@@ -170,8 +170,8 @@ packages:
     url: ""
     revision: ""
     path: ""
-- id: "PyPI::importlib-metadata:4.8.1"
-  purl: "pkg:pypi/importlib-metadata@4.8.1"
+- id: "PyPI::importlib-metadata:4.8.3"
+  purl: "pkg:pypi/importlib-metadata@4.8.3"
   authors:
   - "Jason R. Coombs"
   declared_licenses:
@@ -183,14 +183,14 @@ packages:
   description: "Read metadata from Python packages"
   homepage_url: "https://github.com/python/importlib_metadata"
   binary_artifact:
-    url: "https://files.pythonhosted.org/packages/71/c2/cb1855f0b2a0ae9ccc9b69f150a7aebd4a8d815bd951e74621c4154c52a8/importlib_metadata-4.8.1-py3-none-any.whl"
+    url: "https://files.pythonhosted.org/packages/a0/a1/b153a0a4caf7a7e3f15c2cd56c7702e2cf3d89b1b359d1f1c5e59d68f4ce/importlib_metadata-4.8.3-py3-none-any.whl"
     hash:
-      value: "542a9a2b61f9f61122b95d1dac782ba2"
+      value: "492a63a286daa402226ae8f36cff221d"
       algorithm: "MD5"
   source_artifact:
-    url: "https://files.pythonhosted.org/packages/f0/70/ca3dd67cdd368b957e73a8156f7e1a10339f9813e314cb8b4549526070da/importlib_metadata-4.8.1.tar.gz"
+    url: "https://files.pythonhosted.org/packages/85/ed/e65128cc5cb1580f22ee3009d9187ecdfcc43ffb3b581fe854b24e87d8e7/importlib_metadata-4.8.3.tar.gz"
     hash:
-      value: "5b944bce3fccaf848f0cba7a07f850a1"
+      value: "833c41fd427678c8b590c5a7818dd873"
       algorithm: "MD5"
   vcs:
     type: ""
@@ -304,29 +304,25 @@ packages:
     url: ""
     revision: ""
     path: ""
-- id: "PyPI::typing-extensions:3.10.0.2"
-  purl: "pkg:pypi/typing-extensions@3.10.0.2"
-  authors:
-  - "Guido van Rossum, Jukka Lehtosalo, Łukasz Langa, Michael Lee"
+- id: "PyPI::typing-extensions:4.0.1"
+  purl: "pkg:pypi/typing-extensions@4.0.1"
   declared_licenses:
-  - "PSF"
   - "Python Software Foundation License"
   declared_licenses_processed:
     spdx_expression: "PSF-2.0"
     mapped:
-      PSF: "PSF-2.0"
       Python Software Foundation License: "PSF-2.0"
-  description: "Backported and Experimental Type Hints for Python 3.5+"
-  homepage_url: "https://github.com/python/typing/blob/master/typing_extensions/README.rst"
+  description: "Backported and Experimental Type Hints for Python 3.6+"
+  homepage_url: "None"
   binary_artifact:
-    url: "https://files.pythonhosted.org/packages/cc/1e/0310dee9d86a41f003c519ce263f3b931c54852fcb15ec780137b2e53d4e/typing_extensions-3.10.0.2-py2-none-any.whl"
+    url: "https://files.pythonhosted.org/packages/05/e4/baf0031e39cf545f0c9edd5b1a2ea12609b7fcba2d58e118b11753d68cf0/typing_extensions-4.0.1-py3-none-any.whl"
     hash:
-      value: "96296851ac46115ff8ae00bf2f4f574d"
+      value: "716362736bf3143f3f8e68924c4f1c6e"
       algorithm: "MD5"
   source_artifact:
-    url: "https://files.pythonhosted.org/packages/ed/12/c5079a15cf5c01d7f4252b473b00f7e68ee711be605b9f001528f0298b98/typing_extensions-3.10.0.2.tar.gz"
+    url: "https://files.pythonhosted.org/packages/0d/4a/60ba3706797b878016f16edc5fbaf1e222109e38d0fa4d7d9312cb53f8dd/typing_extensions-4.0.1.tar.gz"
     hash:
-      value: "ed80ecc8eac5cb15840535ca54eb43f3"
+      value: "33f184a97b6833fc99838c23acad2332"
       algorithm: "MD5"
   vcs:
     type: ""
@@ -334,12 +330,12 @@ packages:
     revision: ""
     path: ""
   vcs_processed:
-    type: "Git"
-    url: "https://github.com/python/typing.git"
-    revision: "master"
-    path: "typing_extensions/README.rst"
-- id: "PyPI::werkzeug:2.0.1"
-  purl: "pkg:pypi/werkzeug@2.0.1"
+    type: ""
+    url: ""
+    revision: ""
+    path: ""
+- id: "PyPI::werkzeug:2.0.2"
+  purl: "pkg:pypi/werkzeug@2.0.2"
   authors:
   - "Armin Ronacher"
   declared_licenses:
@@ -352,14 +348,14 @@ packages:
   description: "The comprehensive WSGI web application library."
   homepage_url: "https://palletsprojects.com/p/werkzeug/"
   binary_artifact:
-    url: "https://files.pythonhosted.org/packages/bd/24/11c3ea5a7e866bf2d97f0501d0b4b1c9bbeade102bb4b588f0d2919a5212/Werkzeug-2.0.1-py3-none-any.whl"
+    url: "https://files.pythonhosted.org/packages/1e/73/51137805d1b8d97367a8a77cae4a792af14bb7ce58fbd071af294c740cf0/Werkzeug-2.0.2-py3-none-any.whl"
     hash:
-      value: "203bffc79c50918f57350e8ca5446cc3"
+      value: "bbf2c196a7c287f598890e4bdb78c2e1"
       algorithm: "MD5"
   source_artifact:
-    url: "https://files.pythonhosted.org/packages/e3/bd/a49e5f756b2f29010b5be321fe02478660dbf8fefea3f078493c86011b5f/Werkzeug-2.0.1.tar.gz"
+    url: "https://files.pythonhosted.org/packages/83/3c/ecdb36f49ab06defb0d5a466cfeb4ae90a55d02cfef379f781da2801a45d/Werkzeug-2.0.2.tar.gz"
     hash:
-      value: "5c0d2ba09edd72dedf37bdc4a5fa0418"
+      value: "33805d2b4bb46aec303237eef8476c74"
       algorithm: "MD5"
   vcs:
     type: ""
@@ -371,8 +367,8 @@ packages:
     url: ""
     revision: ""
     path: ""
-- id: "PyPI::zipp:3.5.0"
-  purl: "pkg:pypi/zipp@3.5.0"
+- id: "PyPI::zipp:3.6.0"
+  purl: "pkg:pypi/zipp@3.6.0"
   authors:
   - "Jason R. Coombs"
   declared_licenses:
@@ -384,14 +380,14 @@ packages:
   description: "Backport of pathlib-compatible object wrapper for zip files"
   homepage_url: "https://github.com/jaraco/zipp"
   binary_artifact:
-    url: "https://files.pythonhosted.org/packages/92/d9/89f433969fb8dc5b9cbdd4b4deb587720ec1aeb59a020cf15002b9593eef/zipp-3.5.0-py3-none-any.whl"
+    url: "https://files.pythonhosted.org/packages/bd/df/d4a4974a3e3957fd1c1fa3082366d7fff6e428ddb55f074bf64876f8e8ad/zipp-3.6.0-py3-none-any.whl"
     hash:
-      value: "0ec47fbf522751f6c5fa904cb33f1f59"
+      value: "655d8bb10a010accc0158d23b11f2009"
       algorithm: "MD5"
   source_artifact:
-    url: "https://files.pythonhosted.org/packages/3a/9f/1d4b62cbe8d222539a84089eeab603d8e45ee1f897803a0ae0860400d6e7/zipp-3.5.0.tar.gz"
+    url: "https://files.pythonhosted.org/packages/02/bf/0d03dbdedb83afec081fefe86cae3a2447250ef1a81ac601a9a56e785401/zipp-3.6.0.tar.gz"
     hash:
-      value: "617efbf3edb707c57008ec00f408972f"
+      value: "8d5cf6eb3270384ae13a6440797ea564"
       algorithm: "MD5"
   vcs:
     type: ""

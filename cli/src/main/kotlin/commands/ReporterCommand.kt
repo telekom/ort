@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,7 +53,6 @@ import org.ossreviewtoolkit.cli.utils.readOrtResult
 import org.ossreviewtoolkit.model.config.CopyrightGarbage
 import org.ossreviewtoolkit.model.config.LicenseFilenamePatterns
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
-import org.ossreviewtoolkit.model.config.Resolutions
 import org.ossreviewtoolkit.model.config.createFileArchiver
 import org.ossreviewtoolkit.model.config.orEmpty
 import org.ossreviewtoolkit.model.licenses.DefaultLicenseInfoProvider
@@ -66,18 +66,18 @@ import org.ossreviewtoolkit.reporter.DefaultLicenseTextProvider
 import org.ossreviewtoolkit.reporter.HowToFixTextProvider
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.utils.ORT_COPYRIGHT_GARBAGE_FILENAME
-import org.ossreviewtoolkit.utils.ORT_CUSTOM_LICENSE_TEXTS_DIRNAME
-import org.ossreviewtoolkit.utils.ORT_HOW_TO_FIX_TEXT_PROVIDER_FILENAME
-import org.ossreviewtoolkit.utils.ORT_LICENSE_CLASSIFICATIONS_FILENAME
-import org.ossreviewtoolkit.utils.ORT_REPO_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.ORT_RESOLUTIONS_FILENAME
-import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.ortConfigDirectory
-import org.ossreviewtoolkit.utils.safeMkdirs
-import org.ossreviewtoolkit.utils.showStackTrace
+import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.expandTilde
+import org.ossreviewtoolkit.utils.common.safeMkdirs
+import org.ossreviewtoolkit.utils.core.ORT_COPYRIGHT_GARBAGE_FILENAME
+import org.ossreviewtoolkit.utils.core.ORT_CUSTOM_LICENSE_TEXTS_DIRNAME
+import org.ossreviewtoolkit.utils.core.ORT_HOW_TO_FIX_TEXT_PROVIDER_FILENAME
+import org.ossreviewtoolkit.utils.core.ORT_LICENSE_CLASSIFICATIONS_FILENAME
+import org.ossreviewtoolkit.utils.core.ORT_REPO_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.core.ORT_RESOLUTIONS_FILENAME
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.ortConfigDirectory
+import org.ossreviewtoolkit.utils.core.showStackTrace
 
 class ReporterCommand : CliktCommand(
     name = "report",
@@ -211,18 +211,20 @@ class ReporterCommand : CliktCommand(
             ortResult = ortResult.replaceConfig(config)
         }
 
-        val resolutionProvider = DefaultResolutionProvider()
-        resolutionProvider.add(ortResult.getResolutions())
-        resolutionsFile.takeIf { it.isFile }?.readValue<Resolutions>()?.let { resolutionProvider.add(it) }
+        val resolutionProvider = DefaultResolutionProvider.create(ortResult, resolutionsFile)
+
+        val licenseTextDirectories = listOfNotNull(customLicenseTextsDir.takeIf { it.isDirectory })
 
         val copyrightGarbage = copyrightGarbageFile.takeIf { it.isFile }?.readValue<CopyrightGarbage>().orEmpty()
 
         val packageConfigurationProvider = packageConfigurationOption.createProvider()
 
+        val config = globalOptionsForSubcommands.config
         val licenseInfoResolver = LicenseInfoResolver(
             provider = DefaultLicenseInfoProvider(ortResult, packageConfigurationProvider),
             copyrightGarbage = copyrightGarbage,
-            archiver = globalOptionsForSubcommands.config.scanner.archive.createFileArchiver(),
+            addAuthorsToCopyrights = config.addAuthorsToCopyrights,
+            archiver = config.scanner.archive.createFileArchiver(),
             licenseFilenamePatterns = LicenseFilenamePatterns.getInstance()
         )
 
@@ -240,7 +242,7 @@ class ReporterCommand : CliktCommand(
             globalOptionsForSubcommands.config,
             packageConfigurationProvider,
             resolutionProvider,
-            DefaultLicenseTextProvider(customLicenseTextsDir.takeIf { it.isDirectory }),
+            DefaultLicenseTextProvider(licenseTextDirectories),
             copyrightGarbage,
             licenseInfoResolver,
             licenseClassifications,

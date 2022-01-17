@@ -30,6 +30,7 @@ import com.github.ajalt.clikt.parameters.options.switch
 import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.core.config.Configurator
 
+import org.ossreviewtoolkit.helper.commands.CreateAnalyzerResultCommand
 import org.ossreviewtoolkit.helper.commands.ExtractRepositoryConfigurationCommand
 import org.ossreviewtoolkit.helper.commands.GenerateTimeoutErrorResolutionsCommand
 import org.ossreviewtoolkit.helper.commands.GetPackageLicensesCommand
@@ -52,7 +53,7 @@ import org.ossreviewtoolkit.helper.commands.packagecuration.PackageCurationsComm
 import org.ossreviewtoolkit.helper.commands.repoconfig.RepositoryConfigurationCommand
 import org.ossreviewtoolkit.helper.commands.scanstorage.ScanStorageCommand
 import org.ossreviewtoolkit.helper.common.ORTH_NAME
-import org.ossreviewtoolkit.utils.printStackTrace
+import org.ossreviewtoolkit.utils.core.printStackTrace
 
 /**
  * The entry point for the application with [args] being the list of arguments.
@@ -75,6 +76,7 @@ internal class HelperMain : CliktCommand(name = ORTH_NAME, epilog = "* denotes r
         }
 
         subcommands(
+            CreateAnalyzerResultCommand(),
             ExtractRepositoryConfigurationCommand(),
             GenerateTimeoutErrorResolutionsCommand(),
             GetPackageLicensesCommand(),

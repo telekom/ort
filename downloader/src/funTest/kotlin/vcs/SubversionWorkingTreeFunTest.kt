@@ -29,9 +29,9 @@ import java.io.File
 
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.ortDataDirectory
+import org.ossreviewtoolkit.utils.common.unpack
+import org.ossreviewtoolkit.utils.core.ortDataDirectory
 import org.ossreviewtoolkit.utils.test.createSpecTempDir
-import org.ossreviewtoolkit.utils.unpack
 
 class SubversionWorkingTreeFunTest : StringSpec({
     val svn = Subversion()
@@ -104,6 +104,8 @@ class SubversionWorkingTreeFunTest : StringSpec({
             "docutils-0.16",
             "docutils-0.17",
             "docutils-0.17.1",
+            "docutils-0.18",
+            "docutils-0.18.1",
             "docutils-0.3.7",
             "docutils-0.3.9",
             "docutils-0.4",

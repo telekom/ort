@@ -40,11 +40,11 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.orEmpty
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.stashDirectories
-import org.ossreviewtoolkit.utils.withoutSuffix
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.stashDirectories
+import org.ossreviewtoolkit.utils.common.withoutSuffix
+import org.ossreviewtoolkit.utils.core.log
 
 /**
  * The [Go Modules](https://github.com/golang/go/wiki/Modules) package manager for Go.
@@ -80,22 +80,19 @@ class GoMod(
 
     override fun mapDefinitionFiles(definitionFiles: List<File>): List<File> =
         definitionFiles.filterNot { definitionFile ->
-            definitionFile
+            "vendor" in definitionFile
                 .parentFile
                 .relativeTo(analysisRoot)
                 .invariantSeparatorsPath
                 .split('/')
-                .contains("vendor")
         }
 
-    override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
+    override fun resolveDependencies(definitionFile: File, labels: Map<String, String>): List<ProjectAnalyzerResult> {
         val projectDir = definitionFile.parentFile
 
         stashDirectories(projectDir.resolve("vendor")).use {
-            val fullGraph = getDependencyGraph(projectDir)
-            val projectId = fullGraph.projectId()
-
-            val graph = fullGraph.subgraph(getUsedPackages(fullGraph, projectDir, projectId))
+            val graph = getDependencyGraph(projectDir)
+            val projectId = graph.projectId()
             val vendorModules = getVendorModules(projectDir)
 
             val packageIds = graph.nodes() - projectId
@@ -150,8 +147,6 @@ class GoMod(
             .toSet()
 
     private fun getDependencyGraph(projectDir: File): Graph {
-        val graph = run("mod", "graph", workingDir = projectDir).requireSuccess().stdout
-
         fun parsePackageEntry(entry: String) =
             Identifier(
                 type = managerName,
@@ -160,8 +155,9 @@ class GoMod(
                 version = entry.substringAfter('@', "")
             )
 
-        val result = Graph()
-        for (line in graph.lines()) {
+        var graph = Graph()
+
+        for (line in run("mod", "graph", workingDir = projectDir).requireSuccess().stdout.lines()) {
             if (line.isBlank()) continue
 
             val columns = line.split(' ')
@@ -170,10 +166,26 @@ class GoMod(
             val parent = parsePackageEntry(columns[0])
             val child = parsePackageEntry(columns[1])
 
-            result.addEdge(parent, child)
+            graph.addEdge(parent, child)
         }
 
-        return result
+        val usedPackages = getUsedPackages(graph, projectDir, graph.projectId())
+        if (usedPackages.size < graph.size()) {
+            log.debug { "Removing ${graph.size() - usedPackages.size} unused packages from the dependency graph." }
+
+            graph = graph.subgraph(usedPackages)
+        }
+
+        val referencedPackages = graph.getTransitiveDependencies(graph.projectId())
+        if (referencedPackages.size < graph.size()) {
+            log.debug {
+                "Removing ${graph.size() - referencedPackages.size} unreferenced packages from the dependency graph."
+            }
+
+            graph = graph.subgraph(referencedPackages)
+        }
+
+        return graph
     }
 
     /**
@@ -189,12 +201,7 @@ class GoMod(
                 parseWhyOutput(run(projectDir, "mod", "why", *pkgNames).requireSuccess().stdout)
         }
 
-        val usedPackages = graph.nodes().filter { it.name in usedPackageNames }
-        if (usedPackages.size < graph.size()) {
-            log.debug { "Removing ${graph.size() - usedPackages.size} unused packages from the dependency graph." }
-        }
-
-        return usedPackages.toSet()
+        return graph.nodes().filterTo(mutableSetOf()) { it.name in usedPackageNames }
     }
 
     private fun createPackage(id: Identifier): Package {
@@ -316,13 +323,41 @@ private class Graph(private val nodeMap: MutableMap<Identifier, Set<Identifier>>
     }
 
     /**
+     * Return all identifiers reachable from [root] including [root].
+     */
+    fun getTransitiveDependencies(root: Identifier): Set<Identifier> {
+        val queue = mutableListOf(root)
+        val result = mutableSetOf<Identifier>()
+
+        while (queue.isNotEmpty()) {
+            val id = queue.removeFirst()
+
+            if (id !in result) {
+                result += id
+                queue += dependencies(id)
+            }
+        }
+
+        return result
+    }
+
+    /**
      * Return the identifiers of the direct dependencies of the package denoted by [id].
      */
     private fun dependencies(id: Identifier): Set<Identifier> = nodeMap[id].orEmpty()
 }
 
+private const val DATE_REVISION_PATTERN = "[\\d]{14}-(?<sha1>[0-9a-f]+)"
+
 // See https://golang.org/ref/mod#pseudo-versions.
-private val PSEUDO_VERSION_REGEX = "^v0.0.0-[\\d]{14}-(?<sha1>[0-9a-f]+)$".toRegex()
+private val PSEUDO_VERSION_REGEXES = listOf(
+    // Format for no known base version, e.g. v0.0.0-20191109021931-daa7c04131f5.
+    "^v0\\.0\\.0-$DATE_REVISION_PATTERN$".toRegex(),
+    // Format for base version is a release version, e.g. v1.2.4-0.20191109021931-daa7c04131f5.
+    "^v[0-9]+\\.[0-9]+\\.[0-9]+-0\\.$DATE_REVISION_PATTERN$".toRegex(),
+    // base version is a pre-release version, e.g. v1.2.4-pre.0.20191109021931-daa7c04131f5.
+    "^v[0-9]+\\.[0-9]+\\.[0-9]+-pre.0\\.$DATE_REVISION_PATTERN$".toRegex(),
+)
 
 /** Separator string indicating that data of a new package follows in the output of the go mod why command. */
 private const val PACKAGE_SEPARATOR = "# "
@@ -336,8 +371,10 @@ private const val WHY_CHUNK_SIZE = 32
 private fun getRevision(version: String): String {
     version.withoutSuffix("+incompatible")?.let { return getRevision(it) }
 
-    PSEUDO_VERSION_REGEX.find(version)?.let { matchResult ->
-        return matchResult.groups["sha1"]!!.value
+    PSEUDO_VERSION_REGEXES.forEach { regex ->
+        regex.find(version)?.let { matchResult ->
+            return matchResult.groups["sha1"]!!.value
+        }
     }
 
     return version

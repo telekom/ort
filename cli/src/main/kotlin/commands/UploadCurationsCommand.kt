@@ -48,14 +48,14 @@ import org.ossreviewtoolkit.clients.clearlydefined.ContributionType
 import org.ossreviewtoolkit.clients.clearlydefined.ErrorResponse
 import org.ossreviewtoolkit.clients.clearlydefined.HarvestStatus
 import org.ossreviewtoolkit.model.PackageCuration
+import org.ossreviewtoolkit.model.PackageCurationData
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.model.readValueOrDefault
 import org.ossreviewtoolkit.model.utils.toClearlyDefinedCoordinates
 import org.ossreviewtoolkit.model.utils.toClearlyDefinedSourceLocation
-import org.ossreviewtoolkit.utils.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.hasNonNullProperty
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.common.expandTilde
+import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.core.log
 
 import retrofit2.HttpException
 
@@ -96,7 +96,16 @@ class UploadCurationsCommand : CliktCommand(
         }
 
     override fun run() {
-        val curations = inputFile.readValueOrDefault(emptyList<PackageCuration>())
+        val allCurations = inputFile.readValueOrDefault(emptyList<PackageCuration>())
+
+        val curations = allCurations.groupBy { it.id }.mapValues { (id, pkgCurations) ->
+            val mergedData = pkgCurations.fold(PackageCurationData()) { current, other ->
+                current.merge(other.data)
+            }
+
+            PackageCuration(id, mergedData)
+        }.values
+
         val curationsToCoordinates = curations.mapNotNull { curation ->
             curation.id.toClearlyDefinedCoordinates()?.let { coordinates ->
                 curation to coordinates
@@ -174,7 +183,7 @@ private fun PackageCuration.toContributionPatch(): ContributionPatch? {
     )
 
     val curation = Curation(
-        described = described.takeIf { it.hasNonNullProperty() },
+        described = described.takeIf { it != Described() },
         licensed = licenseExpression?.let { Licensed(declared = it) }
     )
 

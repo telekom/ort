@@ -21,6 +21,9 @@
 
 package org.ossreviewtoolkit.clients.fossid
 
+import org.ossreviewtoolkit.clients.fossid.model.rules.RuleScope
+import org.ossreviewtoolkit.clients.fossid.model.rules.RuleType
+
 internal const val SCAN_GROUP = "scans"
 private const val PROJECT_GROUP = "projects"
 
@@ -56,9 +59,7 @@ suspend fun FossIdRestService.getFossIdVersion(): String? {
     getLoginPage().charStream().buffered().useLines { lines ->
         lines.forEach { line ->
             val matcher = regex.matchEntire(line)
-            if (matcher != null && matcher.groupValues.size == 2) {
-                return matcher.groupValues[1]
-            }
+            if (matcher != null && matcher.groupValues.size == 2) return matcher.groupValues[1]
         }
     }
 
@@ -261,5 +262,43 @@ suspend fun FossIdRestService.listPendingFiles(user: String, apiKey: String, sca
     listPendingFiles(
         PostRequestBody(
             "get_pending_files", SCAN_GROUP, user, apiKey, "scan_code" to scanCode
+        )
+    )
+
+/**
+ * List ignore rules for the given [scanCode].
+ *
+ * The HTTP request is sent with [user] and [apiKey] as credentials.
+ */
+suspend fun FossIdRestService.listIgnoreRules(user: String, apiKey: String, scanCode: String) =
+    listIgnoreRules(
+        PostRequestBody(
+            "ignore_rules_show", SCAN_GROUP, user, apiKey, "scan_code" to scanCode
+        )
+    )
+
+/**
+ * Create an 'ignore rule' for the given [scanCode].
+ *
+ * The HTTP request is sent with [user] and [apiKey] as credentials.
+ */
+suspend fun FossIdRestService.createIgnoreRule(
+    user: String,
+    apiKey: String,
+    scanCode: String,
+    type: RuleType,
+    value: String,
+    scope: RuleScope
+) =
+    createIgnoreRule(
+        PostRequestBody(
+            "ignore_rules_add",
+            SCAN_GROUP,
+            user,
+            apiKey,
+            "scan_code" to scanCode,
+            "type" to type.name.lowercase(),
+            "value" to value,
+            "apply_to" to scope.name.lowercase()
         )
     )

@@ -21,8 +21,8 @@
 [9]: https://github.com/oss-review-toolkit/ort/actions/workflows/static-analysis.yml/badge.svg?branch=master
 [10]: https://jitpack.io/v/oss-review-toolkit/ort.svg
 [11]: https://jitpack.io/#oss-review-toolkit/ort
-[12]: https://codecov.io/gh/oss-review-toolkit/ort/branch/master/graph/badge.svg
-[13]: https://codecov.io/gh/oss-review-toolkit/ort/
+[12]: https://codecov.io/gh/oss-review-toolkit/ort/branch/master/graph/badge.svg?token=QD2tCSUTVN
+[13]: https://app.codecov.io/gh/oss-review-toolkit/ort
 [14]: https://badgen.net/https/api.tickgit.com/badgen/github.com/oss-review-toolkit/ort
 [15]: https://www.tickgit.com/browse?repo=github.com/oss-review-toolkit/ort
 [16]: https://img.shields.io/lgtm/alerts/g/oss-review-toolkit/ort.svg?logo=lgtm&logoWidth=18
@@ -53,6 +53,8 @@ use):
   classifications.
 * [_Reporter_](#reporter) - presents results in various formats such as visual reports, Open Source notices or
   Bill-Of-Materials (BOMs) to easily identify dependencies, licenses, copyrights or policy rule violations.
+* [_Notifier_](./notifier) - sends result notifications via different channels (like
+  [emails](./examples/notifications.kts) and / or JIRA tickets).
 
 # Installation
 
@@ -77,9 +79,10 @@ by running `git submodule update --init --recursive`.
 Install the following basic prerequisites:
 
 * Docker 18.09 or later (and ensure its daemon is running).
-* Enable [BuildKit](https://docs.docker.com/develop/develop-images/build_enhancements/) for Docker.
+* Enable [BuildKit](https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds) for Docker.
 
-Change into the directory with ORT's source code and run `docker build -t ort .`.
+Change into the directory with ORT's source code and run `docker build -t ort .`. Alternatively, use the script at
+`scripts/docker_build.sh` which also sets the ORT version from the Git revision.
 
 ### Build natively
 
@@ -152,10 +155,6 @@ for documentation of the required Jenkins plugins. The job accepts various param
 line arguments. Additionally, one can trigger a downstream job which e.g. further processes scan results. Note that it
 is the downstream job's responsibility to copy any artifacts it needs from the upstream job.
 
-A demo instance of a Jenkins pipeline for ORT will soon be
-
-![Fosshost Logo](./logos/fosshost.png)
-
 ## Getting started
 
 Please see [Getting Started](./docs/getting-started.md) for an introduction to the individual tools.
@@ -202,13 +201,13 @@ customize the configuration to a specific environment. The following options are
 
 * Properties can be defined via environment variables by using the full property path as the variable name.
   For instance, one can override the Postgres schema by setting 
-  `ort.scanner.storages.postgresStorage.schema=test_schema`. The variable's name is case sensitive.
+  `ort.scanner.storages.postgres.schema=test_schema`. The variable's name is case sensitive.
   Some programs like Bash do not support dots in variable names. For this case, the dots can be
   replaced by double underscores, i.e., the above example is turned into 
-  `ort__scanner__storages__postgresStorage__schema=test_schema`.
+  `ort__scanner__storages__postgres__schema=test_schema`.
 * In addition to that, one can override the values of properties on the command line using the `-P` option. The option expects a
   key-value pair. Again, the key must define the full path to the property to be overridden, e.g.
-  `-P ort.scanner.storages.postgresStorage.schema=test_schema`. The `-P` option can be repeated on the command
+  `-P ort.scanner.storages.postgres.schema=test_schema`. The `-P` option can be repeated on the command
   line to override multiple properties.
 * Properties in the configuration file can reference environment variables using the syntax `${VAR}`.
   This is especially useful to reference dynamic or sensitive data. As an example, the credentials for the
@@ -297,9 +296,9 @@ can be used to populate a directory with template package configuration files.
 
 The file containing any policy rule implementations to be used with the _evaluator_.
 
-| Format | Scope | Default location | Default value |
-| ------ | ----- | ---------------- | ------------- |
-| Kotlin script (DSL) | Evaluator | `$ORT_CONFIG_DIR/rules.kts` | Empty (n/a) |
+| Format | Scope | Default location                | Default value |
+| ------ | ----- |---------------------------------| ------------- |
+| Kotlin script (DSL) | Evaluator | `$ORT_CONFIG_DIR/evaluator.rules.kts` | Empty (n/a) |
 
 # Details on the tools
 
@@ -332,17 +331,18 @@ supported:
   * [GoMod](https://github.com/golang/go/wiki/Modules) (limitations:
   [no `replace` directive](https://github.com/oss-review-toolkit/ort/issues/4445))
 * Haskell
-  * [Stack](http://haskellstack.org/)
+  * [Stack](https://haskellstack.org/)
 * Java
   * [Gradle](https://gradle.org/)
-  * [Maven](http://maven.apache.org/) (limitations:
+  * [Maven](https://maven.apache.org/) (limitations:
   [default profile only](https://github.com/oss-review-toolkit/ort/issues/1774))
 * JavaScript / Node.js
-  * [Bower](http://bower.io/)
+  * [Bower](https://bower.io/)
   * [NPM](https://www.npmjs.com/) (limitations:
   [no scope-specific registries](https://github.com/oss-review-toolkit/ort/issues/3741),
   [no peer dependencies](https://github.com/oss-review-toolkit/ort/issues/95))
-  * [Yarn](https://yarnpkg.com/)
+  * [Yarn](https://classic.yarnpkg.com/) (limitations:
+  [no Yarn 2 / 3 support](https://github.com/oss-review-toolkit/ort/issues/2283))
 * .NET
   * [DotNet](https://docs.microsoft.com/en-us/dotnet/core/tools/) (limitations:
   [no floating versions / ranges](https://github.com/oss-review-toolkit/ort/pull/1303#issue-253860146),
@@ -359,23 +359,26 @@ supported:
   * [Composer](https://getcomposer.org/)
 * Python
   * [PIP](https://pip.pypa.io/) (limitations:
-  [Python 2.7 or 3.6 only](https://github.com/oss-review-toolkit/ort/issues/3671))
-  * [Pipenv](https://pipenv.readthedocs.io/) (limitations:
-  [Python 2.7 or 3.6 only](https://github.com/oss-review-toolkit/ort/issues/3671))
+  [Python 2.7 or 3.6 and PIP 18.1 only](https://github.com/oss-review-toolkit/ort/issues/3671))
+  * [Pipenv](https://pipenv.pypa.io/en/latest/) (limitations:
+  [Python 2.7 or 3.6 and PIP 18.1 only](https://github.com/oss-review-toolkit/ort/issues/3671))
 * Ruby
-  * [Bundler](http://bundler.io/) (limitations:
+  * [Bundler](https://bundler.io/) (limitations:
   [restricted to the version available on the host](https://github.com/oss-review-toolkit/ort/issues/1308))
 * Rust
   * [Cargo](https://doc.rust-lang.org/cargo/)
 * Scala
-  * [SBT](http://www.scala-sbt.org/)
+  * [SBT](https://www.scala-sbt.org/)
+* Unmanged
+  * This is a special "package manager" that mananges all files that cannot be associated to any of the other package
+  managers.
 
 <a name="analyzer-for-spdx-documents"></a>
 
 If another package manager that is not part of the list above is used (or no package manager at all), the generic
 fallback to [SPDX documents](https://spdx.dev/specifications/) can be leveraged to describe
-[projects](./analyzer/src/funTest/assets/projects/synthetic/spdx/project/project.spdx.yml) or
-[packages](./analyzer/src/funTest/assets/projects/synthetic/spdx/package/libs/curl/package.spdx.yml).
+[projects](./analyzer/src/funTest/assets/projects/synthetic/spdx/project-xyz-with-inline-packages.spdx.yml) or
+[packages](./analyzer/src/funTest/assets/projects/synthetic/spdx/libs/curl/package.spdx.yml).
 
 <a name="downloader">&nbsp;</a>
 
@@ -413,6 +416,7 @@ Additionally, the following reference implementations exist (in alphabetical ord
 * [Askalono](https://github.com/amzn/askalono)
 * [lc](https://github.com/boyter/lc)
 * [Licensee](https://github.com/benbalter/licensee)
+* [SCANOSS](https://www.scanoss.com/)
 
 For a comparison of some of these, see this
 [Bachelor Thesis](https://osr.cs.fau.de/2019/08/07/final-thesis-a-comparison-study-of-open-source-license-crawler/).
@@ -613,6 +617,14 @@ ort {
 
 To enable this provider, pass `-a NexusIQ` on the command line.
 
+## OSS Index
+
+This vulnerability provider does not require any further configuration as it uses the public service at
+https://ossindex.sonatype.org/. Before using this provider, please ensure to comply with its
+[Terms of Service](https://ossindex.sonatype.org/tos).
+
+To enable this provider, pass `-a OssIndex` on the command line.
+
 ## VulnerableCode
 
 This provider obtains information about security vulnerabilities from a
@@ -636,8 +648,9 @@ To enable this provider, pass `-a VulnerableCode` on the command line.
 [![Evaluator](./logos/evaluator.png)](./evaluator/src/main/kotlin)
 
 The _evaluator_ is used to perform custom license policy checks on scan results. The rules to check against are
-implemented as scripts (currently Kotlin scripts, with a dedicated DSL, but support for other scripting can be added as
-well. See [rules.kts](./examples/rules.kts) for an example file.
+implemented as Kotlin scripts with a dedicated DSL. See
+[example.rules.kts](./examples/evaluator-rules/src/main/resources/example.rules.kts) for an example rules script. The
+script is wrapped into a minimal [evaluator-rules](./examples/evaluator-rules) project which enables auto-completion.
 
 <a name="reporter">&nbsp;</a>
 
@@ -648,16 +661,26 @@ following formats are supported (reporter names are case-insensitive):
 
 * [AsciiDoc Template](docs/reporters/AsciiDocTemplateReporter.md) (`-f AsciiDocTemplate`)
   * Content customizable with [Apache Freemarker](https://freemarker.apache.org/) templates and [AsciiDoc](https://asciidoc.org/)
-  * Supports all AsciiDoc backends
   * PDF style customizable with Asciidoctor [PDF themes](https://github.com/asciidoctor/asciidoctor-pdf/blob/master/docs/theming-guide.adoc)
+  * Supports multiple AsciiDoc backends:
+    * PDF (`-f PdfTemplate`)
+    * HTML (`-f HtmlTemplate`)
+    * XHTML (`-f XHtmlTemplate`)
+    * DocBook (`-f DocBookTemplate`)
+    * Man page (`-f ManPageTemplate`)
+    * AsciiDoc (`-f AdocTemplate`): Does not convert the created AsciiDoc files but writes the generated files as
+      reports.
+* [ctrlX AUTOMATION](https://ctrlx-automation.com/) platform
+  [FOSS information](https://github.com/boschrexroth/json-schema/tree/master/ctrlx-automation/ctrlx-core/apps/fossinfo) (`-f CtrlXAutomation`)
 * [CycloneDX](https://cyclonedx.org/) BOM (`-f CycloneDx`)
 * [Excel](https://products.office.com/excel) sheet (`-f Excel`)
 * [GitLabLicenseModel](https://docs.gitlab.com/ee/ci/pipelines/job_artifacts.html#artifactsreportslicense_scanning-ultimate) (`-f GitLabLicenseModel`)
   * A nice tutorial video has been [published](https://youtu.be/dNmH_kYJ34g) by GitLab engineer @mokhan.
-* [NOTICE](http://www.apache.org/dev/licensing-howto.html) file in two variants
+* [NOTICE](https://infra.apache.org/licensing-howto.html) file in two variants
   * List license texts and copyrights by package (`-f NoticeTemplate`)
   * Summarize all license texts and copyrights (`-f NoticeTemplate -O NoticeTemplate=template.id=summary`)
   * Customizable with [Apache Freemarker](https://freemarker.apache.org/) templates
+* Opossum input that can be visualized and edited in the [OpossumUI](https://github.com/opossum-tool/opossumUI)  (`-f Opossum`)
 * [SPDX Document](https://spdx.dev/specifications/), version 2.2 (`-f SpdxDocument`)
 * Static HTML (`-f StaticHtml`)
 * Web App (`-f WebApp`)

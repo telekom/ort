@@ -26,11 +26,11 @@ import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.downloader.WorkingTree
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.ProcessCapture
-import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.showStackTrace
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.ProcessCapture
+import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.showStackTrace
 
 const val MERCURIAL_LARGE_FILES_EXTENSION = "largefiles = "
 const val MERCURIAL_SPARSE_EXTENSION = "sparse = "
@@ -60,9 +60,7 @@ class Mercurial : VersionControlSystem(), CommandLineTool {
     override fun getWorkingTree(vcsDirectory: File) =
         object : WorkingTree(vcsDirectory, type) {
             override fun isValid(): Boolean {
-                if (!workingDir.isDirectory) {
-                    return false
-                }
+                if (!workingDir.isDirectory) return false
 
                 // Do not use runMercurialCommand() here as we do not require the command to succeed.
                 val hgRootPath = ProcessCapture(workingDir, "hg", "root")

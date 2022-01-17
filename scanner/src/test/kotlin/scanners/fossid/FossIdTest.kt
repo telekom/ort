@@ -88,6 +88,7 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.scanner.scanOrtResult
+import org.ossreviewtoolkit.scanner.scanners.fossid.FossId.Companion.convertGitUrlToProjectName
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class FossIdTest : WordSpec({
@@ -100,6 +101,14 @@ class FossIdTest : WordSpec({
             val fossId = createFossId(createConfig())
 
             fossId.version shouldBe FOSSID_VERSION
+        }
+    }
+
+    "convertGitUrlToProjectName()" should {
+        "extract the repository name from the Git URL without the .git suffix" {
+            convertGitUrlToProjectName("https://github.com/jshttp/mime-types.git") shouldBe "mime-types"
+            convertGitUrlToProjectName("https://github.com/vdurmont/semver4j.git") shouldBe "semver4j"
+            convertGitUrlToProjectName("https://dev.azure.com/org/project/_git/repo") shouldBe "repo"
         }
     }
 
@@ -272,10 +281,10 @@ class FossIdTest : WordSpec({
 
             val summary = fossId.scan(listOf(createPackage(pkgId, vcsInfo))).summary(pkgId)
 
-            val expectedIssues = listOf(
-                OrtIssue(timestamp = Instant.EPOCH, createPendingFile(4), "pending", Severity.HINT),
-                OrtIssue(timestamp = Instant.EPOCH, createPendingFile(5), "pending", Severity.HINT)
-            )
+            val expectedIssues = listOf(createPendingFile(4), createPendingFile(5)).map {
+                OrtIssue(Instant.EPOCH, "FossId", "Pending identification for '$it'.", Severity.HINT)
+            }
+
             summary.issues.map { it.copy(timestamp = Instant.EPOCH) } shouldBe expectedIssues
         }
 
@@ -379,7 +388,9 @@ class FossIdTest : WordSpec({
 
             shouldThrow<TimeoutCancellationException> {
                 withTimeout(1000) {
-                    fossId.scanPackages(listOf(createPackage(createIdentifier(index = 1), vcsInfo)), File("output"))
+                    fossId.scanPackages(
+                        setOf(createPackage(createIdentifier(index = 1), vcsInfo)), emptyMap()
+                    )
                 }
             }
 
@@ -545,15 +556,20 @@ class FossIdTest : WordSpec({
             val scanCode = scanCode(PROJECT, FossId.DeltaTag.DELTA)
             val config = createConfig(deltaScanLimit = deltaScanLimit)
             val vcsInfo = createVcsInfo()
-            val originScan = createScan(vcsInfo.url, vcsInfo.revision, originCode, scanId = "${SCAN_ID}0")
-            val otherScan1 = createScan(vcsInfo.url, "${vcsInfo.revision}_other", "anotherCode")
-            val otherScan2 = createScan("someURL", "someRevision", "someCode", scanId = "zzz")
+            val originScan = createScan(vcsInfo.url, vcsInfo.revision, originCode, scanId = SCAN_ID)
+            val otherScan1 = createScan(
+                vcsInfo.url,
+                "${vcsInfo.revision}_other",
+                "anotherCode",
+                scanId = 0
+            )
+            val otherScan2 = createScan("someURL", "someRevision", "someCode", scanId = 999)
             val deltaScans = (1..numberOfDeltaScans).map {
                 createScan(
                     vcsInfo.url,
                     vcsInfo.revision,
                     scanCode = scanCode(PROJECT, FossId.DeltaTag.DELTA, it),
-                    "$SCAN_ID$it"
+                    SCAN_ID + it
                 )
             }
 
@@ -601,7 +617,7 @@ private const val USER = "fossIdTestUser"
 private const val API_KEY = "fossId-API-key"
 
 /** A test project name. */
-private const val PROJECT = "fossId-test-project.git"
+private const val PROJECT = "fossId-test-project"
 
 /** A test revision. */
 private const val REVISION = "test-revision"
@@ -610,13 +626,13 @@ private const val REVISION = "test-revision"
 private const val FOSSID_VERSION = "2021.2.2"
 
 /** A test scan ID that is returned by default when mocking the creation of a scan. */
-private const val SCAN_ID = "testScanId"
+private const val SCAN_ID = 1
 
 /**
  * Create a new [FossId] instance with the specified [config].
  */
 private fun createFossId(config: FossIdConfig): FossId =
-    FossId("fossId", ScannerConfiguration(), DownloaderConfiguration(), config)
+    FossId("FossId", ScannerConfiguration(), DownloaderConfiguration(), config)
 
 /**
  * Create a standard [FossIdConfig] whose properties can be partly specified.
@@ -631,7 +647,7 @@ private fun createConfig(
     val config = FossIdConfig(
         "https://www.example.org/fossid",
         API_KEY, USER, waitForResult, packageNamespaceFilter, packageAuthorsFilter, addAuthenticationToUrl = false,
-        deltaScans, deltaScanLimit, emptyMap()
+        deltaScans, deltaScanLimit, 60, emptyMap()
     )
 
     val service = createServiceMock()
@@ -698,12 +714,13 @@ private fun createScanDescription(state: ScanStatus): UnversionedScanDescription
 /**
  * Create a mock [Scan] with the given properties.
  */
-private fun createScan(url: String, revision: String, scanCode: String, scanId: String = SCAN_ID): Scan {
+private fun createScan(url: String, revision: String, scanCode: String, scanId: Int = SCAN_ID): Scan {
     val scan = mockk<Scan>()
     every { scan.gitRepoUrl } returns url
     every { scan.gitBranch } returns revision
     every { scan.code } returns scanCode
     every { scan.id } returns scanId
+    every { scan.isArchived } returns null
     return scan
 }
 
@@ -717,7 +734,7 @@ private fun createVcsInfo(
     path: String = "",
     revision: String = REVISION
 ): VcsInfo =
-    VcsInfo(type = type, path = path, revision = revision, url = "https://github.com/test/$projectName")
+    VcsInfo(type = type, path = path, revision = revision, url = "https://github.com/test/$projectName.git")
 
 /**
  * Create a test [Identifier] with properties derived from the given [index].
@@ -739,7 +756,8 @@ private fun filePath(index: Int): String = "/path/to/file$index.kt"
 /**
  * Create a [TextLocation] that references a test file without any line information.
  */
-private fun textLocation(fileIndex: Int): TextLocation = TextLocation(filePath(fileIndex), -1, -1)
+private fun textLocation(fileIndex: Int): TextLocation =
+    TextLocation(filePath(fileIndex), TextLocation.UNKNOWN_LINE, TextLocation.UNKNOWN_LINE)
 
 /**
  * Create an [IdentifiedFile] based on the given [index].
@@ -875,7 +893,7 @@ private fun FossIdServiceWithVersion.expectCreateScan(
 ): FossIdServiceWithVersion {
     coEvery {
         createScan(USER, API_KEY, projectCode, scanCode, vcsInfo.url, vcsInfo.revision)
-    } returns MapResponseBody(status = 1, data = mapOf("scan_id" to SCAN_ID))
+    } returns MapResponseBody(status = 1, data = mapOf("scan_id" to SCAN_ID.toString()))
     return this
 }
 
@@ -939,7 +957,7 @@ private fun FossId.scan(packages: List<Package>): ScannerRun {
     every { mockResult.getPackages(any()) } returns curatedPackages
     every { mockResult.getProjects(any()) } returns emptySet()
 
-    val newResult = runBlocking { scanOrtResult(this@scan, mockResult, File("irrelevant")) }
+    val newResult = runBlocking { scanOrtResult(this@scan, mockResult) }
 
     return newResult.scanner!!
 }

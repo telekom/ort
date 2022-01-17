@@ -30,7 +30,7 @@ import org.ossreviewtoolkit.model.LicenseSource
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.utils.createLicenseInfoResolver
-import org.ossreviewtoolkit.spdx.toSpdx
+import org.ossreviewtoolkit.utils.spdx.toSpdx
 
 class EvaluatorTest : WordSpec() {
     private fun createEvaluator() = Evaluator(OrtResult.EMPTY, ortResult.createLicenseInfoResolver())
@@ -38,7 +38,7 @@ class EvaluatorTest : WordSpec() {
     init {
         "checkSyntax" should {
             "succeed if the script can be compiled" {
-                val script = javaClass.getResource("/rules/no_gpl_declared.kts").readText()
+                val script = javaClass.getResource("/rules/no_gpl.rules.kts").readText()
 
                 val result = createEvaluator().checkSyntax(script)
 

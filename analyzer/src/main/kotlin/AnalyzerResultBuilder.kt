@@ -20,6 +20,8 @@
 
 package org.ossreviewtoolkit.analyzer
 
+import kotlin.time.measureTimedValue
+
 import org.ossreviewtoolkit.model.AnalyzerResult
 import org.ossreviewtoolkit.model.CuratedPackage
 import org.ossreviewtoolkit.model.DependencyGraph
@@ -30,7 +32,8 @@ import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.ProjectAnalyzerResult
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.utils.DependencyGraphConverter
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.perf
 
 class AnalyzerResultBuilder(private val curationProvider: PackageCurationProvider = PackageCurationProvider.EMPTY) {
     private val projects = sortedSetOf<Project>()
@@ -80,9 +83,12 @@ class AnalyzerResultBuilder(private val curationProvider: PackageCurationProvide
      * independently of a [ProjectAnalyzerResult].
      */
     fun addPackages(packageSet: Set<Package>): AnalyzerResultBuilder {
+        val (curations, duration) = measureTimedValue { curationProvider.getCurationsFor(packageSet.map { it.id }) }
+
+        log.perf { "Getting package curations took $duration." }
+
         packages += packageSet.map { pkg ->
-            val curations = curationProvider.getCurationsFor(pkg.id)
-            curations.fold(pkg.toCuratedPackage()) { cur, packageCuration ->
+            curations[pkg.id].orEmpty().fold(pkg.toCuratedPackage()) { cur, packageCuration ->
                 log.debug {
                     "Applying curation '$packageCuration' to package '${pkg.id.toCoordinates()}'."
                 }

@@ -27,13 +27,16 @@ import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
 import org.ossreviewtoolkit.helper.common.RepositoryLicenseFindingCurations
+import org.ossreviewtoolkit.helper.common.VcsUrlMapping
 import org.ossreviewtoolkit.helper.common.findRepositories
 import org.ossreviewtoolkit.helper.common.getLicenseFindingCurationsByRepository
+import org.ossreviewtoolkit.helper.common.mapLicenseFindingCurationsVcsUrls
 import org.ossreviewtoolkit.helper.common.mergeLicenseFindingCurations
+import org.ossreviewtoolkit.helper.common.orEmpty
 import org.ossreviewtoolkit.helper.common.write
 import org.ossreviewtoolkit.model.config.PackageConfiguration
 import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.utils.expandTilde
+import org.ossreviewtoolkit.utils.common.expandTilde
 
 internal class ExportLicenseFindingCurationsCommand : CliktCommand(
     help = "Export the license finding curations to a file which maps repository URLs to the license finding " +
@@ -69,14 +72,24 @@ internal class ExportLicenseFindingCurationsCommand : CliktCommand(
         .convert { it.absoluteFile.normalize() }
         .required()
 
+    private val vcsUrlMappingFile by option(
+        "--vcs-url-mapping-file",
+        help = "A YAML or JSON file containing a mapping of VCS URLs to other VCS URLs which will be replaced during " +
+                "the export."
+    ).convert { it.expandTilde() }
+        .file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
+        .convert { it.absoluteFile.normalize() }
+
     override fun run() {
+        val vcsUrlMapping = vcsUrlMappingFile?.readValue<VcsUrlMapping>().orEmpty()
+
         val localLicenseFindingCurations = getLicenseFindingCurationsByRepository(
             curations = packageConfigurationFile.readValue<PackageConfiguration>().licenseFindingCurations,
             nestedRepositories = findRepositories(sourceCodeDir)
-        )
+        ).mapLicenseFindingCurationsVcsUrls(vcsUrlMapping)
 
         val globalLicenseFindingCurations = licenseFindingCurationsFile.takeIf { it.isFile }
-            ?.readValue<RepositoryLicenseFindingCurations>().orEmpty()
+            ?.readValue<RepositoryLicenseFindingCurations>().orEmpty().mapLicenseFindingCurationsVcsUrls(vcsUrlMapping)
 
         globalLicenseFindingCurations
             .mergeLicenseFindingCurations(localLicenseFindingCurations, updateOnlyExisting = updateOnlyExisting)

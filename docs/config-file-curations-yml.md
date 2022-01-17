@@ -49,12 +49,14 @@ location of source artifacts.
 The structure of the curations file consist of one or more `id` entries:
 
 ```yaml
-- id: "package identifier."
+- id: "Maven:com.example.app:example:0.0.1"
   curations:
     comment: "An explanation why the curation is needed or the reasoning for a license conclusion"
+    purl: "pkg:Maven/com.example.app/example@0.0.1?arch=arm64-v8a#src/main"
+    cpe: "cpe:2.3:a:example-org:example-package:0.0.1:*:*:*:*:*:*:*"
     concluded_license: "Valid SPDX license expression to override the license findings."
     declared_license_mapping:
-      "license a": "SPDX license identifier."
+      "license a": "Apache-2.0"
     description: "Curated description."
     homepage_url: "http://example.com"
     binary_artifact:
@@ -121,5 +123,5 @@ cli/build/install/ort/bin/ort evaluate
   --output-formats YAML
   --license-classifications-file $ORT_CONFIG_DIR/license-classifications.yml
   --package-curations-file $ORT_CONFIG_DIR/curations.yml
-  --rules-file $ORT_CONFIG_DIR/rules.kts
+  --rules-file $ORT_CONFIG_DIR/evaluator.rules.kts
 ```

@@ -27,7 +27,7 @@ import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 
-import org.ossreviewtoolkit.spdx.toSpdx
+import org.ossreviewtoolkit.utils.spdx.toSpdx
 
 class PackageCurationTest : WordSpec({
     "Applying a single curation" should {
@@ -53,6 +53,8 @@ class PackageCurationTest : WordSpec({
             val curation = PackageCuration(
                 id = pkg.id,
                 data = PackageCurationData(
+                    purl = "pkg:maven/org.hamcrest/hamcrest-core@1.3#subpath=src/main/java/org/hamcrest/core",
+                    cpe = "cpe:2.3:a:apache:commons_io:2.8.0:rc2:*:*:*:*:*:*",
                     authors = sortedSetOf("author 1", "author 2"),
                     declaredLicenseMapping = mapOf("license a" to "Apache-2.0".toSpdx()),
                     concludedLicense = "license1 OR license2".toSpdx(),
@@ -81,6 +83,8 @@ class PackageCurationTest : WordSpec({
 
             with(curatedPkg.pkg) {
                 id.toCoordinates() shouldBe pkg.id.toCoordinates()
+                purl shouldBe curation.data.purl
+                cpe shouldBe curation.data.cpe
                 authors shouldBe curation.data.authors
                 declaredLicenses shouldBe pkg.declaredLicenses
                 declaredLicensesProcessed.spdxExpression shouldBe "Apache-2.0".toSpdx()
@@ -90,7 +94,8 @@ class PackageCurationTest : WordSpec({
                 homepageUrl shouldBe curation.data.homepageUrl
                 binaryArtifact shouldBe curation.data.binaryArtifact
                 sourceArtifact shouldBe curation.data.sourceArtifact
-                vcs.toCuration() shouldBe curation.data.vcs
+                vcs shouldBe pkg.vcs
+                vcsProcessed.toCuration() shouldBe curation.data.vcs
                 isMetaDataOnly shouldBe true
                 isModified shouldBe true
             }
@@ -108,6 +113,7 @@ class PackageCurationTest : WordSpec({
                     name = "hamcrest-core",
                     version = "1.3"
                 ),
+                cpe = "cpe:2.3:a:apache:commons_io:2.8.0:rc2:*:*:*:*:*:*",
                 authors = sortedSetOf("author 1", "author 2"),
                 declaredLicenses = sortedSetOf("license a", "license b"),
                 description = "description",
@@ -138,6 +144,8 @@ class PackageCurationTest : WordSpec({
 
             with(curatedPkg.pkg) {
                 id.toCoordinates() shouldBe pkg.id.toCoordinates()
+                purl shouldBe pkg.purl
+                cpe shouldBe pkg.cpe
                 authors shouldBe pkg.authors
                 declaredLicenses shouldBe pkg.declaredLicenses
                 concludedLicense shouldBe pkg.concludedLicense
@@ -197,7 +205,7 @@ class PackageCurationTest : WordSpec({
             val curatedPkg = curation.apply(pkg.toCuratedPackage())
 
             curatedPkg.curations.size shouldBe 1
-            curatedPkg.pkg.vcs shouldBe VcsInfo.EMPTY
+            curatedPkg.pkg.vcsProcessed shouldBe VcsInfo.EMPTY
         }
 
         "fail if identifiers do not match" {

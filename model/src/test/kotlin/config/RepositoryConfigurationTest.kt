@@ -32,7 +32,7 @@ import io.kotest.matchers.string.shouldNotContain
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.yamlMapper
-import org.ossreviewtoolkit.spdx.toSpdx
+import org.ossreviewtoolkit.utils.spdx.toSpdx
 
 class RepositoryConfigurationTest : WordSpec({
     "RepositoryConfiguration" should {
@@ -62,7 +62,7 @@ class RepositoryConfigurationTest : WordSpec({
                 yamlMapper.readValue<RepositoryConfiguration>(configuration)
             }
 
-            exception.message shouldContain "problem: LicenseChoices LicenseChoice(given=null, choice=MIT)"
+            exception.message shouldContain "problem: LicenseChoices SpdxLicenseChoice(given=null, choice=MIT)"
             exception.message shouldNotContain "GPL-2.0-only"
         }
 

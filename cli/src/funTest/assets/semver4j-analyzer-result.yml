@@ -10,7 +10,11 @@ repository:
     url: "https://github.com/vdurmont/semver4j.git"
     revision: "7653e418d610ffcd2811bcb55fd72d00d420950b"
     path: ""
-  config: {}
+  config:
+    excludes:
+      scopes:
+      - pattern: "testClasspath"
+        reason: "TEST_TOOL_OF"
 analyzer:
   start_time: "2020-10-26T20:00:07.677878Z"
   end_time: "2020-10-26T20:00:39.307607Z"
@@ -28,7 +32,6 @@ analyzer:
       GOPATH: "/go"
     tool_versions: {}
   config:
-    ignore_tool_versions: false
     allow_dynamic_versions: false
   result:
     projects:

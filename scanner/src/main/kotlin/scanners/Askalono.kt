@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,48 +20,43 @@
 
 package org.ossreviewtoolkit.scanner.scanners
 
-import com.fasterxml.jackson.databind.JsonNode
-
 import java.io.File
-import java.io.IOException
-import java.net.HttpURLConnection
 import java.time.Instant
 
-import kotlin.io.path.createTempDirectory
-
-import okhttp3.Request
-
-import org.ossreviewtoolkit.model.EMPTY_JSON_NODE
 import org.ossreviewtoolkit.model.LicenseFinding
 import org.ossreviewtoolkit.model.ScanSummary
 import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
-import org.ossreviewtoolkit.model.yamlMapper
+import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.scanner.AbstractScannerFactory
-import org.ossreviewtoolkit.scanner.LocalScanner
+import org.ossreviewtoolkit.scanner.BuildConfig
+import org.ossreviewtoolkit.scanner.CommandLineScanner
 import org.ossreviewtoolkit.scanner.ScanException
-import org.ossreviewtoolkit.spdx.calculatePackageVerificationCode
-import org.ossreviewtoolkit.utils.ORT_NAME
-import org.ossreviewtoolkit.utils.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.ProcessCapture
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.unpackZip
+import org.ossreviewtoolkit.scanner.experimental.PathScannerWrapper
+import org.ossreviewtoolkit.scanner.experimental.ScanContext
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.ProcessCapture
+import org.ossreviewtoolkit.utils.common.unpackZip
+import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.ortToolsDirectory
+import org.ossreviewtoolkit.utils.spdx.calculatePackageVerificationCode
 
 class Askalono(
     name: String,
     scannerConfig: ScannerConfiguration,
     downloaderConfig: DownloaderConfiguration
-) : LocalScanner(name, scannerConfig, downloaderConfig) {
+) : CommandLineScanner(name, scannerConfig, downloaderConfig), PathScannerWrapper {
     class Factory : AbstractScannerFactory<Askalono>("Askalono") {
         override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
             Askalono(scannerName, scannerConfig, downloaderConfig)
     }
 
-    override val expectedVersion = "0.4.3"
+    override val name = "Askalono"
+    override val criteria by lazy { getScannerCriteria() }
+    override val expectedVersion = BuildConfig.ASKALONO_VERSION
     override val configuration = ""
-    override val resultFileExt = "txt"
 
     override fun command(workingDir: File?) =
         listOfNotNull(workingDir, if (Os.isWindows) "askalono.exe" else "askalono").joinToString(File.separator)
@@ -70,6 +66,13 @@ class Askalono(
         output.removePrefix("askalono ")
 
     override fun bootstrap(): File {
+        val unpackDir = ortToolsDirectory.resolve(name).resolve(expectedVersion)
+
+        if (unpackDir.resolve(command()).isFile) {
+            log.info { "Skipping to bootstrap $name as it was found in $unpackDir." }
+            return unpackDir
+        }
+
         val platform = when {
             Os.isLinux -> "Linux"
             Os.isMac -> "macOS"
@@ -81,81 +84,52 @@ class Askalono(
         val url = "https://github.com/amzn/askalono/releases/download/$expectedVersion/$archive"
 
         log.info { "Downloading $scannerName from $url... " }
+        val (_, body) = OkHttpClientHelper.download(url).getOrThrow()
 
-        val request = Request.Builder().get().url(url).build()
+        log.info { "Unpacking '$archive' to '$unpackDir'... " }
+        body.bytes().unpackZip(unpackDir)
 
-        return OkHttpClientHelper.execute(request).use { response ->
-            val body = response.body
-
-            if (response.code != HttpURLConnection.HTTP_OK || body == null) {
-                throw IOException("Failed to download $scannerName from $url.")
-            }
-
-            if (response.cacheResponse != null) {
-                log.info { "Retrieved $scannerName from local cache." }
-            }
-
-            val unpackDir = createTempDirectory("$ORT_NAME-$scannerName-$expectedVersion").toFile().apply {
-                deleteOnExit()
-            }
-
-            log.info { "Unpacking '$archive' to '$unpackDir'... " }
-            body.bytes().unpackZip(unpackDir)
-
-            unpackDir
-        }
+        return unpackDir
     }
 
-    override fun scanPathInternal(path: File, resultsFile: File): ScanSummary {
+    override fun scanPathInternal(path: File): ScanSummary {
         val startTime = Instant.now()
 
         val process = ProcessCapture(
             scannerPath.absolutePath,
+            "--format", "json",
             "crawl", path.absolutePath
         )
 
         val endTime = Instant.now()
 
-        if (process.stderr.isNotBlank()) {
-            log.debug { process.stderr }
-        }
+        return with(process) {
+            if (stderr.isNotBlank()) log.debug { stderr }
+            if (isError) throw ScanException(errorMessage)
 
-        with(process) {
-            if (isSuccess) {
-                stdoutFile.copyTo(resultsFile)
-                val result = getRawResult(resultsFile)
-                return generateSummary(startTime, endTime, path, result)
-            } else {
-                throw ScanException(errorMessage)
-            }
+            generateSummary(startTime, endTime, path, stdoutFile)
         }
     }
 
-    override fun getRawResult(resultsFile: File): JsonNode {
-        if (!resultsFile.isFile || resultsFile.length() == 0L) return EMPTY_JSON_NODE
-
-        val yamlNodes = resultsFile.readLines().chunked(3) { (path, license, score) ->
-            val licenseNoOriginalText = license.substringBeforeLast(" (original text)")
-            val yamlString = listOf("Path: $path", licenseNoOriginalText, score).joinToString("\n")
-            yamlMapper.readTree(yamlString)
-        }
-
-        return yamlMapper.createArrayNode().apply { addAll(yamlNodes) }
-    }
-
-    private fun generateSummary(startTime: Instant, endTime: Instant, scanPath: File, result: JsonNode): ScanSummary {
+    private fun generateSummary(startTime: Instant, endTime: Instant, scanPath: File, resultFile: File): ScanSummary {
         val licenseFindings = sortedSetOf<LicenseFinding>()
 
-        result.mapTo(licenseFindings) {
-            val filePath = File(it["Path"].textValue())
-            LicenseFinding(
-                license = it["License"].textValue(),
-                location = TextLocation(
-                    // Turn absolute paths in the native result into relative paths to not expose any information.
-                    relativizePath(scanPath, filePath),
-                    TextLocation.UNKNOWN_LINE
+        resultFile.readLines().forEach { line ->
+            val root = jsonMapper.readTree(line)
+            root["result"]?.let { result ->
+                val licenseFinding = LicenseFinding(
+                    license = result["license"]["name"].textValue(),
+                    location = TextLocation(
+                        // Turn absolute paths in the native result into relative paths to not expose any information.
+                        relativizePath(scanPath, File(root["path"].textValue())),
+                        TextLocation.UNKNOWN_LINE
+                    )
                 )
-            )
+
+                log.info { "Found $licenseFinding with score ${result["score"].floatValue()}." }
+
+                licenseFindings += licenseFinding
+            }
         }
 
         return ScanSummary(
@@ -167,4 +141,6 @@ class Askalono(
             issues = mutableListOf()
         )
     }
+
+    override fun scanPath(path: File, context: ScanContext) = scanPathInternal(path)
 }

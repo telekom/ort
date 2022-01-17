@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +21,6 @@
 package org.ossreviewtoolkit.cli
 
 import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.context
 import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.output.CliktHelpFormatter
@@ -42,20 +42,20 @@ import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.core.config.Configurator
 
 import org.ossreviewtoolkit.cli.commands.*
-import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.config.LicenseFilenamePatterns
 import org.ossreviewtoolkit.model.config.OrtConfiguration
-import org.ossreviewtoolkit.utils.Environment
-import org.ossreviewtoolkit.utils.ORT_CONFIG_DIR_ENV_NAME
-import org.ossreviewtoolkit.utils.ORT_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.ORT_DATA_DIR_ENV_NAME
-import org.ossreviewtoolkit.utils.ORT_NAME
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.PERFORMANCE
-import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.ortConfigDirectory
-import org.ossreviewtoolkit.utils.ortDataDirectory
-import org.ossreviewtoolkit.utils.printStackTrace
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.expandTilde
+import org.ossreviewtoolkit.utils.core.Environment
+import org.ossreviewtoolkit.utils.core.ORT_CONFIG_DIR_ENV_NAME
+import org.ossreviewtoolkit.utils.core.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.core.ORT_DATA_DIR_ENV_NAME
+import org.ossreviewtoolkit.utils.core.ORT_NAME
+import org.ossreviewtoolkit.utils.core.PERFORMANCE
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.ortConfigDirectory
+import org.ossreviewtoolkit.utils.core.ortDataDirectory
+import org.ossreviewtoolkit.utils.core.printStackTrace
 
 /**
  * Helper class for mutually exclusive command line options of different types.
@@ -72,33 +72,6 @@ data class GlobalOptions(
     val config: OrtConfiguration,
     val forceOverwrite: Boolean
 )
-
-/**
- * A helper function to print statistics about the [counts] of severities. If there are severities equal to or greater
- * than [threshold], print an according note and throw a ProgramResult exception with [severeStatusCode].
- */
-fun concludeSeverityStats(counts: Map<Severity, Int>, threshold: Severity, severeStatusCode: Int) {
-    var severeIssueCount = 0
-
-    fun getSeverityCount(severity: Severity) =
-        counts.getOrDefault(severity, 0).also { count ->
-            if (severity >= threshold) severeIssueCount += count
-        }
-
-    val hintCount = getSeverityCount(Severity.HINT)
-    val warningCount = getSeverityCount(Severity.WARNING)
-    val errorCount = getSeverityCount(Severity.ERROR)
-
-    println("Found $errorCount error(s), $warningCount warning(s), $hintCount hint(s).")
-
-    if (severeIssueCount > 0) {
-        println(
-            "There are $severeIssueCount issue(s) with a severity equal to or greater than the $threshold threshold."
-        )
-
-        throw ProgramResult(severeStatusCode)
-    }
-}
 
 /**
  * The entry point for the application with [args] being the list of arguments.
@@ -126,7 +99,7 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
     private val configArguments by option(
         "-P",
         help = "Override a key-value pair in the configuration file. For example: " +
-                "-P ort.scanner.storages.postgresStorage.schema=testSchema"
+                "-P ort.scanner.storages.postgres.schema=testSchema"
     ).associate()
 
     private val forceOverwrite by option(
@@ -157,7 +130,7 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
                 // initialized yet.)
                 val isRootCommand = currentContext.invokedSubcommand == null
                 if (isRootCommand && !headerShownBefore) {
-                    appendLine(getVersionHeader(env.ortVersion))
+                    appendLine(getOrtHeader(env.ortVersion))
                     headerShownBefore = true
                 }
 
@@ -192,13 +165,15 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
         versionOption(
             version = env.ortVersion,
             names = setOf("--version", "-v"),
-            help = "Show version information and exit.",
-            message = ::getVersionHeader
+            help = "Show the version and exit.",
+            message = { it }
         )
     }
 
     override fun run() {
         Configurator.setRootLevel(logLevel)
+
+        log.debug { "Used command line arguments: ${currentContext.originalArgv}" }
 
         // Make the parameter globally available.
         printStackTrace = stacktrace
@@ -213,11 +188,11 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
                 println(it.getFormattedHelp())
             }
         } else {
-            println(getVersionHeader(env.ortVersion))
+            println(getOrtHeader(env.ortVersion))
         }
     }
 
-    private fun getVersionHeader(version: String): String {
+    private fun getOrtHeader(version: String): String {
         val variables = mutableListOf(
             "$ORT_CONFIG_DIR_ENV_NAME = $ortConfigDirectory",
             "$ORT_DATA_DIR_ENV_NAME = $ortDataDirectory"

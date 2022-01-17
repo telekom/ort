@@ -22,10 +22,11 @@ package org.ossreviewtoolkit.advisor.advisors
 import java.net.URI
 import java.time.Instant
 
-import org.ossreviewtoolkit.advisor.AbstractVulnerabilityProviderFactory
-import org.ossreviewtoolkit.advisor.VulnerabilityProvider
+import org.ossreviewtoolkit.advisor.AbstractAdviceProviderFactory
+import org.ossreviewtoolkit.advisor.AdviceProvider
 import org.ossreviewtoolkit.clients.vulnerablecode.VulnerableCodeService
 import org.ossreviewtoolkit.clients.vulnerablecode.VulnerableCodeService.PackagesWrapper
+import org.ossreviewtoolkit.model.AdvisorCapability
 import org.ossreviewtoolkit.model.AdvisorDetails
 import org.ossreviewtoolkit.model.AdvisorResult
 import org.ossreviewtoolkit.model.AdvisorSummary
@@ -34,51 +35,46 @@ import org.ossreviewtoolkit.model.Vulnerability
 import org.ossreviewtoolkit.model.VulnerabilityReference
 import org.ossreviewtoolkit.model.config.AdvisorConfiguration
 import org.ossreviewtoolkit.model.config.VulnerableCodeConfiguration
-import org.ossreviewtoolkit.utils.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.common.enumSetOf
+import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
 
 /**
- * A [VulnerabilityProvider] implementation that obtains security vulnerability information from a
+ * The number of elements to request at once in a bulk request. This value was chosen more or less randomly to keep the
+ * size of responses reasonably small.
+ */
+private const val BULK_REQUEST_SIZE = 100
+
+/**
+ * An [AdviceProvider] implementation that obtains security vulnerability information from a
  * [VulnerableCode][https://github.com/nexB/vulnerablecode] instance.
  */
-class VulnerableCode(
-    name: String,
-    private val vulnerableCodeConfiguration: VulnerableCodeConfiguration
-) : VulnerabilityProvider(name) {
-    class Factory : AbstractVulnerabilityProviderFactory<VulnerableCode>("VulnerableCode") {
+class VulnerableCode(name: String, vulnerableCodeConfiguration: VulnerableCodeConfiguration) : AdviceProvider(name) {
+    class Factory : AbstractAdviceProviderFactory<VulnerableCode>("VulnerableCode") {
         override fun create(config: AdvisorConfiguration) =
             VulnerableCode(providerName, config.forProvider { vulnerableCode })
-    }
-
-    companion object {
-        /**
-         * The number of elements to request at once in a bulk request. This value was chosen more or less
-         * randomly to keep the size of responses reasonably small.
-         */
-        private const val BULK_FETCH_SIZE = 100
     }
 
     /**
      * The details returned with each [AdvisorResult] produced by this instance. As this is constant, it can be
      * created once beforehand.
      */
-    private val details = AdvisorDetails(providerName)
+    override val details = AdvisorDetails(providerName, enumSetOf(AdvisorCapability.VULNERABILITIES))
 
     private val service by lazy {
         VulnerableCodeService.create(vulnerableCodeConfiguration.serverUrl, OkHttpClientHelper.buildClient())
     }
 
-    override suspend fun retrievePackageVulnerabilities(packages: List<Package>): Map<Package, List<AdvisorResult>> {
+    override suspend fun retrievePackageFindings(packages: List<Package>): Map<Package, List<AdvisorResult>> {
         val startTime = Instant.now()
 
-        @Suppress("TooGenericExceptionCaught")
-        return try {
+        return runCatching {
             mutableMapOf<Package, List<AdvisorResult>>().also {
-                packages.chunked(BULK_FETCH_SIZE).forEach { pkg ->
+                packages.chunked(BULK_REQUEST_SIZE).forEach { pkg ->
                     it += loadVulnerabilities(pkg, startTime)
                 }
             }
-        } catch (e: Exception) {
-            createFailedResults(startTime, packages, e)
+        }.getOrElse {
+            createFailedResults(startTime, packages, it)
         }
     }
 
@@ -97,7 +93,7 @@ class VulnerableCode(
             packageMap[pv.purl]?.let { pkg ->
                 val vulnerabilities = pv.unresolvedVulnerabilities.map { it.toModel() }
                 val summary = AdvisorSummary(startTime, Instant.now())
-                pkg to listOf(AdvisorResult(vulnerabilities, details, summary))
+                pkg to listOf(AdvisorResult(details, summary, vulnerabilities = vulnerabilities))
             }
         }.toMap()
     }

@@ -28,7 +28,7 @@ import org.ossreviewtoolkit.model.LicenseFinding
 import org.ossreviewtoolkit.model.TextLocation
 
 /**
- * A simple data class to hold FossId raw results.
+ * A data class to hold FossID raw results.
  */
 internal data class RawResults(
     val identifiedFiles: List<IdentifiedFile>,
@@ -38,7 +38,7 @@ internal data class RawResults(
 )
 
 /**
- * A simple Triple data class to hold FossId mapped results.
+ * A data class to hold FossID mapped results.
  */
 internal data class FindingsContainer(
     val licenseFindings: MutableList<LicenseFinding>,
@@ -46,16 +46,16 @@ internal data class FindingsContainer(
 )
 
 /**
- * Map a fossId Raw result to sections that can be included in a [org.ossreviewtoolkit.model.ScanSummary].
+ * Map a FossID raw result to sections that can be included in a [org.ossreviewtoolkit.model.ScanSummary].
  */
 internal fun <T : Summarizable> List<T>.mapSummary(ignoredFiles: Map<String, IgnoredFile>): FindingsContainer {
     val licenseFindings = mutableListOf<LicenseFinding>()
     val copyrightFindings = mutableListOf<CopyrightFinding>()
 
-    val files = filterNot { ignoredFiles.contains(it.getFileName()) }
+    val files = filterNot { it.getFileName() in ignoredFiles }
     files.forEach { summarizable ->
         val summary = summarizable.toSummary()
-        val location = TextLocation(summary.path, -1, -1)
+        val location = TextLocation(summary.path, TextLocation.UNKNOWN_LINE, TextLocation.UNKNOWN_LINE)
 
         summary.licences.forEach {
             val finding = LicenseFinding(it.identifier, location)

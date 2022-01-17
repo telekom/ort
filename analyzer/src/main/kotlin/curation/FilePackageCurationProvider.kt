@@ -24,17 +24,18 @@ import java.io.File
 
 import org.ossreviewtoolkit.analyzer.PackageCurationProvider
 import org.ossreviewtoolkit.model.FileFormat
-import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.PackageCuration
 import org.ossreviewtoolkit.model.readValueOrDefault
-import org.ossreviewtoolkit.spdx.getDuplicates
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.common.getDuplicates
+import org.ossreviewtoolkit.utils.core.log
 
 /**
  * A [PackageCurationProvider] that loads [PackageCuration]s from all given curation files. Supports all file formats
  * specified in [FileFormat].
  */
-class FilePackageCurationProvider(curationFiles: Collection<File>) : PackageCurationProvider {
+class FilePackageCurationProvider(
+    curationFiles: Collection<File>
+) : SimplePackageCurationProvider(readCurationFiles(curationFiles)) {
     constructor(curationFile: File) : this(listOf(curationFile))
 
     companion object {
@@ -45,27 +46,25 @@ class FilePackageCurationProvider(curationFiles: Collection<File>) : PackageCura
 
             return FilePackageCurationProvider(curationFiles)
         }
-    }
 
-    val packageCurations: Set<PackageCuration> = run {
-        val allCurations = curationFiles.mapNotNull { curationFile ->
-            runCatching {
-                curationFile.readValueOrDefault(emptyList<PackageCuration>())
-            }.onFailure {
-                log.warn { "Failed parsing package curation from '${curationFile.absoluteFile}'." }
-            }.getOrNull()
-        }.flatten()
+        fun readCurationFiles(curationFiles: Collection<File>): List<PackageCuration> {
+            val allCurations = curationFiles.map { curationFile ->
+                runCatching {
+                    curationFile.readValueOrDefault(emptyList<PackageCuration>())
+                }.onFailure {
+                    log.warn { "Failed parsing package curation from '${curationFile.absoluteFile}'." }
+                }.getOrThrow()
+            }.flatten()
 
-        val duplicates = allCurations.getDuplicates()
+            val duplicates = allCurations.getDuplicates()
 
-        if (duplicates.isNotEmpty()) {
-            throw DuplicatedCurationException("Duplicated curation for $duplicates found.")
+            if (duplicates.isNotEmpty()) {
+                throw DuplicatedCurationException("Duplicate curations found: $duplicates")
+            }
+
+            return allCurations
         }
-
-        allCurations.toSet()
     }
-
-    override fun getCurationsFor(pkgId: Identifier) = packageCurations.filter { it.isApplicable(pkgId) }
 }
 
 private class DuplicatedCurationException(message: String?) : Exception(message)

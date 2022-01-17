@@ -34,14 +34,13 @@ import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RepositoryProvenance
-import org.ossreviewtoolkit.model.Success
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.PackageConfiguration
 import org.ossreviewtoolkit.model.config.VcsMatcher
 import org.ossreviewtoolkit.scanner.storages.FileBasedStorage
-import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.safeMkdirs
-import org.ossreviewtoolkit.utils.storage.LocalFileStorage
+import org.ossreviewtoolkit.utils.common.expandTilde
+import org.ossreviewtoolkit.utils.common.safeMkdirs
+import org.ossreviewtoolkit.utils.core.storage.LocalFileStorage
 
 internal class CreateCommand : CliktCommand(
     help = "Creates one package configuration for the source artifact scan and one for the VCS scan, if " +
@@ -84,7 +83,7 @@ internal class CreateCommand : CliktCommand(
         outputDir.safeMkdirs()
 
         val scanResultsStorage = FileBasedStorage(LocalFileStorage(scanResultsStorageDir))
-        val scanResults = (scanResultsStorage.read(packageId) as? Success)?.result.orEmpty()
+        val scanResults = scanResultsStorage.read(packageId).getOrDefault(emptyList())
 
         scanResults.find { it.provenance is RepositoryProvenance }?.provenance
             ?.writePackageConfigurationFile("vcs.yml")

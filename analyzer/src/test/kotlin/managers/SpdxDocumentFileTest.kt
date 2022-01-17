@@ -20,26 +20,18 @@
 package org.ossreviewtoolkit.analyzer.managers
 
 import io.kotest.core.spec.style.WordSpec
-import io.kotest.matchers.collections.shouldHaveSingleElement
-import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.beNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 
 import java.io.File
 
-import org.ossreviewtoolkit.model.Hash
-import org.ossreviewtoolkit.model.OrtIssue
-import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.spdx.SpdxConstants
-import org.ossreviewtoolkit.spdx.SpdxModelMapper
-import org.ossreviewtoolkit.spdx.model.SpdxChecksum
-import org.ossreviewtoolkit.spdx.model.SpdxDocument
-import org.ossreviewtoolkit.spdx.model.SpdxExternalDocumentReference
-import org.ossreviewtoolkit.spdx.model.SpdxPackage
-import org.ossreviewtoolkit.utils.test.shouldNotBeNull
+import org.ossreviewtoolkit.utils.spdx.SpdxConstants
+import org.ossreviewtoolkit.utils.spdx.SpdxModelMapper
+import org.ossreviewtoolkit.utils.spdx.model.SpdxDocument
+import org.ossreviewtoolkit.utils.spdx.model.SpdxPackage
 
 /*
  * The below package data is based on example data taken from the SPDX specification.
@@ -74,57 +66,13 @@ private val pkgForVcs = SpdxPackage(
     name = "Dummy"
 )
 
-private fun createSpdxDocument(packages: List<SpdxPackage>?, hasExternalDocumentRefs: Boolean = true): SpdxDocument {
-    val spdxDocument = createSpdxDocument()
-
-    val spdxPackages = packages ?: spdxDocument.packages
-
-    return if (hasExternalDocumentRefs) {
-        spdxDocument.copy(packages = spdxPackages)
-    } else {
-        spdxDocument.copy(packages = spdxPackages, externalDocumentRefs = emptyList())
-    }
-}
-
-private fun createSpdxDocument(): SpdxDocument {
+private fun createSpdxDocument(filename: String): SpdxDocument {
     val projectDir = File("src/funTest/assets/projects/synthetic/spdx").absoluteFile
-    val definitionFile = projectDir.resolve("project/project.spdx.yml")
+    val definitionFile = projectDir.resolve(filename)
     return SpdxModelMapper.read(definitionFile)
 }
 
 class SpdxDocumentFileTest : WordSpec({
-    "getBinaryArtifact()" should {
-        "return a RemoteArtifact for a downloadLocation that points to a binary artifact" {
-            pkgForBinaryArtifact.getBinaryArtifact() shouldBe RemoteArtifact(
-                url = "https://repo1.maven.org/maven2/junit/junit/4.11/junit-4.11.jar",
-                hash = Hash.NONE
-            )
-        }
-
-        "return null for a downloadLocation that does not point to a binary artifact" {
-            pkgForBinaryArtifact.copy(downloadLocation = SpdxConstants.NONE).getBinaryArtifact() should beNull()
-            pkgForBinaryArtifact.copy(downloadLocation = SpdxConstants.NOASSERTION).getBinaryArtifact() should beNull()
-            pkgForSourceArtifact.getBinaryArtifact() should beNull()
-            pkgForVcs.getBinaryArtifact() should beNull()
-        }
-    }
-
-    "getSourceArtifact()" should {
-        "return a RemoteArtifact for a downloadLocation that points to a source artifact" {
-            pkgForSourceArtifact.getSourceArtifact() shouldBe RemoteArtifact(
-                url = "http://ftp.gnu.org/gnu/glibc/glibc-ports-2.15.tar.gz",
-                hash = Hash.NONE
-            )
-        }
-
-        "return null for a downloadLocation that does not point to a source artifact" {
-            pkgForSourceArtifact.copy(downloadLocation = SpdxConstants.NONE).getSourceArtifact() should beNull()
-            pkgForSourceArtifact.copy(downloadLocation = SpdxConstants.NOASSERTION).getSourceArtifact() should beNull()
-            pkgForBinaryArtifact.getSourceArtifact() should beNull()
-            pkgForVcs.getSourceArtifact() should beNull()
-        }
-    }
-
     "getVcsInfo()" should {
         "return the VcsInfo for a downloadLocation that points to a VCS" {
             pkgForVcs.getVcsInfo() shouldBe VcsInfo(
@@ -145,57 +93,21 @@ class SpdxDocumentFileTest : WordSpec({
 
     "projectPackage()" should {
         "return project package when list of packages is given" {
-            val spdxDocument = createSpdxDocument(null, false)
-            val projectPackage = spdxDocument.packages.find { it.spdxId == "SPDXRef-Package-xyz" }
+            val spdxDocument = createSpdxDocument("project-xyz-with-inline-packages.spdx.yml")
 
-            spdxDocument.projectPackage() shouldBe projectPackage
+            spdxDocument.projectPackage()?.spdxId shouldBe "SPDXRef-Package-xyz"
         }
 
         "return project package when only one package in list, but external document references exist" {
-            val projectPackage = createSpdxDocument().packages.find { it.spdxId == "SPDXRef-Package-xyz" }
-            val spdxDocument = createSpdxDocument(listOf(projectPackage!!), true)
+            val spdxDocument = createSpdxDocument("project-xyz-with-package-references.spdx.yml")
 
-            spdxDocument.projectPackage() shouldBe projectPackage
+            spdxDocument.projectPackage()?.spdxId shouldBe "SPDXRef-Package-xyz"
         }
 
         "return no project package when just one package in list" {
-            val projectPackage = createSpdxDocument().packages.find { it.spdxId == "SPDXRef-Package-xyz" }
-            val spdxDocument = createSpdxDocument(listOf(projectPackage!!), false)
+            val spdxDocument = createSpdxDocument("libs/curl/package.spdx.yml")
 
-            spdxDocument.projectPackage() shouldBe null
-        }
-    }
-
-    "getSpdxPackage()" should {
-        val spdxProjectFile = File("src/funTest/assets/projects/synthetic/spdx/project/project.spdx.yml")
-
-        "throw if an external package id does not match relationship id" {
-            val externalDocumentReference = SpdxExternalDocumentReference(
-                "DocumentRef-zlib-1.2.11",
-                SpdxChecksum(SpdxChecksum.Algorithm.SHA1, "9ffefb62ce14b40f675345a05b45846900740689"),
-                "../package/libs/zlib/package.spdx.yml"
-            )
-            val issues = mutableListOf<OrtIssue>()
-
-            externalDocumentReference.getSpdxPackage("SPDXRef-Package_wrong_id", spdxProjectFile, issues)
-
-            issues shouldHaveSize 1
-            issues shouldHaveSingleElement { externalDocumentReference.externalDocumentId in it.message }
-        }
-
-        "return the correct SPDX package" {
-            val externalDocumentReference = SpdxExternalDocumentReference(
-                "DocumentRef-zlib-1.2.11",
-                SpdxChecksum(SpdxChecksum.Algorithm.SHA1, "9ffefb62ce14b40f675345a05b45846900740689"),
-                "../package/libs/zlib/package.spdx.yml"
-            )
-
-            val spdxPackageId = "SPDXRef-Package-zlib"
-            val spdxPackage = externalDocumentReference.getSpdxPackage(spdxPackageId, spdxProjectFile, mutableListOf())
-
-            spdxPackage shouldNotBeNull {
-                spdxId shouldBe spdxPackageId
-            }
+            spdxDocument.projectPackage() should beNull()
         }
     }
 })

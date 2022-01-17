@@ -23,6 +23,7 @@ import Dependency
 
 import org.apache.maven.project.ProjectBuildingException
 
+import org.eclipse.aether.RepositoryException
 import org.eclipse.aether.artifact.DefaultArtifact
 import org.eclipse.aether.repository.RemoteRepository
 
@@ -35,8 +36,8 @@ import org.ossreviewtoolkit.model.PackageLinkage
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.utils.DependencyHandler
-import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.showStackTrace
+import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.core.showStackTrace
 
 /**
  * A specialized [DependencyHandler] implementation for Gradle's dependency model.
@@ -96,18 +97,24 @@ class GradleDependencyHandler(
             dependency.extension, dependency.version
         )
 
-        return try {
+        return runCatching {
             maven.parsePackage(artifact, repositories)
-        } catch (e: ProjectBuildingException) {
-            e.showStackTrace()
+        }.getOrElse { e ->
+            when (e) {
+                is ProjectBuildingException, is RepositoryException -> {
+                    e.showStackTrace()
 
-            issues += createAndLogIssue(
-                source = managerName,
-                message = "Could not get package information for dependency '${artifact.identifier()}': " +
-                        e.collectMessagesAsString()
-            )
+                    issues += createAndLogIssue(
+                        source = managerName,
+                        message = "Could not get package information for dependency '${artifact.identifier()}': " +
+                                e.collectMessagesAsString()
+                    )
 
-            null
+                    null
+                }
+
+                else -> throw e
+            }
         }
     }
 

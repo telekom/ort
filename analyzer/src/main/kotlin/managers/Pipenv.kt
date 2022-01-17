@@ -28,9 +28,9 @@ import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.model.ProjectAnalyzerResult
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.ProcessCapture
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.ProcessCapture
+import org.ossreviewtoolkit.utils.core.log
 
 class Pipenv(
     name: String,
@@ -56,9 +56,9 @@ class Pipenv(
 
     override fun getVersionRequirement(): Requirement = Requirement.buildIvy("[2018.10.9,)")
 
-    override fun beforeResolution(definitionFiles: List<File>) = checkVersion(analyzerConfig.ignoreToolVersions)
+    override fun beforeResolution(definitionFiles: List<File>) = checkVersion()
 
-    override fun resolveDependencies(definitionFile: File): List<ProjectAnalyzerResult> {
+    override fun resolveDependencies(definitionFile: File, labels: Map<String, String>): List<ProjectAnalyzerResult> {
         // For an overview, dependency resolution involves the following steps:
         // 1. Generate "requirements.txt" file with `pipenv` command
         // 2. Use existing "Pip" PackageManager to do the actual dependency resolution
@@ -74,7 +74,7 @@ class Pipenv(
             .copyTo(requirementsFile)
 
         return Pip(managerName, analysisRoot, analyzerConfig, repoConfig)
-            .resolveDependencies(requirementsFile)
+            .resolveDependencies(requirementsFile, labels)
             .also { requirementsFile.delete() }
     }
 }

@@ -21,6 +21,7 @@
 
 val digraphVersion: String by project
 val jacksonVersion: String by project
+val jrubyVersion: String by project
 val kotlinxCoroutinesVersion: String by project
 val mavenVersion: String by project
 val mavenResolverVersion: String by project
@@ -62,16 +63,16 @@ dependencies {
     api(project(":model"))
 
     implementation(project(":downloader"))
-    implementation(project(":spdx-utils"))
-    implementation(project(":utils"))
+    implementation(project(":utils:core-utils"))
+    implementation(project(":utils:spdx-utils"))
 
+    implementation("com.fasterxml.jackson.module:jackson-module-jaxb-annotations:$jacksonVersion")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
     implementation("com.moandjiezana.toml:toml4j:$toml4jVersion")
     implementation("com.paypal.digraph:digraph-parser:$digraphVersion")
     implementation("com.vdurmont:semver4j:$semverVersion")
     implementation("org.apache.maven:maven-core:$mavenVersion")
     implementation("org.apache.maven:maven-compat:$mavenVersion")
-    implementation("org.eclipse.sw360:client:$sw360ClientVersion")
 
     // The classes from the maven-resolver dependencies are not used directly but initialized by the Plexus IoC
     // container automatically. They are required on the classpath for Maven dependency resolution to work.
@@ -80,9 +81,11 @@ dependencies {
     implementation("org.apache.maven.resolver:maven-resolver-transport-http:$mavenResolverVersion")
     implementation("org.apache.maven.resolver:maven-resolver-transport-wagon:$mavenResolverVersion")
 
+    implementation("org.eclipse.sw360:client:$sw360ClientVersion")
     implementation("org.gradle:gradle-tooling-api:${gradle.gradleVersion}")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion")
+    implementation("org.jruby:jruby-complete:$jrubyVersion")
 
-    testImplementation("com.github.tomakehurst:wiremock:$wiremockVersion")
+    testImplementation("com.github.tomakehurst:wiremock-jre8:$wiremockVersion")
     testImplementation("io.mockk:mockk:$mockkVersion")
 }

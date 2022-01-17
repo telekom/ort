@@ -43,10 +43,10 @@ import org.ossreviewtoolkit.analyzer.curation.FilePackageCurationProvider
 import org.ossreviewtoolkit.cli.GlobalOptions
 import org.ossreviewtoolkit.cli.GroupTypes.FileType
 import org.ossreviewtoolkit.cli.GroupTypes.StringType
-import org.ossreviewtoolkit.cli.concludeSeverityStats
 import org.ossreviewtoolkit.cli.utils.OPTION_GROUP_CONFIGURATION
 import org.ossreviewtoolkit.cli.utils.OPTION_GROUP_RULE
 import org.ossreviewtoolkit.cli.utils.PackageConfigurationOption
+import org.ossreviewtoolkit.cli.utils.SeverityStats
 import org.ossreviewtoolkit.cli.utils.configurationGroup
 import org.ossreviewtoolkit.cli.utils.createProvider
 import org.ossreviewtoolkit.cli.utils.inputGroup
@@ -55,6 +55,7 @@ import org.ossreviewtoolkit.cli.utils.readOrtResult
 import org.ossreviewtoolkit.cli.utils.writeOrtResult
 import org.ossreviewtoolkit.evaluator.Evaluator
 import org.ossreviewtoolkit.model.FileFormat
+import org.ossreviewtoolkit.model.RuleViolation
 import org.ossreviewtoolkit.model.config.CopyrightGarbage
 import org.ossreviewtoolkit.model.config.LicenseFilenamePatterns
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
@@ -66,16 +67,19 @@ import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.licenses.orEmpty
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.readValueOrDefault
+import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
 import org.ossreviewtoolkit.model.utils.SimplePackageConfigurationProvider
 import org.ossreviewtoolkit.model.utils.mergeLabels
-import org.ossreviewtoolkit.utils.ORT_COPYRIGHT_GARBAGE_FILENAME
-import org.ossreviewtoolkit.utils.ORT_LICENSE_CLASSIFICATIONS_FILENAME
-import org.ossreviewtoolkit.utils.ORT_REPO_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.ortConfigDirectory
-import org.ossreviewtoolkit.utils.perf
-import org.ossreviewtoolkit.utils.safeMkdirs
+import org.ossreviewtoolkit.utils.common.expandTilde
+import org.ossreviewtoolkit.utils.common.safeMkdirs
+import org.ossreviewtoolkit.utils.core.ORT_COPYRIGHT_GARBAGE_FILENAME
+import org.ossreviewtoolkit.utils.core.ORT_EVALUATOR_RULES_FILENAME
+import org.ossreviewtoolkit.utils.core.ORT_LICENSE_CLASSIFICATIONS_FILENAME
+import org.ossreviewtoolkit.utils.core.ORT_REPO_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.core.ORT_RESOLUTIONS_FILENAME
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.ortConfigDirectory
+import org.ossreviewtoolkit.utils.core.perf
 
 class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT result files against policy rules.") {
     private val ortFile by option(
@@ -179,6 +183,15 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
         .convert { it.absoluteFile.normalize() }
         .configurationGroup()
 
+    private val resolutionsFile by option(
+        "--resolutions-file",
+        help = "A file containing issue and rule violation resolutions."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .default(ortConfigDirectory.resolve(ORT_RESOLUTIONS_FILENAME))
+        .configurationGroup()
+
     private val labels by option(
         "--label", "-l",
         help = "Set a label in the ORT result, overwriting any existing label of the same name. Can be used multiple " +
@@ -228,7 +241,7 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
             }
 
             null -> {
-                val rulesFile = ortConfigDirectory.resolve("rules.kts")
+                val rulesFile = ortConfigDirectory.resolve(ORT_EVALUATOR_RULES_FILENAME)
 
                 if (!rulesFile.isFile) {
                     throw UsageError("No rule option specified and no default rule found at '$rulesFile'.")
@@ -263,18 +276,25 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
             ortResultInput = ortResultInput.replacePackageCurations(curations)
         }
 
-        val repositoryPackageConfigurations = ortResultInput.repository.config.packageConfigurations
-        val optionPackageConfigurations = packageConfigurationOption.createProvider().getPackageConfigurations()
+        val config = globalOptionsForSubcommands.config
 
-        val packageConfigurationProvider = SimplePackageConfigurationProvider(
-            optionPackageConfigurations + repositoryPackageConfigurations
-        )
+        val packageConfigurations =
+            packageConfigurationOption.createProvider().getPackageConfigurations().toMutableList()
+        val repositoryPackageConfigurations = ortResultInput.repository.config.packageConfigurations
+
+        if (config.enableRepositoryPackageConfigurations) {
+            packageConfigurations += repositoryPackageConfigurations
+        } else if (repositoryPackageConfigurations.isNotEmpty()) {
+            log.warn { "Local package configurations were not applied because the feature is not enabled." }
+        }
+
+        val packageConfigurationProvider = SimplePackageConfigurationProvider(packageConfigurations.toSet())
         val copyrightGarbage = copyrightGarbageFile.takeIf { it.isFile }?.readValue<CopyrightGarbage>().orEmpty()
 
-        val config = globalOptionsForSubcommands.config
         val licenseInfoResolver = LicenseInfoResolver(
             provider = DefaultLicenseInfoProvider(ortResultInput, packageConfigurationProvider),
             copyrightGarbage = copyrightGarbage,
+            addAuthorsToCopyrights = config.addAuthorsToCopyrights,
             archiver = config.scanner.archive.createFileArchiver(),
             licenseFilenamePatterns = LicenseFilenamePatterns.getInstance()
         )
@@ -285,23 +305,47 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
 
         val (evaluatorRun, duration) = measureTimedValue { evaluator.run(script) }
 
-        log.perf { "Executed the evaluator in ${duration.inWholeMilliseconds}ms." }
+        log.perf { "Executed the evaluator in $duration." }
 
-        if (log.delegate.isErrorEnabled) {
-            evaluatorRun.violations.forEach { violation ->
-                log.error { violation.toString() }
-            }
+        evaluatorRun.violations.forEach { violation ->
+            println(violation.format())
         }
 
-        outputDir?.let { absoluteOutputDir ->
-            // Note: This overwrites any existing EvaluatorRun from the input file.
-            val ortResultOutput = ortResultInput.copy(evaluator = evaluatorRun).mergeLabels(labels)
+        // Note: This overwrites any existing EvaluatorRun from the input file.
+        val ortResultOutput = ortResultInput.copy(evaluator = evaluatorRun).mergeLabels(labels)
 
+        outputDir?.let { absoluteOutputDir ->
             absoluteOutputDir.safeMkdirs()
             writeOrtResult(ortResultOutput, outputFiles, "evaluation")
         }
 
-        val counts = evaluatorRun.violations.groupingBy { it.severity }.eachCount()
-        concludeSeverityStats(counts, config.severeIssueThreshold, 2)
+        val resolutionProvider = DefaultResolutionProvider.create(ortResultOutput, resolutionsFile)
+        val (resolvedViolations, unresolvedViolations) =
+            evaluatorRun.violations.partition { resolutionProvider.isResolved(it) }
+        val severityStats = SeverityStats.createFromRuleViolations(resolvedViolations, unresolvedViolations)
+
+        severityStats.print().conclude(config.severeRuleViolationThreshold, 2)
     }
 }
+
+private fun RuleViolation.format() =
+    buildString {
+        append(severity)
+        append(": ")
+        append(rule)
+        append(" - ")
+        pkg?.let { id ->
+            append(id.toCoordinates())
+            append(" - ")
+        }
+        license?.let { license ->
+            append(license)
+            licenseSource?.let { source ->
+                append(" (")
+                append(source)
+                append(")")
+            }
+            append(" - ")
+        }
+        append(message)
+    }

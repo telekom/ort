@@ -31,22 +31,21 @@ import org.ossreviewtoolkit.downloader.WorkingTree
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.ProcessCapture
-import org.ossreviewtoolkit.utils.collectMessagesAsString
-import org.ossreviewtoolkit.utils.getPathFromEnvironment
-import org.ossreviewtoolkit.utils.isSymbolicLink
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.realFile
-import org.ossreviewtoolkit.utils.searchUpwardsForSubdirectory
-import org.ossreviewtoolkit.utils.showStackTrace
-import org.ossreviewtoolkit.utils.withoutPrefix
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.ProcessCapture
+import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.isSymbolicLink
+import org.ossreviewtoolkit.utils.common.realFile
+import org.ossreviewtoolkit.utils.common.searchUpwardsForSubdirectory
+import org.ossreviewtoolkit.utils.common.withoutPrefix
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.showStackTrace
 
 /**
  * The branch of git-repo to use. This allows to override git-repo's default of using the "stable" branch.
  */
-private const val GIT_REPO_BRANCH = "v2.13.8"
+private const val GIT_REPO_BRANCH = "v2.17.2"
 
 /**
  * The minimal manifest structure as used by the wrapping "manifest.xml" file as of repo version 2.4. For the full
@@ -151,11 +150,15 @@ class GitRepo : VersionControlSystem(), CommandLineTool {
             "Initializing git-repo from ${vcs.url} with revision '$manifestRevision' and manifest '$manifestPath'."
         }
 
-        // Clone all projects instead of only those in the "default" group until we support specifying groups.
         runRepo(
             targetDir,
-            "init", "--groups=all", "--no-repo-verify",
-            "--no-clone-bundle", "--repo-branch=$GIT_REPO_BRANCH",
+            "init",
+            // Configure cloning of all projects instead of only those in the "default" group (until specifying groups
+            // is supported in ORT).
+            "--groups=all",
+            "--no-repo-verify",
+            "--no-clone-bundle",
+            "--repo-branch=$GIT_REPO_BRANCH",
             "-b", manifestRevision,
             "-u", vcs.url,
             "-m", manifestPath
@@ -182,9 +185,7 @@ class GitRepo : VersionControlSystem(), CommandLineTool {
             // want to be able to download such projects, so specify "--force-sync" to work around that issue.
             val syncArgs = mutableListOf("sync", "-c", "--force-sync")
 
-            if (recursive) {
-                syncArgs += "--fetch-submodules"
-            }
+            if (recursive) syncArgs += "--fetch-submodules"
 
             runRepo(workingTree.workingDir, *syncArgs.toTypedArray())
 
@@ -203,7 +204,7 @@ class GitRepo : VersionControlSystem(), CommandLineTool {
 
     private fun runRepo(targetDir: File, vararg args: String) =
         if (Os.isWindows) {
-            val repo = getPathFromEnvironment(command()) ?: throw IOException("'repo' not found in PATH.")
+            val repo = Os.getPathFromEnvironment(command()) ?: throw IOException("'repo' not found in PATH.")
 
             // On Windows, the script itself is not executable, so we need to explicitly specify Python as the
             // interpreter. As of repo version 2.4, Python 3.6 is required also on Windows.

@@ -28,16 +28,14 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
-import org.ossreviewtoolkit.model.Failure
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.Success
 import org.ossreviewtoolkit.model.config.OrtConfiguration
 import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
-import org.ossreviewtoolkit.utils.ORT_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.expandTilde
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.ortConfigDirectory
+import org.ossreviewtoolkit.utils.common.expandTilde
+import org.ossreviewtoolkit.utils.core.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.ortConfigDirectory
 
 internal class ListStoredScanResultsCommand : CliktCommand(
     help = "Lists the provenance of all stored scan results for a given package identifier."
@@ -59,7 +57,7 @@ internal class ListStoredScanResultsCommand : CliktCommand(
     private val configArguments by option(
         "-P",
         help = "Override a key-value pair in the configuration file. For example: " +
-                "-P scanner.postgresStorage.schema=testSchema"
+                "-P ort.scanner.storages.postgres.schema=testSchema"
     ).associate()
 
     override fun run() {
@@ -68,12 +66,9 @@ internal class ListStoredScanResultsCommand : CliktCommand(
 
         println("Searching for scan results of '${packageId.toCoordinates()}' in ${ScanResultsStorage.storage.name}.")
 
-        val scanResults = when (val readResult = ScanResultsStorage.storage.read(packageId)) {
-            is Success -> readResult.result
-            is Failure -> {
-                log.error { "Could not read scan results: ${readResult.error}" }
-                throw ProgramResult(1)
-            }
+        val scanResults = ScanResultsStorage.storage.read(packageId).getOrElse {
+            log.error { "Could not read scan results: ${it.message}" }
+            throw ProgramResult(1)
         }
 
         println("Found ${scanResults.size} scan results:")

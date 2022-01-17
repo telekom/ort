@@ -26,7 +26,7 @@ import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.RuleViolation
 import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.utils.createLicenseInfoResolver
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.core.log
 
 /**
  * A set of evaluator [Rule]s, using an [ortResult] as input.
@@ -39,6 +39,16 @@ class RuleSet(
      * The list of all issues created by the rules of this [RuleSet].
      */
     val violations = mutableSetOf<RuleViolation>()
+
+    /**
+     * A DSL function to configure an [OrtResultRule]. The rule is applied once to [ortResult].
+     */
+    fun ortResultRule(name: String, configure: OrtResultRule.() -> Unit) {
+        OrtResultRule(this, name, ortResult).apply {
+            configure()
+            evaluate()
+        }
+    }
 
     /**
      * A DSL function to configure a [PackageRule]. The rule is applied to each [Package] and [Project] contained in

@@ -24,22 +24,23 @@ import com.vdurmont.semver4j.Semver
 
 import java.io.File
 import java.io.IOException
-import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.Properties
+
+import kotlin.io.path.moveTo
 
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.Os
-import org.ossreviewtoolkit.utils.createOrtTempDir
-import org.ossreviewtoolkit.utils.getCommonFileParent
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
-import org.ossreviewtoolkit.utils.searchUpwardsForSubdirectory
-import org.ossreviewtoolkit.utils.suppressInput
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.Os
+import org.ossreviewtoolkit.utils.common.getCommonFileParent
+import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.common.searchUpwardsForSubdirectory
+import org.ossreviewtoolkit.utils.common.suppressInput
+import org.ossreviewtoolkit.utils.core.createOrtTempDir
+import org.ossreviewtoolkit.utils.core.log
 
 /**
  * The [SBT](https://www.scala-sbt.org/) package manager for Scala.
@@ -182,10 +183,10 @@ class Sbt(
             it.isFile && it.name == "build.properties"
         }
 
-        if (!propertiesFiles.contains(rootPropertiesFile)) {
+        if (rootPropertiesFile !in propertiesFiles) {
             // Note that "sbt sbtVersion" behaves differently when executed inside or outside an SBT project, see
             // https://stackoverflow.com/a/20337575/1127485.
-            checkVersion(analyzerConfig.ignoreToolVersions, workingDir)
+            checkVersion(workingDir)
         } else {
             val versions = mutableListOf<Semver>()
 
@@ -207,13 +208,13 @@ class Sbt(
         }
     }
 
-    override fun resolveDependencies(definitionFiles: List<File>) =
+    override fun resolveDependencies(definitionFiles: List<File>, labels: Map<String, String>) =
         // Simply pass on the list of POM files to Maven, ignoring the SBT build files here.
         Maven(managerName, analysisRoot, analyzerConfig, repoConfig)
             .enableSbtMode()
-            .resolveDependencies(definitionFiles)
+            .resolveDependencies(definitionFiles, labels)
 
-    override fun resolveDependencies(definitionFile: File) =
+    override fun resolveDependencies(definitionFile: File, labels: Map<String, String>) =
         // This is not implemented in favor over overriding [resolveDependencies].
         throw NotImplementedError()
 }
@@ -223,7 +224,7 @@ private fun moveGeneratedPom(pomFile: File): File {
     val targetFilename = pomFile.relativeTo(targetDirParent).invariantSeparatorsPath.replace('/', '-')
     val targetFile = targetDirParent.resolve(targetFilename)
 
-    if (runCatching { Files.move(pomFile.toPath(), targetFile.toPath(), StandardCopyOption.ATOMIC_MOVE) }.isFailure) {
+    if (runCatching { pomFile.toPath().moveTo(targetFile.toPath(), StandardCopyOption.ATOMIC_MOVE) }.isFailure) {
         Sbt.log.error { "Moving '${pomFile.absolutePath}' to '${targetFile.absolutePath}' failed." }
         return pomFile
     }

@@ -26,7 +26,7 @@ import java.io.File
 
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
-import org.ossreviewtoolkit.utils.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
 import org.ossreviewtoolkit.utils.test.DEFAULT_ANALYZER_CONFIGURATION
 import org.ossreviewtoolkit.utils.test.DEFAULT_REPOSITORY_CONFIGURATION
 import org.ossreviewtoolkit.utils.test.USER_DIR
@@ -43,7 +43,7 @@ class NpmVersionUrlFunTest : WordSpec() {
             "resolve dependencies with URLs as versions correctly" {
                 val packageFile = projectDir.resolve("package.json")
 
-                val config = AnalyzerConfiguration(ignoreToolVersions = false, allowDynamicVersions = true)
+                val config = AnalyzerConfiguration(allowDynamicVersions = true)
                 val result = createNPM(config).resolveSingleProject(packageFile, resolveScopes = true)
                 val vcsPath = vcsDir.getPathToRoot(projectDir)
                 val expectedResult = patchExpectedResult(

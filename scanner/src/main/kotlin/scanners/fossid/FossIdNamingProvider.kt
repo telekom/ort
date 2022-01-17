@@ -22,7 +22,7 @@ package org.ossreviewtoolkit.scanner.scanners.fossid
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.core.log
 
 /**
  * This class provides names for projects and scans when the FossID scanner creates them, following a given pattern.
@@ -31,7 +31,7 @@ import org.ossreviewtoolkit.utils.log
  * [namingScanPattern] and [namingProjectPattern] are patterns describing the name using variables, e.g. "$var1_$var2".
  * Variable values are given in the map [namingConventionVariables].
  *
- * There also are builtin variables. Builtin variables are are prefixed in the pattern with "#" e.g. "$var1_#builtin".
+ * There also are builtin variables. Builtin variables are prefixed in the pattern with "#" e.g. "$var1_#builtin".
  * Available builtin variables:
  * * **projectName**: The name of the project (i.e. the part of the URL before .git).
  * * **currentTimestamp**: The current time.
@@ -74,7 +74,7 @@ internal class FossIdNamingProvider(
     private fun replaceNamingConventionVariables(
         namingConventionPattern: String, builtins: Map<String, String>, namingConventionVariables: Map<String, String>
     ): String {
-        log.info { "Parametrizing the name with naming=$namingConventionPattern." }
+        log.info { "Parameterizing the name with pattern '$namingConventionPattern'." }
         val currentTimestamp = FORMATTER.format(LocalDateTime.now())
 
         val allVariables =

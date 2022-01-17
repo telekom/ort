@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Bosch.IO GmbH
+ * Copyright (C) 2021-2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.utils.DependencyGraphConverter
 import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.model.yamlMapper
-import org.ossreviewtoolkit.utils.expandTilde
+import org.ossreviewtoolkit.utils.common.expandTilde
 
 /**
  * A command to convert the dependency representation in an ORT result file between the different supported formats.
@@ -64,6 +64,11 @@ class SetDependencyRepresentationCommand : CliktCommand(
         GRAPH {
             override fun convert(result: AnalyzerResult): AnalyzerResult =
                 DependencyGraphConverter.convert(result)
+        },
+
+        /** The classic dependency tree format. */
+        TREE {
+            override fun convert(result: AnalyzerResult): AnalyzerResult = result.withResolvedScopes()
         };
 
         /**

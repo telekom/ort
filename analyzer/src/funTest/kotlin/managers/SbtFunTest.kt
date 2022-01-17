@@ -31,8 +31,8 @@ import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.downloader.vcs.Git
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.yamlMapper
-import org.ossreviewtoolkit.utils.Ci
-import org.ossreviewtoolkit.utils.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.test.Ci
 import org.ossreviewtoolkit.utils.test.DEFAULT_ANALYZER_CONFIGURATION
 import org.ossreviewtoolkit.utils.test.patchActualResultObject
 import org.ossreviewtoolkit.utils.test.patchExpectedResult
@@ -49,7 +49,9 @@ class SbtFunTest : StringSpec({
         // Clean any previously generated POM files / target directories.
         Git().run(projectDir, "clean", "-fd")
 
-        val ortResult = Analyzer(DEFAULT_ANALYZER_CONFIGURATION).analyze(projectDir, listOf(Sbt.Factory()))
+        val ortResult = Analyzer(DEFAULT_ANALYZER_CONFIGURATION).run {
+            analyze(findManagedFiles(projectDir, setOf(Sbt.Factory())))
+        }
 
         val expectedResult = readOrtResult(expectedOutputFile)
 
@@ -69,7 +71,9 @@ class SbtFunTest : StringSpec({
         // Clean any previously generated POM files / target directories.
         Git().run(projectDir, "clean", "-fd")
 
-        val ortResult = Analyzer(DEFAULT_ANALYZER_CONFIGURATION).analyze(projectDir, listOf(Sbt.Factory()))
+        val ortResult = Analyzer(DEFAULT_ANALYZER_CONFIGURATION).run {
+            analyze(findManagedFiles(projectDir, setOf(Sbt.Factory())))
+        }
 
         val expectedResult = yamlMapper.readValue<OrtResult>(
             patchExpectedResult(

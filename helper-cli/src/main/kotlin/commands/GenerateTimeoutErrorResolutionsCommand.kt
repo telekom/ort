@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2019 HERE Europe B.V.
+ * Copyright (C) 2021 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,11 +32,9 @@ import org.ossreviewtoolkit.helper.common.readOrtResult
 import org.ossreviewtoolkit.helper.common.replaceConfig
 import org.ossreviewtoolkit.model.config.IssueResolution
 import org.ossreviewtoolkit.model.config.IssueResolutionReason
-import org.ossreviewtoolkit.model.config.Resolutions
-import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
 import org.ossreviewtoolkit.model.yamlMapper
-import org.ossreviewtoolkit.utils.expandTilde
+import org.ossreviewtoolkit.utils.common.expandTilde
 
 internal class GenerateTimeoutErrorResolutionsCommand : CliktCommand(
     help = "Generates resolutions for scanner timeout errors. The result is written to the standard output."
@@ -70,22 +69,12 @@ internal class GenerateTimeoutErrorResolutionsCommand : CliktCommand(
     override fun run() {
         val ortResult = readOrtResult(ortFile).replaceConfig(repositoryConfigurationFile)
 
-        val resolutionProvider = DefaultResolutionProvider().apply {
-            var resolutions = Resolutions()
-
-            resolutionsFile?.let {
-                resolutions = resolutions.merge(it.readValue())
-            }
-
-            resolutions = resolutions.merge(ortResult.getResolutions())
-
-            add(resolutions)
-        }
+        val resolutionProvider = DefaultResolutionProvider.create(ortResult, resolutionsFile)
 
         val timeoutIssues = ortResult
             .getScanIssues(omitExcluded)
             .filter {
-                it.message.startsWith("ERROR: Timeout") && resolutionProvider.getIssueResolutionsFor(it).isEmpty()
+                it.message.startsWith("ERROR: Timeout") && !resolutionProvider.isResolved(it)
             }
 
         val generatedResolutions = timeoutIssues.mapTo(mutableSetOf()) {

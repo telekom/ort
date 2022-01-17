@@ -4,12 +4,9 @@ on:
   pull_request:
     branches:
       - master
-  push:
-    branches:
-      - master
 
 jobs:
-  detekt:
+  detekt-issues:
     runs-on: ubuntu-latest
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=false
@@ -19,19 +16,19 @@ jobs:
     - name: Setup Java
       uses: actions/setup-java@v2
       with:
-        distribution: 'adopt'
+        distribution: adopt
         java-version: 11
-        cache: 'gradle'
+        cache: gradle
     - name: Check for Detekt Issues
       uses: burrunan/gradle-cache-action@v1
       with:
-        arguments: --no-daemon --stacktrace detekt
+        arguments: --stacktrace detekt
     - name: Upload SARIF File
       uses: github/codeql-action/upload-sarif@v1
       if: ${{ always() }} # Upload even if the previous step failed.
       with:
-        sarif_file: build/reports/detekt/merged.sarif
-  markdown:
+        sarif_file: build/reports/detekt/detekt.sarif
+  markdown-links:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
@@ -42,7 +39,7 @@ jobs:
         check-modified-files-only: yes
         max-depth: 2
         use-quiet-mode: yes
-  reuse:
+  reuse-tool:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
@@ -51,7 +48,9 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: 3.6
+        cache: pip
     - name: Check REUSE Compliance
       run: |
         pip install --user reuse
+        pip install --user --force-reinstall python-debian==0.1.40 # See https://github.com/fsfe/reuse-tool/issues/427.
         ~/.local/bin/reuse lint

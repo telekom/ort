@@ -24,10 +24,10 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import java.util.SortedSet
 
 import org.ossreviewtoolkit.model.utils.toPurl
-import org.ossreviewtoolkit.spdx.SpdxExpression
-import org.ossreviewtoolkit.spdx.SpdxOperator
-import org.ossreviewtoolkit.utils.DeclaredLicenseProcessor
-import org.ossreviewtoolkit.utils.ProcessedDeclaredLicense
+import org.ossreviewtoolkit.utils.core.DeclaredLicenseProcessor
+import org.ossreviewtoolkit.utils.core.ProcessedDeclaredLicense
+import org.ossreviewtoolkit.utils.spdx.SpdxExpression
+import org.ossreviewtoolkit.utils.spdx.SpdxOperator
 
 /**
  * A generic descriptor for a software package. It contains all relevant metadata about a package like the name,
@@ -49,6 +49,12 @@ data class Package(
      * An additional identifier in [package URL syntax](https://github.com/package-url/purl-spec).
      */
     val purl: String = id.toPurl(),
+
+    /**
+     * An optional additional identifier in [CPE syntax](https://cpe.mitre.org/specification/).
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    val cpe: String? = null,
 
     /**
      * The list of authors declared for this package.
@@ -103,7 +109,9 @@ data class Package(
     val vcs: VcsInfo,
 
     /**
-     * Processed VCS-related information about the [Package] that has e.g. common mistakes corrected.
+     * Processed VCS-related information about the [Package] in normalized form. The information is either derived from
+     * [vcs], guessed from additional data as a fallback, or empty. On top of that [PackageCuration]s may have been
+     * applied.
      */
     val vcsProcessed: VcsInfo = vcs.normalize(),
 
@@ -163,7 +171,7 @@ data class Package(
             homepageUrl = homepageUrl.takeIf { it != other.homepageUrl },
             binaryArtifact = binaryArtifact.takeIf { it != other.binaryArtifact },
             sourceArtifact = sourceArtifact.takeIf { it != other.sourceArtifact },
-            vcs = vcs.takeIf { it != other.vcs }?.toCuration(),
+            vcs = vcsProcessed.takeIf { it != other.vcsProcessed }?.toCuration(),
             isMetaDataOnly = isMetaDataOnly.takeIf { it != other.isMetaDataOnly }
         )
     }

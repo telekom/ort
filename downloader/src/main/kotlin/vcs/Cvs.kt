@@ -27,11 +27,11 @@ import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.downloader.WorkingTree
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.CommandLineTool
-import org.ossreviewtoolkit.utils.ProcessCapture
-import org.ossreviewtoolkit.utils.safeDeleteRecursively
-import org.ossreviewtoolkit.utils.searchUpwardsForSubdirectory
-import org.ossreviewtoolkit.utils.toHexString
+import org.ossreviewtoolkit.utils.common.CommandLineTool
+import org.ossreviewtoolkit.utils.common.ProcessCapture
+import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
+import org.ossreviewtoolkit.utils.common.searchUpwardsForSubdirectory
+import org.ossreviewtoolkit.utils.common.toHexString
 
 typealias CvsFileRevisions = List<Pair<String, String>>
 
@@ -45,7 +45,7 @@ class Cvs : VersionControlSystem(), CommandLineTool {
 
     override fun getVersion() = getVersion(null)
 
-    override fun getDefaultBranchName(url: String) = null
+    override fun getDefaultBranchName(url: String): String? = null
 
     override fun transformVersion(output: String) =
         versionRegex.matcher(output.lineSequence().first()).let {

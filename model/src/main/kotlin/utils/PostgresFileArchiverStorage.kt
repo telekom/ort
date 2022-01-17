@@ -24,8 +24,6 @@ import java.io.IOException
 
 import javax.sql.DataSource
 
-import kotlin.io.path.createTempFile
-
 import org.jetbrains.exposed.dao.IntEntity
 import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
@@ -33,6 +31,7 @@ import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.Column
 import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.DatabaseConfig
 import org.jetbrains.exposed.sql.SchemaUtils.createMissingTablesAndColumns
 import org.jetbrains.exposed.sql.SchemaUtils.withDataBaseLock
 
@@ -43,8 +42,8 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.checkDatabaseEncoding
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.tableExists
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.transaction
-import org.ossreviewtoolkit.utils.ORT_NAME
-import org.ossreviewtoolkit.utils.log
+import org.ossreviewtoolkit.utils.core.createOrtTempFile
+import org.ossreviewtoolkit.utils.core.log
 
 /**
  * A PostgreSQL based storage for archive files.
@@ -56,9 +55,7 @@ class PostgresFileArchiverStorage(
     dataSource: DataSource
 ) : FileArchiverStorage {
     /** Stores the database connection used by this object. */
-    val database = Database.connect(dataSource).apply {
-        defaultFetchSize(1000)
-
+    val database = Database.connect(dataSource, databaseConfig = DatabaseConfig { defaultFetchSize = 1000 }).apply {
         transaction {
             withDataBaseLock {
                 if (!tableExists(FileArchiveTable.tableName)) {
@@ -98,7 +95,7 @@ class PostgresFileArchiverStorage(
             queryFileArchive(provenance)
         } ?: return null
 
-        val file = createTempFile(ORT_NAME, ".zip").toFile()
+        val file = createOrtTempFile(suffix = ".zip")
 
         try {
             file.writeBytes(fileArchive.zipData)

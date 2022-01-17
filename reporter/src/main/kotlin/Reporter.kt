@@ -27,7 +27,7 @@ import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.ScanRecord
 import org.ossreviewtoolkit.model.config.PathExclude
 import org.ossreviewtoolkit.model.config.ScopeExclude
-import org.ossreviewtoolkit.utils.joinNonBlank
+import org.ossreviewtoolkit.utils.common.joinNonBlank
 
 /**
  * A reporter that creates a human readable report from the [AnalyzerResult] and [ScanRecord] contained in an
@@ -38,9 +38,11 @@ interface Reporter {
         private val LOADER = ServiceLoader.load(Reporter::class.java)!!
 
         /**
-         * The list of all available reporters in the classpath.
+         * The set of all available [reporters][Reporter] in the classpath, sorted by name.
          */
-        val ALL by lazy { LOADER.iterator().asSequence().toList() }
+        val ALL: Set<Reporter> by lazy {
+            LOADER.iterator().asSequence().toSortedSet(compareBy { it.reporterName })
+        }
     }
 
     /**

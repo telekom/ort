@@ -28,12 +28,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 
 import org.ossreviewtoolkit.model.AccessStatistics
-import org.ossreviewtoolkit.model.Failure
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Package
-import org.ossreviewtoolkit.model.Result
 import org.ossreviewtoolkit.model.ScanResult
-import org.ossreviewtoolkit.model.Success
 import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.config.ClearlyDefinedStorageConfiguration
 import org.ossreviewtoolkit.model.config.FileBasedStorageConfiguration
@@ -42,22 +39,32 @@ import org.ossreviewtoolkit.model.config.ScanStorageConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.model.config.Sw360StorageConfiguration
 import org.ossreviewtoolkit.model.utils.DatabaseUtils
+import org.ossreviewtoolkit.scanner.experimental.NestedProvenance
+import org.ossreviewtoolkit.scanner.experimental.NestedProvenanceScanResult
+import org.ossreviewtoolkit.scanner.experimental.PackageBasedScanStorage
+import org.ossreviewtoolkit.scanner.experimental.ScanStorageException
+import org.ossreviewtoolkit.scanner.experimental.toNestedProvenanceScanResult
 import org.ossreviewtoolkit.scanner.storages.*
-import org.ossreviewtoolkit.utils.log
-import org.ossreviewtoolkit.utils.ortDataDirectory
-import org.ossreviewtoolkit.utils.perf
-import org.ossreviewtoolkit.utils.storage.HttpFileStorage
-import org.ossreviewtoolkit.utils.storage.LocalFileStorage
-import org.ossreviewtoolkit.utils.storage.XZCompressedLocalFileStorage
+import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.core.ortDataDirectory
+import org.ossreviewtoolkit.utils.core.perf
+import org.ossreviewtoolkit.utils.core.storage.HttpFileStorage
+import org.ossreviewtoolkit.utils.core.storage.LocalFileStorage
+import org.ossreviewtoolkit.utils.core.storage.XZCompressedLocalFileStorage
 
 /**
  * The abstract class that storage backends for scan results need to implement.
  */
-abstract class ScanResultsStorage {
+abstract class ScanResultsStorage : PackageBasedScanStorage {
     /**
      * A companion object that allow to configure the globally used storage backend.
      */
     companion object {
+        /**
+         * A successful [Result] with an empty list of [ScanResult]s.
+         */
+        val EMPTY_RESULT = Result.success<List<ScanResult>>(emptyList())
+
         /**
          * The scan result storage in use. Needs to be set via the corresponding configure function.
          */
@@ -147,7 +154,7 @@ abstract class ScanResultsStorage {
                 config = config,
                 applicationNameSuffix = TOOL_NAME,
                 // Use a value slightly higher than the number of threads accessing the storage.
-                maxPoolSize = LocalScanner.NUM_STORAGE_THREADS + 3
+                maxPoolSize = PathScanner.NUM_STORAGE_THREADS + 3
             )
 
             log.info {
@@ -193,14 +200,14 @@ abstract class ScanResultsStorage {
 
         stats.numReads.incrementAndGet()
 
-        if (result is Success) {
-            if (result.result.isNotEmpty()) {
+        result.onSuccess { results ->
+            if (results.isNotEmpty()) {
                 stats.numHits.incrementAndGet()
             }
 
             log.perf {
-                "Read ${result.result.size} scan results for '${id.toCoordinates()}' from " +
-                        "${javaClass.simpleName} in ${duration.inWholeMilliseconds}ms."
+                "Read ${results.size} scan results for '${id.toCoordinates()}' from ${javaClass.simpleName} in " +
+                        "$duration."
             }
         }
 
@@ -221,14 +228,14 @@ abstract class ScanResultsStorage {
 
         stats.numReads.incrementAndGet()
 
-        if (result is Success) {
-            if (result.result.isNotEmpty()) {
+        result.onSuccess { results ->
+            if (results.isNotEmpty()) {
                 stats.numHits.incrementAndGet()
             }
 
             log.perf {
-                "Read ${result.result.size} scan results for '${pkg.id.toCoordinates()}' from " +
-                        "${javaClass.simpleName} in ${duration.inWholeMilliseconds}ms."
+                "Read ${results.size} scan results for '${pkg.id.toCoordinates()}' from ${javaClass.simpleName} in " +
+                        "$duration."
             }
         }
 
@@ -252,12 +259,11 @@ abstract class ScanResultsStorage {
 
         stats.numReads.addAndGet(packages.size)
 
-        if (result is Success) {
-            stats.numHits.addAndGet(result.result.count { (_, results) -> results.isNotEmpty() })
+        result.onSuccess { results ->
+            stats.numHits.addAndGet(results.count { (_, results) -> results.isNotEmpty() })
 
             log.perf {
-                "Read ${result.result.values.sumOf { it.size }} scan results from ${javaClass.simpleName} in " +
-                        "${duration.inWholeMilliseconds}ms."
+                "Read ${results.values.sumOf { it.size }} scan results from ${javaClass.simpleName} in $duration."
             }
         }
 
@@ -278,14 +284,13 @@ abstract class ScanResultsStorage {
                 "Not storing scan result for '${id.toCoordinates()}' because no provenance information is available."
             log.info { message }
 
-            return Failure(message)
+            return Result.failure(ScanStorageException(message))
         }
 
         val (result, duration) = measureTimedValue { addInternal(id, scanResult) }
 
         log.perf {
-            "Added scan result for '${id.toCoordinates()}' to ${javaClass.simpleName} in " +
-                    "${duration.inWholeMilliseconds}ms."
+            "Added scan result for '${id.toCoordinates()}' to ${javaClass.simpleName} in $duration."
         }
 
         return result
@@ -300,36 +305,34 @@ abstract class ScanResultsStorage {
      * Internal version of [read] that does not update the [access statistics][stats]. Implementations may want to
      * override this function if they can filter for the wanted [scannerCriteria] in a more efficient way.
      */
-    protected open fun readInternal(pkg: Package, scannerCriteria: ScannerCriteria): Result<List<ScanResult>> {
-        val scanResults = when (val readResult = readInternal(pkg.id)) {
-            is Success -> readResult.result.toMutableList()
-            is Failure -> return readResult
-        }
+    protected open fun readInternal(pkg: Package, scannerCriteria: ScannerCriteria): Result<List<ScanResult>> =
+        readInternal(pkg.id).map { results ->
+            if (results.isEmpty()) {
+                results
+            } else {
+                val scanResults = results.toMutableList()
 
-        if (scanResults.isEmpty()) return Success(scanResults)
+                // Only keep scan results whose provenance information matches the package information.
+                scanResults.retainAll { it.provenance.matches(pkg) }
+                if (scanResults.isEmpty()) {
+                    log.debug {
+                        "No stored scan results found for $pkg. The following entries with non-matching provenance " +
+                                "have been ignored: ${scanResults.map { it.provenance }}"
+                    }
+                } else {
+                    // Only keep scan results from compatible scanners.
+                    scanResults.retainAll { scannerCriteria.matches(it.scanner) }
+                    if (scanResults.isEmpty()) {
+                        log.debug {
+                            "No stored scan results found for $scannerCriteria. The following entries with " +
+                                    "incompatible scanners have been ignored: ${scanResults.map { it.scanner }}"
+                        }
+                    }
+                }
 
-        // Only keep scan results whose provenance information matches the package information.
-        scanResults.retainAll { it.provenance.matches(pkg) }
-        if (scanResults.isEmpty()) {
-            log.debug {
-                "No stored scan results found for $pkg. The following entries with non-matching provenance have " +
-                        "been ignored: ${scanResults.map { it.provenance }}"
+                scanResults
             }
-            return Success(scanResults)
         }
-
-        // Only keep scan results from compatible scanners.
-        scanResults.retainAll { scannerCriteria.matches(it.scanner) }
-        if (scanResults.isEmpty()) {
-            log.debug {
-                "No stored scan results found for $scannerCriteria. The following entries with incompatible scanners " +
-                        "have been ignored: ${scanResults.map { it.scanner }}"
-            }
-            return Success(scanResults)
-        }
-
-        return Success(scanResults)
-    }
 
     /**
      * Internal version of [read] that does not update the [access statistics][stats]. The default implementation uses
@@ -345,10 +348,14 @@ abstract class ScanResultsStorage {
             packages.map { async { it.id to readInternal(it, scannerCriteria) } }.awaitAll()
         }.associate { it }
 
-        return if (results.all { it.value is Failure }) {
-            Failure("Could not read any scan results from ${javaClass.simpleName}.")
+        val successfulResults = results.mapNotNull { (id, scanResults) ->
+            scanResults.getOrNull()?.let { id to it }
+        }.toMap()
+
+        return if (successfulResults.isEmpty()) {
+            Result.failure(ScanStorageException("Could not read any scan results from ${javaClass.simpleName}."))
         } else {
-            Success(results.filter { it.value is Success }.mapValues { (it.value as Success).result })
+            Result.success(successfulResults)
         }
     }
 
@@ -356,4 +363,26 @@ abstract class ScanResultsStorage {
      * Internal version of [add] that skips common sanity checks.
      */
     protected abstract fun addInternal(id: Identifier, scanResult: ScanResult): Result<Unit>
+
+    override fun read(pkg: Package, nestedProvenance: NestedProvenance): List<NestedProvenanceScanResult> =
+        read(pkg.id).toNestedProvenanceScanResult(nestedProvenance)
+
+    override fun read(
+        pkg: Package,
+        nestedProvenance: NestedProvenance,
+        scannerCriteria: ScannerCriteria
+    ): List<NestedProvenanceScanResult> =
+        read(pkg, scannerCriteria).toNestedProvenanceScanResult(nestedProvenance)
+
+    private fun Result<List<ScanResult>>.toNestedProvenanceScanResult(nestedProvenance: NestedProvenance) =
+        map { scanResults ->
+            scanResults.filter { it.provenance == nestedProvenance.root }
+                .map { it.toNestedProvenanceScanResult(nestedProvenance) }
+        }.getOrThrow()
+
+    override fun write(pkg: Package, nestedProvenanceScanResult: NestedProvenanceScanResult) {
+        nestedProvenanceScanResult.merge().forEach { scanResult ->
+            add(pkg.id, scanResult).getOrThrow()
+        }
+    }
 }
