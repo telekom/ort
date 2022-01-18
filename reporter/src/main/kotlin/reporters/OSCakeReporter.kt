@@ -34,8 +34,9 @@ import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.reporter.model.DependencyTreeNode
-import org.ossreviewtoolkit.reporter.model.EvaluatedModel
+
+import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.DependencyTreeNode
+import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.EvaluatedModel
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock

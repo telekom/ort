@@ -43,7 +43,7 @@ import org.ossreviewtoolkit.oscake.OSCakeDeduplicator
 import org.ossreviewtoolkit.oscake.OSCakeMerger
 import org.ossreviewtoolkit.oscake.isValidDirectory
 import org.ossreviewtoolkit.oscake.isValidFilePathName
-import org.ossreviewtoolkit.utils.expandTilde
+import org.ossreviewtoolkit.utils.common.expandTilde
 
 sealed class OscakeConfig(name: String) : OptionGroup(name)
 

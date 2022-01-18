@@ -33,7 +33,7 @@ import org.ossreviewtoolkit.oscake.CURATION_LOGGER
 import org.ossreviewtoolkit.oscake.CURATION_VERSION
 import org.ossreviewtoolkit.oscake.packageModifierMap
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
-import org.ossreviewtoolkit.utils.unpackZip
+import org.ossreviewtoolkit.utils.common.unpackZip
 
 /**
  * The [CurationManager] handles the entire curation process: reads and analyzes the curation files,

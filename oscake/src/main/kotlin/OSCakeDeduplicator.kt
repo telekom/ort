@@ -29,7 +29,7 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.deduplicator.PackDeduplicator
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
-import org.ossreviewtoolkit.utils.unpackZip
+import org.ossreviewtoolkit.utils.common.unpackZip
 
 /**
  * The [OSCakeDeduplicator] deduplicates licenses and copyrights in all scopes
