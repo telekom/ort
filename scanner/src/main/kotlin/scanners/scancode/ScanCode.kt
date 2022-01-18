@@ -182,7 +182,7 @@ class ScanCode(
         val resultFile = createOrtTempDir().resolve("result.json")
         val process = ProcessCapture(
             scannerPath.absolutePath,
-            *commandLineOptions.toTypedArray(),
+            *commandLineOptions.joinToString(",").replace("{rawFileName}", java.util.UUID.randomUUID().toString()).split(",").toTypedArray(),
             path.absolutePath,
             OUTPUT_FORMAT_OPTION,
             resultFile.absolutePath
