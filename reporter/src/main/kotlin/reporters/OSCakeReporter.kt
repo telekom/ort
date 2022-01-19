@@ -126,12 +126,8 @@ class OSCakeReporter : Reporter {
 
         require(!(!rawDataExists && !scanDataExists)) {
                 "No native-scan-results found! Check folder $rawDir or re-run the scanner once again!" }
-        if (rawDataExists && scanDataExists) {
-            // delete raw data in native-scan-results
-            ortScanResultsDir.deleteRecursively()
-            scanDataExists = false
-        }
-        if (rawDataExists && !scanDataExists) {
+
+        if (rawDataExists) {
             // copy raw data to native-scan-results
             if (!ortScanResultsDir.exists()) ortScanResultsDir.mkdir()
             File(rawDir).listFiles().forEach {
@@ -140,11 +136,11 @@ class OSCakeReporter : Reporter {
                         "Clean up the folders \"$rawDir\" and ${ortScanResultsDir.name} and re-run the scanner first!" }
 
                 fileName += "scan-results_ScanCode.json"
-                require(!ortScanResultsDir.resolve(fileName).exists()) { "Duplicate file $fileName (${it.name}) found" +
-                        " in ${params.ortScanResultsDir}! Clean up the folders \"$rawDir\" and " +
-                        "${ortScanResultsDir.name} and re-run the scanner first!" }
+                if (ortScanResultsDir.resolve(fileName).exists()) logger.log("File $fileName (${it.name}) " +
+                        "already exists and will be overwritten in ${params.ortScanResultsDir}!", Level.INFO,
+                    phase = ProcessingPhase.PRE)
 
-                it.copyTo(ortScanResultsDir.resolve(fileName))
+                it.copyTo(ortScanResultsDir.resolve(fileName), true)
             }
             // delete rawData
             File(rawDir).deleteRecursively()
