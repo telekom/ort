@@ -91,10 +91,6 @@ data class OSCakeConfiguration(
      */
     val sourceCodesDir: String? = null,
     /**
-     * [scanResultsCache] holds information on how to handle scan-results.
-     */
-    val scanResultsCache: Map<String, String>? = null,
-    /**
      * [ortScanResultsDir] folder where ORT stores its native scan results.
      */
     val ortScanResultsDir: String? = null,
@@ -146,27 +142,7 @@ data class OSCakeConfiguration(
             // init of params necessary, because the logger already needs this information
             params = OSCakeConfigParams(osCakeConfig.includeJsonPathInLogfile4ErrorsAndWarnings ?: false)
 
-            var scanResultsCacheEnabled = false
             var oscakeScanResultsDir: String? = null
-            val deleteOrtNativeScanResults = options.containsKey("--deleteOrtNativeScanResults")
-            if (osCakeConfig.scanResultsCache?.get("enabled").toBoolean()) {
-                scanResultsCacheEnabled = true
-                require(isValidFolder(osCakeConfig.scanResultsCache?.getOrDefault("directory", ""))) {
-                    "scanResultsCache in oscake.conf is enabled, but 'scanResultsCache.directory' is not a valid " +
-                            "folder or 'scanResultsCache.directory' is missing in config!"
-                }
-                oscakeScanResultsDir = osCakeConfig.scanResultsCache?.getOrDefault("directory", null)
-            } else {
-                require(isValidFolder(ortScanResultsDir)) { "Conf-value for 'nativeScanResultsDir' " +
-                        "is not a valid folder!" }
-                if (deleteOrtNativeScanResults) {
-                    logger.log(
-                        "Option \"--deleteOrtNativeScanResults\" ignored, because \"scanResultsCache\" in " +
-                                "oscake.conf does not exist or is not enabled!", Level.INFO,
-                        phase = ProcessingPhase.CONFIG)
-                }
-            }
-
             params.dependencyGranularity = if (options["--dependency-granularity"]?.
                 toIntOrNull() != null) options["--dependency-granularity"]!!.toInt() else Int.MAX_VALUE
 
@@ -194,7 +170,6 @@ data class OSCakeConfiguration(
             }
 
             params.ortScanResultsDir = ortScanResultsDir
-            params.scanResultsCacheEnabled = scanResultsCacheEnabled
             params.oscakeScanResultsDir = oscakeScanResultsDir
             params.onlyIncludePackages = onlyIncludePackagesMap
 
@@ -214,7 +189,6 @@ data class OSCakeConfiguration(
              }
             params.forceIncludePackages = forceIncludePackagesMap
 
-            params.deleteOrtNativeScanResults = deleteOrtNativeScanResults
             params.issuesLevel = issueLevel
             params.sourceCodesDir = osCakeConfig.sourceCodesDir
             params.scopePatterns = osCakeConfig.scopePatterns

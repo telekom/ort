@@ -40,9 +40,9 @@ import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
 import org.ossreviewtoolkit.utils.common.packZip
 import org.ossreviewtoolkit.utils.common.toHexString
+import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
 
 const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
 const val REUSE_LICENSES_FOLDER = "LICENSES/"

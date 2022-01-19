@@ -35,10 +35,9 @@ import org.ossreviewtoolkit.model.config.ScannerOptions
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
-
 import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.DependencyTreeNode
 import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.EvaluatedModel
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ConfigInfo
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.LicenseTextEntry
@@ -49,11 +48,13 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.REPORTER_LOGGER
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ScopeLevel
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.getLicensesFolderPrefix
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.isInstancedLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.zipAndCleanUp
 
 /**
  * A Reporter that creates the output for the Tdosca/OSCake projects
@@ -112,11 +113,11 @@ class OSCakeReporter : Reporter {
      */
     private fun prepareNativeScanResults(options: Map<String, ScannerOptions>?, params: OSCakeConfigParams) {
         // get folder name "rawDir" of scanner files from file "scan-result.yml"
-        val scannerCommandLineParams = (options?.get("ScanCode")?.get("commandLine")?:"").split(" ")
+        val scannerCommandLineParams = (options?.get("ScanCode")?.get("commandLine") ?: "").split(" ")
         val ind = scannerCommandLineParams.indexOfFirst { it == "--json" }
         require(ind > 0) { "The scanner was run without option --json, therefore no scan data exists!" }
 
-        val scannerRaw = scannerCommandLineParams[ind +1 ]
+        val scannerRaw = scannerCommandLineParams[ind + 1]
         val rawDir = File(scannerRaw).parent
 
         val rawDataExists = File(rawDir).exists() && File(rawDir).listFiles().isNotEmpty()
@@ -148,7 +149,7 @@ class OSCakeReporter : Reporter {
             // delete rawData
             File(rawDir).deleteRecursively()
             File(rawDir).mkdir()
-            logger.log("ScanCode raw data files were copied from ${rawDir} to ${params.ortScanResultsDir}",
+            logger.log("ScanCode raw data files were copied from $rawDir to ${params.ortScanResultsDir}",
                 Level.INFO, phase = ProcessingPhase.PRE)
         }
     }
@@ -164,18 +165,18 @@ class OSCakeReporter : Reporter {
             val node = jsonMapper.readTree(fileName)
 
             node["headers"][0]["options"]["input"][0]?.let {
-                val inps = if (it.toString().contains("\\")) it.toString().replace("\\\\", "\\").
-                    replace("\\", "/").replace("\"", "").split("/") else
+                val inps = if (it.toString().contains("\\")) it.toString().replace("\\\\", "\\")
+                    .replace("\\", "/").replace("\"", "").split("/") else
                         it.toString().replace("\"", "").split("/")
                 val ind = inps.indexOfFirst { it.startsWith("ort-ScanCode") }
-                for (n in ind+1 until inps.size) {
+                ret = ""
+                for (n in ind + 1 until inps.size) {
                     ret += "${inps[n]}/"
                 }
             }
         }
         return ret
     }
-
 
     /**
      * If a file contains more than one license text entry for a specific license and the difference of the
@@ -348,8 +349,7 @@ class OSCakeReporter : Reporter {
                     val fileInfoBlockDict = HashMap<String, FileInfoBlock>()
                     val nsr = getNativeScanResultJson(
                         key,
-                        getScanResultsDir(key, cfg.ortScanResultsDir, cfg.scanResultsCacheEnabled,
-                            cfg.oscakeScanResultsDir)
+                        cfg.ortScanResultsDir
                     )
 
                     scanResult.summary.licenseFindings
@@ -386,43 +386,7 @@ class OSCakeReporter : Reporter {
                 }
             }
         }
-        if (cfg.deleteOrtNativeScanResults && cfg.scanResultsCacheEnabled &&
-            cfg.ortScanResultsDir != null) File(cfg.ortScanResultsDir).deleteRecursively()
-
         return scanDict
-    }
-
-    /**
-     * if "ort-native-scan-results"[ortScanResultsDir] exists and [scanResultsCacheEnabled] is enabled, the package
-     * is copied to the "oscake-native-scan-results-cache" [oscakeScanResultsDir] and deleted from origin.
-     * Method returns the directory where to search for the scan results
-     */
-    private fun getScanResultsDir(
-        id: Identifier,
-        ortScanResultsDir: String?,
-        scanResultsCacheEnabled: Boolean,
-        oscakeScanResultsDir: String?
-    ): String? {
-        var path = ortScanResultsDir
-        if (!scanResultsCacheEnabled || oscakeScanResultsDir == null) return path
-
-        val subfolder = id.toPath()
-
-        if (ortScanResultsDir != null && File(ortScanResultsDir).resolve(subfolder).exists()) {
-            File("$oscakeScanResultsDir/$subfolder").also {
-                if (it.exists()) it.deleteRecursively()
-                File("$ortScanResultsDir/$subfolder").copyRecursively(it)
-                path = "$oscakeScanResultsDir"
-            }
-        } else {
-            path = "$oscakeScanResultsDir"
-            if (ortScanResultsDir != null && !File("$oscakeScanResultsDir/$subfolder").exists()) {
-                logger.log("Scan results for $subfolder does not exist - neither in $ortScanResultsDir nor in " +
-                            "$oscakeScanResultsDir", Level.ERROR, id, phase = ProcessingPhase.SCANRESULT
-                )
-            }
-        }
-        return path
     }
 
     /**

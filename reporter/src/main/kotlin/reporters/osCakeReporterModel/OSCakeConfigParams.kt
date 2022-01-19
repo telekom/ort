@@ -31,10 +31,6 @@ data class OSCakeConfigParams(
      */
     var ortScanResultsDir: String? = null,
     /**
-     * if enabled, copies the ORT-native-scan-results to OSCake-native-scan-results
-     */
-    var scanResultsCacheEnabled: Boolean = false,
-    /**
      * path, where to store the ORT-native-scan-results for caching
      */
     var oscakeScanResultsDir: String? = null,
@@ -46,10 +42,6 @@ data class OSCakeConfigParams(
      * Defines the granularity levels of the output from 0...Max
      */
     var dependencyGranularity: Int = -1,
-    /**
-     * deletes the ORT native-scan-results directory if set
-     */
-    var deleteOrtNativeScanResults: Boolean = false,
     /**
      * defines the level for issue documentation in oscc-file
      */
