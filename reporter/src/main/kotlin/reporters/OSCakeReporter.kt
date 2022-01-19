@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.EMPTY_JSON_NODE
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.model.config.ScannerOptions
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
@@ -83,6 +84,7 @@ class OSCakeReporter : Reporter {
         }
 
         // start processing
+        prepareNativeScanResults(input.ortResult.scanner?.config?.options, OSCakeConfiguration.params)
         val scanDict = getNativeScanResults(input, OSCakeConfiguration.params)
         removeMultipleEqualLicensesPerFile(scanDict)
         val osc = ingestAnalyzerOutput(input, scanDict, outputDir, OSCakeConfiguration.params)
@@ -103,6 +105,77 @@ class OSCakeReporter : Reporter {
         }
         return listOf(outputFile)
     }
+
+    /**
+     * If the folder "native-scan-results" is empty, the raw data files from scanner are copied. The folder for
+     * the raw data files is configured in ort.conf (scanner.options.ScanCode) as parameter "--json"
+     */
+    private fun prepareNativeScanResults(options: Map<String, ScannerOptions>?, params: OSCakeConfigParams) {
+        // get folder name "rawDir" of scanner files from file "scan-result.yml"
+        val scannerCommandLineParams = (options?.get("ScanCode")?.get("commandLine")?:"").split(" ")
+        val ind = scannerCommandLineParams.indexOfFirst { it == "--json" }
+        require(ind > 0) { "The scanner was run without option --json, therefore no scan data exists!" }
+
+        val scannerRaw = scannerCommandLineParams[ind +1 ]
+        val rawDir = File(scannerRaw).parent
+
+        val rawDataExists = File(rawDir).exists() && File(rawDir).listFiles().isNotEmpty()
+        val ortScanResultsDir = File(params.ortScanResultsDir)
+        var scanDataExists = ortScanResultsDir.exists() && ortScanResultsDir.listFiles().isNotEmpty()
+
+        require(!(!rawDataExists && !scanDataExists)) {
+                "No native-scan-results found! Check folder $rawDir or re-run the scanner once again!" }
+        if (rawDataExists && scanDataExists) {
+            // delete raw data in native-scan-results
+            ortScanResultsDir.deleteRecursively()
+            scanDataExists = false
+        }
+        if (rawDataExists && !scanDataExists) {
+            // copy raw data to native-scan-results
+            if (!ortScanResultsDir.exists()) ortScanResultsDir.mkdir()
+            File(rawDir).listFiles().forEach {
+                var fileName = getOriginalFolderName(it)
+                require(fileName != null) { "Cannot identify file name in \"${it.name}\" in \"$rawDir\"! " +
+                        "Clean up the folders \"$rawDir\" and ${ortScanResultsDir.name} and re-run the scanner first!" }
+
+                fileName += "scan-results_ScanCode.json"
+                require(!ortScanResultsDir.resolve(fileName).exists()) { "Duplicate file $fileName (${it.name}) found" +
+                        " in ${params.ortScanResultsDir}! Clean up the folders \"$rawDir\" and " +
+                        "${ortScanResultsDir.name} and re-run the scanner first!" }
+
+                it.copyTo(ortScanResultsDir.resolve(fileName))
+            }
+            // delete rawData
+            File(rawDir).deleteRecursively()
+            File(rawDir).mkdir()
+            logger.log("ScanCode raw data files were copied from ${rawDir} to ${params.ortScanResultsDir}",
+                Level.INFO, phase = ProcessingPhase.PRE)
+        }
+    }
+
+    /**
+     * Read the given file and extract the original folder name of the json file in "input" line
+     * e.g. "..AppData\\Local\\Temp\\ort-ScanCode2604498589299189126\\Maven\\junit\\junit\\4.11"
+     * result: Maven/junit/junit/4.11
+     */
+    private fun getOriginalFolderName(fileName: File): String? {
+        var ret: String? = null
+        if (fileName.isFile && fileName.length() > 0L) {
+            val node = jsonMapper.readTree(fileName)
+
+            node["headers"][0]["options"]["input"][0]?.let {
+                val inps = if (it.toString().contains("\\")) it.toString().replace("\\\\", "\\").
+                    replace("\\", "/").replace("\"", "").split("/") else
+                        it.toString().replace("\"", "").split("/")
+                val ind = inps.indexOfFirst { it.startsWith("ort-ScanCode") }
+                for (n in ind+1 until inps.size) {
+                    ret += "${inps[n]}/"
+                }
+            }
+        }
+        return ret
+    }
+
 
     /**
      * If a file contains more than one license text entry for a specific license and the difference of the
