@@ -402,7 +402,7 @@ class OSCakeReporter : Reporter {
         if (!scanFile.exists()) {
             throw FileNotFoundException(
                 "Cannot find native scan result \"${scanFile.absolutePath}\". Check configuration settings for " +
-                        " 'scanResultsCache' and/or 'ortScanResultsDir' ")
+                        " 'ortScanResultsDir' ")
         }
         var node: JsonNode = EMPTY_JSON_NODE
         if (scanFile.isFile && scanFile.length() > 0L) {
