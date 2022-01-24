@@ -349,7 +349,10 @@ class OSCakeReporter : Reporter {
                     )
 
                     scanResult.summary.licenseFindings
-                        .filter { !(it.license.toString() == "NOASSERTION" && cfg.ignoreNOASSERTION) }.forEach {
+                        .filter { !(it.license.toString() == "NOASSERTION" && cfg.ignoreNOASSERTION) }
+                        .filter { !(it.license.toString().startsWith("LicenseRef-scancode") &&
+                                it.license.toString().contains("unknown") && cfg.ignoreLicenseRefScancodeUnknown) }
+                        .forEach {
                         val fileInfoBlock =
                             fileInfoBlockDict.getOrPut(it.location.path) { FileInfoBlock(it.location.path) }
 

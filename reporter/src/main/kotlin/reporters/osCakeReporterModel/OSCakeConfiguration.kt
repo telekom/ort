@@ -116,7 +116,11 @@ data class OSCakeConfiguration(
      */
     val ignoreNOASSERTION: Boolean? = false,
     /**
-     *
+     * defines if license findings starting with "LicenseRef-scancode-unknown" are ignored
+     */
+    val ignoreLicenseRefScancodeUnknown: Boolean? = false,
+    /**
+     * remove json sections from oscc-file
      */
     val hideSections: List<String>? = emptyList()
     ) {
@@ -195,6 +199,7 @@ data class OSCakeConfiguration(
             params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns + osCakeConfig.scopePatterns).toList()
 
             params.ignoreNOASSERTION = osCakeConfig.ignoreNOASSERTION ?: false
+            params.ignoreLicenseRefScancodeUnknown = osCakeConfig.ignoreLicenseRefScancodeUnknown ?: false
             params.hideSections = osCakeConfig.hideSections ?: emptyList()
 
             options.forEach {

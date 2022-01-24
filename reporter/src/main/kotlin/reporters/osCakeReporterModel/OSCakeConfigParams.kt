@@ -65,6 +65,7 @@ data class OSCakeConfigParams(
      */
     var forceIncludePackages: MutableMap<Identifier, Boolean> = mutableMapOf(),
     var ignoreNOASSERTION: Boolean = false,
+    var ignoreLicenseRefScancodeUnknown: Boolean = false,
     var hideSections: List<String> = emptyList()
 ) {
     constructor(includeJsonPathInLogfile: Boolean) : this(
