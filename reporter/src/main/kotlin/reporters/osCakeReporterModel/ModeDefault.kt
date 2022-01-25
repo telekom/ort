@@ -212,6 +212,8 @@ internal class ModeDefault(
                         pack.defaultLicensings.add(this)
                         if (lte.isLicenseText) file?.writeText(genText!!)
                     } else {
+                        // write dedup-file for the file licensing, which is added later
+                        if (lte.isLicenseText) file?.writeText(genText!!)
                         val lic = pack.defaultLicensings.first { it.license == lte.license &&
                                 it.path == fibPathWithoutPackage }
                         val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
@@ -235,6 +237,8 @@ internal class ModeDefault(
                         file?.name, fibPathWithoutPackage))
                     if (lte.isLicenseText) file?.writeText(genText!!)
                 } else {
+                    // write dedup-file for the file licensing, which is added later
+                    if (lte.isLicenseText) file?.writeText(genText!!)
                     val lic = dirLicensing.licenses.first { it.license == lte.license &&
                             it.path == fibPathWithoutPackage }
                     val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
