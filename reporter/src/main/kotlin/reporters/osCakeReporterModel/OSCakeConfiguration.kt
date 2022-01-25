@@ -87,6 +87,11 @@ data class OSCakeConfiguration(
      */
     val copyrightScopePatterns: List<String> = mutableListOf(),
     /**
+     *  [scopeIgnorePatterns] contains a list of glob patterns which excludes files for determination of the
+     *  corresponding [ScopeLevel] for licenses and copyrights
+     */
+    val scopeIgnorePatterns: List<String> = mutableListOf(),
+    /**
      * [sourceCodesDir] folders where to find or save the source code.
      */
     val sourceCodesDir: String? = null,
@@ -122,7 +127,11 @@ data class OSCakeConfiguration(
     /**
      * remove json sections from oscc-file
      */
-    val hideSections: List<String>? = emptyList()
+    val hideSections: List<String>? = emptyList(),
+    /**
+     * in order to get the same results for Windows and Unix systems when identifying the Default- or Dir-scope
+     */
+    val lowerCaseComparisonOfScopePatterns: Boolean? = true
     ) {
     companion object {
         private lateinit var osCakeConfig: OSCakeConfiguration
@@ -195,8 +204,22 @@ data class OSCakeConfiguration(
 
             params.issuesLevel = issueLevel
             params.sourceCodesDir = osCakeConfig.sourceCodesDir
-            params.scopePatterns = osCakeConfig.scopePatterns
-            params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns + osCakeConfig.scopePatterns).toList()
+            params.lowerCaseComparisonOfScopePatterns = osCakeConfig.lowerCaseComparisonOfScopePatterns ?: true
+            if (params.lowerCaseComparisonOfScopePatterns == true) {
+                osCakeConfig.scopePatterns.forEach { params.scopePatterns.add(it.lowercase()) }
+                params.copyrightScopePatterns.addAll(params.scopePatterns)
+                osCakeConfig.copyrightScopePatterns.forEach { params.copyrightScopePatterns.add(it.lowercase()) }
+                osCakeConfig.scopeIgnorePatterns.forEach { params.scopeIgnorePatterns.add(it.lowercase()) }
+                params.scopePatterns = params.scopePatterns.distinct() as MutableList<String>
+                params.copyrightScopePatterns = params.copyrightScopePatterns.distinct() as MutableList<String>
+                if (params.scopeIgnorePatterns.isNotEmpty()) params.scopeIgnorePatterns =
+                    params.scopeIgnorePatterns.distinct() as MutableList<String>
+            } else {
+                params.scopePatterns = osCakeConfig.scopePatterns as MutableList<String>
+                params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns +
+                        osCakeConfig.scopePatterns).toList() as MutableList<String>
+                params.scopeIgnorePatterns = osCakeConfig.scopeIgnorePatterns as MutableList<String>
+            }
 
             params.ignoreNOASSERTION = osCakeConfig.ignoreNOASSERTION ?: false
             params.ignoreLicenseRefScancodeUnknown = osCakeConfig.ignoreLicenseRefScancodeUnknown ?: false

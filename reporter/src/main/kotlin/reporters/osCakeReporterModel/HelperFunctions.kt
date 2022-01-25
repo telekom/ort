@@ -86,14 +86,19 @@ fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null):
  * Depending on the [path] of the file and the name of the file (contained in list [scopePatterns]) the
  * [ScopeLevel] is identified.
  */
-fun getScopeLevel(path: String, packageRoot: String, scopePatterns: List<String>): ScopeLevel {
+fun getScopeLevel(path: String, packageRoot: String, scopePatterns: List<String>,
+                  scopeIgnorePatterns: List<String>): ScopeLevel {
+
     var scopeLevel = ScopeLevel.FILE
     val fileSystem = FileSystems.getDefault()
 
-    if (!scopePatterns.filter { fileSystem.getPathMatcher(
-            "glob:$it"
-        ).matches(File(File(path).name).toPath()) }.isNullOrEmpty()) {
+    val comparePath = if (OSCakeConfiguration.params.lowerCaseComparisonOfScopePatterns == true)
+        File(File(path).name.lowercase()).toPath() else File(File(path).name).toPath()
 
+    if (scopeIgnorePatterns.isNotEmpty() && scopeIgnorePatterns.any {
+            fileSystem.getPathMatcher("glob:$it").matches(comparePath) }) return scopeLevel
+
+    if (!scopePatterns.filter { fileSystem.getPathMatcher("glob:$it").matches(comparePath) }.isNullOrEmpty()) {
         scopeLevel = ScopeLevel.DIR
         var fileName = path
         if (path.startsWith(packageRoot) && packageRoot != "") fileName =

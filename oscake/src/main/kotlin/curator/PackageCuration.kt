@@ -120,7 +120,7 @@ internal data class PackageCuration(
      * defaultLicensings exist, which are not based on fileLicensings - aka "declared license").
      */
     internal fun curate(pack: Pack, archiveDir: File, fileStore: File, scopePatterns: List<String>,
-                        copyrightScopePatterns: List<String>) {
+                        copyrightScopePatterns: List<String>, scopeIgnorePatterns: List<String>) {
         if (packageModifier == "insert" || packageModifier == "update") {
             eliminateIssueFromPackage(pack)
             curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
@@ -130,7 +130,7 @@ internal data class PackageCuration(
                     when (curationFileLicenseItem.modifier) {
                         "insert" -> curateLicenseInsert(
                             curationFileItem, curationFileLicenseItem, pack, archiveDir,
-                            fileStore, scopePatterns
+                            fileStore, scopePatterns, scopeIgnorePatterns
                         )
                         "delete" -> curateLicenseDelete(curationFileItem, curationFileLicenseItem, pack, archiveDir)
                         "update" -> curateLicenseUpdate(
@@ -143,10 +143,11 @@ internal data class PackageCuration(
                     }?.forEach { curationFileCopyrightItem ->
                     when (curationFileCopyrightItem.modifier) {
                         "insert" -> curateCopyrightInsert(fileScope, curationFileCopyrightItem, pack,
-                            copyrightScopePatterns)
+                            copyrightScopePatterns, scopeIgnorePatterns)
                         "delete" -> curateCopyrightDelete(fileScope, pack, curationFileCopyrightItem.copyright!!,
-                            copyrightScopePatterns)
-                        "delete-all" -> curateCopyrightDeleteAll(fileScope, pack, copyrightScopePatterns)
+                            copyrightScopePatterns, scopeIgnorePatterns)
+                        "delete-all" -> curateCopyrightDeleteAll(fileScope, pack, copyrightScopePatterns,
+                             scopeIgnorePatterns)
                     }
                 }
             }
@@ -326,9 +327,9 @@ internal data class PackageCuration(
     }
 
     private fun curateCopyrightInsert(fileScope: String, curFileCopyrightItem: CurationFileCopyrightItem, pack: Pack,
-                                      copyrightScopePatterns: List<String>) {
+                                      copyrightScopePatterns: List<String>, scopeIgnorePatterns: List<String>) {
         val copyrightStatement = curFileCopyrightItem.copyright!!.replace("\\?", "?").replace("\\*", "*")
-        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns)
+        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns, scopeIgnorePatterns)
 
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: (FileLicensing(fileScope).apply {
             pack.fileLicensings.add(this)
@@ -348,10 +349,11 @@ internal data class PackageCuration(
         }
     }
 
-    private fun curateCopyrightDeleteAll(fileScope: String, pack: Pack, copyrightScopePatterns: List<String>) {
+    private fun curateCopyrightDeleteAll(fileScope: String, pack: Pack, copyrightScopePatterns: List<String>,
+                                         scopeIgnorePatterns: List<String>) {
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
         val fileSystem = FileSystems.getDefault()
-        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns)
+        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns, scopeIgnorePatterns)
         pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
             File(it.scope).toPath()
         ) }.forEach { fileLicensing ->
@@ -376,9 +378,9 @@ internal data class PackageCuration(
     }
 
     private fun curateCopyrightDelete(fileScope: String, pack: Pack, copyrightMatch: String,
-                                      copyrightScopePatterns: List<String>) {
+                                      copyrightScopePatterns: List<String>, scopeIgnorePatterns: List<String>) {
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
-        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns)
+        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns, scopeIgnorePatterns)
         val fileSystem = FileSystems.getDefault()
         pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
             File(it.scope).toPath()
@@ -443,10 +445,11 @@ internal data class PackageCuration(
         pack: Pack,
         archiveDir: File,
         fileStore: File,
-        scopePatterns: List<String>
+        scopePatterns: List<String>,
+        scopeIgnorePatterns: List<String>
     ) {
         val scopeLevel = getScopeLevel(curationFileItem.fileScope,
-            pack.packageRoot, scopePatterns)
+            pack.packageRoot, scopePatterns, scopeIgnorePatterns)
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {

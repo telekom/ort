@@ -129,9 +129,10 @@ internal class CurationManager(
         val scopePatterns = project.config?.reporter?.configFile?.scopePatterns ?: emptyList()
         val copyrightScopePatterns = scopePatterns +
                 (project.config?.reporter?.configFile?.copyrightScopePatterns ?: emptyList())
+        val scopeIgnorePatterns = project.config?.reporter?.configFile?.scopeIgnorePatterns ?: emptyList()
         project.packs.forEach {
             curationProvider.getCurationFor(it.id)?.curate(it, archiveDir,
-                File(config.curator?.fileStore!!), scopePatterns, copyrightScopePatterns)
+                File(config.curator?.fileStore!!), scopePatterns, copyrightScopePatterns, scopeIgnorePatterns)
         }
 
         // 3. report [OSCakeIssue]s
