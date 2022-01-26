@@ -64,7 +64,8 @@ internal class ModeDefault(
         try {
             scanDict[pack.id]?.forEach { (fileName, fib) ->
                 val scopeLevel = getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params.scopePatterns,
-                    OSCakeConfiguration.params.scopeIgnorePatterns)
+                    OSCakeConfiguration.params.scopeIgnorePatterns,
+                    OSCakeConfiguration.params.lowerCaseComparisonOfScopePatterns)
                 if ((scopeLevel == ScopeLevel.DIR || scopeLevel == ScopeLevel.DEFAULT) &&
                     fib.licenseTextEntries.size > 0) {
                     val pathFlat = createPathFlat(pack.id, fib.path)
@@ -92,7 +93,8 @@ internal class ModeDefault(
             fib.licenseTextEntries.sortedWith(LicenseTextEntry).forEach {
                 val dedupFileName = handleDirDefaultEntriesAndLicenseTextsOnAllScopes(pack, sourceCodeDir, tmpDirectory,
                     fib, getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params.scopePatterns,
-                        OSCakeConfiguration.params.scopeIgnorePatterns), it, provHash)
+                        OSCakeConfiguration.params.scopeIgnorePatterns,
+                        OSCakeConfiguration.params.lowerCaseComparisonOfScopePatterns), it, provHash)
                 @Suppress("ComplexCondition")
                 if ((it.isLicenseText && dedupFileName != null) || (!it.isLicenseText && dedupFileName == "")) {
                     addInfoToFileLicensings(pack, it, getPathName(pack, fib), dedupFileName)
@@ -131,7 +133,8 @@ internal class ModeDefault(
                         }
                     }
                 val scopeLevel = getScopeLevel(fib.path, pack.packageRoot,
-                    OSCakeConfiguration.params.copyrightScopePatterns, OSCakeConfiguration.params.scopeIgnorePatterns)
+                    OSCakeConfiguration.params.copyrightScopePatterns, OSCakeConfiguration.params.scopeIgnorePatterns,
+                    OSCakeConfiguration.params.lowerCaseComparisonOfScopePatterns)
                 if (scopeLevel == ScopeLevel.DEFAULT) {
                     fib.copyrightTextEntries.forEach {
                         pack.defaultCopyrights.add(DefaultDirCopyright(getPathName(pack, fib), it.matchedText!!))

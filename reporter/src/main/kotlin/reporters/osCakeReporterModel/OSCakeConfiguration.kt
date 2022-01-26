@@ -204,21 +204,16 @@ data class OSCakeConfiguration(
 
             params.issuesLevel = issueLevel
             params.sourceCodesDir = osCakeConfig.sourceCodesDir
+
             params.lowerCaseComparisonOfScopePatterns = osCakeConfig.lowerCaseComparisonOfScopePatterns ?: true
-            if (params.lowerCaseComparisonOfScopePatterns == true) {
-                osCakeConfig.scopePatterns.forEach { params.scopePatterns.add(it.lowercase()) }
-                params.copyrightScopePatterns.addAll(params.scopePatterns)
-                osCakeConfig.copyrightScopePatterns.forEach { params.copyrightScopePatterns.add(it.lowercase()) }
-                osCakeConfig.scopeIgnorePatterns.forEach { params.scopeIgnorePatterns.add(it.lowercase()) }
-                params.scopePatterns = params.scopePatterns.distinct() as MutableList<String>
-                params.copyrightScopePatterns = params.copyrightScopePatterns.distinct() as MutableList<String>
-                if (params.scopeIgnorePatterns.isNotEmpty()) params.scopeIgnorePatterns =
-                    params.scopeIgnorePatterns.distinct() as MutableList<String>
-            } else {
-                params.scopePatterns = osCakeConfig.scopePatterns as MutableList<String>
-                params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns +
-                        osCakeConfig.scopePatterns).toList() as MutableList<String>
-                params.scopeIgnorePatterns = osCakeConfig.scopeIgnorePatterns as MutableList<String>
+            params.scopePatterns = osCakeConfig.scopePatterns
+            params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns +
+                    osCakeConfig.scopePatterns).toList()
+            params.scopeIgnorePatterns = osCakeConfig.scopeIgnorePatterns
+            if (params.lowerCaseComparisonOfScopePatterns) {
+                params.scopePatterns = params.scopePatterns.map { it.lowercase() }.distinct().toList()
+                params.copyrightScopePatterns = params.copyrightScopePatterns.map { it.lowercase() }.distinct().toList()
+                params.scopeIgnorePatterns = params.scopeIgnorePatterns.map { it.lowercase() }.distinct().toList()
             }
 
             params.ignoreNOASSERTION = osCakeConfig.ignoreNOASSERTION ?: false

@@ -87,13 +87,13 @@ fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null):
  * [ScopeLevel] is identified.
  */
 fun getScopeLevel(path: String, packageRoot: String, scopePatterns: List<String>,
-                  scopeIgnorePatterns: List<String>): ScopeLevel {
+                  scopeIgnorePatterns: List<String>, lowerCaseComparisonOfScopePatterns: Boolean): ScopeLevel {
 
     var scopeLevel = ScopeLevel.FILE
     val fileSystem = FileSystems.getDefault()
 
-    val comparePath = if (OSCakeConfiguration.params.lowerCaseComparisonOfScopePatterns == true)
-        File(File(path).name.lowercase()).toPath() else File(File(path).name).toPath()
+    val comparePath = if (lowerCaseComparisonOfScopePatterns) File(File(path).name.lowercase()).toPath() else
+        File(File(path).name).toPath()
 
     if (scopeIgnorePatterns.isNotEmpty() && scopeIgnorePatterns.any {
             fileSystem.getPathMatcher("glob:$it").matches(comparePath) }) return scopeLevel

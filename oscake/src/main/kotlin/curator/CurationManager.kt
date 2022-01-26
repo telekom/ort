@@ -126,13 +126,23 @@ internal class CurationManager(
 
         // 2. curate each package regarding the "modifier" - insert, delete, update
         // and "packageModifier" - update, insert, delete
-        val scopePatterns = project.config?.reporter?.configFile?.scopePatterns ?: emptyList()
-        val copyrightScopePatterns = scopePatterns +
+        var scopePatterns = project.config?.reporter?.configFile?.scopePatterns ?: emptyList()
+        var copyrightScopePatterns = scopePatterns +
                 (project.config?.reporter?.configFile?.copyrightScopePatterns ?: emptyList())
-        val scopeIgnorePatterns = project.config?.reporter?.configFile?.scopeIgnorePatterns ?: emptyList()
+        var scopeIgnorePatterns = project.config?.reporter?.configFile?.scopeIgnorePatterns ?: emptyList()
+        val lowerCaseComparisonOfScopePatterns = project.config?.reporter?.configFile?.
+            lowerCaseComparisonOfScopePatterns ?: true
+
+        if (lowerCaseComparisonOfScopePatterns) {
+            scopePatterns = scopePatterns.map { it.lowercase() }.distinct().toList()
+            copyrightScopePatterns = copyrightScopePatterns.map { it.lowercase() }.distinct().toList()
+            scopeIgnorePatterns = scopeIgnorePatterns.map { it.lowercase() }.distinct().toList()
+        }
+
         project.packs.forEach {
             curationProvider.getCurationFor(it.id)?.curate(it, archiveDir,
-                File(config.curator?.fileStore!!), scopePatterns, copyrightScopePatterns, scopeIgnorePatterns)
+                File(config.curator?.fileStore!!), scopePatterns, copyrightScopePatterns, scopeIgnorePatterns,
+                lowerCaseComparisonOfScopePatterns)
         }
 
         // 3. report [OSCakeIssue]s

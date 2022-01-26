@@ -54,16 +54,16 @@ data class OSCakeConfigParams(
     /**
      *  [scopePatterns] contains a list of glob patterns which are used to determine the corresponding [ScopeLevel].
      */
-    var scopePatterns: MutableList<String> = mutableListOf(),
+    var scopePatterns: List<String> = mutableListOf(),
     /**
      *  [scopePatterns] contains a list of glob patterns which are used to determine the corresponding [ScopeLevel].
      */
-    var copyrightScopePatterns: MutableList<String> = mutableListOf(),
+    var copyrightScopePatterns: List<String> = mutableListOf(),
     /**
      *  [scopeIgnorePatterns] contains a list of glob patterns which excludes files for determination of the
      *  corresponding [ScopeLevel] for licenses and copyrights
      */
-    var scopeIgnorePatterns: MutableList<String> = mutableListOf(),
+    var scopeIgnorePatterns: List<String> = mutableListOf(),
     /**
      * [onlyIncludePackages] include the named packages - if they would be excluded by the commandline
      * option: dependency-granularity
@@ -72,7 +72,7 @@ data class OSCakeConfigParams(
     var ignoreNOASSERTION: Boolean = false,
     var ignoreLicenseRefScancodeUnknown: Boolean = false,
     var hideSections: List<String> = emptyList(),
-    var lowerCaseComparisonOfScopePatterns: Boolean? = true
+    var lowerCaseComparisonOfScopePatterns: Boolean = true
 ) {
     constructor(includeJsonPathInLogfile: Boolean) : this(
         includeJsonPathInLogfile4ErrorsAndWarnings = includeJsonPathInLogfile,
