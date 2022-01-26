@@ -231,11 +231,6 @@ internal class CurationManager(
         val newZipFileName = extendFilename(sourceZipFileName, CURATION_FILE_SUFFIX)
 
         var rc = false
-        project.complianceArtifactCollection.archivePath =
-            File(project.complianceArtifactCollection.archivePath).parentFile.name + "/" + newZipFileName
-        project.complianceArtifactCollection.author = CURATION_AUTHOR
-        project.complianceArtifactCollection.release = CURATION_VERSION
-
         if (archiveDir.exists()) {
             rc = rc || compareLTIAwithArchive(project, archiveDir, logger, ProcessingPhase.CURATION)
             rc = rc || zipAndCleanUp(outputDir, archiveDir, newZipFileName, logger, ProcessingPhase.CURATION)
@@ -243,6 +238,11 @@ internal class CurationManager(
             val targetFile = File(outputDir.path, newZipFileName)
             File(outputDir, sourceZipFileName.name).copyTo(targetFile, true)
         }
+        project.complianceArtifactCollection.archivePath =
+            File(project.complianceArtifactCollection.archivePath).parentFile.name + "/" + newZipFileName
+        project.complianceArtifactCollection.author = CURATION_AUTHOR
+        project.complianceArtifactCollection.release = CURATION_VERSION
+
         rc = rc || modelToOscc(project, reportFile, logger, ProcessingPhase.CURATION)
 
         rc = rc || CurationProvider.errors
