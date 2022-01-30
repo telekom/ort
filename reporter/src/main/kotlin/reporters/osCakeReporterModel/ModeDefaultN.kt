@@ -33,7 +33,7 @@ import org.ossreviewtoolkit.reporter.ReporterInput
  * The class handles non-REUSE-compliant packages, gets a specific package [pack] and a map [scanDict],
  * which contains data about every scanned package.
  */
-internal class ModeDefault(
+internal class ModeDefaultN(
     /**
      * [pack] represents a specific package which is updated according to the methods.
      */
@@ -52,72 +52,87 @@ internal class ModeDefault(
      * scopeLevel (FILE, DIR, or DEFAULT) additional Licensings are added to the dirLicensings or defaultLicensings
      * lists. Information about copyrights is transferred from the fib (file info block) to the [pack].
      */
+    @Suppress("ComplexMethod")
     override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance) {
         val provHash = getHash(provenance)
-        /*
-         * Phase I: identify files on "dir" or "default"-scope containing license information:
+        /* Phase I: transfer licenses from fibs to fileLicenses
          *          - copy the file to the archive file
          *          - create a fileLicensing entry
          * (Info: "default", "dir" scope depends on the matching of filenames against "scopePatterns" in oscake.conf)
          */
-        @Suppress("SwallowedException")
-        try {
-            scanDict[pack.id]?.forEach { (fileName, fib) ->
-                val scopeLevel = getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params)
-                if ((scopeLevel == ScopeLevel.DIR || scopeLevel == ScopeLevel.DEFAULT) &&
-                    fib.licenseTextEntries.size > 0) {
+        scanDict[pack.id]?.forEach { (fileName, fib) ->
+            val scopeLevel = getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params)
+            // if fileName opens a dir- or default-scope, copy the original file to the archive
+            // and create a fileLicensing to set fileContentInArchive accordingly
+            if (scopeLevel == ScopeLevel.DEFAULT || scopeLevel == ScopeLevel.DIR) {
+                FileLicensing(getPathName(pack, fib)).apply {
                     val pathFlat = createPathFlat(pack.id, fib.path)
                     File(sourceCodeDir + "/" + pack.id.toPath("/") + "/" + provHash + "/" + fib.path)
-                        .copyTo(File(tmpDirectory.path + "/" + pathFlat))
+                        .also {
+                            if (it.exists()) {
+                                it.copyTo(File(tmpDirectory.path + "/" + pathFlat))
+                                this.fileContentInArchive = pathFlat
+                                pack.fileLicensings.add(this)
+                            } else logger.log("File \"${it.name}\" not found during creation of \"File" +
+                                    "Licensings\"", Level.ERROR, pack.id, phase = ProcessingPhase.PROCESS)
+                        }
+                }
+            }
+            // sort necessary for Wekan #85 - priority logic for handling LicenseTextEntries with equal licenses
+            fib.licenseTextEntries.sortedWith(LicenseTextEntry).forEach { licenseTextEntry ->
+                val path = getPathName(pack, fib)
+                val fileLicensing = pack.fileLicensings.firstOrNull { it.scope == path } ?: FileLicensing(path)
 
-                    FileLicensing(getPathName(pack, fib)).apply {
-                        fileContentInArchive = pathFlat
-                        pack.fileLicensings.add(this)
+                if (fileLicensing.licenses.none { it.license == licenseTextEntry.license &&
+                            it.startLine == licenseTextEntry.startLine }) {
+                    var dedupFileName: String? = null
+                    if (licenseTextEntry.isLicenseText)
+                        dedupFileName = writeLicenseText(licenseTextEntry, fib, sourceCodeDir, tmpDirectory, provHash)
+                    fileLicensing.licenses.add(FileLicense(licenseTextEntry.license, dedupFileName,
+                        licenseTextEntry.startLine))
+                }
+                if (pack.fileLicensings.none { it.scope == path }) pack.fileLicensings.add(fileLicensing)
+            }
+        }
+
+        /*
+        Phase II: create default- and dir-Licensings for files
+        */
+        pack.fileLicensings.forEach { fileLicensing ->
+            val scopeLevel = getScopeLevel(fileLicensing.scope, pack.packageRoot, OSCakeConfiguration.params)
+            if (scopeLevel == ScopeLevel.DEFAULT) {
+                fileLicensing.licenses.forEach { fileLicense ->
+                    if (pack.defaultLicensings.none { it.license == fileLicense.license &&
+                                it.path == fileLicensing.scope })
+                        pack.defaultLicensings.add(DefaultLicense(fileLicense.license, fileLicensing.scope,
+                            fileLicense.licenseTextInArchive, false))
+                    else {
+                        val ll = if (fileLicense.license == "NOASSERTION") Level.INFO else Level.DEBUG
+                        logger.log("DefaultScope: multiple equal licenses <${fileLicense.license}> in the same " +
+                                "file found - ignored!", ll, pack.id, phase = ProcessingPhase.PROCESS)
                     }
                 }
             }
-        } catch (ex: FileNotFoundException) {
-            logger.log("File not found during creation of \"FileLicensings\"", Level.ERROR, pack.id,
-                phase = ProcessingPhase.PROCESS)
-            return
-        }
-        /*
-         * Phase II: manage Default- and Dir-Scope entries and
-         *           generate license texts (depending on license-category in license-classifications.yml) for each
-         *           file which contains an "isLicenseText" entry
-         */
-        scanDict[pack.id]?.forEach { (fileName, fib) ->
-            // sort necessary for Wekan #85 - priority logic for handling LicenseTextEntries with equal licenses
-            fib.licenseTextEntries.sortedWith(LicenseTextEntry).forEach {
-                val dedupFileName = handleDirDefaultEntriesAndLicenseTextsOnAllScopes(pack, sourceCodeDir, tmpDirectory,
-                    fib, getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params), it, provHash)
-                @Suppress("ComplexCondition")
-                if ((it.isLicenseText && dedupFileName != null) || (!it.isLicenseText && dedupFileName == "")) {
-                    addInfoToFileLicensings(pack, it, getPathName(pack, fib), dedupFileName)
+            if (scopeLevel == ScopeLevel.DIR) {
+                val dirScope = getDirScopePath(pack, fileLicensing.scope)
+                val fibPathWithoutPackage = getPathWithoutPackageRoot(pack, fileLicensing.scope)
+                val dirLicensing = pack.dirLicensings.firstOrNull { it.scope == dirScope } ?: DirLicensing(dirScope)
+                    .apply { pack.dirLicensings.add(this) }
+                fileLicensing.licenses.forEach { fileLicense ->
+                    if (dirLicensing.licenses.none { it.license == fileLicense.license &&
+                                it.path == fibPathWithoutPackage })
+                        dirLicensing.licenses.add(DirLicense(fileLicense.license!!, fileLicense.licenseTextInArchive,
+                            fibPathWithoutPackage))
+                    else {
+                        val ll = if (fileLicense.license == "NOASSERTION") Level.INFO else Level.DEBUG
+                        logger.log("DirScope: : multiple equal licenses <${fileLicense.license}> in the same " +
+                                "file found - ignored!", ll, pack.id, phase = ProcessingPhase.PROCESS)
+                    }
                 }
             }
         }
         /*
-         * Phase III: copy archived files from scanner - and insert/update the fileLicensing entry
-         *           (Info: files are archived from scanner, if the filename matches a pattern in ort.conf)
-         */
-        reporterInput.licenseInfoResolver.resolveLicenseFiles(pack.id).files.forEach {
-            var path = it.path.replace("\\", "/")
-            if (it.path.startsWith(pack.packageRoot) && pack.packageRoot != "") path = path.replaceFirst(
-                pack.packageRoot, "").substring(1)
-
-            val fl = pack.fileLicensings.firstOrNull { lic -> lic.scope == path } ?: FileLicensing(path).apply {
-                licenses.add(FileLicense(null))
-                pack.fileLicensings.add(this)
-            }
-
-            if (fl.fileContentInArchive == null) {
-                fl.fileContentInArchive = createPathFlat(pack.id, it.path) + "_archived"
-                it.file.copyTo(File(tmpDirectory.path + "/" + fl.fileContentInArchive))
-            }
-        }
-        /*
-         * Phase IV: transfer Copyright text entries
+         * Phase III: transfer Copyright text entries
          */
         scanDict[pack.id]?.forEach { (_, fib) ->
             if (fib.copyrightTextEntries.size > 0) {
@@ -128,7 +143,7 @@ internal class ModeDefault(
                             copyrights.add(FileCopyright(it.matchedText!!))
                         }
                     }
-                val scopeLevel = getScopeLevel(fib.path, pack.packageRoot, OSCakeConfiguration.params)
+                val scopeLevel = getScopeLevel4Copyrights(fib.path, pack.packageRoot, OSCakeConfiguration.params)
                 if (scopeLevel == ScopeLevel.DEFAULT) {
                     fib.copyrightTextEntries.forEach {
                         pack.defaultCopyrights.add(DefaultDirCopyright(getPathName(pack, fib), it.matchedText!!))
@@ -146,109 +161,28 @@ internal class ModeDefault(
         }
     }
 
-    /**
-     * Adds a [FileLicensing], if it does not exist already.
-     */
-    private fun addInfoToFileLicensings(pack: Pack, licenseTextEntry: LicenseTextEntry, path: String,
-                                        pathFlat: String): FileLicensing {
-        val fileLicensing = pack.fileLicensings.firstOrNull { it.scope == path } ?: FileLicensing(path)
-
-        if (fileLicensing.licenses.none { it.license == licenseTextEntry.license &&
-                    it.startLine == licenseTextEntry.startLine }) {
-            fileLicensing.licenses.add(FileLicense(licenseTextEntry.license,
-                if (licenseTextEntry.isLicenseText) pathFlat else null, licenseTextEntry.startLine))
-        }
-
-        if (pack.fileLicensings.none { it.scope == path }) pack.fileLicensings.add(fileLicensing)
-
-        return fileLicensing
-    }
-
-    /**
-     *  generate and store license texts based on the info "isInstancedLicense" directly from source files
-     *  in case of "dir" or "default"-scope the appropriate entries are inserted/updated.
-     */
-    private fun handleDirDefaultEntriesAndLicenseTextsOnAllScopes(
-        pack: Pack,
-        sourceCodeDir: String?,
-        tmpDirectory: File,
-        fib: FileInfoBlock,
-        scopeLevel: ScopeLevel,
-        lte: LicenseTextEntry,
-        provHash: String
-    ): String? {
-
-        var genText: String? = null
-        var file: File? = null
-
+    fun writeLicenseText(licenseTextEntry: LicenseTextEntry, fib: FileInfoBlock, sourceCodeDir: String?,
+                         tmpDirectory: File, provHash: String): String? {
         try {
-            if (lte.isLicenseText) {
-                genText =
-                    if (lte.isInstancedLicense) generateInstancedLicenseText(pack, fib, sourceCodeDir, lte, provHash)
-                    else generateNonInstancedLicenseText(pack, fib, sourceCodeDir, lte, provHash)
-                if (genText != null) file = File(
-                    deduplicateFileName(
-                        tmpDirectory.path + "/" +
-                                createPathFlat(pack.id, fib.path, lte.license)
-                    )
-                )
+            val genText =
+                if (licenseTextEntry.isInstancedLicense) generateInstancedLicenseText(pack, fib, sourceCodeDir,
+                    licenseTextEntry, provHash)
+                else generateNonInstancedLicenseText(pack, fib, sourceCodeDir, licenseTextEntry, provHash)
+            genText?.let {
+                val dedupFileName = deduplicateFileName(tmpDirectory.path + "/" +
+                        createPathFlat(pack.id, fib.path, licenseTextEntry.license))
+                File(dedupFileName).apply {
+                    this.writeText(it)
+                    val tmp = this.relativeTo(File(tmpDirectory.path)).name
+                    println(tmp)
+                    return this.relativeTo(File(tmpDirectory.path)).name
+                }
             }
         } catch (ex: FileNotFoundException) {
             logger.log("File not found: ${ex.message}  while generating license texts!", Level.ERROR, pack.id,
-            phase = ProcessingPhase.PROCESS)
-            return ""
+                phase = ProcessingPhase.PROCESS)
         }
-
-        when (scopeLevel) {
-            ScopeLevel.DEFAULT -> {
-                val fibPathWithoutPackage = getPathWithoutPackageRoot(pack, fib.path)
-                DefaultLicense(
-                    lte.license, fibPathWithoutPackage, file?.name, false
-                ).apply {
-                    if (pack.defaultLicensings.none { it.license == lte.license &&
-                                it.path == fibPathWithoutPackage }) {
-                        pack.defaultLicensings.add(this)
-                        if (lte.isLicenseText) file?.writeText(genText!!)
-                    } else {
-                        // write dedup-file for the file licensing, which is added later
-                        if (lte.isLicenseText) file?.writeText(genText!!)
-                        val lic = pack.defaultLicensings.first { it.license == lte.license &&
-                                it.path == fibPathWithoutPackage }
-                        val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
-                        logger.log(
-                            "DefaultScope: multiple equal licenses <${lte.license}> in the same file found" +
-                                    " - ignored!", ll, pack.id, fib.path, lic, ScopeLevel.DEFAULT,
-                            ProcessingPhase.PROCESS)
-                    }
-                }
-            }
-            ScopeLevel.DIR -> {
-                val dirScope = getDirScopePath(pack, fib.path)
-                val fibPathWithoutPackage = getPathWithoutPackageRoot(pack, fib.path)
-                val dirLicensing = pack.dirLicensings.firstOrNull { it.scope == dirScope } ?: DirLicensing(
-                    dirScope).apply {
-                    pack.dirLicensings.add(this)
-                }
-                if (dirLicensing.licenses.none { it.license == lte.license &&
-                            it.path == fibPathWithoutPackage }) {
-                    dirLicensing.licenses.add(DirLicense(lte.license!!,
-                        file?.name, fibPathWithoutPackage))
-                    if (lte.isLicenseText) file?.writeText(genText!!)
-                } else {
-                    // write dedup-file for the file licensing, which is added later
-                    if (lte.isLicenseText) file?.writeText(genText!!)
-                    val lic = dirLicensing.licenses.first { it.license == lte.license &&
-                            it.path == fibPathWithoutPackage }
-                    val ll = if (lic.license == "NOASSERTION") Level.INFO else Level.DEBUG
-                    logger.log(
-                        "DirScope: multiple equal licenses <${lte.license}> in the same file found" +
-                                " - ignored!", ll, pack.id, fib.path, lic, ScopeLevel.DIR, ProcessingPhase.PROCESS)
-                }
-            }
-            ScopeLevel.FILE -> if (lte.isLicenseText) file?.writeText(genText!!)
-        }
-        if (lte.isLicenseText) return file?.name
-        return ""
+        return null
     }
 
     /**

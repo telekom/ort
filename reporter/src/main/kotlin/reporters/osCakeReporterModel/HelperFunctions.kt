@@ -86,7 +86,13 @@ fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null):
  * Depending on the [path] of the file and the name of the file (contained in list [scopePatterns]) the
  * [ScopeLevel] is identified.
  */
-fun getScopeLevel(path: String, packageRoot: String, scopePatterns: List<String>,
+fun getScopeLevel(path: String, packageRoot: String, params: OSCakeConfigParams) = getScopeLevel4All(path,
+    packageRoot, params.scopePatterns, params.scopeIgnorePatterns, params.lowerCaseComparisonOfScopePatterns)
+
+fun getScopeLevel4Copyrights(path: String, packageRoot: String, params: OSCakeConfigParams) = getScopeLevel4All(path,
+    packageRoot, params.copyrightScopePatterns, params.scopeIgnorePatterns, params.lowerCaseComparisonOfScopePatterns)
+
+fun getScopeLevel4All(path: String, packageRoot: String, scopePatterns: List<String>,
                   scopeIgnorePatterns: List<String>, lowerCaseComparisonOfScopePatterns: Boolean): ScopeLevel {
 
     var scopeLevel = ScopeLevel.FILE
@@ -98,7 +104,7 @@ fun getScopeLevel(path: String, packageRoot: String, scopePatterns: List<String>
     if (scopeIgnorePatterns.isNotEmpty() && scopeIgnorePatterns.any {
             fileSystem.getPathMatcher("glob:$it").matches(comparePath) }) return scopeLevel
 
-    if (!scopePatterns.filter { fileSystem.getPathMatcher("glob:$it").matches(comparePath) }.isNullOrEmpty()) {
+    if (scopePatterns.filter { fileSystem.getPathMatcher("glob:$it").matches(comparePath) }.isNotEmpty()) {
         scopeLevel = ScopeLevel.DIR
         var fileName = path
         if (path.startsWith(packageRoot) && packageRoot != "") fileName =

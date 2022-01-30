@@ -139,10 +139,16 @@ internal class CurationManager(
             scopeIgnorePatterns = scopeIgnorePatterns.map { it.lowercase() }.distinct().toList()
         }
 
+        // for compatibility reasons
+        val params = OSCakeConfigParams()
+        params.scopePatterns = scopePatterns
+        params.scopeIgnorePatterns = scopeIgnorePatterns
+        params.copyrightScopePatterns = copyrightScopePatterns
+        params.lowerCaseComparisonOfScopePatterns = lowerCaseComparisonOfScopePatterns
+
         project.packs.forEach {
             curationProvider.getCurationFor(it.id)?.curate(it, archiveDir,
-                File(config.curator?.fileStore!!), scopePatterns, copyrightScopePatterns, scopeIgnorePatterns,
-                lowerCaseComparisonOfScopePatterns)
+                File(config.curator?.fileStore!!), params)
         }
 
         // 3. report [OSCakeIssue]s

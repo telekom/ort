@@ -119,9 +119,7 @@ internal data class PackageCuration(
      * the special case of "fileScope" == CURATION_DEFAULT_LICENSING (This special processing is necessary if
      * defaultLicensings exist, which are not based on fileLicensings - aka "declared license").
      */
-    internal fun curate(pack: Pack, archiveDir: File, fileStore: File, scopePatterns: List<String>,
-                        copyrightScopePatterns: List<String>, scopeIgnorePatterns: List<String>,
-                        lowerCaseComparisonOfScopePatterns: Boolean) {
+    internal fun curate(pack: Pack, archiveDir: File, fileStore: File, params: OSCakeConfigParams) {
         if (packageModifier == "insert" || packageModifier == "update") {
             eliminateIssueFromPackage(pack)
             curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
@@ -129,10 +127,8 @@ internal data class PackageCuration(
                 curationFileItem.fileLicenses?.sortedBy { orderLicenseByModifier[packageModifier]?.get(it.modifier)
                     }?.forEach { curationFileLicenseItem ->
                     when (curationFileLicenseItem.modifier) {
-                        "insert" -> curateLicenseInsert(
-                            curationFileItem, curationFileLicenseItem, pack, archiveDir,
-                            fileStore, scopePatterns, scopeIgnorePatterns, lowerCaseComparisonOfScopePatterns
-                        )
+                        "insert" -> curateLicenseInsert(curationFileItem, curationFileLicenseItem, pack, archiveDir,
+                            fileStore, params)
                         "delete" -> curateLicenseDelete(curationFileItem, curationFileLicenseItem, pack, archiveDir)
                         "update" -> curateLicenseUpdate(
                             curationFileItem, curationFileLicenseItem, pack, archiveDir,
@@ -143,12 +139,10 @@ internal data class PackageCuration(
                 curationFileItem.fileCopyrights?.sortedBy { orderCopyrightByModifier[packageModifier]?.get(it.modifier)
                     }?.forEach { curationFileCopyrightItem ->
                     when (curationFileCopyrightItem.modifier) {
-                        "insert" -> curateCopyrightInsert(fileScope, curationFileCopyrightItem, pack,
-                            copyrightScopePatterns, scopeIgnorePatterns, lowerCaseComparisonOfScopePatterns)
+                        "insert" -> curateCopyrightInsert(fileScope, curationFileCopyrightItem, pack, params)
                         "delete" -> curateCopyrightDelete(fileScope, pack, curationFileCopyrightItem.copyright!!,
-                            copyrightScopePatterns, scopeIgnorePatterns, lowerCaseComparisonOfScopePatterns)
-                        "delete-all" -> curateCopyrightDeleteAll(fileScope, pack, copyrightScopePatterns,
-                             scopeIgnorePatterns, lowerCaseComparisonOfScopePatterns)
+                            params)
+                        "delete-all" -> curateCopyrightDeleteAll(fileScope, pack, params)
                     }
                 }
             }
@@ -331,13 +325,10 @@ internal data class PackageCuration(
         fileScope: String,
         curFileCopyrightItem: CurationFileCopyrightItem,
         pack: Pack,
-        copyrightScopePatterns: List<String>,
-        scopeIgnorePatterns: List<String>,
-        lowerCaseComparisonOfScopePatterns: Boolean
+        params: OSCakeConfigParams
     ) {
         val copyrightStatement = curFileCopyrightItem.copyright!!.replace("\\?", "?").replace("\\*", "*")
-        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns, scopeIgnorePatterns,
-            lowerCaseComparisonOfScopePatterns)
+        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params)
 
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: (FileLicensing(fileScope).apply {
             pack.fileLicensings.add(this)
@@ -357,15 +348,10 @@ internal data class PackageCuration(
         }
     }
 
-    private fun curateCopyrightDeleteAll(
-        fileScope: String, pack: Pack, copyrightScopePatterns: List<String>,
-        scopeIgnorePatterns: List<String>,
-        lowerCaseComparisonOfScopePatterns: Boolean
-    ) {
+    private fun curateCopyrightDeleteAll(fileScope: String, pack: Pack, params: OSCakeConfigParams) {
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
         val fileSystem = FileSystems.getDefault()
-        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns, scopeIgnorePatterns,
-            lowerCaseComparisonOfScopePatterns)
+        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params)
         pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
             File(it.scope).toPath()
         ) }.forEach { fileLicensing ->
@@ -393,13 +379,10 @@ internal data class PackageCuration(
         fileScope: String,
         pack: Pack,
         copyrightMatch: String,
-        copyrightScopePatterns: List<String>,
-        scopeIgnorePatterns: List<String>,
-        lowerCaseComparisonOfScopePatterns: Boolean
+        params: OSCakeConfigParams
     ) {
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
-        val scopeLevel = getScopeLevel(fileScope, pack.packageRoot, copyrightScopePatterns, scopeIgnorePatterns,
-            lowerCaseComparisonOfScopePatterns)
+        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params)
         val fileSystem = FileSystems.getDefault()
         pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
             File(it.scope).toPath()
@@ -458,19 +441,15 @@ internal data class PackageCuration(
             compareString) || match(wildCardString, compareString.substring(1)) else false
     }
 
-    @Suppress("LongParameterList")
     private fun curateLicenseInsert(
         curationFileItem: CurationFileItem,
         curationFileLicenseItem: CurationFileLicenseItem,
         pack: Pack,
         archiveDir: File,
         fileStore: File,
-        scopePatterns: List<String>,
-        scopeIgnorePatterns: List<String>,
-        lowerCaseComparisonOfScopePatterns: Boolean
+        params: OSCakeConfigParams
     ) {
-        val scopeLevel = getScopeLevel(curationFileItem.fileScope,
-            pack.packageRoot, scopePatterns, scopeIgnorePatterns, lowerCaseComparisonOfScopePatterns)
+        val scopeLevel = getScopeLevel(curationFileItem.fileScope, pack.packageRoot, params)
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
