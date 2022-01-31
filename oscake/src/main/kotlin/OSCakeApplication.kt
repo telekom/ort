@@ -43,6 +43,8 @@ const val DEDUPLICATION_FILE_SUFFIX = "_dedup"
 const val DEDUPLICATION_AUTHOR = "OSCake-Deduplicator"
 const val DEDUPLICATION_VERSION = "0.1"
 
+const val VALIDATOR_LOGGER = "OSCakeValidator"
+
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
  * modifiers - the first set contains modifiers for licenses, second set for copyrights
@@ -73,7 +75,7 @@ fun isValidDirectory(dirName: String?): Boolean =
     if (dirName != null) File(dirName).exists() && File(dirName).isDirectory else false
 
 object OSCakeApplication {
-   val ALL by lazy { listOf("curator", "merger", "deduplicator") }
+   val ALL by lazy { listOf("curator", "merger", "deduplicator", "validator") }
 }
 
 /**

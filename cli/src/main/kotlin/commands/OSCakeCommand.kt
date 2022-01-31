@@ -37,15 +37,30 @@ import java.nio.file.Paths
 import kotlin.reflect.full.memberProperties
 
 import org.ossreviewtoolkit.cli.GlobalOptions
-import org.ossreviewtoolkit.oscake.OSCakeApplication
-import org.ossreviewtoolkit.oscake.OSCakeCurator
-import org.ossreviewtoolkit.oscake.OSCakeDeduplicator
-import org.ossreviewtoolkit.oscake.OSCakeMerger
-import org.ossreviewtoolkit.oscake.isValidDirectory
-import org.ossreviewtoolkit.oscake.isValidFilePathName
+import org.ossreviewtoolkit.oscake.*
 import org.ossreviewtoolkit.utils.common.expandTilde
 
 sealed class OscakeConfig(name: String) : OptionGroup(name)
+
+/**
+ * Contains the options for the curator application
+ */
+class ValidatorOptions : OscakeConfig("Options for oscake application: validator") {
+    val oscc1 by option(
+        "--oscc1", "-o1",
+        help = "An oscc file produced by an OSCake-Reporter."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+    val oscc2 by option(
+        "--oscc2", "-o2",
+        help = "An oscc file produced by an OSCake-Reporter."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+}
 
 /**
  * Contains the options for the curator application
@@ -143,6 +158,7 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
         "curator" to CuratorOptions(),
         "merger" to MergerOptions(),
         "deduplicator" to DeduplicatorOptions(),
+        "validator" to ValidatorOptions(),
     ).required()
 
     private val globalOptionsForSubcommands by requireObject<GlobalOptions>()
@@ -171,6 +187,9 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
             is MergerOptions -> {
                 it.resolveArgs()
                 OSCakeMerger(it.cid, it.inputDir, it.outputFile, getMergerCommandLineParams(it, fields2hide)).execute()
+            }
+            is ValidatorOptions -> {
+                OSCakeValidator(it.oscc1, it.oscc2).execute()
             }
         }
     }

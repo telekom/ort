@@ -52,14 +52,37 @@ internal class ModeDefaultN(
      * scopeLevel (FILE, DIR, or DEFAULT) additional Licensings are added to the dirLicensings or defaultLicensings
      * lists. Information about copyrights is transferred from the fib (file info block) to the [pack].
      */
-    @Suppress("ComplexMethod")
+//    @Suppress("ComplexMethod")
     override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance) {
-        val provHash = getHash(provenance)
-        /* Phase I: transfer licenses from fibs to fileLicenses
-         *          - copy the file to the archive file
-         *          - create a fileLicensing entry
-         * (Info: "default", "dir" scope depends on the matching of filenames against "scopePatterns" in oscake.conf)
+        /* Phase I: go through all files in this package
+         *       - step 1:   if fileName opens a dir- or default-scope, copy the original file to the archive and
+         *                   create a fileLicensing to set fileContentInArchive accordingly
+         *       - step 2:   for each license text entry for a specific file, generate a FileLicense and depending on
+         *                   the flag is_license_text = true, get the license text from the specific source and
+         *                   write a file which is referenced by "licenseTextInArchive" into the archive
          */
+        phaseI(sourceCodeDir, tmpDirectory, provenance)
+
+        /* Phase II:    based on the FileLicenses, the default- and dir-scopes are created when the filename matches
+         *              the oscake.scopePatterns
+         */
+        phaseII()
+
+        /* Phase III:   copy archived files from scanner archive - and insert/update the fileLicensing entry
+         *              (Info: files are archived from scanner, if the filename matches a pattern in ort.conf)
+         *              This step is taken for completeness only, because normally the oscake patterns include
+         *              the ORT scope patterns
+         */
+        phaseIII(tmpDirectory)
+
+        /*
+         * Phase IV: transfer Copyright text entries
+         */
+        phaseIV()
+    }
+
+    private fun phaseI(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance) {
+        val provHash = getHash(provenance)
         scanDict[pack.id]?.forEach { (fileName, fib) ->
             val scopeLevel = getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params)
             // if fileName opens a dir- or default-scope, copy the original file to the archive
@@ -94,10 +117,9 @@ internal class ModeDefaultN(
                 if (pack.fileLicensings.none { it.scope == path }) pack.fileLicensings.add(fileLicensing)
             }
         }
+    }
 
-        /*
-        Phase II: create default- and dir-Licensings for files
-        */
+    private fun phaseII() {
         pack.fileLicensings.forEach { fileLicensing ->
             val scopeLevel = getScopeLevel(fileLicensing.scope, pack.packageRoot, OSCakeConfiguration.params)
             if (scopeLevel == ScopeLevel.DEFAULT) {
@@ -131,9 +153,31 @@ internal class ModeDefaultN(
                 }
             }
         }
-        /*
-         * Phase III: transfer Copyright text entries
-         */
+    }
+
+    private fun phaseIII(tmpDirectory: File) {
+        reporterInput.licenseInfoResolver.resolveLicenseFiles(pack.id).files.forEach {
+            var path = it.path.replace("\\", "/")
+            if (it.path.startsWith(pack.packageRoot) && pack.packageRoot != "") path = path.replaceFirst(
+                pack.packageRoot, "").substring(1)
+
+            val fl = pack.fileLicensings.firstOrNull { lic -> lic.scope == path } ?: FileLicensing(path).apply {
+                licenses.add(FileLicense(null))
+                pack.fileLicensings.add(this)
+            }
+
+            if (fl.fileContentInArchive == null) {
+                fl.fileContentInArchive = createPathFlat(pack.id, it.path) + "_archived"
+                it.file.copyTo(File(tmpDirectory.path + "/" + fl.fileContentInArchive))
+            } else {
+                if (fl.licenses.isEmpty()) {
+                    fl.licenses.add(FileLicense(null))
+                }
+            }
+        }
+    }
+
+    private fun phaseIV() {
         scanDict[pack.id]?.forEach { (_, fib) ->
             if (fib.copyrightTextEntries.size > 0) {
                 (pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?:
@@ -155,14 +199,14 @@ internal class ModeDefaultN(
                         .apply { fib.copyrightTextEntries.forEach {
                             copyrights.add(DefaultDirCopyright(getPathName(pack, fib), it.matchedText!!))
                         }
-                    }
+                        }
                 }
             }
         }
     }
 
-    fun writeLicenseText(licenseTextEntry: LicenseTextEntry, fib: FileInfoBlock, sourceCodeDir: String?,
-                         tmpDirectory: File, provHash: String): String? {
+    private fun writeLicenseText(licenseTextEntry: LicenseTextEntry, fib: FileInfoBlock, sourceCodeDir: String?,
+                                 tmpDirectory: File, provHash: String): String? {
         try {
             val genText =
                 if (licenseTextEntry.isInstancedLicense) generateInstancedLicenseText(pack, fib, sourceCodeDir,
@@ -173,8 +217,6 @@ internal class ModeDefaultN(
                         createPathFlat(pack.id, fib.path, licenseTextEntry.license))
                 File(dedupFileName).apply {
                     this.writeText(it)
-                    val tmp = this.relativeTo(File(tmpDirectory.path)).name
-                    println(tmp)
                     return this.relativeTo(File(tmpDirectory.path)).name
                 }
             }
@@ -285,6 +327,23 @@ internal class ModeDefaultN(
 
     override fun postActivities(tmpDirectory: File) {
         if (pack.defaultLicensings.size == 0) prepareEntryForScopeDefault(pack, reporterInput)
+        val def = pack.defaultLicensings.mapNotNull { it.license }.distinct()
+        if (def.size > 1) {
+            var s = ""
+            def.forEach { s += "\n--> $it" }
+            logger.log("DefaultScope: more than one license found: $s \ndual licensed or multiple licenses",
+                Level.WARN, pack.id, phase = ProcessingPhase.POST)
+        }
+        // check dirscope
+        pack.dirLicensings.forEach { dirLicensing ->
+            val dir = dirLicensing.licenses.mapNotNull { it.license }.distinct()
+            if (dir.size > 1) {
+                var s = ""
+                dir.forEach { s += "\n--> $it" }
+                logger.log("DirScope <${dirLicensing.scope}>: more than one license found: $s " +
+                        "\ndual licensed or multiple licenses", Level.WARN, pack.id, phase = ProcessingPhase.POST)
+            }
+        }
     }
 
     /**
