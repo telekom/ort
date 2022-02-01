@@ -363,6 +363,11 @@ class OSCakeReporter : Reporter {
                             endLine = it.location.endLine
                             combineNativeScanResults(fileInfoBlock.path, this, nsr)
                             fileInfoBlock.licenseTextEntries.add(this)
+                            license?.let { lic ->
+                                if (lic.startsWith("LicenseRef")) logger.log("LicenseReference found:" +
+                                        " \"$lic\" in File: \"${fileInfoBlock.path}\"", Level.WARN, key,
+                                    phase = ProcessingPhase.PRE)
+                            }
                         }
                     }
                     scanResult.summary.copyrightFindings.forEach {
