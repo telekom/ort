@@ -72,7 +72,8 @@ data class OSCakeConfigParams(
     var ignoreNOASSERTION: Boolean = false,
     var ignoreLicenseRefScancodeUnknown: Boolean = false,
     var hideSections: List<String> = emptyList(),
-    var lowerCaseComparisonOfScopePatterns: Boolean = true
+    var lowerCaseComparisonOfScopePatterns: Boolean = true,
+    var ignoreLicenseRef: Boolean = false
 ) {
     constructor(includeJsonPathInLogfile: Boolean) : this(
         includeJsonPathInLogfile4ErrorsAndWarnings = includeJsonPathInLogfile,

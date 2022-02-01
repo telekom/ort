@@ -131,7 +131,11 @@ data class OSCakeConfiguration(
     /**
      * in order to get the same results for Windows and Unix systems when identifying the Default- or Dir-scope
      */
-    val lowerCaseComparisonOfScopePatterns: Boolean? = true
+    val lowerCaseComparisonOfScopePatterns: Boolean? = true,
+    /**
+     * defines if license findings starting with "LicenseRef" are ignored
+     */
+    val ignoreLicenseRef: Boolean? = false
     ) {
     companion object {
         private lateinit var osCakeConfig: OSCakeConfiguration
@@ -218,6 +222,7 @@ data class OSCakeConfiguration(
 
             params.ignoreNOASSERTION = osCakeConfig.ignoreNOASSERTION ?: false
             params.ignoreLicenseRefScancodeUnknown = osCakeConfig.ignoreLicenseRefScancodeUnknown ?: false
+            params.ignoreLicenseRef = osCakeConfig.ignoreLicenseRef ?: false
             params.hideSections = osCakeConfig.hideSections ?: emptyList()
 
             options.forEach {
