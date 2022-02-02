@@ -489,3 +489,6 @@ fun stripRelativePathIndicators(name: String): String {
     if (name.startsWith(".")) return name.substring(1)
     return name
 }
+
+fun isLikeNOASSERTION(license: String?): Boolean = if (license != null) (license == "NOASSERTION" ||
+        (license.startsWith("LicenseRef-scancode") && license.contains("unknown"))) else false

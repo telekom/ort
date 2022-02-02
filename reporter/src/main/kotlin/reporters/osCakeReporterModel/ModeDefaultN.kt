@@ -129,7 +129,7 @@ internal class ModeDefaultN(
                         pack.defaultLicensings.add(DefaultLicense(fileLicense.license, fileLicensing.scope,
                             fileLicense.licenseTextInArchive, false))
                     else {
-                        val ll = if (fileLicense.license == "NOASSERTION") Level.INFO else Level.DEBUG
+                        val ll = if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG
                         logger.log("DefaultScope: multiple equal licenses <${fileLicense.license}> in the same " +
                                 "file found - ignored!", ll, pack.id, phase = ProcessingPhase.PROCESS)
                     }
@@ -146,7 +146,7 @@ internal class ModeDefaultN(
                         dirLicensing.licenses.add(DirLicense(fileLicense.license!!, fileLicense.licenseTextInArchive,
                             fibPathWithoutPackage))
                     else {
-                        val ll = if (fileLicense.license == "NOASSERTION") Level.INFO else Level.DEBUG
+                        val ll = if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG
                         logger.log("DirScope: : multiple equal licenses <${fileLicense.license}> in the same " +
                                 "file found - ignored!", ll, pack.id, phase = ProcessingPhase.PROCESS)
                     }
