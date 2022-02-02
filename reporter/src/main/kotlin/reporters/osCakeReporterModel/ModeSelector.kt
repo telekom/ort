@@ -107,8 +107,7 @@ internal abstract class ModeSelector {
             pkgMap = packageMap
             return when (pack.reuseCompliant) {
                 true -> ModeREUSE(pack, scanDict)
-                // else -> ModeDefault(pack, scanDict, reporterInput)
-                else -> ModeDefaultN(pack, scanDict, reporterInput)
+                else -> ModeDefault(pack, scanDict, reporterInput)
             }
         }
     }
