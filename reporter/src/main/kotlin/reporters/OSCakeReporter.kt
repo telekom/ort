@@ -122,7 +122,7 @@ class OSCakeReporter : Reporter {
 
         val rawDataExists = File(rawDir).exists() && File(rawDir).listFiles().isNotEmpty()
         val ortScanResultsDir = File(params.ortScanResultsDir)
-        var scanDataExists = ortScanResultsDir.exists() && ortScanResultsDir.listFiles().isNotEmpty()
+        val scanDataExists = ortScanResultsDir.exists() && ortScanResultsDir.listFiles().isNotEmpty()
 
         require(!(!rawDataExists && !scanDataExists)) {
                 "No native-scan-results found! Check folder $rawDir or re-run the scanner once again!" }
@@ -298,7 +298,7 @@ class OSCakeReporter : Reporter {
 
         osc.project.config = ConfigInfo(OSCakeConfiguration.osCakeConfigInfo)
 
-        if (OSCakeConfiguration.params.hideSections.isNotEmpty() == true) {
+        if (OSCakeConfiguration.params.hideSections.isNotEmpty()) {
             if (osc.project.hideSections(OSCakeConfiguration.params.hideSections, tmpDirectory)) {
                 osc.project.containsHiddenSections = true
             }
