@@ -61,6 +61,26 @@ class ValidatorOptions : OscakeConfig("Options for oscake application: validator
         .convert { it.absoluteFile.normalize() }
         .required()
 }
+/**
+ * Contains the options for the resolver application
+ */
+class ResolverOptions: OscakeConfig("Options for oscake application: resolver") {
+    val osccFile by option(
+        "--oscc-File", "-F",
+        help = "An oscc file produced by an OSCake-Reporter."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+
+    val outputDir by option(
+        "--output-Dir", "-D",
+        help = "The directory to write the resolved oscc file."
+    ).convert { it.expandTilde() }
+        .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+}
 
 /**
  * Contains the options for the curator application
@@ -159,6 +179,7 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
         "merger" to MergerOptions(),
         "deduplicator" to DeduplicatorOptions(),
         "validator" to ValidatorOptions(),
+        "resolver" to ResolverOptions(),
     ).required()
 
     private val globalOptionsForSubcommands by requireObject<GlobalOptions>()
@@ -191,6 +212,13 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
             is ValidatorOptions -> {
                 OSCakeValidator(it.oscc1, it.oscc2).execute()
             }
+            is ResolverOptions -> {
+                require(isValidDirectory(config.oscake.resolver?.directory)) {
+                    "Directory for \"config.oscake.resolver.directory\" is not set correctly in ort.conf"
+                }
+                OSCakeResolver(config.oscake).execute()
+            }
+
         }
     }
 

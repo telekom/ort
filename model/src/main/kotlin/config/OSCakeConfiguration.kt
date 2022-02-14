@@ -27,7 +27,8 @@ import com.fasterxml.jackson.annotation.JsonInclude
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class OSCakeConfiguration(
     val curator: OSCakeCurator? = null,
-    val deduplicator: OSCakeDeduplicator? = null
+    val deduplicator: OSCakeDeduplicator? = null,
+    val resolver: OSCakeResolver? = null
 )
 
 data class OSCakeDeduplicator(
@@ -52,4 +53,11 @@ data class OSCakeCurator(
      * [issueLevel]: -1..not enabled, 0..ERROR, 1..WARN + ERROR, 2..INFO + WARN + ERROR
      */
     val issueLevel: Int? = -1
+)
+
+data class OSCakeResolver(
+    /**
+     * The [directory] where to find the yml files to be used for resolving
+     */
+    val directory: String? = null
 )
