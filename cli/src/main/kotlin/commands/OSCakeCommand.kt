@@ -80,6 +80,8 @@ class ResolverOptions: OscakeConfig("Options for oscake application: resolver") 
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
         .required()
+
+    val ignoreRootWarnings by option("--ignoreRootWarn", help = "Ignore Root-Level WARNINGS").flag()
 }
 
 /**
@@ -216,7 +218,7 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
                 require(isValidDirectory(config.oscake.resolver?.directory)) {
                     "Directory for \"config.oscake.resolver.directory\" is not set correctly in ort.conf"
                 }
-                OSCakeResolver(config.oscake).execute()
+                OSCakeResolver(config.oscake, getResolverCommandLineParams(it, fields2hide)).execute()
             }
 
         }
@@ -225,6 +227,15 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
     private fun getCuratorCommandLineParams(it: CuratorOptions, fields2hide: List<String>): Map<String, String> {
         val commandLineParams = mutableMapOf<String, String>()
         CuratorOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
+            commandLineParams[member.name] =
+                if (member.get(it) is File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
+        }
+        return commandLineParams
+    }
+
+    private fun getResolverCommandLineParams(it: ResolverOptions, fields2hide: List<String>): Map<String, String> {
+        val commandLineParams = mutableMapOf<String, String>()
+        ResolverOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
             commandLineParams[member.name] =
                 if (member.get(it) is File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
         }

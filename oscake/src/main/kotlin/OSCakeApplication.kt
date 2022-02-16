@@ -115,6 +115,16 @@ fun addParamsToConfig(config: OSCakeConfiguration, osc: OSCakeRoot, commandLineP
                         ConfigBlockInfo(commandLineParams, paramMap)
                 }
             }
+            is org.ossreviewtoolkit.model.config.OSCakeResolver -> {
+                if (clazz is OSCakeResolver) {
+                    val paramMap = mutableMapOf<String, String>()
+                    org.ossreviewtoolkit.model.config.OSCakeResolver::class.memberProperties.forEach { member2 ->
+                        paramMap[member2.name] = member2.get(v).toString()
+                    }
+                    if (osc.project.config != null) osc.project.config?.resolver =
+                        ConfigBlockInfo(commandLineParams, paramMap)
+                }
+            }
             is org.ossreviewtoolkit.model.config.OSCakeDeduplicator -> {
                 if (clazz is OSCakeDeduplicator) {
                     val paramMap = mutableMapOf<String, String>()

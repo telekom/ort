@@ -59,5 +59,9 @@ data class OSCakeResolver(
     /**
      * The [directory] where to find the yml files to be used for resolving
      */
-    val directory: String? = null
+    val directory: String? = null,
+    /**
+     * [issueLevel]: -1..not enabled, 0..ERROR, 1..WARN + ERROR, 2..INFO + WARN + ERROR
+     */
+    val issueLevel: Int? = -1
 )

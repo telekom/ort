@@ -19,6 +19,10 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+import org.apache.logging.log4j.Level
+import java.io.File
+import kotlin.system.exitProcess
+
 /**
  * The class [OSCakeRoot] represents the root node for the output; currently, it only consists of the property
  * [Project]
@@ -28,4 +32,28 @@ class OSCakeRoot {
      * The [project] contains the project's packages and resolved license information.
      */
     var project: Project = Project()
+
+    fun isProcessingAllowed(logger: OSCakeLogger, osccFile: File, authorList: List<String>): Boolean {
+        if (project.containsHiddenSections == true) {
+            logger.log("The file \"${osccFile.name}\" cannot be processed, because some sections are missing!" +
+                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
+                phase = ProcessingPhase.CURATION)
+            exitProcess(12)
+        }
+        if (authorList.contains(project.complianceArtifactCollection.author)) {
+            logger.log("The file \"${osccFile.name}\" cannot be processed, because it was already processed" +
+                    " in a former run! Check \"author\" in input file!", Level.ERROR, phase = ProcessingPhase.CURATION)
+            exitProcess(10)
+        }
+        // A merged oscc-file cannot be curated because there is no config information anymore (scopePatterns
+        // are missing); additionally the tag "mergedIDs" contains a list of merged ComplianceArtifactCollection
+        if (project.complianceArtifactCollection.mergedIds.isNotEmpty()) {
+            logger.log(
+                "The given project is a merged project and cannot be curated anymore!",
+                Level.ERROR, phase = ProcessingPhase.CURATION
+            )
+            exitProcess(11)
+        }
+        return true
+    }
 }
