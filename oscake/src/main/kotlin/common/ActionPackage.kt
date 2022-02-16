@@ -46,8 +46,6 @@ abstract class ActionPackage(open val id: Identifier) {
         isApplicableDisregardingVersion(pkgId)
                 && (id.version.equalsOrIsBlank(pkgId.version) || isApplicableIvyVersion(pkgId))
 
-    abstract fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File? = null)
-
-
+    abstract fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, fileStore: File? = null)
 
 }

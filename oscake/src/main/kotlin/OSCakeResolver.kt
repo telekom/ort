@@ -42,13 +42,6 @@ class OSCakeResolver(private val config: OSCakeConfiguration, private val comman
 
         addParamsToConfig(config, osc, commandLineParams, this)
 
-        println(outputDir)
-        println(osc.project.complianceArtifactCollection.author)
-
-        //val r = ResolverProvider(File(config.resolver?.directory!!))
-        //println(r.actions)
-
         ResolverManager(osc.project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
-
     }
 }

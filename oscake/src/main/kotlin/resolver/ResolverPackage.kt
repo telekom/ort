@@ -27,8 +27,20 @@ data class ResolverPackage(
    val scopes: List<String> = mutableListOf()
 ) : ActionPackage(id) {
 
-   override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File?) {
-        println("---> Processing")
+   override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, fileStore: File?) {
+
+       pack.fileLicensings.forEach {
+            if (it.coversOneOrAllLicenses(licenses) && fitsInPath(it.scope))
+                println("YEAH!")
+       }
+       println("---> Processing")
+    }
+
+    private fun fitsInPath(fileScope: String): Boolean {
+        if (scopes.contains(fileScope)) return true
+        if (scopes.any { it.startsWith(File(fileScope).path) }) return true
+        if (scopes.contains("")) return true
+        return false
     }
 
 }

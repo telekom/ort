@@ -82,6 +82,13 @@ class ResolverOptions: OscakeConfig("Options for oscake application: resolver") 
         .required()
 
     val ignoreRootWarnings by option("--ignoreRootWarn", help = "Ignore Root-Level WARNINGS").flag()
+
+    val analyzerFile by option(
+        "--analyzer-File", "-A",
+        help = "An analyzer-result.yml file produced by ORT (base of the OSCake-Reporter stored in oscc-file)."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
 }
 
 /**

@@ -44,4 +44,9 @@ data class FileLicensing(
      * [copyrights] keeps a list of all copyright statements for this file.
      */
     @JsonProperty("fileCopyrights") val copyrights = mutableListOf<FileCopyright>()
+
+    fun coversOneOrAllLicenses(resolveLicenses: List<String>): Boolean =
+        licenses.any { resolveLicenses.contains(it.license) } &&
+                licenses.none { !resolveLicenses.contains(it.license) }
+
 }
