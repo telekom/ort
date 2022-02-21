@@ -66,7 +66,10 @@ class ResolverManager(
 
         // 3. process (resolve, curate,..) package if it's valid
         project.packs.forEach {
-            resolverProvider.getActionFor(it.id)?.process(it, setParamsforCompatibilityReasons(), archiveDir)
+            resolverProvider.getActionFor(it.id)?.apply {
+                (this as ResolverPackage).dedupInResolveMode = config.resolver?.deduplicate ?: false
+                process(it, setParamsforCompatibilityReasons(), archiveDir, logger)
+            }
         }
 
         // 4. report [OSCakeIssue]s

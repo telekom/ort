@@ -5,6 +5,7 @@ import com.vdurmont.semver4j.SemverException
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.oscake.curator.PackageCuration
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
 import java.io.File
 
@@ -46,6 +47,6 @@ abstract class ActionPackage(open val id: Identifier) {
         isApplicableDisregardingVersion(pkgId)
                 && (id.version.equalsOrIsBlank(pkgId.version) || isApplicableIvyVersion(pkgId))
 
-    abstract fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, fileStore: File? = null)
+    abstract fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger, fileStore: File? = null)
 
 }

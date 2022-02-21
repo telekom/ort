@@ -45,6 +45,7 @@ import org.ossreviewtoolkit.utils.common.toHexString
 import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
 
 const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
+const val FOUND_IN_FILE_SCOPE_CONFIGURED = "[CONFIGURED]"
 const val REUSE_LICENSES_FOLDER = "LICENSES/"
 internal const val REPORTER_LOGGER = "OSCakeReporter"
 
@@ -354,7 +355,7 @@ fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLog
     val missingFiles = mutableListOf<String>()
     project.packs.forEach { pack ->
         pack.defaultLicensings.filter { it.licenseTextInArchive != null &&
-                !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
+                !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() && it.licenseTextInArchive != FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach {
             missingFiles.add(it.licenseTextInArchive.toString())
         }
         pack.reuseLicensings.filter { it.licenseTextInArchive != null &&
@@ -363,7 +364,7 @@ fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLog
         }
         pack.dirLicensings.forEach { dirLicensing ->
             dirLicensing.licenses.filter { it.licenseTextInArchive != null &&
-                    !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
+                    !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() && it.licenseTextInArchive != FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach {
                 missingFiles.add(it.licenseTextInArchive.toString())
             }
         }

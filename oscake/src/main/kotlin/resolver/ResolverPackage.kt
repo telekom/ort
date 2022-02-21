@@ -2,8 +2,7 @@ package org.ossreviewtoolkit.oscake.resolver
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.oscake.common.ActionPackage
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import java.io.File
 
 data class ResolverPackage(
@@ -27,20 +26,34 @@ data class ResolverPackage(
    val scopes: List<String> = mutableListOf()
 ) : ActionPackage(id) {
 
-   override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, fileStore: File?) {
+    var dedupInResolveMode: Boolean = false
 
-       pack.fileLicensings.forEach {
-            if (it.coversOneOrAllLicenses(licenses) && fitsInPath(it.scope))
-                println("YEAH!")
+   override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger, fileStore: File?) {
+       var count = 0
+       val filesToDelete = mutableListOf<String>()
+       val changedFileLicensings = mutableListOf<FileLicensing>()
+       val licensesLower = licenses.map { it.lowercase() }.toSet()
+       pack.fileLicensings.filter { it.coversOneOrAllLicenses(licensesLower) && it.fitsInPath(scopes)}
+           .forEach {
+               filesToDelete.addAll(it.handleCompoundLicense(result))
+               changedFileLicensings.add(it)
+               count++
+           }
+       if (count == 0) return
+       pack.removeDirDefaultScopes()
+
+       pack.createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true, result)
+
+       filesToDelete.forEach {
+           archiveDir.absoluteFile.resolve(it).delete()
        }
-       println("---> Processing")
-    }
 
-    private fun fitsInPath(fileScope: String): Boolean {
-        if (scopes.contains(fileScope)) return true
-        if (scopes.any { it.startsWith(File(fileScope).path) }) return true
-        if (scopes.contains("")) return true
-        return false
+       if (dedupInResolveMode) {
+           pack.deduplicateFileLicenses(archiveDir, changedFileLicensings)
+           pack.deduplicateDirDirLicenses(archiveDir, true)
+           pack.deduplicateDirDefaultLicenses(archiveDir, true)
+       }
+
     }
 
 }

@@ -22,6 +22,7 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
+import java.io.File
 
 /**
  * The class FileLicensing is a collection of [FileLicense] instances for the given path (stored in [scope])
@@ -45,8 +46,32 @@ data class FileLicensing(
      */
     @JsonProperty("fileCopyrights") val copyrights = mutableListOf<FileCopyright>()
 
-    fun coversOneOrAllLicenses(resolveLicenses: List<String>): Boolean =
-        licenses.any { resolveLicenses.contains(it.license) } &&
-                licenses.none { !resolveLicenses.contains(it.license) }
+    fun coversOneOrAllLicenses(resolveLicenses: Set<String>): Boolean {
+        val lic = licenses.mapNotNull { it.license?.lowercase() }.toSet()
+        if (resolveLicenses == lic) return true
+        if (resolveLicenses.intersect(lic).isNotEmpty()) return true
+        return false
+    }
+
+    fun handleCompoundLicense(newLicense: String): List<String> {
+        val filesToDelete = mutableListOf<String>()
+        fileContentInArchive?.let { filesToDelete.add(fileContentInArchive!!) }
+        licenses.filter { it.licenseTextInArchive != null }.forEach { filesToDelete.add(it.licenseTextInArchive!!) }
+        fileContentInArchive = null
+        licenses.clear()
+        licenses.add(FileLicense(newLicense))
+        return filesToDelete
+    }
+
+    fun fitsInPath(scopes: List<String>): Boolean {
+        // scope always contains a path with file name
+        if (scopes.contains(scope)) return true
+        // replace for Windows based systems
+        val fileScope = File(scope).path.replace("\\", "/")
+        if (scopes.any { fileScope.startsWith(it) }) return true
+        // "" represents root
+        if (scopes.contains("")) return true
+        return false
+    }
 
 }

@@ -66,7 +66,7 @@ internal class ModeDefault(
         /* Phase II:    based on the FileLicenses, the default- and dir-scopes are created when the filename matches
          *              the oscake.scopePatterns
          */
-        phaseII()
+        pack.createDirDefaultScopes(logger, OSCakeConfiguration.params, ProcessingPhase.PROCESS)
 
         /* Phase III:   copy archived files from scanner archive - and insert/update the fileLicensing entry
          *              (Info: files are archived from scanner, if the filename matches a pattern in ort.conf)
@@ -115,42 +115,6 @@ internal class ModeDefault(
                         licenseTextEntry.startLine))
                 }
                 if (pack.fileLicensings.none { it.scope == path }) pack.fileLicensings.add(fileLicensing)
-            }
-        }
-    }
-
-    private fun phaseII() {
-        pack.fileLicensings.forEach { fileLicensing ->
-            val scopeLevel = getScopeLevel(fileLicensing.scope, pack.packageRoot, OSCakeConfiguration.params)
-            if (scopeLevel == ScopeLevel.DEFAULT) {
-                fileLicensing.licenses.forEach { fileLicense ->
-                    if (pack.defaultLicensings.none { it.license == fileLicense.license &&
-                                it.path == fileLicensing.scope })
-                        pack.defaultLicensings.add(DefaultLicense(fileLicense.license, fileLicensing.scope,
-                            fileLicense.licenseTextInArchive, false))
-                    else {
-                        val ll = if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG
-                        logger.log("DefaultScope: multiple equal licenses <${fileLicense.license}> in the same " +
-                                "file found - ignored!", ll, pack.id, phase = ProcessingPhase.PROCESS)
-                    }
-                }
-            }
-            if (scopeLevel == ScopeLevel.DIR) {
-                val dirScope = getDirScopePath(pack, fileLicensing.scope)
-                val fibPathWithoutPackage = getPathWithoutPackageRoot(pack, fileLicensing.scope)
-                val dirLicensing = pack.dirLicensings.firstOrNull { it.scope == dirScope } ?: DirLicensing(dirScope)
-                    .apply { pack.dirLicensings.add(this) }
-                fileLicensing.licenses.forEach { fileLicense ->
-                    if (dirLicensing.licenses.none { it.license == fileLicense.license &&
-                                it.path == fibPathWithoutPackage })
-                        dirLicensing.licenses.add(DirLicense(fileLicense.license!!, fileLicense.licenseTextInArchive,
-                            fibPathWithoutPackage))
-                    else {
-                        val ll = if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG
-                        logger.log("DirScope: : multiple equal licenses <${fileLicense.license}> in the same " +
-                                "file found - ignored!", ll, pack.id, phase = ProcessingPhase.PROCESS)
-                    }
-                }
             }
         }
     }
