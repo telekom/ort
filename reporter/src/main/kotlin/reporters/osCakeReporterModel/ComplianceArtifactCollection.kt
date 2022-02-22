@@ -46,7 +46,7 @@ data class ComplianceArtifactCollection(
     /**
      * [date] keeps the creation timestamp of the report.
      */
-    val date: String = LocalDateTime.now().toString(),
+    var date: String = LocalDateTime.now().toString(),
     /**
      * [archivePath] describes the path to the archive file containing the processed license files.
      */

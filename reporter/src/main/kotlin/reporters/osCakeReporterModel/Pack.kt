@@ -194,7 +194,6 @@ data class Pack(
     }
 
     fun deduplicateFileLicenses(tmpDirectory: File, fileLicensingsList: List<FileLicensing>, cfgPreserveFileScopes: Boolean = false, cfgCompareOnlyDistinct: Boolean = true) {
-        //fileLicensings.forEach { fileLicensing ->   // todo: richtige list!
         fileLicensingsList.forEach { fileLicensing ->
             if (licensesContainedInScope(getDirScopePath(this, fileLicensing.scope), fileLicensing, cfgPreserveFileScopes, cfgCompareOnlyDistinct)) {
                 // remove files from archive
@@ -205,9 +204,11 @@ data class Pack(
             }
         }
     }
+
+    /**
+     * Checks if the [licenses] are contained as licenses in a higher scope
+     */
     private fun licensesContainedInScope(path: String, fileLicensing: FileLicensing, cfgPreserveFileScopes: Boolean, cfgCompareOnlyDistinct: Boolean): Boolean {
-        // val cfgPreserveFileScopes = config.deduplicator?.preserveFileScopes == true
-        // val cfgPreserveFileScopes = true // todo
         val licensesList = fileLicensing.licenses.mapNotNull { it.license }.toList()
         val dirLicensing = bestMatchedDirLicensing(path)
         if (dirLicensing != null) {
@@ -301,4 +302,68 @@ data class Pack(
             }
         }
     }
+
+    fun deduplicateFileCopyrights(cfgPreserveFileScopes: Boolean, cfgCompareOnlyDistinct: Boolean = true) =
+        fileLicensings.filter { copyrightsContainedInScope(getDirScopePath(this, it.scope), it, cfgPreserveFileScopes, cfgCompareOnlyDistinct) }
+            .forEach { fileLicensing -> fileLicensing.copyrights.clear()
+            }
+
+    /**
+     * Checks if the [copyrights] are contained as copyrights in a higher scope
+     */
+    private fun copyrightsContainedInScope(path: String, fileLicensing: FileLicensing, cfgPreserveFileScopes: Boolean, cfgCompareOnlyDistinct: Boolean): Boolean {
+        val copyrightsList = fileLicensing.copyrights.mapNotNull { it.copyright }.toList()
+        val dirLicensing = bestMatchedDirLicensing(path)
+        if (dirLicensing != null) {
+            if (isEqual(dirLicensing.copyrights.mapNotNull { it.copyright }.toList(), copyrightsList, cfgCompareOnlyDistinct)) {
+                if (dirLicensing.copyrights.any { it.path == fileLicensing.scope } && cfgPreserveFileScopes) return false
+                return true
+            }
+        } else {
+            if (isEqual(defaultCopyrights.mapNotNull { it.copyright }.toList(), copyrightsList, cfgCompareOnlyDistinct)) {
+                if (defaultCopyrights.any { it.path == fileLicensing.scope } && cfgPreserveFileScopes) return false
+                return true
+            }
+        }
+        return false
+    }
+
+    fun deduplicateDirDirCopyrights(cfgCompareOnlyDistinct: Boolean) {
+        dirLicensings.forEach { dirLicensing ->
+            val dirCopyrightsList = dirLicensing.copyrights.mapNotNull { it.copyright }
+            getParentDirLicensing(dirLicensing)?.let { parentDirLicensing ->
+                val parentDirCopyrightsList = parentDirLicensing.copyrights.mapNotNull { it.copyright }
+                if (isEqual(dirCopyrightsList, parentDirCopyrightsList, cfgCompareOnlyDistinct)) dirLicensing.copyrights.clear()
+            }
+        }
+    }
+
+    fun deduplicateDirDefaultCopyrights(cfgCompareOnlyDistinct: Boolean) {
+        val defaultCopyrightsList = defaultCopyrights.mapNotNull { it.copyright }
+        dirLicensings.forEach { dirLicensing ->
+            val dirCopyrightsList = dirLicensing.copyrights.mapNotNull { it.copyright }.toList()
+            if (isEqual(defaultCopyrightsList, dirCopyrightsList, cfgCompareOnlyDistinct)) dirLicensing.copyrights.clear()
+        }
+    }
+
+    fun removeEmptyFileScopes(tmpDirectory: File) {
+        val fileLicensings2Remove = fileLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() }
+        fileLicensings2Remove.forEach {
+            dedupRemoveFile(tmpDirectory, it.fileContentInArchive)
+        }
+        fileLicensings.removeAll(fileLicensings2Remove)
+    }
+
+    fun removeEmptyDirScopes(tmpDirectory: File) {
+        val dirLicensings2Remove = dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() }
+        dirLicensings2Remove.forEach { dirLicensing ->
+            dirLicensing.licenses.forEach {
+                dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
+            }
+        }
+        dirLicensings.removeAll(dirLicensings2Remove.toSet())
+    }
+
+
+
 }

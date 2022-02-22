@@ -20,6 +20,7 @@
 package org.ossreviewtoolkit.oscake
 
 import java.io.File
+import java.time.LocalDateTime
 
 import kotlin.io.path.createTempDirectory
 import kotlin.system.exitProcess
@@ -89,6 +90,7 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
         osc.project.complianceArtifactCollection.archivePath =
                 File(osc.project.complianceArtifactCollection.archivePath).parentFile.name + "/" + newZipFileName
         osc.project.complianceArtifactCollection.author = DEDUPLICATION_AUTHOR
+        osc.project.complianceArtifactCollection.date = LocalDateTime.now().toString()
         osc.project.complianceArtifactCollection.release = DEDUPLICATION_VERSION
 
         if (config.deduplicator?.hideSections?.isNotEmpty() == true) {
