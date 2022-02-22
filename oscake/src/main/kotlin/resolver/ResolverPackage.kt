@@ -57,34 +57,37 @@ internal data class ResolverPackage(
 
     /**
      * Walks through all [FileLicensing]s which contains the appropriate license information and fit into the given
-     * path. Afterwards, the dir and default-scopes are regenerated. When [dedupInResolveMode] is set the
+     * path. Afterwards, the dir and default-scopes are regenerated. When [dedupInResolveMode] is set, the
      * deduplication mechanism is applied to the affected [FileLicensing]s
      */
    override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
                         fileStore: File?) {
-       var count = 0
        val filesToDelete = mutableListOf<String>()
        val changedFileLicensings = mutableListOf<FileLicensing>()
        val licensesLower = licenses.map { it.lowercase() }.toSet()
+
        pack.fileLicensings.filter { it.coversOneOrAllLicenses(licensesLower) && it.fitsInPath(scopes) }
            .forEach {
                filesToDelete.addAll(it.handleCompoundLicense(result))
                changedFileLicensings.add(it)
-               count++
            }
-       if (count == 0) return
+       if (changedFileLicensings.isEmpty()) return
 
-       pack.removeDirDefaultScopes()
-       pack.createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true, result)
+       pack.apply {
+            removeDirDefaultScopes()
+            createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true, result)
+       }
 
        filesToDelete.forEach {
            archiveDir.absoluteFile.resolve(it).delete()
        }
 
        if (dedupInResolveMode) {
-           pack.deduplicateFileLicenses(archiveDir, changedFileLicensings)
-           pack.deduplicateDirDirLicenses(archiveDir, true)
-           pack.deduplicateDirDefaultLicenses(archiveDir, true)
+           pack.apply {
+               deduplicateFileLicenses(archiveDir, changedFileLicensings)
+               deduplicateDirDirLicenses(archiveDir, true)
+               deduplicateDirDefaultLicenses(archiveDir, true)
+           }
        }
     }
 }
