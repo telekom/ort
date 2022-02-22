@@ -1,18 +1,39 @@
+/*
+ * Copyright (C) 2021 Deutsche Telekom AG
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package org.ossreviewtoolkit.oscake.common
 
-import org.apache.logging.log4j.Level
-import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.oscake.CURATION_AUTHOR
-import org.ossreviewtoolkit.oscake.CURATION_FILE_SUFFIX
-import org.ossreviewtoolkit.oscake.CURATION_LOGGER
-import org.ossreviewtoolkit.oscake.CURATION_VERSION
-import org.ossreviewtoolkit.oscake.curator.CurationManager
-import org.ossreviewtoolkit.oscake.curator.CurationProvider
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import java.io.File
+
 import kotlin.system.exitProcess
 
-open class ActionManager (
+import org.apache.logging.log4j.Level
+
+import org.ossreviewtoolkit.model.config.OSCakeConfiguration
+import org.ossreviewtoolkit.oscake.curator.CurationManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+
+/**
+ * The class [ActionManager] is a skeleton (base class) of common properties and functions for the apps "curation",
+ * "resolver", etc.
+ */
+open class ActionManager(
     /**
       * The [project] contains the processed output from the OSCakeReporter - specifically a list of packages.
       */
@@ -29,18 +50,23 @@ open class ActionManager (
       * Configuration in ort.conf
       */
     open val config: OSCakeConfiguration,
-
+    /**
+     * [actionInfo] contains information about the specific action ("curate", "resolve", etc.)
+     */
     private val actionInfo: ActionInfo,
-
+    /**
+     * [commandLineParams] contains a map of passed commandline parameters
+     */
     open val commandLineParams: Map<String, String>
-    ){
-
+    ) {
     /**
      * The [logger] is only initialized, if there is something to log.
      */
     val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(actionInfo.loggerName) }
 
-
+    /**
+     * the method sets all hasIssues properties in the project to false
+     */
     fun resetIssues() {
         project.hasIssues = false
         project.packs.forEach { pack ->
@@ -54,29 +80,6 @@ open class ActionManager (
                 }
             }
         }
-    }
-
-    fun setParamsforCompatibilityReasons(): OSCakeConfigParams {
-        var scopePatterns = project.config?.reporter?.configFile?.scopePatterns ?: emptyList()
-        var copyrightScopePatterns = scopePatterns +
-                (project.config?.reporter?.configFile?.copyrightScopePatterns ?: emptyList())
-        var scopeIgnorePatterns = project.config?.reporter?.configFile?.scopeIgnorePatterns ?: emptyList()
-        val lowerCaseComparisonOfScopePatterns = project.config?.reporter?.configFile?.
-        lowerCaseComparisonOfScopePatterns ?: true
-
-        if (lowerCaseComparisonOfScopePatterns) {
-            scopePatterns = scopePatterns.map { it.lowercase() }.distinct().toList()
-            copyrightScopePatterns = copyrightScopePatterns.map { it.lowercase() }.distinct().toList()
-            scopeIgnorePatterns = scopeIgnorePatterns.map { it.lowercase() }.distinct().toList()
-        }
-
-        // for compatibility reasons
-        val params = OSCakeConfigParams()
-        params.scopePatterns = scopePatterns
-        params.scopeIgnorePatterns = scopeIgnorePatterns
-        params.copyrightScopePatterns = copyrightScopePatterns
-        params.lowerCaseComparisonOfScopePatterns = lowerCaseComparisonOfScopePatterns
-        return params
     }
 
     /**
@@ -109,8 +112,8 @@ open class ActionManager (
 
         rc = rc || ActionProvider.errors
         if (!rc) {
-            logger.log("${actionInfo.actor} terminated successfully! Result is written to: ${reportFile.name}", Level.INFO,
-                phase = actionInfo.phase)
+            logger.log("${actionInfo.actor} terminated successfully! Result is written to: ${reportFile.name}",
+                Level.INFO, phase = actionInfo.phase)
         } else {
             logger.log("${actionInfo.actor} terminated with errors!", Level.ERROR, phase = actionInfo.phase)
             exitProcess(4)
@@ -135,10 +138,11 @@ open class ActionManager (
             }
         }
     }
+
     /**
      * Clear the [issueList]s depending on issue level
      */
-    private fun eliminateIssuesFromLevel(issueList: IssueList) {
+    fun eliminateIssuesFromLevel(issueList: IssueList) {
         val issLevel = actionInfo.issueLevel
         if (issLevel == -1) {
             issueList.infos.clear()
@@ -155,7 +159,7 @@ open class ActionManager (
     /**
      * Remove issues with specific format: e.g. "W_Maven:org.yaml:snakeyaml:1.28"
      */
-    private fun eliminateIssueFromRoot(issueList: IssueList, idStr: String) {
+    fun eliminateIssueFromRoot(issueList: IssueList, idStr: String) {
         issueList.infos.removeAll { it.id == "I_$idStr" }
         issueList.warnings.removeAll { it.id == "W_$idStr" }
         issueList.errors.removeAll { it.id == "E_$idStr" }
@@ -165,7 +169,7 @@ open class ActionManager (
      * Remove warnings from project issueList with format: "Wxx" - theses are warnings created by the reporter and
      * can be overridden manually by option
      */
-    public fun eliminateRootWarnings() {
+    fun eliminateRootWarnings() {
         val pattern = "W\\d\\d".toRegex()
         val idList = project.issueList.warnings.filter { pattern.matches(it.id) }.map { it.id }
         project.issueList.warnings.removeAll { idList.contains(it.id) }

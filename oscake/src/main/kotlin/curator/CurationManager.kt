@@ -31,6 +31,9 @@ import org.ossreviewtoolkit.oscake.CURATION_AUTHOR
 import org.ossreviewtoolkit.oscake.CURATION_FILE_SUFFIX
 import org.ossreviewtoolkit.oscake.CURATION_LOGGER
 import org.ossreviewtoolkit.oscake.CURATION_VERSION
+import org.ossreviewtoolkit.oscake.common.ActionInfo
+import org.ossreviewtoolkit.oscake.common.ActionManager
+import org.ossreviewtoolkit.oscake.common.ActionProvider
 import org.ossreviewtoolkit.oscake.packageModifierMap
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.utils.common.unpackZip
@@ -44,24 +47,28 @@ internal class CurationManager(
     /**
      * The [project] contains the processed output from the OSCakeReporter - specifically a list of packages.
      */
-    private val project: Project,
+    override val project: Project,
     /**
      * The generated files are stored in the folder [outputDir]
      */
-    val outputDir: File,
+    override val outputDir: File,
     /**
      * The name of the reporter's output file which is extended by the [CurationManager]
      */
-    private val reportFilename: String,
+    override val reportFilename: String,
     /**
      * Configuration in ort.conf
      */
-    val config: OSCakeConfiguration,
+    override val config: OSCakeConfiguration,
     /**
      * option which indicates that the Warnings on root level are removed
      */
-    private val ignoreRootWarnings: Boolean
-    ) {
+    override val commandLineParams: Map<String, String>,
+
+    ) : ActionManager(project, outputDir, reportFilename, config,
+        ActionInfo.curator(config.curator?.issueLevel ?: -1), commandLineParams) {
+
+    private val ignoreRootWarnings: Boolean = commandLineParams.getOrDefault("ignoreRootWarnings", "false").toBoolean()
 
     /**
      * If curations have to be applied, the reporter's zip-archive is unpacked into this temporary folder.
@@ -73,7 +80,7 @@ internal class CurationManager(
     }
 
     /**
-     * The [curationProvider] contains a list of [PackageCuration]s to be applied.
+     * The [curationProvider] contains a list of [CurationPackage]s to be applied.
      */
     private var curationProvider = CurationProvider(File(config.curator?.directory!!),
         File(config.curator?.fileStore!!))
@@ -81,7 +88,7 @@ internal class CurationManager(
     /**
      * The [logger] is only initialized, if there is something to log.
      */
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
+    // private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
     /**
      * The method takes the reporter's output, checks and updates the reported "hasIssues", prioritizes the
@@ -89,21 +96,10 @@ internal class CurationManager(
      */
     internal fun manage() {
         // 0. Reset hasIssues = false - will be newly set at the end of the process
-        project.hasIssues = false
-        project.packs.forEach { pack ->
-            pack.hasIssues = false
-            pack.defaultLicensings.forEach {
-                it.hasIssues = false
-            }
-            pack.dirLicensings.forEach { dirLicensing ->
-                dirLicensing.licenses.forEach {
-                    it.hasIssues = false
-                }
-            }
-        }
+        resetIssues()
         // 1. handle packageModifiers
         val orderByModifier = packageModifierMap.keys.withIndex().associate { it.value to it.index }
-        curationProvider.packageCurations.sortedBy { orderByModifier[it.packageModifier] }.forEach { packageCuration ->
+        curationProvider.curationPackages.sortedBy { orderByModifier[it.packageModifier] }.forEach { packageCuration ->
             when (packageCuration.packageModifier) {
                 "insert" -> if (project.packs.none { it.id == packageCuration.id }) {
                     eliminateIssueFromRoot(project.issueList, packageCuration.id.toCoordinates())
@@ -125,30 +121,10 @@ internal class CurationManager(
         }
 
         // 2. curate each package regarding the "modifier" - insert, delete, update
-        // and "packageModifier" - update, insert, delete
-        var scopePatterns = project.config?.reporter?.configFile?.scopePatterns ?: emptyList()
-        var copyrightScopePatterns = scopePatterns +
-                (project.config?.reporter?.configFile?.copyrightScopePatterns ?: emptyList())
-        var scopeIgnorePatterns = project.config?.reporter?.configFile?.scopeIgnorePatterns ?: emptyList()
-        val lowerCaseComparisonOfScopePatterns = project.config?.reporter?.configFile?.
-            lowerCaseComparisonOfScopePatterns ?: true
-
-        if (lowerCaseComparisonOfScopePatterns) {
-            scopePatterns = scopePatterns.map { it.lowercase() }.distinct().toList()
-            copyrightScopePatterns = copyrightScopePatterns.map { it.lowercase() }.distinct().toList()
-            scopeIgnorePatterns = scopeIgnorePatterns.map { it.lowercase() }.distinct().toList()
-        }
-
-        // for compatibility reasons
-        val params = OSCakeConfigParams()
-        params.scopePatterns = scopePatterns
-        params.scopeIgnorePatterns = scopeIgnorePatterns
-        params.copyrightScopePatterns = copyrightScopePatterns
-        params.lowerCaseComparisonOfScopePatterns = lowerCaseComparisonOfScopePatterns
-
         project.packs.forEach {
-            curationProvider.getCurationFor(it.id)?.curate(it, archiveDir,
-                File(config.curator?.fileStore!!), params)
+            curationProvider.getCurationFor(it.id)?.
+                process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger,
+                    File(config.curator?.fileStore!!))
         }
 
         // 3. report [OSCakeIssue]s
@@ -166,63 +142,10 @@ internal class CurationManager(
     }
 
     /**
-     * Remove warnings from project issueList with format: "Wxx" - theses are warnings created by the reporter and
-     * can be overridden manually by option
+     * Checks if the package is reuse compliant
      */
-    private fun eliminateRootWarnings() {
-        val pattern = "W\\d\\d".toRegex()
-        val idList = project.issueList.warnings.filter { pattern.matches(it.id) }.map { it.id }
-        project.issueList.warnings.removeAll { idList.contains(it.id) }
-        propagateHasIssues(project)
-    }
-
-    /**
-     * Clear all lists in issueLists (project, package, ...) depending on the issueLevel - set in ort.conf, in order
-     * to produce the correct output
-     */
-    private fun takeCareOfIssueLevel() {
-        eliminateIssuesFromLevel(project.issueList)
-        project.packs.forEach { pack ->
-            eliminateIssuesFromLevel(pack.issueList)
-            pack.defaultLicensings.forEach {
-                eliminateIssuesFromLevel(it.issueList)
-            }
-            pack.dirLicensings.forEach { dirLicensing ->
-                dirLicensing.licenses.forEach {
-                    eliminateIssuesFromLevel(it.issueList)
-                }
-            }
-        }
-    }
-
-    /**
-     * Clear the [issueList]s depending on issue level
-     */
-    private fun eliminateIssuesFromLevel(issueList: IssueList) {
-        val issLevel = config.curator?.issueLevel ?: -1
-        if (issLevel == -1) {
-            issueList.infos.clear()
-            issueList.warnings.clear()
-            issueList.errors.clear()
-        }
-        if (issLevel == 0) {
-            issueList.infos.clear()
-            issueList.warnings.clear()
-        }
-        if (issLevel == 1) issueList.infos.clear()
-    }
-
-    /**
-     * Remove issues with specific format: e.g. "W_Maven:org.yaml:snakeyaml:1.28"
-     */
-    private fun eliminateIssueFromRoot(issueList: IssueList, idStr: String) {
-        issueList.infos.removeAll { it.id == "I_$idStr" }
-        issueList.warnings.removeAll { it.id == "W_$idStr" }
-        issueList.errors.removeAll { it.id == "E_$idStr" }
-    }
-
-    private fun checkReuseCompliance(pack: Pack, packageCuration: PackageCuration): Boolean =
-        packageCuration.curations?.any {
+    private fun checkReuseCompliance(pack: Pack, curationPackage: CurationPackage): Boolean =
+        curationPackage.curations?.any {
             it.fileScope.startsWith(getLicensesFolderPrefix(pack.packageRoot))
         } ?: false
 
@@ -251,7 +174,7 @@ internal class CurationManager(
 
         rc = rc || modelToOscc(project, reportFile, logger, ProcessingPhase.CURATION)
 
-        rc = rc || CurationProvider.errors
+        rc = rc || ActionProvider.errors
         if (!rc) {
             logger.log("Curator terminated successfully! Result is written to: ${reportFile.name}", Level.INFO,
                 phase = ProcessingPhase.CURATION)
@@ -261,9 +184,12 @@ internal class CurationManager(
         }
     }
 
-    private fun deletePackage(packageCuration: PackageCuration, archiveDir: File) {
+    /**
+     * Deletes a package from project
+     */
+    private fun deletePackage(curationPackage: CurationPackage, archiveDir: File) {
         val packsToDelete = mutableListOf<Pack>()
-        project.packs.filter { curationProvider.getCurationFor(it.id) == packageCuration }.forEach { pack ->
+        project.packs.filter { curationProvider.getCurationFor(it.id) == curationPackage }.forEach { pack ->
             pack.fileLicensings.forEach { fileLicensing ->
                 deleteFromArchive(fileLicensing.fileContentInArchive, archiveDir)
                 fileLicensing.licenses.forEach {

@@ -36,7 +36,9 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.osccToModel
  * The [OSCakeCurator] provides a mechanism to curate issues (WARNINGS & ERRORS) in an *.oscc file. Additionally,
  * ComplianceArtifactPackages can be added and/or deleted.
  */
-class OSCakeCurator(private val config: OSCakeConfiguration, private val commandLineParams: Map<String, String>) {
+class OSCakeCurator(private val config: OSCakeConfiguration,
+                             private val commandLineParams: Map<String, String>) {
+
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
     /**
@@ -45,7 +47,6 @@ class OSCakeCurator(private val config: OSCakeConfiguration, private val command
     fun execute() {
         val osccFile = File(commandLineParams["osccFile"]!!)
         val outputDir = File(commandLineParams["outputDir"]!!)
-        val ignoreRootWarnings = commandLineParams.getOrDefault("ignoreRootWarnings", "false").toBoolean()
 
         val osc = osccToModel(osccFile, logger, ProcessingPhase.CURATION)
 
@@ -60,7 +61,7 @@ class OSCakeCurator(private val config: OSCakeConfiguration, private val command
                     " in a former run!", Level.ERROR, phase = ProcessingPhase.CURATION)
             exitProcess(10)
         }
-        // A merged oscc-file cannot be curated because there is no config information anymore (scopePatterns
+        // A merged oscc-file cannot be curated because there is no config information left (scopePatterns
         // are missing); additionally the tag "mergedIDs" contains a list of merged ComplianceArtifactCollection
         if (osc.project.complianceArtifactCollection.mergedIds.isNotEmpty()) {
             logger.log(
@@ -71,6 +72,6 @@ class OSCakeCurator(private val config: OSCakeConfiguration, private val command
         }
         addParamsToConfig(config, osc, commandLineParams, this)
 
-        CurationManager(osc.project, outputDir, osccFile.absolutePath, config, ignoreRootWarnings).manage()
+        CurationManager(osc.project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
     }
 }

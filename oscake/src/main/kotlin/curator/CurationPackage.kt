@@ -21,9 +21,6 @@ package org.ossreviewtoolkit.oscake.curator
 
 import com.fasterxml.jackson.annotation.JsonProperty
 
-import com.vdurmont.semver4j.Semver
-import com.vdurmont.semver4j.SemverException
-
 import java.io.File
 import java.nio.file.FileSystems
 
@@ -32,21 +29,22 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.oscake.CURATION_DEFAULT_LICENSING
 import org.ossreviewtoolkit.oscake.CURATION_LOGGER
+import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.orderCopyrightByModifier
 import org.ossreviewtoolkit.oscake.orderLicenseByModifier
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
 /**
- * A [PackageCuration] contains a curation for a specific package, identified by an [id]. The instances are created
+ * A [CurationPackage] contains a curation for a specific package, identified by an [id]. The instances are created
  * during processing the curation (yml) files.
  */
-internal data class PackageCuration(
+internal data class CurationPackage(
     /**
      * The [id] contains a package identification as defined in the [Identifier] class. The version information may
      * be stored as a specific version number, an IVY-expression (describing a range of versions) or may be empty (then
      * it will be valid for all version numbers).
      */
-    val id: Identifier,
+    override val id: Identifier,
     /**
      * The [packageModifier] indicates that a package should be inserted, updated or deleted.
      */
@@ -72,54 +70,19 @@ internal data class PackageCuration(
      * List of [CurationFileItem]s to be applied for this [id].
      */
     val curations: List<CurationFileItem>?
-) {
+) : ActionPackage(id) {
     /**
      * The [logger] is only initialized, if there is something to log.
      */
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
     /**
-     * Returns true if this [PackageCuration] is applicable to the package with the given [pkgId],
-     * disregarding the version.
-     */
-    private fun isApplicableDisregardingVersion(pkgId: Identifier) =
-        id.type.equals(pkgId.type, ignoreCase = true)
-                && id.namespace == pkgId.namespace
-                && id.name == pkgId.name
-
-    /**
-     * Returns true if the version of this [PackageCuration] interpreted as an Ivy version matcher is applicable to the
-     * package with the given [pkgId].
-     */
-     private fun isApplicableIvyVersion(pkgId: Identifier) =
-        @Suppress("SwallowedException")
-         try {
-            val pkgIvyVersion = Semver(pkgId.version, Semver.SemverType.IVY)
-            pkgIvyVersion.satisfies(id.version)
-        } catch (e: SemverException) {
-            false
-        }
-
-    /**
-     * Returns true if this string equals the [other] string, or if either string is blank.
-     */
-    private fun String.equalsOrIsBlank(other: String) = equals(other) || isBlank() || other.isBlank()
-
-    /**
-     * Return true if this [PackageCuration] is applicable to the package with the given [pkgId]. The
-     * curation's version may be an
-     * [Ivy version matcher](http://ant.apache.org/ivy/history/2.4.0/settings/version-matchers.html).
-     */
-    fun isApplicable(pkgId: Identifier): Boolean =
-        isApplicableDisregardingVersion(pkgId)
-                && (id.version.equalsOrIsBlank(pkgId.version) || isApplicableIvyVersion(pkgId))
-
-    /**
      * The method handles curations for the [packageModifier]s "insert" and "update". Additionally, it manages
      * the special case of "fileScope" == CURATION_DEFAULT_LICENSING (This special processing is necessary if
      * defaultLicensings exist, which are not based on fileLicensings - aka "declared license").
      */
-    internal fun curate(pack: Pack, archiveDir: File, fileStore: File, params: OSCakeConfigParams) {
+    override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
+                         fileStore: File?) {
         if (packageModifier == "insert" || packageModifier == "update") {
             eliminateIssueFromPackage(pack)
             curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
@@ -128,11 +91,11 @@ internal data class PackageCuration(
                     }?.forEach { curationFileLicenseItem ->
                     when (curationFileLicenseItem.modifier) {
                         "insert" -> curateLicenseInsert(curationFileItem, curationFileLicenseItem, pack, archiveDir,
-                            fileStore, params)
+                            fileStore!!, params)
                         "delete" -> curateLicenseDelete(curationFileItem, curationFileLicenseItem, pack, archiveDir)
                         "update" -> curateLicenseUpdate(
                             curationFileItem, curationFileLicenseItem, pack, archiveDir,
-                            fileStore
+                            fileStore!!
                         )
                     }
                 }
@@ -155,7 +118,7 @@ internal data class PackageCuration(
                                 curationFileLicenseItem.license,
                                 FOUND_IN_FILE_SCOPE_DECLARED, insertLTIA(
                                     curationFileLicenseItem.licenseTextInArchive,
-                                    archiveDir, curationFileLicenseItem.license!!, fileStore, pack
+                                    archiveDir, curationFileLicenseItem.license!!, fileStore!!, pack
                                 ), true
                             )
                         )
@@ -177,7 +140,7 @@ internal data class PackageCuration(
                             if (curationFileLicenseItem.licenseTextInArchive != null) {
                                 it.licenseTextInArchive = insertLTIA(
                                     curationFileLicenseItem.licenseTextInArchive,
-                                    archiveDir, it.license ?: "", fileStore, pack
+                                    archiveDir, it.license ?: "", fileStore!!, pack
                                 )
                             }
                         }

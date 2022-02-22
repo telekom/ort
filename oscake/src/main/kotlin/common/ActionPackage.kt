@@ -1,30 +1,50 @@
+/*
+ * Copyright (C) 2021 Deutsche Telekom AG
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package org.ossreviewtoolkit.oscake.common
 
 import com.vdurmont.semver4j.Semver
 import com.vdurmont.semver4j.SemverException
+
+import java.io.File
+
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.oscake.curator.PackageCuration
+import org.ossreviewtoolkit.oscake.curator.CurationPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
-import java.io.File
 
-abstract class ActionPackage(open val id: Identifier) {
-
+internal abstract class ActionPackage(open val id: Identifier) {
     /**
-     * Returns true if this [PackageCuration] is applicable to the package with the given [pkgId],
+     * Returns true if this [CurationPackage] is applicable to the package with the given [pkgId],
      * disregarding the version.
      */
-    fun isApplicableDisregardingVersion(pkgId: Identifier) =
+    private fun isApplicableDisregardingVersion(pkgId: Identifier) =
         id.type.equals(pkgId.type, ignoreCase = true)
                 && id.namespace == pkgId.namespace
                 && id.name == pkgId.name
 
     /**
-     * Returns true if the version of this [PackageCuration] interpreted as an Ivy version matcher is applicable to the
+     * Returns true if the version of this [CurationPackage] interpreted as an Ivy version matcher is applicable to the
      * package with the given [pkgId].
      */
-    fun isApplicableIvyVersion(pkgId: Identifier) =
+    private fun isApplicableIvyVersion(pkgId: Identifier) =
         @Suppress("SwallowedException")
         try {
             val pkgIvyVersion = Semver(pkgId.version, Semver.SemverType.IVY)
@@ -36,17 +56,20 @@ abstract class ActionPackage(open val id: Identifier) {
     /**
      * Returns true if this string equals the [other] string, or if either string is blank.
      */
-    fun String.equalsOrIsBlank(other: String) = equals(other) || isBlank() || other.isBlank()
+    private fun String.equalsOrIsBlank(other: String) = equals(other) || isBlank() || other.isBlank()
 
     /**
-     * Return true if this [PackageCuration] is applicable to the package with the given [pkgId]. The
+     * Return true if this [CurationPackage] is applicable to the package with the given [pkgId]. The
      * curation's version may be an
      * [Ivy version matcher](http://ant.apache.org/ivy/history/2.4.0/settings/version-matchers.html).
      */
-    fun isApplicable(pkgId: Identifier): Boolean =
+    internal fun isApplicable(pkgId: Identifier): Boolean =
         isApplicableDisregardingVersion(pkgId)
                 && (id.version.equalsOrIsBlank(pkgId.version) || isApplicableIvyVersion(pkgId))
 
-    abstract fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger, fileStore: File? = null)
-
+    /**
+     * [process] has to be overridden by the child classes
+     */
+    abstract fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
+                         fileStore: File? = null)
 }

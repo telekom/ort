@@ -78,4 +78,33 @@ data class OSCakeConfigParams(
     constructor(includeJsonPathInLogfile: Boolean) : this(
         includeJsonPathInLogfile4ErrorsAndWarnings = includeJsonPathInLogfile,
     )
+
+    companion object {
+        /**
+         * Some functions are calling functions from OSCakeReporter, and these are in need of some configuration info.
+         * Therefore,
+         */
+        fun setParamsForCompatibilityReasons(project: Project): OSCakeConfigParams {
+            var scopePatterns = project.config?.reporter?.configFile?.scopePatterns ?: emptyList()
+            var copyrightScopePatterns = scopePatterns +
+                    (project.config?.reporter?.configFile?.copyrightScopePatterns ?: emptyList())
+            var scopeIgnorePatterns = project.config?.reporter?.configFile?.scopeIgnorePatterns ?: emptyList()
+            val lowerCaseComparisonOfScopePatterns = project.config?.reporter?.configFile?.
+            lowerCaseComparisonOfScopePatterns ?: true
+
+            if (lowerCaseComparisonOfScopePatterns) {
+                scopePatterns = scopePatterns.map { it.lowercase() }.distinct().toList()
+                copyrightScopePatterns = copyrightScopePatterns.map { it.lowercase() }.distinct().toList()
+                scopeIgnorePatterns = scopeIgnorePatterns.map { it.lowercase() }.distinct().toList()
+            }
+
+            // for compatibility reasons
+            val params = OSCakeConfigParams()
+            params.scopePatterns = scopePatterns
+            params.scopeIgnorePatterns = scopeIgnorePatterns
+            params.copyrightScopePatterns = copyrightScopePatterns
+            params.lowerCaseComparisonOfScopePatterns = lowerCaseComparisonOfScopePatterns
+            return params
+        }
+    }
 }

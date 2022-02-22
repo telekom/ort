@@ -30,6 +30,8 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.oscake.CURATION_LOGGER
+import org.ossreviewtoolkit.oscake.common.ActionPackage
+import org.ossreviewtoolkit.oscake.common.ActionProvider
 import org.ossreviewtoolkit.oscake.packageModifierMap
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
@@ -37,7 +39,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
  * The [CurationProvider] gets the locations where to find
  * - the yml-files containing curations (their semantics is checked while processing) and
  * - the corresponding license text files
- * and creates a list of possible [PackageCuration]s.
+ * and creates a list of possible [CurationPackage]s.
  */
 internal class CurationProvider(
     /**
@@ -48,14 +50,11 @@ internal class CurationProvider(
      *  Contains the root folder containing files with license texts (may be organized in subdirectories).
      */
     fileStore: File
-) {
-    companion object {
-        var errors = false
-    }
+) : ActionProvider(curationDirectory, fileStore, CURATION_LOGGER, CurationPackage::class, ProcessingPhase.CURATION) {
     /**
-     * List of available [PackageCuration]s
+     * List of available [CurationPackage]s
      */
-    internal val packageCurations = mutableListOf<PackageCuration>()
+    internal val curationPackages = mutableListOf<CurationPackage>()
     /**
      * The [logger] is only initialized, if there is something to log.
      */
@@ -68,25 +67,25 @@ internal class CurationProvider(
         if (curationDirectory.isDirectory) {
             curationDirectory.walkTopDown().filter { it.isFile && it.extension == "yml" }.forEach {
                 try {
-                    it.readValue<List<PackageCuration>>().forEach { packageCuration ->
-                        if (checkSemantics(packageCuration, it.name, fileStore)) packageCurations.add(packageCuration)
+                    it.readValue<List<CurationPackage>>().forEach { packageCuration ->
+                        if (checkSemantics(packageCuration, it.name, fileStore)) curationPackages.add(packageCuration)
                     }
                 } catch (e: IOException) {
                     logger.log("Error while processing file: ${it.absoluteFile}! - Curation not applied! ${e.message}",
                         Level.ERROR, phase = ProcessingPhase.CURATION
                     )
-                    CurationProvider.errors = true
+                    ActionProvider.errors = true
                 }
             }
         }
     }
 
     /**
-     * Returns the [PackageCuration] which is applicable for a specific package Id or null if there is none or
+     * Returns the [CurationPackage] which is applicable for a specific package Id or null if there is none or
      * more than one.
      */
-    internal fun getCurationFor(pkgId: Identifier): PackageCuration? {
-        packageCurations.filter { it.isApplicable(pkgId) }.apply {
+    internal fun getCurationFor(pkgId: Identifier): CurationPackage? {
+        curationPackages.filter { it.isApplicable(pkgId) }.apply {
             if (size > 1) logger.log("Error: more than one curation was found for" +
                     " package: $pkgId - don't know which one to take!", Level.ERROR, pkgId,
                 phase = ProcessingPhase.CURATION
@@ -97,45 +96,47 @@ internal class CurationProvider(
     }
 
     /**
-     * Checks semantics of the [packageCuration]. In case of incongruities, these are logged and the curation is
+     * Checks semantics of the [item]. In case of incongruities, these are logged and the curation is
      * not applied.
      */
     @Suppress("ComplexMethod", "LongMethod")
-    private fun checkSemantics(packageCuration: PackageCuration, fileName: String, fileStore: File): Boolean {
-        val errorPrefix = "[Semantics] - File: $fileName [${packageCuration.id.toCoordinates()}]: "
+    // abstract fun checkSemantics(item: ActionPackage, fileName: String, fileStore: File?): Boolean
+    override fun checkSemantics(item: ActionPackage, fileName: String, fileStore: File?): Boolean {
+        item as CurationPackage
+        val errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "
         val errorSuffix = " --> curation ignored"
 
         // 1. check Package-ID
-        if (!packageIdIsValid(packageCuration.id)) {
+        if (!packageIdIsValid(item.id)) {
             logger.log("$errorPrefix package <id> is not valid! $errorSuffix", Level.WARN,
                 phase = ProcessingPhase.CURATION
             )
             return false
         }
         // 2. check packageModifier
-        if (!packageModifierMap.containsKey(packageCuration.packageModifier)) {
-            logger.log("$errorPrefix package_modifier <${packageCuration.packageModifier}> not valid! " +
+        if (!packageModifierMap.containsKey(item.packageModifier)) {
+            logger.log("$errorPrefix package_modifier <${item.packageModifier}> not valid! " +
                     errorSuffix, Level.WARN, phase = ProcessingPhase.CURATION
             )
             return false
         }
         // 3. no curations allowed for packageModifier: delete
-        if (packageCuration.packageModifier == "delete" && !packageCuration.curations.isNullOrEmpty()) {
+        if (item.packageModifier == "delete" && !item.curations.isNullOrEmpty()) {
             logger.log("$errorPrefix if package_modifier = \"delete\" no curations are allowed! $errorSuffix",
                 Level.WARN, phase = ProcessingPhase.CURATION
             )
             return false
         }
         // 4. repository must be defined for packageModifier: insert
-        if (packageCuration.packageModifier == "insert" && packageCuration.repository == null) {
+        if (item.packageModifier == "insert" && item.repository == null) {
             logger.log("$errorPrefix if package_modifier = \"insert\" repository must be defined! $errorSuffix",
                 Level.WARN, phase = ProcessingPhase.CURATION
             )
             return false
         }
         // 5. check modifiers in every licensing
-        val modifiers = packageModifierMap.getOrElse(packageCuration.packageModifier) { listOf(setOf(), setOf()) }
-        packageCuration.curations?.forEach { curationFileItem ->
+        val modifiers = packageModifierMap.getOrElse(item.packageModifier) { listOf(setOf(), setOf()) }
+        item.curations?.forEach { curationFileItem ->
             // 5.1 check file_licenses
             if (curationFileItem.fileLicenses?.filter { modifiers.elementAt(0).contains(it.modifier) }?.size !=
                 curationFileItem.fileLicenses?.size) {
@@ -154,7 +155,7 @@ internal class CurationProvider(
             }
         }
         // 6. file_scope: must not be empty string
-        packageCuration.curations?.forEach { curationFileItem ->
+        item.curations?.forEach { curationFileItem ->
             if (curationFileItem.fileScope == "") {
                 logger.log("$errorPrefix file_scope must be non-empty $errorSuffix", Level.WARN,
                     phase = ProcessingPhase.CURATION
@@ -163,7 +164,7 @@ internal class CurationProvider(
             }
         }
         // 7. file_scope: glob patterns only allowed for modifier: update, delete
-        packageCuration.curations?.forEach { curationFileItem ->
+        item.curations?.forEach { curationFileItem ->
             if (containsGlobPatternSymbol(curationFileItem.fileScope)) {
                 curationFileItem.fileLicenses?.forEach {
                     if (it.modifier == "insert") {
@@ -184,7 +185,7 @@ internal class CurationProvider(
             }
         }
         // 8. check file_licenses: license + licenseTextInArchive combinations
-        packageCuration.curations?.forEach { curationFileItem ->
+        item.curations?.forEach { curationFileItem ->
             curationFileItem.fileLicenses?.forEach {
                 if (it.modifier == "insert" && it.license == null) {
                     logger.log("$errorPrefix modifier(insert)/license = null is not allowed in " +
@@ -208,7 +209,7 @@ internal class CurationProvider(
                     return false
                 }
                 if (it.modifier != "delete" && it.licenseTextInArchive != null && it.licenseTextInArchive != "*") {
-                    if (!File(fileStore.path + "/" + it.licenseTextInArchive).exists()) {
+                    if (!File(fileStore!!.path + "/" + it.licenseTextInArchive).exists()) {
                         logger.log("$errorPrefix file <${it.licenseTextInArchive}> does not exist in " +
                                 "configured file store found in file_scope: <${curationFileItem.fileScope}>! " +
                                 errorSuffix, Level.WARN, phase = ProcessingPhase.CURATION
@@ -219,7 +220,7 @@ internal class CurationProvider(
             }
         }
         // 9. check copyright_licenses combinations
-        packageCuration.curations?.forEach { curationFileItem ->
+        item.curations?.forEach { curationFileItem ->
             curationFileItem.fileCopyrights?.forEach {
                 when (it.modifier) {
                     "insert" -> if (it.copyright == null || it.copyright == "") {
@@ -260,9 +261,9 @@ internal class CurationProvider(
             }
         }
         // 10. check REUSE compliance
-        if (packageCuration.packageModifier == "insert" && isReuseCompliant(packageCuration)) {
+        if (item.packageModifier == "insert" && isReuseCompliant(item)) {
             // 10.1 check more than one license per file in LICENSES folder is not allowed
-            packageCuration.curations?.groupBy { it.fileScope }?.forEach { (_, value) ->
+            item.curations?.groupBy { it.fileScope }?.forEach { (_, value) ->
                 val curationFileLicenseItems = mutableListOf<CurationFileLicenseItem>()
                 value.forEach {
                     it.fileLicenses?.let { it1 -> curationFileLicenseItems.addAll(it1) }
@@ -276,7 +277,7 @@ internal class CurationProvider(
                 }
             }
             // 10.2 licenseTextInArchive must be NOT null for files in LICENSES folder
-            packageCuration.curations?.filter { it.fileScope.startsWith(getLicensesFolderPrefix(""))
+            item.curations?.filter { it.fileScope.startsWith(getLicensesFolderPrefix(""))
                 }?.forEach { curationFileItem1 ->
                 if (curationFileItem1.fileLicenses?.any { it.licenseTextInArchive == null } == true) {
                     logger.log("$errorPrefix if package_modifier = \"insert\" for REUSE package: " +
@@ -287,7 +288,7 @@ internal class CurationProvider(
                 }
             }
             // 10.3 licenseTextInArchive must be null for files outside of the LICENSES folder
-            packageCuration.curations?.filter { !it.fileScope.startsWith(getLicensesFolderPrefix(""))
+            item.curations?.filter { !it.fileScope.startsWith(getLicensesFolderPrefix(""))
                 }?.forEach { curationFileItem1 ->
                 if (curationFileItem1.fileLicenses?.any { it.licenseTextInArchive != null } == true) {
                     logger.log("$errorPrefix if package_modifier = \"insert\" for REUSE package: licenseText" +
@@ -299,8 +300,8 @@ internal class CurationProvider(
             }
         }
         // 11. check "resolvedIssues"
-        if ((packageCuration.packageModifier == "insert" || packageCuration.packageModifier == "delete") &&
-                    !packageCuration.resolvedIssues.isNullOrEmpty()) {
+        if ((item.packageModifier == "insert" || item.packageModifier == "delete") &&
+                    !item.resolvedIssues.isNullOrEmpty()) {
             logger.log(
                 "$errorPrefix When package_modifier == insert or delete, the resolved_issues " +
                         "list must be null or empty! $errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
@@ -308,8 +309,8 @@ internal class CurationProvider(
             return false
         }
         val pattern = "(E|W|I)\\d\\d".toRegex()
-        if (packageCuration.packageModifier == "update" && !packageCuration.resolvedIssues.isNullOrEmpty()) {
-            packageCuration.resolvedIssues.forEach {
+        if (item.packageModifier == "update" && !item.resolvedIssues.isNullOrEmpty()) {
+            item.resolvedIssues.forEach {
                 if (!pattern.matches(it)) {
                     logger.log(
                         "$errorPrefix Issue-ID \"$it\" not a valid format! $errorSuffix",
@@ -325,8 +326,8 @@ internal class CurationProvider(
     /**
      * A project/package is REUSE compliant if a folder with the name "LICENSES" exists.
      */
-    private fun isReuseCompliant(packageCuration: PackageCuration): Boolean =
-        packageCuration.curations?.any {
+    private fun isReuseCompliant(curationPackage: CurationPackage): Boolean =
+        curationPackage.curations?.any {
             it.fileScope.startsWith(getLicensesFolderPrefix(""))
         } ?: false
 

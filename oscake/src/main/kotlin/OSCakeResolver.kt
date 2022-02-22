@@ -19,19 +19,24 @@
 
 package org.ossreviewtoolkit.oscake
 
+import java.io.File
+
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.oscake.curator.CurationManager
 import org.ossreviewtoolkit.oscake.resolver.ResolverManager
-import org.ossreviewtoolkit.oscake.resolver.ResolverProvider
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.osccToModel
-import java.io.File
 
+/**
+ * The [OSCakeResolver] provides a mechanism to resolve dual licenses in an *.oscc file.
+ */
 class OSCakeResolver(private val config: OSCakeConfiguration, private val commandLineParams: Map<String, String>) {
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(RESOLVER_LOGGER) }
 
+    /**
+    * Checks valid commandline parameters and starts the resolving algorithm
+    */
     fun execute() {
         val osccFile = File(commandLineParams["osccFile"]!!)
         val outputDir = File(commandLineParams["outputDir"]!!)

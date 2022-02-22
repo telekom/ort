@@ -33,6 +33,7 @@ const val CURATION_LOGGER = "OSCakeCurator"
 const val CURATION_FILE_SUFFIX = "_curated"
 const val CURATION_AUTHOR = "OSCake-Curator"
 const val CURATION_VERSION = "0.1"
+const val CURATION_ACTOR = "Curator"
 
 const val MERGER_LOGGER = "OSCakeMerger"
 const val MERGER_VERSION = "0.1"
@@ -49,6 +50,7 @@ const val RESOLVER_LOGGER = "OSCakeResolver"
 const val RESOLVER_FILE_SUFFIX = "_resolved"
 const val RESOLVER_AUTHOR = "OSCake-Resolver"
 const val RESOLVER_VERSION = "0.1"
+const val RESOLVER_ACTOR = "Resolver"
 
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
