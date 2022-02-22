@@ -22,6 +22,7 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
+
 import java.io.File
 
 /**
@@ -73,5 +74,4 @@ data class FileLicensing(
         if (scopes.contains("")) return true
         return false
     }
-
 }

@@ -23,18 +23,19 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
-import org.apache.logging.log4j.Level
 
 import java.io.File
 import java.util.SortedSet
+
+import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 
 /**
  * The class [Pack] holds license information found in license files. The [Identifier] stores the unique name of the
  * project or package (e.g. "Maven:de.tdosca.tc06:tdosca-tc06:1.0"). License information is split up into different
- * [ScopeLevel]s: [defaultLicensings], [dirLicensings], etc.. If the sourcecode is not placed in the
- * root directory of the repository (e.g. git), than the property [packageRoot] shows the path to the root directory
+ * [ScopeLevel]s: [defaultLicensings], [dirLicensings], etc. If the sourcecode is not placed in the
+ * root directory of the repository (e.g. git), then the property [packageRoot] shows the path to the root directory
   */
 @JsonPropertyOrder("pid", "release", "repository", "id", "sourceRoot", "reuseCompliant", "hasIssues", "issues",
     "defaultLicenses", "defaultCopyrights", "unifiedCopyrights", "dirLicensings", "reuseLicenses", "fileLicensings")
@@ -93,7 +94,7 @@ data class Pack(
      */
     @JsonProperty("defaultLicenses") val defaultLicensings = mutableListOf<DefaultLicense>()
     /**
-     *  [defaultCopyrights] contains a list of [DefaultCopyright]s  for non-REUSE compliant packages.
+     *  [defaultCopyrights] contains a list of [DefaultDirCopyright]s  for non-REUSE compliant packages.
      */
     val defaultCopyrights = mutableListOf<DefaultDirCopyright>()
     /**
@@ -149,7 +150,7 @@ data class Pack(
         this.dirLicensings.forEach { it.licenses.clear() }
     }
 
-    fun createDirDefaultScopes(logger: OSCakeLogger, params:OSCakeConfigParams, phase: ProcessingPhase,
+    fun createDirDefaultScopes(logger: OSCakeLogger, params: OSCakeConfigParams, phase: ProcessingPhase,
                 foundInFileScopeConfigured: Boolean = false, compoundLicense: String? = null) {
 
         fileLicensings.forEach { fileLicensing ->
@@ -182,7 +183,8 @@ data class Pack(
                     }
                     if (dirLicensing.licenses.none { it.license == fileLicense.license &&
                                 it.path == fibPathWithoutPackage })
-                        dirLicensing.licenses.add(DirLicense(fileLicense.license!!, fileLicense.licenseTextInArchive, fibPathWithoutPackage))
+                        dirLicensing.licenses.add(DirLicense(fileLicense.license!!, fileLicense.licenseTextInArchive,
+                            fibPathWithoutPackage))
                     else {
                         val ll = if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG
                         logger.log("DirScope: : multiple equal licenses <${fileLicense.license}> in the same " +
@@ -193,9 +195,11 @@ data class Pack(
         }
     }
 
-    fun deduplicateFileLicenses(tmpDirectory: File, fileLicensingsList: List<FileLicensing>, cfgPreserveFileScopes: Boolean = false, cfgCompareOnlyDistinct: Boolean = true) {
+    fun deduplicateFileLicenses(tmpDirectory: File, fileLicensingsList: List<FileLicensing>,
+                                cfgPresFileScopes: Boolean = false, cfgCompOnlyDist: Boolean = true) {
         fileLicensingsList.forEach { fileLicensing ->
-            if (licensesContainedInScope(getDirScopePath(this, fileLicensing.scope), fileLicensing, cfgPreserveFileScopes, cfgCompareOnlyDistinct)) {
+            if (licensesContainedInScope(getDirScopePath(this, fileLicensing.scope), fileLicensing,
+                    cfgPresFileScopes, cfgCompOnlyDist)) {
                 // remove files from archive
                 fileLicensing.licenses.filter { it.licenseTextInArchive != null }.forEach {
                     dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
@@ -208,26 +212,28 @@ data class Pack(
     /**
      * Checks if the [licenses] are contained as licenses in a higher scope
      */
-    private fun licensesContainedInScope(path: String, fileLicensing: FileLicensing, cfgPreserveFileScopes: Boolean, cfgCompareOnlyDistinct: Boolean): Boolean {
+    private fun licensesContainedInScope(path: String, fileLicensing: FileLicensing, cfgPresFileScopes: Boolean,
+                                         cfgCompOnlyDist: Boolean): Boolean {
         val licensesList = fileLicensing.licenses.mapNotNull { it.license }.toList()
         val dirLicensing = bestMatchedDirLicensing(path)
         if (dirLicensing != null) {
-            if (isEqual(dirLicensing.licenses.map { it.license }.toList(), licensesList, cfgCompareOnlyDistinct) &&
+            if (isEqual(dirLicensing.licenses.map { it.license }.toList(), licensesList, cfgCompOnlyDist) &&
                 !licensesList.contains("NOASSERTION")) {
-                if (dirLicensing.licenses.any { it.path == fileLicensing.scope } && cfgPreserveFileScopes) return false
+                if (dirLicensing.licenses.any { it.path == fileLicensing.scope } && cfgPresFileScopes) return false
                 return true
             }
         } else {
-            if (isEqual(defaultLicensings.mapNotNull { it.license }.toList(), licensesList, cfgCompareOnlyDistinct) &&
+            if (isEqual(defaultLicensings.mapNotNull { it.license }.toList(), licensesList, cfgCompOnlyDist) &&
                 !licensesList.contains("NOASSERTION")) {
-                if (defaultLicensings.any { it.path == fileLicensing.scope } && cfgPreserveFileScopes) return false
+                if (defaultLicensings.any { it.path == fileLicensing.scope } && cfgPresFileScopes) return false
                 return true
             }
         }
         return false
     }
 
-    private inline fun <reified T> isEqual(first: List<T>, second: List<T>, compareOnlyDistinctLicensesCopyrights: Boolean): Boolean {
+    private inline fun <reified T> isEqual(first: List<T>, second: List<T>,
+                                           compareOnlyDistinctLicensesCopyrights: Boolean): Boolean {
         var firstList = first
         var secondList = second
 
@@ -258,9 +264,10 @@ data class Pack(
         return null
     }
 
-    fun deduplicateDirDirLicenses(tmpDirectory: File, resolveMode: Boolean = false, compareOnlyDistinctLicensesCopyrights: Boolean = true) {
+    fun deduplicateDirDirLicenses(tmpDirectory: File, resolveMode: Boolean = false,
+                                  compareOnlyDistinctLicensesCopyrights: Boolean = true) {
         dirLicensings.forEach { dirLicensing ->
-            if (resolveMode && dirLicensing.licenses.none { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED})
+            if (resolveMode && dirLicensing.licenses.none { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED })
                 return
             val dirLicensesList = dirLicensing.licenses.map { it.license }
             getParentDirLicensing(dirLicensing)?.let { parentDirLicensing ->
@@ -288,13 +295,15 @@ data class Pack(
         return null
     }
 
-    fun deduplicateDirDefaultLicenses(tmpDirectory: File, resolveMode: Boolean = false, compareOnlyDistinctLicensesCopyrights: Boolean = true) {
+    fun deduplicateDirDefaultLicenses(tmpDirectory: File, resolveMode: Boolean = false,
+                                      compareOnlyDistinctLicensesCopyrights: Boolean = true) {
         val defaultLicensesList = defaultLicensings.mapNotNull { it.license }
         dirLicensings.forEach { dirLicensing ->
-            if (resolveMode && dirLicensing.licenses.none { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED})
+            if (resolveMode && dirLicensing.licenses.none { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED })
                 return
             val dirLicensesList = dirLicensing.licenses.map { it.license }.toList()
-            if (isEqual(defaultLicensesList, dirLicensesList, compareOnlyDistinctLicensesCopyrights) && !dirLicensesList.contains("NOASSERTION")) {
+            if (isEqual(defaultLicensesList, dirLicensesList, compareOnlyDistinctLicensesCopyrights) &&
+                !dirLicensesList.contains("NOASSERTION")) {
                 dirLicensing.licenses.forEach { dirLicense ->
                     dedupRemoveFile(tmpDirectory, dirLicense.licenseTextInArchive)
                 }
@@ -303,46 +312,47 @@ data class Pack(
         }
     }
 
-    fun deduplicateFileCopyrights(cfgPreserveFileScopes: Boolean, cfgCompareOnlyDistinct: Boolean = true) =
-        fileLicensings.filter { copyrightsContainedInScope(getDirScopePath(this, it.scope), it, cfgPreserveFileScopes, cfgCompareOnlyDistinct) }
-            .forEach { fileLicensing -> fileLicensing.copyrights.clear()
-            }
+    fun deduplicateFileCopyrights(cfgPresFileScopes: Boolean, cfgCompOnlyDist: Boolean = true) =
+        fileLicensings.filter { copyrightsContainedInScope(getDirScopePath(this, it.scope), it, cfgPresFileScopes,
+            cfgCompOnlyDist) }.forEach { fileLicensing -> fileLicensing.copyrights.clear() }
 
     /**
-     * Checks if the [copyrights] are contained as copyrights in a higher scope
+     * Checks if the copyrights are contained as copyrights in a higher scope
      */
-    private fun copyrightsContainedInScope(path: String, fileLicensing: FileLicensing, cfgPreserveFileScopes: Boolean, cfgCompareOnlyDistinct: Boolean): Boolean {
-        val copyrightsList = fileLicensing.copyrights.mapNotNull { it.copyright }.toList()
+    private fun copyrightsContainedInScope(path: String, fileLicensing: FileLicensing, cfgPresFileScopes: Boolean,
+                                           cfgCompOnlyDist: Boolean): Boolean {
+        val copyrightsList = fileLicensing.copyrights.map { it.copyright }.toList()
         val dirLicensing = bestMatchedDirLicensing(path)
         if (dirLicensing != null) {
-            if (isEqual(dirLicensing.copyrights.mapNotNull { it.copyright }.toList(), copyrightsList, cfgCompareOnlyDistinct)) {
-                if (dirLicensing.copyrights.any { it.path == fileLicensing.scope } && cfgPreserveFileScopes) return false
+            if (isEqual(dirLicensing.copyrights.mapNotNull { it.copyright }.toList(),
+                    copyrightsList, cfgCompOnlyDist)) {
+                if (dirLicensing.copyrights.any { it.path == fileLicensing.scope } && cfgPresFileScopes) return false
                 return true
             }
         } else {
-            if (isEqual(defaultCopyrights.mapNotNull { it.copyright }.toList(), copyrightsList, cfgCompareOnlyDistinct)) {
-                if (defaultCopyrights.any { it.path == fileLicensing.scope } && cfgPreserveFileScopes) return false
+            if (isEqual(defaultCopyrights.mapNotNull { it.copyright }.toList(), copyrightsList, cfgCompOnlyDist)) {
+                if (defaultCopyrights.any { it.path == fileLicensing.scope } && cfgPresFileScopes) return false
                 return true
             }
         }
         return false
     }
 
-    fun deduplicateDirDirCopyrights(cfgCompareOnlyDistinct: Boolean) {
+    fun deduplicateDirDirCopyrights(cfgCompOnlyDist: Boolean) {
         dirLicensings.forEach { dirLicensing ->
             val dirCopyrightsList = dirLicensing.copyrights.mapNotNull { it.copyright }
             getParentDirLicensing(dirLicensing)?.let { parentDirLicensing ->
-                val parentDirCopyrightsList = parentDirLicensing.copyrights.mapNotNull { it.copyright }
-                if (isEqual(dirCopyrightsList, parentDirCopyrightsList, cfgCompareOnlyDistinct)) dirLicensing.copyrights.clear()
+                val parentDirCopyrightsLi = parentDirLicensing.copyrights.mapNotNull { it.copyright }
+                if (isEqual(dirCopyrightsList, parentDirCopyrightsLi, cfgCompOnlyDist)) dirLicensing.copyrights.clear()
             }
         }
     }
 
-    fun deduplicateDirDefaultCopyrights(cfgCompareOnlyDistinct: Boolean) {
+    fun deduplicateDirDefaultCopyrights(cfgCompOnlyDist: Boolean) {
         val defaultCopyrightsList = defaultCopyrights.mapNotNull { it.copyright }
         dirLicensings.forEach { dirLicensing ->
             val dirCopyrightsList = dirLicensing.copyrights.mapNotNull { it.copyright }.toList()
-            if (isEqual(defaultCopyrightsList, dirCopyrightsList, cfgCompareOnlyDistinct)) dirLicensing.copyrights.clear()
+            if (isEqual(defaultCopyrightsList, dirCopyrightsList, cfgCompOnlyDist)) dirLicensing.copyrights.clear()
         }
     }
 
@@ -363,7 +373,4 @@ data class Pack(
         }
         dirLicensings.removeAll(dirLicensings2Remove.toSet())
     }
-
-
-
 }

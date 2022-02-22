@@ -70,7 +70,7 @@ class OSCakeReporter : Reporter {
         options: Map<String, String>
     ): List<File> {
         // check configuration - cancel processing if necessary
-        require(isValidFile(options, "configFile")) {
+        require(isValidFile(options)) {
             "Value for 'OSCakeConf' is not a valid file!\n Add -O OSCake=configFile=... to the commandline"
         }
         OSCakeConfiguration.setConfigParams(options)
@@ -120,9 +120,9 @@ class OSCakeReporter : Reporter {
         val scannerRaw = scannerCommandLineParams[ind + 1]
         val rawDir = File(scannerRaw).parent
 
-        val rawDataExists = File(rawDir).exists() && File(rawDir).listFiles().isNotEmpty()
-        val ortScanResultsDir = File(params.ortScanResultsDir)
-        val scanDataExists = ortScanResultsDir.exists() && ortScanResultsDir.listFiles().isNotEmpty()
+        val rawDataExists = File(rawDir).exists() && File(rawDir).listFiles()!!.isNotEmpty()
+        val ortScanResultsDir = File(params.ortScanResultsDir!!)
+        val scanDataExists = ortScanResultsDir.exists() && ortScanResultsDir.listFiles()!!.isNotEmpty()
 
         require(!(!rawDataExists && !scanDataExists)) {
                 "No native-scan-results found! Check folder $rawDir or re-run the scanner once again!" }
@@ -130,7 +130,7 @@ class OSCakeReporter : Reporter {
         if (rawDataExists) {
             // copy raw data to native-scan-results
             if (!ortScanResultsDir.exists()) ortScanResultsDir.mkdir()
-            File(rawDir).listFiles().forEach {
+            File(rawDir).listFiles()?.forEach {
                 var fileName = getOriginalFolderName(it)
                 require(fileName != null) { "Cannot identify file name in \"${it.name}\" in \"$rawDir\"! " +
                         "Clean up the folders \"$rawDir\" and ${ortScanResultsDir.name} and re-run the scanner first!" }
@@ -152,7 +152,7 @@ class OSCakeReporter : Reporter {
 
     /**
      * Read the given file and extract the original folder name of the json file in "input" line
-     * e.g. "..AppData\\Local\\Temp\\ort-ScanCode2604498589299189126\\Maven\\junit\\junit\\4.11"
+     * e.g. ".AppData\\Local\\Temp\\ort-ScanCode2604498589299189126\\Maven\\junit\\junit\\4.11"
      * result: Maven/junit/junit/4.11
      */
     private fun getOriginalFolderName(fileName: File): String? {
@@ -164,7 +164,7 @@ class OSCakeReporter : Reporter {
                 val inps = if (it.toString().contains("\\")) it.toString().replace("\\\\", "\\")
                     .replace("\\", "/").replace("\"", "").split("/") else
                         it.toString().replace("\"", "").split("/")
-                val ind = inps.indexOfFirst { it.startsWith("ort-ScanCode") }
+                val ind = inps.indexOfFirst { it2 -> it2.startsWith("ort-ScanCode") }
                 ret = ""
                 for (n in ind + 1 until inps.size) {
                     ret += "${inps[n]}/"
@@ -473,7 +473,7 @@ class OSCakeReporter : Reporter {
     /**
      * checks if the value of the optionName in map is a valid file
      */
-    private fun isValidFile(map: Map<String, String>, optionName: String): Boolean =
-        if (map[optionName] != null) File(map[optionName]!!).exists() &&
-                File(map[optionName]!!).isFile else false
+    private fun isValidFile(map: Map<String, String>): Boolean =
+        if (map["configFile"] != null) File(map["configFile"]!!).exists() &&
+                File(map["configFile"]!!).isFile else false
 }

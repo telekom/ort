@@ -267,8 +267,8 @@ internal class ModeDefault(
          */
         line ?: lastLicenseTextEntry?.run {
             if (completeList.filterIsInstance<CopyrightTextEntry>().any {
-                    it.startLine >= lastLicenseTextEntry.startLine && it.endLine <= lastLicenseTextEntry.endLine }) line =
-                lastLicenseTextEntry.startLine
+                    it.startLine >= lastLicenseTextEntry.startLine && it.endLine <= lastLicenseTextEntry.endLine })
+                line = lastLicenseTextEntry.startLine
         }
 
         return line
@@ -298,9 +298,9 @@ internal class ModeDefault(
             logger.log("DefaultScope: more than one license found: $s \ndual licensed or multiple licenses",
                 Level.WARN, pack.id, phase = ProcessingPhase.POST)
         }
-        // check dirscope
+        // check dirScope
         pack.dirLicensings.forEach { dirLicensing ->
-            val dir = dirLicensing.licenses.mapNotNull { it.license }.distinct()
+            val dir = dirLicensing.licenses.map { it.license }.distinct()
             if (dir.size > 1) {
                 var s = ""
                 dir.forEach { s += "\n--> $it" }

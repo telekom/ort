@@ -42,7 +42,6 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.utils.common.packZip
 import org.ossreviewtoolkit.utils.common.toHexString
-import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
 
 const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
 const val FOUND_IN_FILE_SCOPE_CONFIGURED = "[CONFIGURED]"
@@ -59,7 +58,7 @@ val commentSuffixRegexList = listOf("""\*+/""", "-->", "#>", """\*\)""", """\}""
  */
 internal fun isInstancedLicense(input: ReporterInput, license: String): Boolean =
     input.licenseClassifications.licensesByCategory.getOrDefault("instanced",
-        setOf<SpdxSingleLicenseExpression>()).map { it.simpleLicense().toString() }.contains(license)
+        setOf()).map { it.simpleLicense() }.contains(license)
 
 /**
  * If a file with [path] already exists, a suffix is prepared for uniqueness and the adapted path is returned.
@@ -84,7 +83,7 @@ fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null):
     ) + if (fileExtension != null) ".$fileExtension" else ""
 
 /**
- * Depending on the [path] of the file and the name of the file (contained in list [scopePatterns]) the
+ * Depending on the [path] of the file and the name of the file (contained in list scopePatterns) the
  * [ScopeLevel] is identified.
  */
 fun getScopeLevel(path: String, packageRoot: String, params: OSCakeConfigParams) = getScopeLevel4All(path,
@@ -105,7 +104,7 @@ fun getScopeLevel4All(path: String, packageRoot: String, scopePatterns: List<Str
     if (scopeIgnorePatterns.isNotEmpty() && scopeIgnorePatterns.any {
             fileSystem.getPathMatcher("glob:$it").matches(comparePath) }) return scopeLevel
 
-    if (scopePatterns.filter { fileSystem.getPathMatcher("glob:$it").matches(comparePath) }.isNotEmpty()) {
+    if (scopePatterns.any { fileSystem.getPathMatcher("glob:$it").matches(comparePath) }) {
         scopeLevel = ScopeLevel.DIR
         var fileName = path
         if (path.startsWith(packageRoot) && packageRoot != "") fileName =
@@ -140,7 +139,7 @@ fun getPathWithoutPackageRoot(pack: Pack, fileScope: String): String {
 internal fun getPathName(pack: Pack, fib: FileInfoBlock): String {
     var rc = fib.path
     if (pack.packageRoot != "") rc = fib.path.replaceFirst(pack.packageRoot, "")
-    if (rc[0].equals('/') || rc[0].equals('\\')) rc = rc.substring(1)
+    if (rc[0] == '/' || rc[0] == '\\') rc = rc.substring(1)
     if (pack.reuseCompliant && rc.endsWith(".license")) {
         val pos = rc.indexOfLast { it == '.' }
         rc = rc.substring(0, pos)
@@ -165,7 +164,7 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
 
     // Root-Level: handle OSCakeIssues with no package info
     issuesPerPackage[null]?.forEach {
-        addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage.get(null)!!)
+        addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage[null]!!)
     }
 
     // Package-Level, but package does not exist --> put into Root-Level
@@ -173,7 +172,7 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
     val packIdList = project.packs.map { it.id.toCoordinates() }
     idList.filterNot { packIdList.contains(it) || it == null }.forEach { idString ->
         issuesPerPackage[idString]?.forEach {
-            addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage.get(null)!!,
+            addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage[null]!!,
                 it.id?.toCoordinates() ?: "")
         }
     }
@@ -182,7 +181,7 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
     project.packs.forEach { pack ->
         issuesPerPackage[pack.id.toCoordinates()]?.forEach {
             if (it.reference == null || !(it.reference is DefaultLicense || it.reference is DirLicense)) {
-                addIssue(it, pack.issueList, issuesLevel, issueNumberPerPackage.get(pack.id.toCoordinates())!!)
+                addIssue(it, pack.issueList, issuesLevel, issueNumberPerPackage[pack.id.toCoordinates()]!!)
             }
         }
     }
@@ -194,13 +193,13 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
                 is DefaultLicense -> {
                     addIssue(
                         it, it.reference.issueList, issuesLevel,
-                        issueNumberPerPackage.get(pack.id.toCoordinates())!!
+                        issueNumberPerPackage[pack.id.toCoordinates()]!!
                     )
                 }
                 is DirLicense -> {
                     addIssue(
                         it, it.reference.issueList, issuesLevel,
-                        issueNumberPerPackage.get(pack.id.toCoordinates())!!
+                        issueNumberPerPackage[pack.id.toCoordinates()]!!
                     )
                 }
             }
@@ -268,7 +267,7 @@ private fun getNextNo(prefix: Char, no: MutableMap<String, Int>, prePrefix: Stri
         String = when (prefix) {
         'I' -> {
             if (suffix.isEmpty()) {
-                var next = no["infno"]!!
+                val next = no["infno"] ?: 0
                 no["infno"] = next + 1
                 prePrefix + prefix.toString() + "%02d".format(next)
             } else {
@@ -277,7 +276,7 @@ private fun getNextNo(prefix: Char, no: MutableMap<String, Int>, prePrefix: Stri
         }
         'W' -> {
             if (suffix.isEmpty()) {
-                var next = no["warno"]!!
+                val next = no["warno"] ?: 0
                 no["warno"] = next + 1
                 prePrefix + prefix.toString() + "%02d".format(next)
             } else {
@@ -286,7 +285,7 @@ private fun getNextNo(prefix: Char, no: MutableMap<String, Int>, prePrefix: Stri
         }
         'E' -> {
             if (suffix.isEmpty()) {
-                var next = no["errno"]!!
+                val next = no["errno"] ?: 0
                 no["errno"] = next + 1
                 prePrefix + prefix.toString() + "%02d".format(next)
             } else {
@@ -325,9 +324,9 @@ internal fun String.getRidOfCommentSymbols(): String {
 private val SHA1_DIGEST by lazy { MessageDigest.getInstance("SHA-1") }
 
 /**
- * [getHash] produces a unique hascode of the provenance of a package mainly used to expand the path of
+ * [getHash] produces a unique hash-code of the provenance of a package mainly used to expand the path of
  * a [Package] in a sourcecode directory.
- * E.g. {sourceCodeDir}/Maven/joda-time/joda-time/2.10.8/39b1a3cc0a54d8b34737520bc066d2baee2fe2a4
+ * E.g. {sourceCodeDir}/Maven/joda-time/joda-time/2.10.8/39b1a3cc0a54d8b34737520bc066d22aee2fe2a4
  */
 internal fun getHash(provenance: Provenance): String {
     val key = when (provenance) {
@@ -345,6 +344,7 @@ internal fun getHash(provenance: Provenance): String {
     return SHA1_DIGEST.digest(key.toByteArray()).toHexString()
 }
 
+@Suppress("ComplexMethod")
 /**
  * The method is used for quality assurance only. It ensures that every referenced file is existing in the
  * archive and vice versa. Possible discrepancies are logged.
@@ -355,7 +355,8 @@ fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLog
     val missingFiles = mutableListOf<String>()
     project.packs.forEach { pack ->
         pack.defaultLicensings.filter { it.licenseTextInArchive != null &&
-                !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() && it.licenseTextInArchive != FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach {
+                !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() &&
+                it.licenseTextInArchive != FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach {
             missingFiles.add(it.licenseTextInArchive.toString())
         }
         pack.reuseLicensings.filter { it.licenseTextInArchive != null &&
@@ -364,7 +365,8 @@ fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLog
         }
         pack.dirLicensings.forEach { dirLicensing ->
             dirLicensing.licenses.filter { it.licenseTextInArchive != null &&
-                    !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() && it.licenseTextInArchive != FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach {
+                    !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() &&
+                    it.licenseTextInArchive != FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach {
                 missingFiles.add(it.licenseTextInArchive.toString())
             }
         }

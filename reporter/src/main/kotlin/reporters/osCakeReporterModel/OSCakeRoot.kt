@@ -19,9 +19,11 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
-import org.apache.logging.log4j.Level
 import java.io.File
+
 import kotlin.system.exitProcess
+
+import org.apache.logging.log4j.Level
 
 /**
  * The class [OSCakeRoot] represents the root node for the output; currently, it only consists of the property
@@ -45,7 +47,7 @@ class OSCakeRoot {
                     " in a former run! Check \"author\" in input file!", Level.ERROR, phase = ProcessingPhase.CURATION)
             exitProcess(10)
         }
-        // A merged oscc-file cannot be curated because there is no config information anymore (scopePatterns
+        // A merged oscc-file cannot be curated because there is no config information left (scopePatterns
         // are missing); additionally the tag "mergedIDs" contains a list of merged ComplianceArtifactCollection
         if (project.complianceArtifactCollection.mergedIds.isNotEmpty()) {
             logger.log(
