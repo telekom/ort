@@ -142,7 +142,7 @@ open class ActionManager(
     /**
      * Clear the [issueList]s depending on issue level
      */
-    fun eliminateIssuesFromLevel(issueList: IssueList) {
+    private fun eliminateIssuesFromLevel(issueList: IssueList) {
         val issLevel = actionInfo.issueLevel
         if (issLevel == -1) {
             issueList.infos.clear()
@@ -166,7 +166,7 @@ open class ActionManager(
     }
 
     /**
-     * Remove warnings from project issueList with format: "Wxx" - theses are warnings created by the reporter and
+     * Remove warnings from project issueList with format: "Wxx" - these are warnings created by the reporter and
      * can be overridden manually by option
      */
     fun eliminateRootWarnings() {

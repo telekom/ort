@@ -38,7 +38,7 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
     /**
      * The [logger] is only initialized, if there is something to log.
      */
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(loggerName) }
+    internal val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(loggerName) }
     /**
      * Stores the actual processing phase for logger reasons
      */

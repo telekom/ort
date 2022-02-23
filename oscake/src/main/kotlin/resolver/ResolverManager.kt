@@ -72,6 +72,7 @@ internal class ResolverManager(
 ) : ActionManager(project, outputDir, reportFilename, config,
     ActionInfo.resolver(config.resolver?.issueLevel ?: -1), commandLineParams) {
 
+    private val ignoreRootWarnings: Boolean = commandLineParams.getOrDefault("ignoreRootWarnings", "false").toBoolean()
     /**
      * The [resolverProvider] contains a list of [ResolverPackage]s to be applied.
      */
@@ -96,11 +97,9 @@ internal class ResolverManager(
      * resolver actions, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
-        // 1. reset issues
-        resetIssues()
-        // 2. create resolving actions for packages with a [DECLARED] license
-        project.packs.filter { pack -> pack.defaultLicensings.any { it.license == FOUND_IN_FILE_SCOPE_DECLARED } }
-            .forEach { pack -> appendAction(pack)
+        // 2. create resolving actions for packages which have no resolving action defined
+        project.packs/*.filter { pack -> pack.defaultLicensings.any { it.license == FOUND_IN_FILE_SCOPE_DECLARED } }*/
+            .forEach { pack -> resolverProvider.getActionFor(pack.id) ?: appendAction(pack)
         }
         // 3. process resolver-package if it's valid and applicable
         project.packs.forEach {
@@ -113,8 +112,7 @@ internal class ResolverManager(
         if (OSCakeLoggerManager.hasLogger(RESOLVER_LOGGER)) handleOSCakeIssues(project, logger,
             config.resolver?.issueLevel ?: -1)
         // 5. eliminate root level warnings (only warnings from reporter) when option is set
-        if (commandLineParams.containsKey("ignoreRootWarnings") &&
-            commandLineParams["ignoreRootWarnings"].toBoolean()) eliminateRootWarnings()
+        if (ignoreRootWarnings) eliminateRootWarnings()
         // 6. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
         // 7. generate .zip and .oscc files
@@ -122,13 +120,37 @@ internal class ResolverManager(
     }
 
     /**
-     * Generate actions based on analyzer-results.yml info
+     * Generate default actions based on analyzer-results.yml info - scope is set to empty string --> valid for
+     * all files
      */
-    private fun appendAction(pack: Pack) = analyzedPackageLicenses[pack.id]?.let {
-        // todo: generate only when pack has [DECLARED]
-        resolverProvider.actions.add(ResolverPackage(pack.id, it.declaredLicenses.toList(),
-                it.declaredLicensesProcessed, listOf("")))
+    private fun appendAction(pack: Pack) {
+        // handle [DECLARED] licenses
+        if (pack.defaultLicensings.any { it.license == FOUND_IN_FILE_SCOPE_DECLARED })
+            analyzedPackageLicenses[pack.id]?.let {
+                resolverProvider.actions.add(ResolverPackage(pack.id, it.declaredLicenses.toList(),
+                    it.declaredLicensesProcessed, mutableListOf("")))
+            }
+        // handle all others if default licenses and declaredLicenses are equivalent
+        else {
+            analyzedPackageLicenses[pack.id]?.let { analyzerLicenses ->
+                if (isEqual(analyzerLicenses.declaredLicenses.toSet(),
+                        pack.defaultLicensings.mapNotNull { it.license }.toSet())) {
+                    resolverProvider.actions.add(
+                        ResolverPackage(
+                            pack.id, analyzerLicenses.declaredLicenses.toList(),
+                            analyzerLicenses.declaredLicensesProcessed, mutableListOf("")
+                        )
+                    )
+                }
+            }
         }
+    }
+
+    private inline fun <reified T> isEqual(firstList: Set<T>, secondList: Set<T>): Boolean {
+        if (firstList.size != secondList.size) return false
+        return firstList.sortedBy { it.toString() }.toTypedArray() contentEquals secondList.sortedBy { it.toString() }
+            .toTypedArray()
+    }
 
     /**
      * Fetch infos about licenses directly from analyzer_results.yml by using the ORT function [readValueOrNull]
@@ -150,7 +172,7 @@ internal class ResolverManager(
                         it.pkg.declaredLicensesProcessed.spdxExpression.toString())
             }
         } else
-            logger.log("Results from ORT-Analyzer not found or not provided!", Level.INFO,
+            logger.log("Results from ORT-Analyzer not found or not provided!", Level.WARN,
                 phase = ProcessingPhase.RESOLVING)
         return licMap
     }

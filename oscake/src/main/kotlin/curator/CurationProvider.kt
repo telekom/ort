@@ -56,10 +56,6 @@ internal class CurationProvider(
      */
     internal val curationPackages = mutableListOf<CurationPackage>()
     /**
-     * The [logger] is only initialized, if there is something to log.
-     */
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
-    /**
      * The init method walks through the folder hierarchy - starting at "curationDirectory" - and creates a list
      * of "PackageCurations".
      */

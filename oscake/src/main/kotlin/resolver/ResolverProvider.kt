@@ -21,6 +21,8 @@ package org.ossreviewtoolkit.oscake.resolver
 
 import java.io.File
 
+import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.oscake.RESOLVER_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider
@@ -30,9 +32,29 @@ class ResolverProvider(val directory: File) :
     ActionProvider(directory, null, RESOLVER_LOGGER, ResolverPackage::class, ProcessingPhase.RESOLVING) {
 
     override fun checkSemantics(item: ActionPackage, fileName: String, fileStore: File?): Boolean {
-        // todo
         item as ResolverPackage
-        println(item)
+        val errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "
+        val errorSuffix = " --> resolver action ignored"
+        val phase = ProcessingPhase.CURATION
+
+        // 1. licenses must contain at least one license
+        if (item.licenses.isEmpty()) {
+            logger.log("$errorPrefix license list is empty! $errorSuffix", Level.WARN, phase = phase)
+            return false
+        }
+        if (item.licenses.any { it == null }) {
+            logger.log("$errorPrefix license list contains null-values! $errorSuffix", Level.WARN, phase = phase)
+            return false
+        }
+        // 2. result must consist of a compound license - linked with "OR"
+        if (!item.result.split(" ").contains("OR")) {
+            logger.log("$errorPrefix \"result\" contains a license expression without \"OR\"! $errorSuffix",
+                Level.WARN, phase = phase)
+            return false
+        }
+        // 3. scopes must contain at least one item - if not, an entry with an empty string is created
+        if (item.scopes.isEmpty()) item.scopes.add("")
+
         return true
     }
 }

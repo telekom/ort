@@ -55,7 +55,9 @@ class OSCakeLogger(
         phase: ProcessingPhase? = null
     ) {
         var jsonPath = ""
-        OSCakeIssue(msg, level, id, fileScope, reference, scope, phase).also {
+
+        OSCakeIssue(if (source == REPORTER_LOGGER) msg else "<<$source>> $msg", level, id, fileScope, reference,
+            scope, phase).also {
             if (level != Level.DEBUG) osCakeIssues.add(it)
             // OSCake apps (Deduplicator, Curator, ...) have no params initialized
             if (OSCakeConfiguration.isParamsInitialized()) {

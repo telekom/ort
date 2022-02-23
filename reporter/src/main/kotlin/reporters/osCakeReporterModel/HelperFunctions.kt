@@ -162,6 +162,11 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
         )
     }).toMutableMap()
 
+    // get number per level for the root issues, if there are already some issues from former runs which should be kept
+    issueNumberPerPackage[null]?.set("infno", getNextNo(project.issueList.infos))
+    issueNumberPerPackage[null]?.set("warno", getNextNo(project.issueList.warnings))
+    issueNumberPerPackage[null]?.set("errno", getNextNo(project.issueList.errors))
+
     // Root-Level: handle OSCakeIssues with no package info
     issuesPerPackage[null]?.forEach {
         addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage[null]!!)
@@ -207,6 +212,9 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
     }
     propagateHasIssues(project)
 }
+
+    private fun getNextNo(iwe: MutableList<Issue>) = (iwe.filter { !it.id.contains("_") }.maxOfOrNull
+                    { it.id.substring(1).toInt() } ?: 0) + 1
 
 /**
  *  sets and propagates hasIssue from the different levels: DefaultLicensing, DirLicensing, Package to Project
