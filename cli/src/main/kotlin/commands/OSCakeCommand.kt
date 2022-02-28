@@ -81,8 +81,6 @@ class ResolverOptions: OscakeConfig("Options for oscake application: resolver") 
         .convert { it.absoluteFile.normalize() }
         .required()
 
-    val ignoreRootWarnings by option("--ignoreRootWarn", help = "Ignore Root-Level WARNINGS").flag()
-
     val analyzerFile by option(
         "--analyzer-File", "-A",
         help = "An analyzer-result.yml file produced by ORT (base of the OSCake-Reporter stored in oscc-file)."
@@ -172,7 +170,7 @@ class DeduplicatorOptions : OscakeConfig("Options for oscake application: dedupl
 }
 
 class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake applications: curator, merger, etc.") {
-    private val allOSCakeApplications = OSCakeApplication.ALL.associateBy { it.toString() }
+    private val allOSCakeApplications = OSCakeApplication.ALL.associateBy { it }
         .toSortedMap(String.CASE_INSENSITIVE_ORDER)
 
     private val oscakeApp by option(
@@ -198,7 +196,7 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
      */
     override fun run() {
         val config = globalOptionsForSubcommands.config
-        val fields2hide = OscakeConfig::class.memberProperties.map { it.name }
+        val fieldsList = OscakeConfig::class.memberProperties.map { it.name }
 
         when (val it = oscakeApp) {
             is CuratorOptions -> {
@@ -208,15 +206,14 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
                 require(isValidDirectory(config.oscake.curator?.directory)) {
                     "Directory for \"config.oscake.curator.directory\" is not set correctly in ort.conf"
                 }
-                OSCakeCurator(config.oscake, getCuratorCommandLineParams(it, fields2hide)).execute()
+                OSCakeCurator(config.oscake, getCommandLineParams(it, fieldsList)).execute()
             }
             is DeduplicatorOptions -> {
-                OSCakeDeduplicator(config.oscake, it.osccFile,
-                    getDeduplicatorCommandLineParams(it, fields2hide)).execute()
+                OSCakeDeduplicator(config.oscake, it.osccFile, getCommandLineParams(it, fieldsList)).execute()
             }
             is MergerOptions -> {
                 it.resolveArgs()
-                OSCakeMerger(it.cid, it.inputDir, it.outputFile, getMergerCommandLineParams(it, fields2hide)).execute()
+                OSCakeMerger(it.cid, it.inputDir, it.outputFile, getCommandLineParams(it, fieldsList)).execute()
             }
             is ValidatorOptions -> {
                 OSCakeValidator(it.oscc1, it.oscc2).execute()
@@ -225,45 +222,19 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
                 require(isValidDirectory(config.oscake.resolver?.directory)) {
                     "Directory for \"config.oscake.resolver.directory\" is not set correctly in ort.conf"
                 }
-                OSCakeResolver(config.oscake, getResolverCommandLineParams(it, fields2hide)).execute()
+                OSCakeResolver(config.oscake, getCommandLineParams(it, fieldsList)).execute()
             }
-
         }
     }
 
-    private fun getCuratorCommandLineParams(it: CuratorOptions, fields2hide: List<String>): Map<String, String> {
+    /**
+     * returns a map of set options and its values
+     */
+    private inline fun <reified T: OscakeConfig> getCommandLineParams(clazz: T, fieldsList: List<String>):  Map<String, String> {
         val commandLineParams = mutableMapOf<String, String>()
-        CuratorOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
+        T::class.memberProperties.filter { !fieldsList.contains(it.name) }.forEach { member ->
             commandLineParams[member.name] =
-                if (member.get(it) is File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
-        }
-        return commandLineParams
-    }
-
-    private fun getResolverCommandLineParams(it: ResolverOptions, fields2hide: List<String>): Map<String, String> {
-        val commandLineParams = mutableMapOf<String, String>()
-        ResolverOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
-            commandLineParams[member.name] =
-                if (member.get(it) is File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
-        }
-        return commandLineParams
-    }
-
-    private fun getDeduplicatorCommandLineParams(it: DeduplicatorOptions, fields2hide: List<String>):
-            Map<String, String> {
-        val commandLineParams = mutableMapOf<String, String>()
-        DeduplicatorOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
-            commandLineParams[member.name] =
-                if (member.get(it) is File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
-        }
-        return commandLineParams
-    }
-
-    private fun getMergerCommandLineParams(it: MergerOptions, fields2hide: List<String>): Map<String, String> {
-        val commandLineParams = mutableMapOf<String, String>()
-        MergerOptions::class.memberProperties.filter { !fields2hide.contains(it.name) }.forEach { member ->
-            commandLineParams[member.name] =
-                if (member.get(it) is File) getRelativeFileName(member.get(it) as File) else member.get(it).toString()
+                if (member.get(clazz) is File) getRelativeFileName(member.get(clazz) as File) else member.get(clazz).toString()
         }
         return commandLineParams
     }

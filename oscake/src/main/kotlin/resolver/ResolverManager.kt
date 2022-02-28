@@ -72,7 +72,6 @@ internal class ResolverManager(
 ) : ActionManager(project, outputDir, reportFilename, config,
     ActionInfo.resolver(config.resolver?.issueLevel ?: -1), commandLineParams) {
 
-    private val ignoreRootWarnings: Boolean = commandLineParams.getOrDefault("ignoreRootWarnings", "false").toBoolean()
     /**
      * The [resolverProvider] contains a list of [ResolverPackage]s to be applied.
      */
@@ -97,25 +96,23 @@ internal class ResolverManager(
      * resolver actions, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
-        // 2. create resolving actions for packages which have no resolving action defined
+        // 1. create resolving actions for packages which have no resolving action defined
         project.packs/*.filter { pack -> pack.defaultLicensings.any { it.license == FOUND_IN_FILE_SCOPE_DECLARED } }*/
             .forEach { pack -> resolverProvider.getActionFor(pack.id) ?: appendAction(pack)
         }
-        // 3. process resolver-package if it's valid and applicable
+        // 2. process resolver-package if it's valid and applicable
         project.packs.forEach {
             resolverProvider.getActionFor(it.id)?.apply {
                 (this as ResolverPackage).dedupInResolveMode = config.resolver?.deduplicate ?: false
                 process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
             }
         }
-        // 4. report [OSCakeIssue]s
+        // 3. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(RESOLVER_LOGGER)) handleOSCakeIssues(project, logger,
             config.resolver?.issueLevel ?: -1)
-        // 5. eliminate root level warnings (only warnings from reporter) when option is set
-        if (ignoreRootWarnings) eliminateRootWarnings()
-        // 6. take care of issue level settings to create the correct output format
+        // 4. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
-        // 7. generate .zip and .oscc files
+        // 5. generate .zip and .oscc files
         createResultingFiles(archiveDir)
     }
 
