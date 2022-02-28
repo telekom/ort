@@ -36,25 +36,16 @@ class OSCakeRoot {
     var project: Project = Project()
 
     fun isProcessingAllowed(logger: OSCakeLogger, osccFile: File, authorList: List<String>): Boolean {
-        if (project.containsHiddenSections == true) {
-            logger.log("The file \"${osccFile.name}\" cannot be processed, because some sections are missing!" +
-                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
-                phase = ProcessingPhase.CURATION)
-            exitProcess(12)
-        }
         if (authorList.contains(project.complianceArtifactCollection.author)) {
             logger.log("The file \"${osccFile.name}\" cannot be processed, because it was already processed" +
                     " in a former run! Check \"author\" in input file!", Level.ERROR, phase = ProcessingPhase.CURATION)
             exitProcess(10)
         }
-        // A merged oscc-file cannot be curated because there is no config information left (scopePatterns
-        // are missing); additionally the tag "mergedIDs" contains a list of merged ComplianceArtifactCollection
-        if (project.complianceArtifactCollection.mergedIds.isNotEmpty()) {
-            logger.log(
-                "The given project is a merged project and cannot be curated anymore!",
-                Level.ERROR, phase = ProcessingPhase.CURATION
-            )
-            exitProcess(11)
+        if (project.containsHiddenSections == true) {
+            logger.log("The file \"${osccFile.name}\" cannot be processed, because some sections are missing!" +
+                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
+                phase = ProcessingPhase.CURATION)
+            exitProcess(12)
         }
         return true
     }

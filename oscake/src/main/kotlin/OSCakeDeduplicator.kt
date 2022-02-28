@@ -49,17 +49,9 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
     fun execute() {
         val reportFile = File(osccFile.parent).resolve(extendFilename(File(osccFile.name), DEDUPLICATION_FILE_SUFFIX))
         val osc = osccToModel(osccFile, logger, ProcessingPhase.DEDUPLICATION)
-        if (osc.project.complianceArtifactCollection.author == DEDUPLICATION_AUTHOR) {
-            logger.log("The file \"${osccFile.name}\" cannot be processed, because it was already deduplicated" +
-                    " in a former run!", Level.ERROR, phase = ProcessingPhase.DEDUPLICATION)
-            exitProcess(10)
-        }
-        if (osc.project.containsHiddenSections == true) {
-            logger.log("The file \"${osccFile.name}\" cannot be processed, because some sections are missing!" +
-                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
-                phase = ProcessingPhase.DEDUPLICATION)
-            exitProcess(11)
-        }
+
+        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, MERGER_AUTHOR))
+
         val archiveDir = createTempDirectory(prefix = "oscakeDed_").toFile().apply {
             File(osccFile.parent, osc.project.complianceArtifactCollection.archivePath).unpackZip(this)
         }

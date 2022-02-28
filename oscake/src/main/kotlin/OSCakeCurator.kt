@@ -21,10 +21,6 @@ package org.ossreviewtoolkit.oscake
 
 import java.io.File
 
-import kotlin.system.exitProcess
-
-import org.apache.logging.log4j.Level
-
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.curator.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
@@ -47,29 +43,9 @@ class OSCakeCurator(private val config: OSCakeConfiguration,
     fun execute() {
         val osccFile = File(commandLineParams["osccFile"]!!)
         val outputDir = File(commandLineParams["outputDir"]!!)
-
         val osc = osccToModel(osccFile, logger, ProcessingPhase.CURATION)
 
-        if (osc.project.containsHiddenSections == true) {
-            logger.log("The file \"${osccFile.name}\" cannot be processed, because some sections are missing!" +
-                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
-                phase = ProcessingPhase.CURATION)
-            exitProcess(12)
-        }
-        if (osc.project.complianceArtifactCollection.author == DEDUPLICATION_AUTHOR) {
-            logger.log("The file \"${osccFile.name}\" cannot be processed, because it was already deduplicated" +
-                    " in a former run!", Level.ERROR, phase = ProcessingPhase.CURATION)
-            exitProcess(10)
-        }
-        // A merged oscc-file cannot be curated because there is no config information left (scopePatterns
-        // are missing); additionally the tag "mergedIDs" contains a list of merged ComplianceArtifactCollection
-        if (osc.project.complianceArtifactCollection.mergedIds.isNotEmpty()) {
-            logger.log(
-                "The given project is a merged project and cannot be curated anymore!",
-                Level.ERROR, phase = ProcessingPhase.CURATION
-            )
-            exitProcess(11)
-        }
+        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR))
         addParamsToConfig(config, osc, commandLineParams, this)
 
         CurationManager(osc.project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
