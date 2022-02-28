@@ -42,10 +42,8 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPha
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 import org.ossreviewtoolkit.utils.common.unpackZip
+import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 
-internal data class AnalyzerLicenses(
-    val declaredLicenses: SortedSet<String>,
-    val declaredLicensesProcessed: String)
 
 internal class ResolverManager(
     /**
@@ -97,8 +95,7 @@ internal class ResolverManager(
      */
     internal fun manage() {
         // 1. create resolving actions for packages which have no resolving action defined
-        project.packs/*.filter { pack -> pack.defaultLicensings.any { it.license == FOUND_IN_FILE_SCOPE_DECLARED } }*/
-            .forEach { pack -> resolverProvider.getActionFor(pack.id) ?: appendAction(pack)
+        project.packs.forEach { pack -> resolverProvider.getActionFor(pack.id) ?: appendAction(pack)
         }
         // 2. process resolver-package if it's valid and applicable
         project.packs.forEach {
@@ -122,7 +119,7 @@ internal class ResolverManager(
      */
     private fun appendAction(pack: Pack) {
         // handle [DECLARED] licenses
-        if (pack.defaultLicensings.any { it.license == FOUND_IN_FILE_SCOPE_DECLARED })
+        if (pack.defaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED })
             analyzedPackageLicenses[pack.id]?.let {
                 resolverProvider.actions.add(ResolverPackage(pack.id, it.declaredLicenses.toList(),
                     it.declaredLicensesProcessed, mutableListOf("")))
@@ -130,11 +127,11 @@ internal class ResolverManager(
         // handle all others if default licenses and declaredLicenses are equivalent
         else {
             analyzedPackageLicenses[pack.id]?.let { analyzerLicenses ->
-                if (isEqual(analyzerLicenses.declaredLicenses.toSet(),
+                if (isEqual(analyzerLicenses.mappedLicenses.toSet(),
                         pack.defaultLicensings.mapNotNull { it.license }.toSet())) {
                     resolverProvider.actions.add(
                         ResolverPackage(
-                            pack.id, analyzerLicenses.declaredLicenses.toList(),
+                            pack.id, analyzerLicenses.mappedLicenses.toList(),
                             analyzerLicenses.declaredLicensesProcessed, mutableListOf("")
                         )
                     )
@@ -158,15 +155,20 @@ internal class ResolverManager(
         if (commandLineParams.containsKey("analyzerFile") && File(commandLineParams["analyzerFile"]!!).exists()) {
             val ortResult = File(commandLineParams["analyzerFile"]!!).readValueOrNull<OrtResult>()
 
-            ortResult?.analyzer?.result?.projects?.forEach { project ->
+            ortResult?.analyzer?.result?.projects?.filter { it.declaredLicenses.size > 1 }?.forEach { project ->
                 if (isValidLicense(project.declaredLicensesProcessed.spdxExpression.toString()))
-                    licMap[project.id] = AnalyzerLicenses(project.declaredLicenses,
-                        project.declaredLicensesProcessed.spdxExpression.toString())
+                    licMap[project.id] = AnalyzerLicenses(
+                        project.declaredLicenses,
+                        project.declaredLicensesProcessed.spdxExpression.toString(),
+                        project.declaredLicensesProcessed.mapped
+                    )
             }
             ortResult?.analyzer?.result?.packages?.filter { !ortResult.isExcluded(it.pkg.id) }?.forEach { it ->
-                if (isValidLicense(it.pkg.declaredLicensesProcessed.spdxExpression.toString()))
+                if (it.pkg.declaredLicenses.size > 1 &&
+                    isValidLicense(it.pkg.declaredLicensesProcessed.spdxExpression.toString()))
                     licMap[it.pkg.id] = AnalyzerLicenses(it.pkg.declaredLicenses,
-                        it.pkg.declaredLicensesProcessed.spdxExpression.toString())
+                        it.pkg.declaredLicensesProcessed.spdxExpression.toString(),
+                        it.pkg.declaredLicensesProcessed.mapped)
             }
         } else
             logger.log("Results from ORT-Analyzer not found or not provided!", Level.WARN,
@@ -177,6 +179,6 @@ internal class ResolverManager(
     /**
      * Currently, only compound licenses with "OR" are allowed
      */
-    private fun isValidLicense(declaredLicense: String): Boolean = declaredLicense.contains(" OR ")
-            && !declaredLicense.contains(" AND ") && !declaredLicense.contains(" WITH ")
+    private fun isValidLicense(license: String): Boolean =  license.contains(" OR ") &&
+            !license.contains(" AND ") && !license.contains(" WITH ")
 }

@@ -64,7 +64,7 @@ internal data class ResolverPackage(
                         fileStore: File?) {
        val filesToDelete = mutableListOf<String>()
        val changedFileLicensings = mutableListOf<FileLicensing>()
-       val licensesLower = licenses.mapNotNull { it?.lowercase() }.toSet()
+       val licensesLower = licenses.mapNotNull { it?.lowercase() }.toSortedSet()
 
        pack.fileLicensings.filter { it.coversOneOrAllLicenses(licensesLower) && it.fitsInPath(scopes) }
            .forEach {

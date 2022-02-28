@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
 import java.io.File
+import java.util.*
 
 /**
  * The class FileLicensing is a collection of [FileLicense] instances for the given path (stored in [scope])
@@ -47,9 +48,10 @@ data class FileLicensing(
      */
     @JsonProperty("fileCopyrights") val copyrights = mutableListOf<FileCopyright>()
 
-    fun coversOneOrAllLicenses(resolveLicenses: Set<String>): Boolean {
-        val lic = licenses.mapNotNull { it.license?.lowercase() }.toSet()
+    fun coversOneOrAllLicenses(resolveLicenses: SortedSet<String>): Boolean {
+        val lic = licenses.mapNotNull { it.license?.lowercase() }.toSortedSet()
         if (resolveLicenses == lic) return true
+        if ((lic - resolveLicenses).isNotEmpty()) return false
         if (resolveLicenses.intersect(lic).isNotEmpty()) return true
         return false
     }
