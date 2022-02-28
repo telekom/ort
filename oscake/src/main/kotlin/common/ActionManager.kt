@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.curator.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import java.time.LocalDateTime
 
 /**
  * The class [ActionManager] is a skeleton (base class) of common properties and functions for the apps "curation",
@@ -106,6 +107,7 @@ open class ActionManager(
         project.complianceArtifactCollection.archivePath =
             File(project.complianceArtifactCollection.archivePath).parentFile.name + "/" + newZipFileName
         project.complianceArtifactCollection.author = actionInfo.author
+        project.complianceArtifactCollection.date = LocalDateTime.now().toString()
         project.complianceArtifactCollection.release = actionInfo.release
 
         rc = rc || modelToOscc(project, reportFile, logger, actionInfo.phase)

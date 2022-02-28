@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.oscake.merger.ProjectProvider
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import java.time.LocalDateTime
 
 /**
  * The [OSCakeMerger] combines different *.oscc files (only with hasIssues = false) into a new
@@ -52,7 +53,7 @@ class OSCakeMerger(private val cid: String, private val inputDir: File, private 
 
         // merge all packages into new project
 
-        val cac = ComplianceArtifactCollection(cid, MERGER_AUTHOR, MERGER_VERSION,
+        val cac = ComplianceArtifactCollection(cid, MERGER_AUTHOR, MERGER_VERSION, LocalDateTime.now().toString(),
             archivePath = archiveFileRelativeName)
         val mergedProject = Project.initialize(cac, archiveFile, logger)
 
