@@ -94,10 +94,11 @@ internal class ResolverManager(
      * resolver actions, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
-        // 1. create resolving actions for packages which have no resolving action defined
-        project.packs.forEach { pack -> resolverProvider.getActionFor(pack.id) ?: appendAction(pack)
-        }
-        // 2. process resolver-package if it's valid and applicable
+        // 1. Automatically create resolving actions for packages with more than one license which have
+        // no resolving action defined
+        project.packs.forEach { pack -> resolverProvider.getActionFor(pack.id) ?: appendAction(pack) }
+
+        // 2. Process resolver-package if it's valid and applicable
         project.packs.forEach {
             resolverProvider.getActionFor(it.id)?.apply {
                 (this as ResolverPackage).dedupInResolveMode = config.resolver?.deduplicate ?: false
@@ -121,11 +122,12 @@ internal class ResolverManager(
         // handle [DECLARED] licenses
         if (pack.defaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED })
             analyzedPackageLicenses[pack.id]?.let {
-                resolverProvider.actions.add(ResolverPackage(pack.id, it.declaredLicenses.toList(),
+                resolverProvider.actions.add(ResolverPackage(pack.id, it.mappedLicenses.toList(),
                     it.declaredLicensesProcessed, mutableListOf("")))
             }
         // handle all others if default licenses and declaredLicenses are equivalent
         else {
+            if (pack.defaultLicensings.size < 2) return  // not dual licensed
             analyzedPackageLicenses[pack.id]?.let { analyzerLicenses ->
                 if (isEqual(analyzerLicenses.mappedLicenses.toSet(),
                         pack.defaultLicensings.mapNotNull { it.license }.toSet())) {

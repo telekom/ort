@@ -40,7 +40,7 @@ class DefaultLicense(
     /**
      * Shows the [path] to the file where the license was found.
      */
-    @get:JsonProperty("foundInFileScope") val path: String?,
+    @get:JsonProperty("foundInFileScope") var path: String?,
     /**
      * Represents the path to the file containing the license text in the archive.
      */

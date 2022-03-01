@@ -373,4 +373,10 @@ data class Pack(
         }
         dirLicensings.removeAll(dirLicensings2Remove.toSet())
     }
+
+    fun removePackageIssues() {
+        issueList.errors.clear()
+        issueList.warnings.clear()
+        issueList.infos.clear()
+    }
 }

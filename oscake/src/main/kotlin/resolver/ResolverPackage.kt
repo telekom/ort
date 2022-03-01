@@ -24,6 +24,7 @@ import java.io.File
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import org.ossreviewtoolkit.utils.core.createOrtTempFile
 
 /**
  * A [ResolverPackage] contains a resolver-action for a specific package, identified by an [id]. The instances
@@ -74,8 +75,15 @@ internal data class ResolverPackage(
        if (changedFileLicensings.isEmpty()) return
 
        pack.apply {
-            removeDirDefaultScopes() // consequently, removes all hasIssues --> set to false
-            createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true, result)
+           removePackageIssues()   // because the content has changed
+           val saveDefaultLicensings = defaultLicensings.toList()
+           removeDirDefaultScopes() // consequently, removes all hasIssues --> set to false
+           createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true, result)
+           // if path == [DECLARED] --> defaultLicensings are empty
+           if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED }) {
+               saveDefaultLicensings.forEach { it.path = FOUND_IN_FILE_SCOPE_CONFIGURED }
+               defaultLicensings.addAll(saveDefaultLicensings)
+           }
        }
 
        filesToDelete.forEach {
