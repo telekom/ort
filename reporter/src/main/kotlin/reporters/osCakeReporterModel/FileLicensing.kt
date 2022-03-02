@@ -48,13 +48,8 @@ data class FileLicensing(
      */
     @JsonProperty("fileCopyrights") val copyrights = mutableListOf<FileCopyright>()
 
-    fun coversOneOrAllLicenses(resolveLicenses: SortedSet<String>): Boolean {
-        val lic = licenses.mapNotNull { it.license?.lowercase() }.toSortedSet()
-        if (resolveLicenses == lic) return true
-        if ((lic - resolveLicenses).isNotEmpty()) return false
-        if (resolveLicenses.intersect(lic).isNotEmpty()) return true
-        return false
-    }
+    fun coversAllLicenses(resolveLicenses: SortedSet<String>): Boolean =
+        resolveLicenses == licenses.mapNotNull { it.license?.lowercase() }.toSortedSet()
 
     fun handleCompoundLicense(newLicense: String): List<String> {
         val filesToDelete = mutableListOf<String>()
