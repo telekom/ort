@@ -52,11 +52,6 @@ internal data class ResolverPackage(
 ) : ActionPackage(id) {
 
     /**
-     * defines if the deduplication process should be applied after license resolving
-     */
-    var dedupInResolveMode: Boolean = false
-
-    /**
      * Walks through all [FileLicensing]s which contains the appropriate license information and fit into the given
      * path. Afterwards, the dir and default-scopes are regenerated. When [dedupInResolveMode] is set, the
      * deduplication mechanism is applied to the affected [FileLicensing]s
@@ -76,26 +71,19 @@ internal data class ResolverPackage(
 
        pack.apply {
            removePackageIssues()   // because the content has changed
-           val saveDefaultLicensings = defaultLicensings.toList()
+           val saveDefaultLicensings = defaultLicensings.toList() // copy the content, otherwise it would be deleted
            removeDirDefaultScopes() // consequently, removes all hasIssues --> set to false
            createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true, result)
            // if path == [DECLARED] --> defaultLicensings are empty
            if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED }) {
-               saveDefaultLicensings.forEach { it.path = FOUND_IN_FILE_SCOPE_CONFIGURED }
+               saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_DECLARED }.
+                    forEach { it.path = FOUND_IN_FILE_SCOPE_CONFIGURED }
                defaultLicensings.addAll(saveDefaultLicensings)
            }
        }
 
        filesToDelete.forEach {
            archiveDir.absoluteFile.resolve(it).delete()
-       }
-
-       if (dedupInResolveMode) {
-           pack.apply {
-               deduplicateFileLicenses(archiveDir, changedFileLicensings)
-               deduplicateDirDirLicenses(archiveDir, true)
-               deduplicateDirDefaultLicenses(archiveDir, true)
-           }
        }
     }
 }

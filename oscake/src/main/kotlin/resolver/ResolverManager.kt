@@ -92,6 +92,7 @@ internal class ResolverManager(
     /**
      * The method takes the reporter's output, checks and updates the reported "hasIssues", applies the
      * resolver actions, reports emerged issues and finally, writes the output files.
+     * resolver actions, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
         // 1. Automatically create resolving actions for packages with more than one license which have
@@ -100,10 +101,8 @@ internal class ResolverManager(
 
         // 2. Process resolver-package if it's valid and applicable
         project.packs.forEach {
-            resolverProvider.getActionFor(it.id)?.apply {
-                (this as ResolverPackage).dedupInResolveMode = config.resolver?.deduplicate ?: false
+            resolverProvider.getActionFor(it.id)?.
                 process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
-            }
         }
         // 3. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(RESOLVER_LOGGER)) handleOSCakeIssues(project, logger,

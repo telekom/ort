@@ -64,8 +64,4 @@ data class OSCakeResolver(
      * [issueLevel]: -1..not enabled, 0..ERROR, 1..WARN + ERROR, 2..INFO + WARN + ERROR
      */
     val issueLevel: Int? = -1,
-    /**
-     *  Automatically deduplicate resolved FileLicenses
-     */
-    val deduplicate: Boolean? = false
 )
