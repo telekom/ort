@@ -64,6 +64,7 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
                         ymls = file.readValue<List<ResolverPackage>>()
                     }
                     ymls.forEach {
+                        it.belongsToFile = file
                         if (checkSemantics(it, file.name, fileStore)) actions.add(it)
                     }
                 } catch (e: IOException) {

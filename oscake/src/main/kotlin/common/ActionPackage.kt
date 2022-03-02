@@ -31,6 +31,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
 
 internal abstract class ActionPackage(open val id: Identifier) {
+    var belongsToFile: File? = null
     /**
      * Returns true if this [CurationPackage] is applicable to the package with the given [pkgId],
      * disregarding the version.

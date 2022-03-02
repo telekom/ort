@@ -121,8 +121,8 @@ internal class ResolverManager(
         // handle [DECLARED] licenses
         if (pack.defaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED })
             analyzedPackageLicenses[pack.id]?.let {
-                resolverProvider.actions.add(ResolverPackage(pack.id, it.mappedLicenses.toList(),
-                    it.declaredLicensesProcessed, mutableListOf("")))
+                resolverProvider.actions.add(ResolverPackage(pack.id, listOf(ResolverBlock(it.mappedLicenses.toList(),
+                    it.declaredLicensesProcessed, mutableListOf("")))))
             }
         // handle all others if default licenses and declaredLicenses are equivalent
         else {
@@ -132,8 +132,8 @@ internal class ResolverManager(
                         pack.defaultLicensings.mapNotNull { it.license }.toSet())) {
                     resolverProvider.actions.add(
                         ResolverPackage(
-                            pack.id, analyzerLicenses.mappedLicenses.toList(),
-                            analyzerLicenses.declaredLicensesProcessed, mutableListOf("")
+                            pack.id, listOf(ResolverBlock(analyzerLicenses.mappedLicenses.toList(),
+                            analyzerLicenses.declaredLicensesProcessed, mutableListOf("")))
                         )
                     )
                 }

@@ -150,15 +150,16 @@ data class Pack(
         this.dirLicensings.forEach { it.licenses.clear() }
     }
 
-    fun createDirDefaultScopes(logger: OSCakeLogger, params: OSCakeConfigParams, phase: ProcessingPhase,
-                foundInFileScopeConfigured: Boolean = false, compoundLicense: String? = null) {
+    fun createDirDefaultScopes(
+        logger: OSCakeLogger, params: OSCakeConfigParams, phase: ProcessingPhase,
+        foundInFileScopeConfigured: Boolean = false, compoundLicenses: List<String>? = null) {
 
         fileLicensings.forEach { fileLicensing ->
             val scopeLevel = getScopeLevel(fileLicensing.scope, packageRoot, params)
             if (scopeLevel == ScopeLevel.DEFAULT) {
                 fileLicensing.licenses.forEach { fileLicense ->
                     var fileLicensingScope = fileLicensing.scope
-                    compoundLicense?.let { if (foundInFileScopeConfigured && fileLicense.license == compoundLicense)
+                    compoundLicenses?.let { if (foundInFileScopeConfigured && compoundLicenses.contains(fileLicense.license))
                         fileLicensingScope = FOUND_IN_FILE_SCOPE_CONFIGURED
                     }
                     if (defaultLicensings.none { it.license == fileLicense.license &&
@@ -178,7 +179,7 @@ data class Pack(
                 val dirLicensing = dirLicensings.firstOrNull { it.scope == dirScope } ?: DirLicensing(dirScope)
                     .apply { dirLicensings.add(this) }
                 fileLicensing.licenses.forEach { fileLicense ->
-                    compoundLicense?.let { if (foundInFileScopeConfigured && fileLicense.license == compoundLicense)
+                    compoundLicenses?.let { if (foundInFileScopeConfigured && compoundLicenses.contains(fileLicense.license))
                         fibPathWithoutPackage = FOUND_IN_FILE_SCOPE_CONFIGURED
                     }
                     if (dirLicensing.licenses.none { it.license == fileLicense.license &&

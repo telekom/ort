@@ -37,24 +37,31 @@ class ResolverProvider(val directory: File) :
         val errorSuffix = " --> resolver action ignored"
         val phase = ProcessingPhase.CURATION
 
-        // 1. licenses must contain at least one license
-        if (item.licenses.isEmpty()) {
-            logger.log("$errorPrefix license list is empty! $errorSuffix", Level.WARN, phase = phase)
+        if (item.resolverBlocks.isEmpty()) {
+            logger.log("$errorPrefix no resolve block found! $errorSuffix", Level.WARN, phase = phase)
             return false
         }
-        if (item.licenses.any { it == null }) {
-            logger.log("$errorPrefix license list contains null-values! $errorSuffix", Level.WARN, phase = phase)
-            return false
+        item.resolverBlocks.forEach { resolverBlock ->
+            // 1. licenses must contain at least one license
+            if (resolverBlock.licenses.isEmpty()) {
+                logger.log("$errorPrefix license list is empty! $errorSuffix", Level.WARN, phase = phase)
+                return false
+            }
+            if (resolverBlock.licenses.any { it == null }) {
+                logger.log("$errorPrefix license list contains null-values! $errorSuffix", Level.WARN, phase = phase)
+                return false
+            }
+            // 2. result must consist of a compound license - linked with "OR"
+            if (!resolverBlock.result.split(" ").contains("OR")) {
+                logger.log(
+                    "$errorPrefix \"result\" contains a license expression without \"OR\"! $errorSuffix",
+                    Level.WARN, phase = phase
+                )
+                return false
+            }
+            // 3. scopes must contain at least one item - if not, an entry with an empty string is created
+            if (resolverBlock.scopes.isEmpty()) resolverBlock.scopes.add("")
         }
-        // 2. result must consist of a compound license - linked with "OR"
-        if (!item.result.split(" ").contains("OR")) {
-            logger.log("$errorPrefix \"result\" contains a license expression without \"OR\"! $errorSuffix",
-                Level.WARN, phase = phase)
-            return false
-        }
-        // 3. scopes must contain at least one item - if not, an entry with an empty string is created
-        if (item.scopes.isEmpty()) item.scopes.add("")
-
         return true
     }
 }

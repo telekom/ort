@@ -19,12 +19,13 @@
 
 package org.ossreviewtoolkit.oscake.resolver
 
+import com.fasterxml.jackson.annotation.JsonProperty
+import org.apache.logging.log4j.Level
 import java.io.File
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
-import org.ossreviewtoolkit.utils.core.createOrtTempFile
 
 /**
  * A [ResolverPackage] contains a resolver-action for a specific package, identified by an [id]. The instances
@@ -38,17 +39,9 @@ internal data class ResolverPackage(
     */
     override val id: Identifier,
     /**
-    * list of licenses to use
+    * [resolverBlocks] contains a list of [ResolverBlock]s
     */
-    val licenses: List<String?> = mutableListOf(),
-    /**
-    * resulting license = compound license info (licenses connected by "OR")
-    */
-    val result: String = "",
-    /**
-    *   list of Scopes (directory, file) - "" means the complete root directory
-    */
-    val scopes: MutableList<String> = mutableListOf()
+    @get:JsonProperty("resolve") val resolverBlocks: List<ResolverBlock> = mutableListOf(),
 ) : ActionPackage(id) {
 
     /**
@@ -58,22 +51,29 @@ internal data class ResolverPackage(
      */
    override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
                         fileStore: File?) {
+
        val filesToDelete = mutableListOf<String>()
        val changedFileLicensings = mutableListOf<FileLicensing>()
-       val licensesLower = licenses.mapNotNull { it?.lowercase() }.toSortedSet()
 
-       pack.fileLicensings.filter { it.coversAllLicenses(licensesLower) && it.fitsInPath(scopes) }
-           .forEach {
-               filesToDelete.addAll(it.handleCompoundLicense(result))
-               changedFileLicensings.add(it)
-           }
+       resolverBlocks.forEach { resolverBlock ->
+           val licensesLower = resolverBlock.licenses.mapNotNull { it?.lowercase() }.toSortedSet()
+           var resolverBlockAdministered = false
+           pack.fileLicensings.filter { it.coversAllLicenses(licensesLower) && it.fitsInPath(resolverBlock.scopes) }
+                .forEach {
+                    filesToDelete.addAll(it.handleCompoundLicense(resolverBlock.result))
+                    changedFileLicensings.add(it)
+                    resolverBlockAdministered = true
+                }
+           if (!resolverBlockAdministered) logger.log("\"${resolverBlock}\" in file: \"${this.belongsToFile}\" was " +
+                   "not used!", Level.WARN, id, phase = ProcessingPhase.RESOLVING)
+       }
        if (changedFileLicensings.isEmpty()) return
 
        pack.apply {
            removePackageIssues()   // because the content has changed
            val saveDefaultLicensings = defaultLicensings.toList() // copy the content, otherwise it would be deleted
            removeDirDefaultScopes() // consequently, removes all hasIssues --> set to false
-           createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true, result)
+           createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true, resolverBlocks.map { it.result })
            // if path == [DECLARED] --> defaultLicensings are empty
            if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED }) {
                saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_DECLARED }.
