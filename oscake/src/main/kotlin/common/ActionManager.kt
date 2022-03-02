@@ -20,6 +20,7 @@
 package org.ossreviewtoolkit.oscake.common
 
 import java.io.File
+import java.time.LocalDateTime
 
 import kotlin.system.exitProcess
 
@@ -27,8 +28,16 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.curator.CurationManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
-import java.time.LocalDateTime
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.IssueList
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.compareLTIAwithArchive
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.extendFilename
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.modelToOscc
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.propagateHasIssues
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.stripRelativePathIndicators
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.zipAndCleanUp
 
 /**
  * The class [ActionManager] is a skeleton (base class) of common properties and functions for the apps "curation",

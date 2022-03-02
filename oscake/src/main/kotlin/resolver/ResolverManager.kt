@@ -20,7 +20,6 @@
 package org.ossreviewtoolkit.oscake.resolver
 
 import java.io.File
-import java.util.SortedSet
 
 import kotlin.io.path.createTempDirectory
 
@@ -42,8 +41,6 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPha
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 import org.ossreviewtoolkit.utils.common.unpackZip
-import org.ossreviewtoolkit.utils.spdx.SpdxExpression
-
 
 internal class ResolverManager(
     /**
@@ -126,7 +123,7 @@ internal class ResolverManager(
             }
         // handle all others if default licenses and declaredLicenses are equivalent
         else {
-            if (pack.defaultLicensings.size < 2) return  // not dual licensed
+            if (pack.defaultLicensings.size < 2) return // not dual licensed
             analyzedPackageLicenses[pack.id]?.let { analyzerLicenses ->
                 if (isEqual(analyzerLicenses.mappedLicenses.toSet(),
                         pack.defaultLicensings.mapNotNull { it.license }.toSet())) {
@@ -180,6 +177,6 @@ internal class ResolverManager(
     /**
      * Currently, only compound licenses with "OR" are allowed
      */
-    private fun isValidLicense(license: String): Boolean =  license.contains(" OR ") &&
+    private fun isValidLicense(license: String): Boolean = license.contains(" OR ") &&
             !license.contains(" AND ") && !license.contains(" WITH ")
 }

@@ -22,13 +22,13 @@ package org.ossreviewtoolkit.oscake
 import com.fasterxml.jackson.databind.ObjectMapper
 
 import java.io.File
+import java.time.LocalDateTime
 
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.oscake.merger.ProjectProvider
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
-import java.time.LocalDateTime
 
 /**
  * The [OSCakeMerger] combines different *.oscc files (only with hasIssues = false) into a new

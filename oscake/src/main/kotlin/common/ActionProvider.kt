@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.oscake.curator.CurationPackage
 import org.ossreviewtoolkit.oscake.resolver.ResolverPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
@@ -60,9 +61,9 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
             directory.walkTopDown().filter { it.isFile && it.extension == "yml" }.forEach { file ->
                 try {
                     var ymls = listOf<ActionPackage>()
-                    if (clazz == ResolverPackage::class) {
-                        ymls = file.readValue<List<ResolverPackage>>()
-                    }
+                    if (clazz == ResolverPackage::class) ymls = file.readValue<List<ResolverPackage>>()
+                    if (clazz == CurationPackage::class) ymls = file.readValue<List<CurationPackage>>()
+
                     ymls.forEach {
                         it.belongsToFile = file
                         if (checkSemantics(it, file.name, fileStore)) actions.add(it)

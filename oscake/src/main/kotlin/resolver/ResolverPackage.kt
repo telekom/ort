@@ -20,8 +20,10 @@
 package org.ossreviewtoolkit.oscake.resolver
 
 import com.fasterxml.jackson.annotation.JsonProperty
-import org.apache.logging.log4j.Level
+
 import java.io.File
+
+import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.oscake.common.ActionPackage
@@ -70,14 +72,15 @@ internal data class ResolverPackage(
        if (changedFileLicensings.isEmpty()) return
 
        pack.apply {
-           removePackageIssues()   // because the content has changed
+           removePackageIssues() // because the content has changed
            val saveDefaultLicensings = defaultLicensings.toList() // copy the content, otherwise it would be deleted
            removeDirDefaultScopes() // consequently, removes all hasIssues --> set to false
            createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true, resolverBlocks.map { it.result })
            // if path == [DECLARED] --> defaultLicensings are empty
            if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED }) {
-               saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_DECLARED }.
-                    forEach { it.path = FOUND_IN_FILE_SCOPE_CONFIGURED }
+               saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_DECLARED }.forEach {
+                   it.path = FOUND_IN_FILE_SCOPE_CONFIGURED
+               }
                defaultLicensings.addAll(saveDefaultLicensings)
            }
        }

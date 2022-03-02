@@ -19,13 +19,6 @@
 
 package org.ossreviewtoolkit.oscake.resolver
 
-import java.io.File
-
-import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.oscake.common.ActionPackage
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
-import org.ossreviewtoolkit.utils.core.createOrtTempFile
-
 /**
  * A [ResolverBlock] contains one resolver-action for a specific package
  */

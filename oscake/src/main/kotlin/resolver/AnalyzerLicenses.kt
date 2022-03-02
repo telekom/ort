@@ -19,7 +19,7 @@
 
 package org.ossreviewtoolkit.oscake.resolver
 
-import java.util.*
+import java.util.SortedSet
 
 import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 
