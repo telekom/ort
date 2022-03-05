@@ -96,17 +96,22 @@ internal class ResolverManager(
         // no resolving action defined
         project.packs.forEach { pack -> resolverProvider.getActionFor(pack.id) ?: appendAction(pack) }
 
-        // 2. Process resolver-package if it's valid and applicable
-        project.packs.forEach {
+        // 2. Process resolver-package if it's valid, applicable and pack is not reuse-compliant
+        project.packs.filter { !it.reuseCompliant }.forEach {
             resolverProvider.getActionFor(it.id)?.
                 process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
         }
-        // 3. report [OSCakeIssue]s
+        // 3. log info for REUSE packages
+        project.packs.filter { it.reuseCompliant }.forEach {
+            logger.log("Package is reuse-compliant and is NOT handled by the resolver!", Level.INFO,
+                it.id, phase = ProcessingPhase.RESOLVING)
+        }
+        // 4. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(RESOLVER_LOGGER)) handleOSCakeIssues(project, logger,
             config.resolver?.issueLevel ?: -1)
-        // 4. take care of issue level settings to create the correct output format
+        // 5. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
-        // 5. generate .zip and .oscc files
+        // 6. generate .zip and .oscc files
         createResultingFiles(archiveDir)
     }
 

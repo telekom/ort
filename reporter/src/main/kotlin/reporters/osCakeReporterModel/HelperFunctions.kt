@@ -457,6 +457,7 @@ private fun completeModel(project: Project) {
         pack.defaultLicensings.forEach {
             it.declared = it.path == FOUND_IN_FILE_SCOPE_DECLARED
         }
+        pack.reuseCompliant = pack.reuseLicensings.isNotEmpty()
     }
 }
 
