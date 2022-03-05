@@ -45,7 +45,7 @@ class OSCakeCurator(private val config: OSCakeConfiguration,
         val outputDir = File(commandLineParams["outputDir"]!!)
         val osc = osccToModel(osccFile, logger, ProcessingPhase.CURATION)
 
-        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR))
+        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR, RESOLVER_AUTHOR))
         addParamsToConfig(config, osc, commandLineParams, this)
 
         CurationManager(osc.project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
