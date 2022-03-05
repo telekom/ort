@@ -95,7 +95,7 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
         }
 
         var rc = compareLTIAwithArchive(osc.project, archiveDir, logger, ProcessingPhase.DEDUPLICATION)
-        rc = rc || modelToOscc(osc.project, reportFile, logger, ProcessingPhase.DEDUPLICATION)
+        rc = rc || osc.project.modelToOscc(reportFile, logger, ProcessingPhase.DEDUPLICATION)
         rc = rc || zipAndCleanUp(File(osccFile.parent), archiveDir,
             osc.project.complianceArtifactCollection.archivePath, logger, ProcessingPhase.DEDUPLICATION)
         if (rc) {

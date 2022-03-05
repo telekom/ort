@@ -172,7 +172,7 @@ internal class CurationManager(
         project.complianceArtifactCollection.author = CURATION_AUTHOR
         project.complianceArtifactCollection.release = CURATION_VERSION
 
-        rc = rc || modelToOscc(project, reportFile, logger, ProcessingPhase.CURATION)
+        rc = rc || project.modelToOscc(reportFile, logger, ProcessingPhase.CURATION)
 
         rc = rc || ActionProvider.errors
         if (!rc) {

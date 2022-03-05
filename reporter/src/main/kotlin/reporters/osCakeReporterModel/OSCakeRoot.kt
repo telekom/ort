@@ -19,17 +19,20 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import java.io.File
 
 import kotlin.system.exitProcess
 
 import org.apache.logging.log4j.Level
+import java.io.IOException
 
 /**
  * The class [OSCakeRoot] represents the root node for the output; currently, it only consists of the property
  * [Project]
  */
-class OSCakeRoot {
+class OSCakeRoot() {
     /**
      * The [project] contains the project's packages and resolved license information.
      */

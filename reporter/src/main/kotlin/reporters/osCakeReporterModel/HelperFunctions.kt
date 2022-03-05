@@ -461,20 +461,6 @@ private fun completeModel(project: Project) {
     }
 }
 
-fun modelToOscc(project: Project, outputFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): Boolean {
-    val objectMapper = ObjectMapper()
-    try {
-        outputFile.bufferedWriter().use {
-            it.write(objectMapper.writeValueAsString(project))
-        }
-    } catch (e: IOException) {
-        logger.log("Error when writing json file: \"$outputFile\".\n ${e.message} ",
-            Level.ERROR, phase = processingPhase)
-        return true
-    }
-    return false
-}
-
 fun zipAndCleanUp(outputDir: File, tmpDirectory: File, zipFileName: String, logger: OSCakeLogger,
                   processingPhase: ProcessingPhase): Boolean {
     val targetFile = File(outputDir.path + "/" + zipFileName)

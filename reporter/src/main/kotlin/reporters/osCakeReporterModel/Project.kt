@@ -22,6 +22,7 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
+import com.fasterxml.jackson.databind.ObjectMapper
 
 import java.io.File
 import java.io.FileOutputStream
@@ -41,6 +42,7 @@ import org.apache.commons.compress.utils.IOUtils
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
+import java.io.IOException
 
 /**
  * The class [Project] wraps the meta information ([complianceArtifactCollection]) of the OSCakeReporter as well
@@ -122,6 +124,23 @@ data class Project(
 
     // shows that this project is the target project
     private var isInitialProject = false
+
+    /**
+     * Writes the model to disk (in json format)
+     */
+    fun modelToOscc(outputFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): Boolean {
+        val objectMapper = ObjectMapper()
+        try {
+            outputFile.bufferedWriter().use {
+                it.write(objectMapper.writeValueAsString(this))
+            }
+        } catch (e: IOException) {
+            logger.log("Error when writing json file: \"$outputFile\".\n ${e.message} ",
+                Level.ERROR, phase = processingPhase)
+            return true
+        }
+        return false
+    }
 
     @Suppress("ReturnCount")
     /**

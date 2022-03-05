@@ -34,7 +34,6 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerM
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.compareLTIAwithArchive
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.extendFilename
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.modelToOscc
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.propagateHasIssues
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.stripRelativePathIndicators
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.zipAndCleanUp
@@ -119,7 +118,7 @@ open class ActionManager(
         project.complianceArtifactCollection.date = LocalDateTime.now().toString()
         project.complianceArtifactCollection.release = actionInfo.release
 
-        rc = rc || modelToOscc(project, reportFile, logger, actionInfo.phase)
+        rc = rc || project.modelToOscc(reportFile, logger, actionInfo.phase)
 
         rc = rc || ActionProvider.errors
         if (!rc) {
