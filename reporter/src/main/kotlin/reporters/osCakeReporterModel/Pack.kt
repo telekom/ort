@@ -376,8 +376,7 @@ data class Pack(
     }
 
     fun removePackageIssues(): List<String> {
-        val issuesNumbers = issueList.errors.map { it.id } + issueList.warnings.map { it.id } +
-                issueList.infos.map { it.id }
+        val issuesNumbers = issueList.errors.map { it.id } + issueList.warnings.map { it.id }
         issueList.errors.clear()
         issueList.warnings.clear()
         issueList.infos.clear()

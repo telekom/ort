@@ -73,8 +73,8 @@ internal data class ResolverPackage(
 
        pack.apply {
            removePackageIssues().takeIf { it.isNotEmpty() }?.also {
-               logger.log("The following issues were removed due to resolve mechanism: " +
-                       it.joinToString(","), Level.WARN, this.id, phase = ProcessingPhase.RESOLVING)
+               logger.log("The original issues (ERRORS/WARNINGS) were removed due to Resolver actions: " +
+                       it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.RESOLVING)
            } // because the content has changed
            val saveDefaultLicensings = defaultLicensings.toList() // copy the content, otherwise it would be deleted
            removeDirDefaultScopes() // consequently, removes all hasIssues --> set to false
