@@ -60,7 +60,7 @@ internal abstract class ActionPackage(open val id: Identifier) {
     private fun String.equalsOrIsBlank(other: String) = equals(other) || isBlank() || other.isBlank()
 
     /**
-     * Return true if this [CurationPackage] is applicable to the package with the given [pkgId]. The
+     * Return true if this [ActionPackage] is applicable to the package with the given [pkgId]. The
      * curation's version may be an
      * [Ivy version matcher](http://ant.apache.org/ivy/history/2.4.0/settings/version-matchers.html).
      */

@@ -29,7 +29,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
  * - stored in [licenseTextInArchive]. [declared] is set to false as soon as a valid license info is found in a file
  * otherwise it is left to true, as an indicator that the info was provided by the analyzer module (e.g. pom.xml)
  */
-@JsonPropertyOrder("foundInFileScope", "license", "licenseTextInArchive", "hasIssues", "issues")
+@JsonPropertyOrder("foundInFileScope", "license", "originalLicenses", "licenseTextInArchive", "hasIssues", "issues")
 // work around with custom filter, because a declaration on property level "issues" did not work
 @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
 class DefaultLicense(
@@ -57,5 +57,9 @@ class DefaultLicense(
     /**
      * contains issues for the scope
      */
-    @JsonProperty("issues") val issueList: IssueList = IssueList()
+    @JsonProperty("issues") val issueList: IssueList = IssueList(),
+    /**
+     * [originalLicenses] contains the name of the original license in case of dual licensing.
+     */
+    val originalLicenses: String? = null
 )

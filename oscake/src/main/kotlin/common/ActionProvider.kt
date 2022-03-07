@@ -26,8 +26,10 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.readValue
+import org.ossreviewtoolkit.oscake.SELECTOR_GLOBAL_INDICATOR
 import org.ossreviewtoolkit.oscake.curator.CurationPackage
 import org.ossreviewtoolkit.oscake.resolver.ResolverPackage
+import org.ossreviewtoolkit.oscake.selector.SelectorPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
@@ -63,6 +65,7 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
                     var ymls = listOf<ActionPackage>()
                     if (clazz == ResolverPackage::class) ymls = file.readValue<List<ResolverPackage>>()
                     if (clazz == CurationPackage::class) ymls = file.readValue<List<CurationPackage>>()
+                    if (clazz == SelectorPackage::class) ymls = file.readValue<List<SelectorPackage>>()
 
                     ymls.forEach {
                         it.belongsToFile = file
@@ -93,6 +96,8 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
                     " package: $pkgId - don't know which one to take!", Level.ERROR, pkgId,
                 phase = phase
             )
+            // only needed for selector-application with id [GLOBAL]
+            if (size == 0) return actions.first { it.id.type == SELECTOR_GLOBAL_INDICATOR }
             if (size != 1) return null
             return first()
         }

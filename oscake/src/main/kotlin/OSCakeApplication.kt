@@ -52,6 +52,13 @@ const val RESOLVER_AUTHOR = "OSCake-Resolver"
 const val RESOLVER_VERSION = "0.1"
 const val RESOLVER_ACTOR = "Resolver"
 
+const val SELECTOR_LOGGER = "OSCakeSelector"
+const val SELECTOR_FILE_SUFFIX = "_selected"
+const val SELECTOR_AUTHOR = "OSCake-Selector"
+const val SELECTOR_VERSION = "0.1"
+const val SELECTOR_ACTOR = "Selector"
+const val SELECTOR_GLOBAL_INDICATOR = "[GLOBAL]"
+
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
  * modifiers - the first set contains modifiers for licenses, second set for copyrights
@@ -82,7 +89,7 @@ fun isValidDirectory(dirName: String?): Boolean =
     if (dirName != null) File(dirName).exists() && File(dirName).isDirectory else false
 
 object OSCakeApplication {
-   val ALL by lazy { listOf("curator", "merger", "deduplicator", "validator", "resolver") }
+   val ALL by lazy { listOf("curator", "merger", "deduplicator", "validator", "resolver", "selector") }
 }
 
 /**
@@ -124,6 +131,16 @@ fun addParamsToConfig(config: OSCakeConfiguration, osc: OSCakeRoot, commandLineP
                         paramMap[member2.name] = member2.get(v).toString()
                     }
                     if (osc.project.config != null) osc.project.config?.resolver =
+                        ConfigBlockInfo(commandLineParams, paramMap)
+                }
+            }
+            is org.ossreviewtoolkit.model.config.OSCakeSelector -> {
+                if (clazz is OSCakeSelector) {
+                    val paramMap = mutableMapOf<String, String>()
+                    org.ossreviewtoolkit.model.config.OSCakeSelector::class.memberProperties.forEach { member2 ->
+                        paramMap[member2.name] = member2.get(v).toString()
+                    }
+                    if (osc.project.config != null) osc.project.config?.selector =
                         ConfigBlockInfo(commandLineParams, paramMap)
                 }
             }

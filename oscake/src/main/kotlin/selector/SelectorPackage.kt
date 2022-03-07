@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.oscake.resolver
+package org.ossreviewtoolkit.oscake.selector
 
 import com.fasterxml.jackson.annotation.JsonProperty
 
@@ -30,10 +30,10 @@ import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
 /**
- * A [ResolverPackage] contains a resolver-action for a specific package, identified by an [id]. The instances
+ * A [SelectorPackage] contains a selector-action for a specific package, identified by an [id]. The instances
  * are created during processing the resolver (yml) files.
  */
-internal data class ResolverPackage(
+internal data class SelectorPackage(
     /**
     * The [id] contains a package identification as defined in the [Identifier] class. The version information may
     * be stored as a specific version number, an IVY-expression (describing a range of versions) or may be empty (then
@@ -41,43 +41,39 @@ internal data class ResolverPackage(
     */
     override val id: Identifier,
     /**
-    * [resolverBlocks] contains a list of [ResolverBlock]s
+    * [selectorBlocks] contains a list of [SelectorBlock]s
     */
-    @get:JsonProperty("resolve") val resolverBlocks: List<ResolverBlock> = mutableListOf(),
+    @get:JsonProperty("choices") val selectorBlocks: List<SelectorBlock> = mutableListOf(),
 ) : ActionPackage(id) {
 
     /**
-     * Walks through all [FileLicensing]s which contains the appropriate license information and fit into the given
-     * path. Afterwards, the dir and default-scopes are regenerated.
+     * Walks through all [FileLicensing]s which contains the specified compound license. Afterwards, the dir
+     * and default-scopes are regenerated.
      */
    override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
                         fileStore: File?) {
 
-       val filesToDelete = mutableListOf<String>()
-       val changedFileLicensings = mutableListOf<FileLicensing>()
+        var hasChanged = false
 
-       resolverBlocks.forEach { resolverBlock ->
-           val licensesLower = resolverBlock.licenses.mapNotNull { it?.lowercase() }.toSortedSet()
-           var resolverBlockAdministered = false
-           pack.fileLicensings.filter { it.coversAllLicenses(licensesLower) && it.fitsInPath(resolverBlock.scopes) }
-                .forEach {
-                    filesToDelete.addAll(it.handleCompoundLicense(resolverBlock.result))
-                    changedFileLicensings.add(it)
-                    resolverBlockAdministered = true
+        selectorBlocks.forEach { block ->
+            pack.fileLicensings.forEach { fileLicensing ->
+                fileLicensing.licenses.filter { it.license != null && it.license == block.specified}.forEach {
+                    it.originalLicenses = CompoundLicense(it.license!!).toString()
+                    it.license = block.selected
+                    hasChanged = true
                 }
-           if (!resolverBlockAdministered) logger.log("\"${resolverBlock}\" in file: \"${this.belongsToFile}\" was " +
-                   "not used!", Level.WARN, id, phase = ProcessingPhase.RESOLVING)
-       }
-       if (changedFileLicensings.isEmpty()) return
+            }
+        }
+       if (!hasChanged) return
 
        pack.apply {
            removePackageIssues().takeIf { it.isNotEmpty() }?.also {
-               logger.log("The original issues (ERRORS/WARNINGS) were removed due to Resolver actions: " +
-                       it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.RESOLVING)
+               logger.log("The original issues (ERRORS/WARNINGS) were removed due to Selector actions: " +
+                       it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.SELECTION)
            } // because the content has changed
            val saveDefaultLicensings = defaultLicensings.toList() // copy the content, otherwise it would be deleted
            removeDirDefaultScopes() // consequently, removes all hasIssues --> set to false
-           createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true, resolverBlocks.map { it.result })
+           createDirDefaultScopes(logger, params, ProcessingPhase.SELECTION)
            // if path == [DECLARED] --> defaultLicensings are empty
            if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED }) {
                saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_DECLARED }.forEach {
@@ -87,8 +83,5 @@ internal data class ResolverPackage(
            }
        }
 
-       filesToDelete.forEach {
-           archiveDir.absoluteFile.resolve(it).delete()
-       }
     }
 }

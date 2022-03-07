@@ -23,16 +23,17 @@ import java.io.File
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.resolver.ResolverManager
+import org.ossreviewtoolkit.oscake.selector.SelectorManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.osccToModel
 
 /**
- * The [OSCakeResolver] provides a mechanism to resolve dual licenses in an *.oscc file.
+ * The [OSCakeSelector] provides a mechanism to select a specific license from dual licenses in an *.oscc file.
  */
-class OSCakeResolver(private val config: OSCakeConfiguration, private val commandLineParams: Map<String, String>) {
-    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(RESOLVER_LOGGER) }
+class OSCakeSelector(private val config: OSCakeConfiguration, private val commandLineParams: Map<String, String>) {
+    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(SELECTOR_LOGGER) }
 
     /**
     * Checks valid commandline parameters and starts the resolving algorithm
@@ -40,11 +41,11 @@ class OSCakeResolver(private val config: OSCakeConfiguration, private val comman
     fun execute() {
         val osccFile = File(commandLineParams["osccFile"]!!)
         val outputDir = File(commandLineParams["outputDir"]!!)
-        val osc = osccToModel(osccFile, logger, ProcessingPhase.RESOLVING)
+        val osc = osccToModel(osccFile, logger, ProcessingPhase.SELECTION)
 
-        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, RESOLVER_AUTHOR, MERGER_AUTHOR))
+        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR))
         addParamsToConfig(config, osc, commandLineParams, this)
 
-        ResolverManager(osc.project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
+        SelectorManager(osc.project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
     }
 }

@@ -20,17 +20,20 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
 /**
  * The FileLicense class wraps the information about the [license] and the name of the file containing the license
  * information [licenseTextInArchive]. An instance with null values may exist if the file was archived by the scanner
  * and not treated by other logic branches
  */
+@JsonPropertyOrder("license", "originalLicenses", "licenseTextInArchive", "startLine")
 data class FileLicense(
     /**
      * [license] contains the name of the license.
      */
-    val license: String?,
+    var license: String?,
     /**
      * Represents the path to the file containing the license text in the archive.
      */
@@ -40,4 +43,8 @@ data class FileLicense(
      * distinguish between different license findings in the same file.
      */
     @JsonIgnore var startLine: Int = -1,
+    /**
+     * [originalLicenses] contains the name of the original license in case of dual licensing.
+     */
+    @get: JsonInclude(JsonInclude.Include.NON_NULL) var originalLicenses: String? = null
 )

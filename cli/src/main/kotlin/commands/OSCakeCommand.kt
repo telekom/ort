@@ -90,6 +90,28 @@ class ResolverOptions: OscakeConfig("Options for oscake application: resolver") 
 }
 
 /**
+ * Contains the options for the resolver application
+ */
+class SelectorOptions: OscakeConfig("Options for oscake application: selector") {
+    val osccFile by option(
+        "--oscc-sFile", "-sF",
+        help = "An oscc file produced by an OSCake-Reporter or by an OSCake-Resolver."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+
+    val outputDir by option(
+        "--output-sDir", "-sD",
+        help = "The directory to write the generated oscc file."
+    ).convert { it.expandTilde() }
+        .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+}
+
+
+/**
  * Contains the options for the curator application
  */
 class CuratorOptions : OscakeConfig("Options for oscake application: curator") {
@@ -187,6 +209,7 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
         "deduplicator" to DeduplicatorOptions(),
         "validator" to ValidatorOptions(),
         "resolver" to ResolverOptions(),
+        "selector" to SelectorOptions(),
     ).required()
 
     private val globalOptionsForSubcommands by requireObject<GlobalOptions>()
@@ -223,6 +246,12 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
                     "Directory for \"config.oscake.resolver.directory\" is not set correctly in ort.conf"
                 }
                 OSCakeResolver(config.oscake, getCommandLineParams(it, fieldsList)).execute()
+            }
+            is SelectorOptions -> {
+                require(isValidDirectory(config.oscake.selector?.directory)) {
+                    "Directory for \"config.oscake.selector.directory\" is not set correctly in ort.conf"
+                }
+                OSCakeSelector(config.oscake, getCommandLineParams(it, fieldsList)).execute()
             }
         }
     }

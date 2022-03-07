@@ -39,4 +39,5 @@ data class ConfigInfo(
     var deduplicator: ConfigBlockInfo? = null
     var merger: ConfigBlockInfo? = null
     var resolver: ConfigBlockInfo? = null
+    var selector: ConfigBlockInfo? = null
 }

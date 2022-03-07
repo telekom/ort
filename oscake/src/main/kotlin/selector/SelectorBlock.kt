@@ -17,10 +17,18 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.oscake.selector
 
 /**
- * License information may be valid for different scope levels [ProcessingPhase].
-*/
-enum class ProcessingPhase { ORIGINAL, CONFIG, PRE, SCANRESULT, DOWNLOAD, PROCESS, POST, CURATION,
-    MERGING, DEDUPLICATION, VALIDATING, RESOLVING, SELECTION }
+ * A [SelectorBlock] contains one resolver-action for a specific package
+ */
+internal data class SelectorBlock(
+    /**
+     * SPDX expression of compounded licenses
+     */
+    val specified: String = "",
+    /**
+     * SPDX expression of selected license
+     */
+    val selected: String = "",
+)

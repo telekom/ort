@@ -19,16 +19,7 @@
 
 package org.ossreviewtoolkit.oscake.common
 
-import org.ossreviewtoolkit.oscake.CURATION_ACTOR
-import org.ossreviewtoolkit.oscake.CURATION_AUTHOR
-import org.ossreviewtoolkit.oscake.CURATION_FILE_SUFFIX
-import org.ossreviewtoolkit.oscake.CURATION_LOGGER
-import org.ossreviewtoolkit.oscake.CURATION_VERSION
-import org.ossreviewtoolkit.oscake.RESOLVER_ACTOR
-import org.ossreviewtoolkit.oscake.RESOLVER_AUTHOR
-import org.ossreviewtoolkit.oscake.RESOLVER_FILE_SUFFIX
-import org.ossreviewtoolkit.oscake.RESOLVER_LOGGER
-import org.ossreviewtoolkit.oscake.RESOLVER_VERSION
+import org.ossreviewtoolkit.oscake.*
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 
 /**
@@ -61,6 +52,15 @@ class ActionInfo private constructor (
             RESOLVER_VERSION,
             RESOLVER_ACTOR,
             RESOLVER_FILE_SUFFIX,
+            issueLevel
+        )
+        internal fun selector(issueLevel: Int) = ActionInfo(
+            SELECTOR_LOGGER,
+            ProcessingPhase.SELECTION,
+            SELECTOR_AUTHOR,
+            SELECTOR_VERSION,
+            SELECTOR_ACTOR,
+            SELECTOR_FILE_SUFFIX,
             issueLevel
         )
     }
