@@ -152,20 +152,21 @@ data class Pack(
 
     fun createDirDefaultScopes(
         logger: OSCakeLogger, params: OSCakeConfigParams, phase: ProcessingPhase,
-        foundInFileScopeConfigured: Boolean = false, compoundLicenses: List<String>? = null) {
+        foundInFileScopeConfigured: Boolean = false) {
 
         fileLicensings.forEach { fileLicensing ->
             val scopeLevel = getScopeLevel(fileLicensing.scope, packageRoot, params)
             if (scopeLevel == ScopeLevel.DEFAULT) {
                 fileLicensing.licenses.forEach { fileLicense ->
                     var fileLicensingScope = fileLicensing.scope
-                    compoundLicenses?.let { if (foundInFileScopeConfigured && compoundLicenses.contains(fileLicense.license))
+                    if (foundInFileScopeConfigured && (CompoundLicense(fileLicense.originalLicenses).isCompound ||
+                        CompoundLicense(fileLicense.license).isCompound)) {
                         fileLicensingScope = FOUND_IN_FILE_SCOPE_CONFIGURED
                     }
                     if (defaultLicensings.none { it.license == fileLicense.license &&
                                 it.path == fileLicensingScope })
                         defaultLicensings.add(DefaultLicense(fileLicense.license, fileLicensingScope,
-                            fileLicense.licenseTextInArchive, false))
+                            fileLicense.licenseTextInArchive, false, originalLicenses = fileLicense.originalLicenses))
                     else {
                         val ll = if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG
                         logger.log("DefaultScope: multiple equal licenses <${fileLicense.license}> in the same " +
@@ -179,13 +180,13 @@ data class Pack(
                 val dirLicensing = dirLicensings.firstOrNull { it.scope == dirScope } ?: DirLicensing(dirScope)
                     .apply { dirLicensings.add(this) }
                 fileLicensing.licenses.forEach { fileLicense ->
-                    compoundLicenses?.let { if (foundInFileScopeConfigured && compoundLicenses.contains(fileLicense.license))
+                    if (foundInFileScopeConfigured && (CompoundLicense(fileLicense.originalLicenses).isCompound ||
+                            CompoundLicense(fileLicense.license).isCompound))
                         fibPathWithoutPackage = FOUND_IN_FILE_SCOPE_CONFIGURED
-                    }
                     if (dirLicensing.licenses.none { it.license == fileLicense.license &&
                                 it.path == fibPathWithoutPackage })
                         dirLicensing.licenses.add(DirLicense(fileLicense.license!!, fileLicense.licenseTextInArchive,
-                            fibPathWithoutPackage))
+                            fibPathWithoutPackage, originalLicenses = fileLicense.originalLicenses))
                     else {
                         val ll = if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG
                         logger.log("DirScope: : multiple equal licenses <${fileLicense.license}> in the same " +

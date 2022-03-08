@@ -36,7 +36,7 @@ class DefaultLicense(
     /**
      * [license] contains the name of the license.
      */
-    val license: String?,
+    var license: String?,
     /**
      * Shows the [path] to the file where the license was found.
      */
@@ -61,5 +61,5 @@ class DefaultLicense(
     /**
      * [originalLicenses] contains the name of the original license in case of dual licensing.
      */
-    val originalLicenses: String? = null
+    var originalLicenses: String? = null
 )

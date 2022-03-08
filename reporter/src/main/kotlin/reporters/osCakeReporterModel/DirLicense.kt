@@ -54,5 +54,5 @@ data class DirLicense(
     /**
      * [originalLicenses] contains the name of the original license in case of dual licensing.
      */
-    val originalLicenses: String? = null
+    var originalLicenses: String? = null
 )

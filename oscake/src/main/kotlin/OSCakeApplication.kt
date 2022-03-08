@@ -27,6 +27,8 @@ import kotlin.reflect.full.memberProperties
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ConfigBlockInfo
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
+import kotlin.reflect.full.findParameterByName
+import kotlin.reflect.typeOf
 
 const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
 const val CURATION_LOGGER = "OSCakeCurator"
@@ -109,51 +111,45 @@ fun isValidFilePathName(path: String): Boolean =
  * transferred to output format. If some parameters are added to the config, the entries will be automatically
  * transferred
  */
-fun addParamsToConfig(config: OSCakeConfiguration, osc: OSCakeRoot, commandLineParams: Map<String, String>,
-                      clazz: Any) {
-    val fields = OSCakeConfiguration::class.memberProperties
-    fields.forEach { member ->
+
+fun addParamsToConfig(config: OSCakeConfiguration, commandLineParams: Map<String, String>,
+                      clazz: Any): ConfigBlockInfo? {
+    OSCakeConfiguration::class.memberProperties.forEach { member ->
+        val paramMap = mutableMapOf<String, String>()
         when (val v = member.get(config)) {
             is org.ossreviewtoolkit.model.config.OSCakeCurator -> {
                 if (clazz is OSCakeCurator) {
-                    val paramMap = mutableMapOf<String, String>()
                     org.ossreviewtoolkit.model.config.OSCakeCurator::class.memberProperties.forEach { member2 ->
                         paramMap[member2.name] = member2.get(v).toString()
                     }
-                    if (osc.project.config != null) osc.project.config?.curator =
-                        ConfigBlockInfo(commandLineParams, paramMap)
+                    return ConfigBlockInfo(commandLineParams, paramMap)
                 }
             }
             is org.ossreviewtoolkit.model.config.OSCakeResolver -> {
                 if (clazz is OSCakeResolver) {
-                    val paramMap = mutableMapOf<String, String>()
                     org.ossreviewtoolkit.model.config.OSCakeResolver::class.memberProperties.forEach { member2 ->
                         paramMap[member2.name] = member2.get(v).toString()
                     }
-                    if (osc.project.config != null) osc.project.config?.resolver =
-                        ConfigBlockInfo(commandLineParams, paramMap)
+                    return ConfigBlockInfo(commandLineParams, paramMap)
                 }
             }
             is org.ossreviewtoolkit.model.config.OSCakeSelector -> {
                 if (clazz is OSCakeSelector) {
-                    val paramMap = mutableMapOf<String, String>()
                     org.ossreviewtoolkit.model.config.OSCakeSelector::class.memberProperties.forEach { member2 ->
                         paramMap[member2.name] = member2.get(v).toString()
                     }
-                    if (osc.project.config != null) osc.project.config?.selector =
-                        ConfigBlockInfo(commandLineParams, paramMap)
+                    return ConfigBlockInfo(commandLineParams, paramMap)
                 }
             }
             is org.ossreviewtoolkit.model.config.OSCakeDeduplicator -> {
                 if (clazz is OSCakeDeduplicator) {
-                    val paramMap = mutableMapOf<String, String>()
                     org.ossreviewtoolkit.model.config.OSCakeDeduplicator::class.memberProperties.forEach { member2 ->
                         paramMap[member2.name] = member2.get(v).toString()
                     }
-                    if (osc.project.config != null) osc.project.config?.deduplicator =
-                        ConfigBlockInfo(commandLineParams, paramMap)
+                    return ConfigBlockInfo(commandLineParams, paramMap)
                 }
             }
         }
     }
+    return null
 }

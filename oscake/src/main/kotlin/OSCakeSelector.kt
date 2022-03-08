@@ -22,7 +22,7 @@ package org.ossreviewtoolkit.oscake
 import java.io.File
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.oscake.resolver.ResolverManager
+import org.ossreviewtoolkit.model.config.OSCakeSelector
 import org.ossreviewtoolkit.oscake.selector.SelectorManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
@@ -43,8 +43,14 @@ class OSCakeSelector(private val config: OSCakeConfiguration, private val comman
         val outputDir = File(commandLineParams["outputDir"]!!)
         val osc = osccToModel(osccFile, logger, ProcessingPhase.SELECTION)
 
-        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR))
-        addParamsToConfig(config, osc, commandLineParams, this)
+        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR,
+            SELECTOR_AUTHOR))
+
+        osc.project.config?.let  { configInfo ->
+            addParamsToConfig(config, commandLineParams, this)?.let {
+                configInfo.selector = it
+            }
+        }
 
         SelectorManager(osc.project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
     }

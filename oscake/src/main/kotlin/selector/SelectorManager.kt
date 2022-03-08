@@ -25,18 +25,13 @@ import kotlin.io.path.createTempDirectory
 
 import org.apache.logging.log4j.Level
 
-import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.model.readValueOrNull
-import org.ossreviewtoolkit.oscake.RESOLVER_LOGGER
+import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionInfo
 import org.ossreviewtoolkit.oscake.common.ActionManager
 import org.ossreviewtoolkit.oscake.curator.CurationManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FOUND_IN_FILE_SCOPE_DECLARED
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
@@ -86,32 +81,22 @@ internal class SelectorManager(
      * selector actions, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
-        // 1. Automatically create resolving actions for packages with more than one license which have
-        // no resolving action defined
-/*        project.packs.forEach { pack -> selectorProvider.getActionFor(pack.id) ?: appendAction(pack) }
-*/
-        // 2. Process resolver-package if it's valid, applicable and pack is not reuse-compliant
+        // 1. Process resolver-package if it's valid, applicable and pack is not reuse-compliant
         project.packs.filter { !it.reuseCompliant }.forEach {
             selectorProvider.getActionFor(it.id)?.
             process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
         }
- /*       // 3. log info for REUSE packages
+        // 2. log info for REUSE packages
         project.packs.filter { it.reuseCompliant }.forEach {
             logger.log("Package is reuse-compliant and is NOT handled by the resolver!", Level.INFO,
-                it.id, phase = ProcessingPhase.RESOLVING)
+                it.id, phase = ProcessingPhase.SELECTION)
         }
-        // 4. report [OSCakeIssue]s
-        if (OSCakeLoggerManager.hasLogger(RESOLVER_LOGGER)) handleOSCakeIssues(project, logger,
-            config.resolver?.issueLevel ?: -1)
-        // 5. take care of issue level settings to create the correct output format
-        takeCareOfIssueLevel() */
-        // 6. generate .zip and .oscc files
+        // 3. report [OSCakeIssue]s
+        if (OSCakeLoggerManager.hasLogger(SELECTOR_LOGGER)) handleOSCakeIssues(project, logger,
+            config.selector?.issueLevel ?: -1)
+        // 4. take care of issue level settings to create the correct output format
+        takeCareOfIssueLevel()
+        // 5. generate .zip and .oscc files
         createResultingFiles(archiveDir)
     }
-
-    /**
-     * Currently, only compound licenses with "OR" are allowed
-     */
-    private fun isValidLicense(license: String): Boolean = license.contains(" OR ") &&
-            !license.contains(" AND ") && !license.contains(" WITH ")
 }

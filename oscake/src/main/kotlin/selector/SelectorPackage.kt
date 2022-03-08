@@ -57,7 +57,8 @@ internal data class SelectorPackage(
 
         selectorBlocks.forEach { block ->
             pack.fileLicensings.forEach { fileLicensing ->
-                fileLicensing.licenses.filter { it.license != null && it.license == block.specified}.forEach {
+                fileLicensing.licenses.filter { it.license != null &&
+                        CompoundLicense(it.license) == CompoundLicense(block.specified) }.forEach {
                     it.originalLicenses = CompoundLicense(it.license!!).toString()
                     it.license = block.selected
                     hasChanged = true
@@ -73,15 +74,22 @@ internal data class SelectorPackage(
            } // because the content has changed
            val saveDefaultLicensings = defaultLicensings.toList() // copy the content, otherwise it would be deleted
            removeDirDefaultScopes() // consequently, removes all hasIssues --> set to false
-           createDirDefaultScopes(logger, params, ProcessingPhase.SELECTION)
+           createDirDefaultScopes(logger, params, ProcessingPhase.SELECTION, true)
            // if path == [DECLARED] --> defaultLicensings are empty
-           if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED }) {
-               saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_DECLARED }.forEach {
+           if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED }) {
+               saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach {
                    it.path = FOUND_IN_FILE_SCOPE_CONFIGURED
+               }
+               // apply selector logic to default licensings
+               saveDefaultLicensings.forEach { defaultLicense ->
+                   selectorBlocks.filter { CompoundLicense(it.specified) == CompoundLicense(defaultLicense.license) }
+                       .forEach {
+                            defaultLicense.originalLicenses = defaultLicense.license
+                            defaultLicense.license = it.selected
+                        }
                }
                defaultLicensings.addAll(saveDefaultLicensings)
            }
        }
-
     }
 }

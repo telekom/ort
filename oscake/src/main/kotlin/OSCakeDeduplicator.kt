@@ -55,7 +55,13 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
         val archiveDir = createTempDirectory(prefix = "oscakeDed_").toFile().apply {
             File(osccFile.parent, osc.project.complianceArtifactCollection.archivePath).unpackZip(this)
         }
-        addParamsToConfig(config, osc, commandLineParams, this)
+
+        osc.project.config?.let  { configInfo ->
+            addParamsToConfig(config, commandLineParams, this)?.let {
+                configInfo.deduplicator = it
+            }
+        }
+
         osc.project.packs.forEach {
             var process = true
             if (config.deduplicator?.processPackagesWithIssues == true) {

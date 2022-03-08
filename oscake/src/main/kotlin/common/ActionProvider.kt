@@ -97,7 +97,8 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
                 phase = phase
             )
             // only needed for selector-application with id [GLOBAL]
-            if (size == 0) return actions.first { it.id.type == SELECTOR_GLOBAL_INDICATOR }
+            if (size == 0 && actions.any { it.id.type == SELECTOR_GLOBAL_INDICATOR })
+                return actions.first { it.id.type == SELECTOR_GLOBAL_INDICATOR }
             if (size != 1) return null
             return first()
         }
