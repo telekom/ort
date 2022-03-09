@@ -83,7 +83,7 @@ internal class SelectorManager(
     internal fun manage() {
         // 1. Process resolver-package if it's valid, applicable and pack is not reuse-compliant
         project.packs.filter { !it.reuseCompliant }.forEach {
-            selectorProvider.getActionFor(it.id)?.
+            selectorProvider.getActionFor(it.id, true)?.
             process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
         }
         // 2. log info for REUSE packages

@@ -62,12 +62,12 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
         if (directory.isDirectory) {
             directory.walkTopDown().filter { it.isFile && it.extension == "yml" }.forEach { file ->
                 try {
-                    var ymls = listOf<ActionPackage>()
-                    if (clazz == ResolverPackage::class) ymls = file.readValue<List<ResolverPackage>>()
-                    if (clazz == CurationPackage::class) ymls = file.readValue<List<CurationPackage>>()
-                    if (clazz == SelectorPackage::class) ymls = file.readValue<List<SelectorPackage>>()
-
-                    ymls.forEach {
+                    when(clazz) {
+                        ResolverPackage::class -> file.readValue<List<ResolverPackage>>()
+                        CurationPackage::class -> file.readValue<List<CurationPackage>>()
+                        SelectorPackage::class -> file.readValue<List<SelectorPackage>>()
+                        else -> { listOf() }
+                    }.forEach {
                         it.belongsToFile = file
                         if (checkSemantics(it, file.name, fileStore)) actions.add(it)
                     }
@@ -90,14 +90,14 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
      * Returns the [ActionPackage] which is applicable for a specific package Id or null if there is none or
      * more than one.
      */
-    internal fun getActionFor(pkgId: Identifier): ActionPackage? {
+    internal fun getActionFor(pkgId: Identifier, globalAllowed: Boolean = false): ActionPackage? {
         actions.filter { it.isApplicable(pkgId) }.apply {
             if (size > 1) logger.log("Error: more than one action was found for" +
                     " package: $pkgId - don't know which one to take!", Level.ERROR, pkgId,
                 phase = phase
             )
             // only needed for selector-application with id [GLOBAL]
-            if (size == 0 && actions.any { it.id.type == SELECTOR_GLOBAL_INDICATOR })
+            if (globalAllowed && size == 0 && actions.any { it.id.type == SELECTOR_GLOBAL_INDICATOR })
                 return actions.first { it.id.type == SELECTOR_GLOBAL_INDICATOR }
             if (size != 1) return null
             return first()
