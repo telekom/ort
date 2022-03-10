@@ -56,10 +56,11 @@ internal data class ResolverPackage(
        val filesToDelete = mutableListOf<String>()
        val changedFileLicensings = mutableListOf<FileLicensing>()
 
+       val allResolverScopes = resolverBlocks.map { it.scopes }.flatten().distinct()
        resolverBlocks.forEach { resolverBlock ->
            val licensesLower = resolverBlock.licenses.mapNotNull { it?.lowercase() }.toSortedSet()
            var resolverBlockAdministered = false
-           pack.fileLicensings.filter { it.coversAllLicenses(licensesLower) && it.fitsInPath(resolverBlock.scopes) }
+           pack.fileLicensings.filter { it.coversAllLicenses(licensesLower) && it.fitsInPath(resolverBlock.scopes, allResolverScopes) }
                 .forEach {
                     filesToDelete.addAll(it.handleCompoundLicense(resolverBlock.result))
                     changedFileLicensings.add(it)

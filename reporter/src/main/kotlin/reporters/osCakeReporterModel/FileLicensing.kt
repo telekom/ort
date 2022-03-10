@@ -61,14 +61,28 @@ data class FileLicensing(
         return filesToDelete
     }
 
-    fun fitsInPath(scopes: List<String>): Boolean {
-        // scope always contains a path with file name
-        if (scopes.contains(scope)) return true
+    fun fitsInPath(scopes: List<String>, allResolverScopes: List<String>): Boolean {
+        if (scopes.contains(getBestFit(allResolverScopes))) return true
+        return false
+    }
+
+    private fun getBestFit(allResolverScopes: List<String>): String? {
         // replace for Windows based systems
         val fileScope = File(scope).path.replace("\\", "/")
-        if (scopes.any { fileScope.startsWith(it) }) return true
-        // "" represents root
-        if (scopes.contains("")) return true
-        return false
+        val dirScope = (File(scope).parent?: "").replace("\\", "/")
+        // e.g. for fileScope is complete filename
+        if (allResolverScopes.contains(fileScope)) return fileScope
+
+        val dirList = mutableListOf<Pair<String, Int>>()
+        if (scope.isNotEmpty()) {
+            allResolverScopes.filter { dirScope.startsWith(it) }.forEach { dirLicensing ->
+                dirList.add(Pair(dirLicensing, dirScope.replaceFirst(dirLicensing, "").length))
+            }
+            if (dirList.isNotEmpty()) {
+                val score = dirList.minOf { it.second }
+                return dirList.first { it.second == score }.first
+            }
+        }
+        return null
     }
 }
