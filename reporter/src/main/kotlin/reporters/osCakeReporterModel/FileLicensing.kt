@@ -61,10 +61,8 @@ data class FileLicensing(
         return filesToDelete
     }
 
-    fun fitsInPath(scopes: List<String>, allResolverScopes: List<String>): Boolean {
-        if (scopes.contains(getBestFit(allResolverScopes))) return true
-        return false
-    }
+    fun fitsInPath(scopes: List<String>, allResolverScopes: List<String>) = scopes.
+            contains(getBestFit(allResolverScopes))
 
     private fun getBestFit(allResolverScopes: List<String>): String? {
         // replace for Windows based systems

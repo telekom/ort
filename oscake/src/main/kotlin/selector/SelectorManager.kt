@@ -87,10 +87,7 @@ internal class SelectorManager(
             process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
         }
         // 2. log info for REUSE packages
-        project.packs.filter { it.reuseCompliant }.forEach {
-            logger.log("Package is reuse-compliant and is NOT handled by the resolver!", Level.INFO,
-                it.id, phase = ProcessingPhase.SELECTION)
-        }
+        logReuseCase(ProcessingPhase.SELECTION)
         // 3. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(SELECTOR_LOGGER)) handleOSCakeIssues(project, logger,
             config.selector?.issueLevel ?: -1)

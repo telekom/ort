@@ -28,15 +28,7 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.curator.CurationManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.IssueList
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.compareLTIAwithArchive
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.extendFilename
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.propagateHasIssues
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.stripRelativePathIndicators
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.zipAndCleanUp
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
 /**
  * The class [ActionManager] is a skeleton (base class) of common properties and functions for the apps "curation",
@@ -185,4 +177,13 @@ open class ActionManager(
         project.issueList.warnings.removeAll { idList.contains(it.id) }
         propagateHasIssues(project)
     }
+
+    /**
+     * Check if package is REUSE compliant and log it as INFO
+     */
+    fun logReuseCase(phase: ProcessingPhase) = project.packs.filter { it.reuseCompliant }.forEach {
+            logger.log("Package is reuse-compliant and is NOT handled by the resolver!", Level.INFO,
+                it.id, phase = phase)
+        }
+
 }

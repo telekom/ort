@@ -102,10 +102,7 @@ internal class ResolverManager(
                 process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
         }
         // 3. log info for REUSE packages
-        project.packs.filter { it.reuseCompliant }.forEach {
-            logger.log("Package is reuse-compliant and is NOT handled by the resolver!", Level.INFO,
-                it.id, phase = ProcessingPhase.RESOLVING)
-        }
+        logReuseCase(ProcessingPhase.RESOLVING)
         // 4. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(RESOLVER_LOGGER)) handleOSCakeIssues(project, logger,
             config.resolver?.issueLevel ?: -1)
