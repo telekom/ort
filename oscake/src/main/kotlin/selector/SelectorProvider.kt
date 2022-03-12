@@ -23,7 +23,6 @@ import java.io.File
 
 import org.apache.logging.log4j.Level
 
-import org.ossreviewtoolkit.oscake.RESOLVER_LOGGER
 import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider

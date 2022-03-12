@@ -46,7 +46,7 @@ class OSCakeSelector(private val config: OSCakeConfiguration, private val comman
         osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR,
             SELECTOR_AUTHOR))
 
-        osc.project.config?.let  { configInfo ->
+        osc.project.config?.let { configInfo ->
             addParamsToConfig(config, commandLineParams, this)?.let {
                 configInfo.selector = it
             }

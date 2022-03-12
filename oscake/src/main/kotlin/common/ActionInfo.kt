@@ -19,7 +19,21 @@
 
 package org.ossreviewtoolkit.oscake.common
 
-import org.ossreviewtoolkit.oscake.*
+import org.ossreviewtoolkit.oscake.CURATION_ACTOR
+import org.ossreviewtoolkit.oscake.CURATION_AUTHOR
+import org.ossreviewtoolkit.oscake.CURATION_FILE_SUFFIX
+import org.ossreviewtoolkit.oscake.CURATION_LOGGER
+import org.ossreviewtoolkit.oscake.CURATION_VERSION
+import org.ossreviewtoolkit.oscake.RESOLVER_ACTOR
+import org.ossreviewtoolkit.oscake.RESOLVER_AUTHOR
+import org.ossreviewtoolkit.oscake.RESOLVER_FILE_SUFFIX
+import org.ossreviewtoolkit.oscake.RESOLVER_LOGGER
+import org.ossreviewtoolkit.oscake.RESOLVER_VERSION
+import org.ossreviewtoolkit.oscake.SELECTOR_ACTOR
+import org.ossreviewtoolkit.oscake.SELECTOR_AUTHOR
+import org.ossreviewtoolkit.oscake.SELECTOR_FILE_SUFFIX
+import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
+import org.ossreviewtoolkit.oscake.SELECTOR_VERSION
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 
 /**

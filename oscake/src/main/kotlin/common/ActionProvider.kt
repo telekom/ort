@@ -62,7 +62,7 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
         if (directory.isDirectory) {
             directory.walkTopDown().filter { it.isFile && it.extension == "yml" }.forEach { file ->
                 try {
-                    when(clazz) {
+                    when (clazz) {
                         ResolverPackage::class -> file.readValue<List<ResolverPackage>>()
                         CurationPackage::class -> file.readValue<List<CurationPackage>>()
                         SelectorPackage::class -> file.readValue<List<SelectorPackage>>()

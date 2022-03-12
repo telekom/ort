@@ -56,7 +56,7 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
             File(osccFile.parent, osc.project.complianceArtifactCollection.archivePath).unpackZip(this)
         }
 
-        osc.project.config?.let  { configInfo ->
+        osc.project.config?.let { configInfo ->
             addParamsToConfig(config, commandLineParams, this)?.let {
                 configInfo.deduplicator = it
             }

@@ -26,9 +26,6 @@ import kotlin.reflect.full.memberProperties
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ConfigBlockInfo
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
-import kotlin.reflect.full.findParameterByName
-import kotlin.reflect.typeOf
 
 const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
 const val CURATION_LOGGER = "OSCakeCurator"

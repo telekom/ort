@@ -23,8 +23,6 @@ import java.io.File
 
 import kotlin.io.path.createTempDirectory
 
-import org.apache.logging.log4j.Level
-
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionInfo

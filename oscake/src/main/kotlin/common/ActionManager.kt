@@ -185,5 +185,4 @@ open class ActionManager(
             logger.log("Package is reuse-compliant and is NOT handled by the resolver!", Level.INFO,
                 it.id, phase = phase)
         }
-
 }
