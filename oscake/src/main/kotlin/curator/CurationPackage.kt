@@ -293,21 +293,29 @@ internal data class CurationPackage(
         val copyrightStatement = curFileCopyrightItem.copyright!!.replace("\\?", "?").replace("\\*", "*")
         val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params)
 
+        var updated = false
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: (FileLicensing(fileScope).apply {
             pack.fileLicensings.add(this)
         })).apply {
+            // prevent duplicate entries
+            if(copyrights.none { it.copyright == copyrightStatement }) {
                 copyrights.add(FileCopyright(copyrightStatement))
+                updated = true
+            }
         }
 
-        if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
-            pack.defaultCopyrights.add(DefaultDirCopyright(fileScope, copyrightStatement))
-        }
-        if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
-            (pack.dirLicensings.firstOrNull { it.scope == getDirScopePath(pack, fileScope) } ?:
-            DirLicensing(fileScope).apply { pack.dirLicensings.add(this) })
-                .apply {
-                    copyrights.add(DefaultDirCopyright(fileScope, copyrightStatement))
-                }
+        if (updated) {
+            if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
+                pack.defaultCopyrights.add(DefaultDirCopyright(fileScope, copyrightStatement))
+            }
+            if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
+                (pack.dirLicensings.firstOrNull { it.scope == getDirScopePath(pack, fileScope) } ?: DirLicensing(
+                    fileScope
+                ).apply { pack.dirLicensings.add(this) })
+                    .apply {
+                        copyrights.add(DefaultDirCopyright(fileScope, copyrightStatement))
+                    }
+            }
         }
     }
 
