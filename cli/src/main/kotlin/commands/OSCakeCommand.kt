@@ -37,7 +37,15 @@ import java.nio.file.Paths
 import kotlin.reflect.full.memberProperties
 
 import org.ossreviewtoolkit.cli.GlobalOptions
-import org.ossreviewtoolkit.oscake.*
+import org.ossreviewtoolkit.oscake.OSCakeApplication
+import org.ossreviewtoolkit.oscake.OSCakeCurator
+import org.ossreviewtoolkit.oscake.OSCakeDeduplicator
+import org.ossreviewtoolkit.oscake.OSCakeMerger
+import org.ossreviewtoolkit.oscake.OSCakeResolver
+import org.ossreviewtoolkit.oscake.OSCakeSelector
+import org.ossreviewtoolkit.oscake.OSCakeValidator
+import org.ossreviewtoolkit.oscake.isValidDirectory
+import org.ossreviewtoolkit.oscake.isValidFilePathName
 import org.ossreviewtoolkit.utils.common.expandTilde
 
 sealed class OscakeConfig(name: String) : OptionGroup(name)
@@ -64,7 +72,7 @@ class ValidatorOptions : OscakeConfig("Options for oscake application: validator
 /**
  * Contains the options for the resolver application
  */
-class ResolverOptions: OscakeConfig("Options for oscake application: resolver") {
+class ResolverOptions : OscakeConfig("Options for oscake application: resolver") {
     val osccFile by option(
         "--oscc-File", "-F",
         help = "An oscc file produced by an OSCake-Reporter."
@@ -92,7 +100,7 @@ class ResolverOptions: OscakeConfig("Options for oscake application: resolver") 
 /**
  * Contains the options for the resolver application
  */
-class SelectorOptions: OscakeConfig("Options for oscake application: selector") {
+class SelectorOptions : OscakeConfig("Options for oscake application: selector") {
     val osccFile by option(
         "--oscc-sFile", "-sF",
         help = "An oscc file produced by an OSCake-Reporter or by an OSCake-Resolver."
@@ -109,7 +117,6 @@ class SelectorOptions: OscakeConfig("Options for oscake application: selector") 
         .convert { it.absoluteFile.normalize() }
         .required()
 }
-
 
 /**
  * Contains the options for the curator application
@@ -259,11 +266,12 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
     /**
      * returns a map of set options and its values
      */
-    private inline fun <reified T: OscakeConfig> getCommandLineParams(clazz: T, fieldsList: List<String>):  Map<String, String> {
+    private inline fun <reified T : OscakeConfig> getCommandLineParams(clazz: T, fieldsList: List<String>):
+            Map<String, String> {
         val commandLineParams = mutableMapOf<String, String>()
         T::class.memberProperties.filter { !fieldsList.contains(it.name) }.forEach { member ->
-            commandLineParams[member.name] =
-                if (member.get(clazz) is File) getRelativeFileName(member.get(clazz) as File) else member.get(clazz).toString()
+            commandLineParams[member.name] = if (member.get(clazz) is File) {
+                getRelativeFileName(member.get(clazz) as File) } else member.get(clazz).toString()
         }
         return commandLineParams
     }
