@@ -423,35 +423,6 @@ fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLog
     return false
 }
 
-/*fun osccToModel(osccFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): Project {
-    val mapper = jacksonObjectMapper()
-    var project: Project? = null
-    try {
-        val json = osccFile.readText()
-        project = mapper.readValue<Project>(json)
-    } catch (e: IOException) {
-        logger.log("EXIT: Invalid json format found in file: \"$osccFile\".\n ${e.message} ",
-            Level.ERROR, phase = processingPhase)
-        exitProcess(3)
-    } finally {
-        require(project != null) { "Project could not be initialized when reading: \"$osccFile\"" }
-        completeModel(project)
-    }
-    return project
-}
-
-// rebuild info for model completeness built on information in oscc
-private fun completeModel(project: Project) {
-    project.packs.forEach { pack ->
-        pack.namespace = pack.id.namespace
-        pack.type = pack.id.type
-        pack.defaultLicensings.forEach {
-            it.declared = it.path == FOUND_IN_FILE_SCOPE_DECLARED
-        }
-        pack.reuseCompliant = pack.reuseLicensings.isNotEmpty()
-    }
-}*/
-
 fun zipAndCleanUp(outputDir: File, tmpDirectory: File, zipFileName: String, logger: OSCakeLogger,
                   processingPhase: ProcessingPhase): Boolean {
     val targetFile = File(outputDir.path + "/" + zipFileName)
