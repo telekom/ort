@@ -23,11 +23,14 @@ import java.io.File
 
 import kotlin.io.path.createTempDirectory
 
+import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionInfo
 import org.ossreviewtoolkit.oscake.common.ActionManager
 import org.ossreviewtoolkit.oscake.curator.CurationManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CompoundLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
@@ -86,12 +89,22 @@ internal class SelectorManager(
         }
         // 2. log info for REUSE packages
         logReuseCase(ProcessingPhase.SELECTION)
-        // 3. report [OSCakeIssue]s
+        // 3. Check if compound license and no originalLicense is set --> no resolver package exists
+        project.packs.filter { !it.reuseCompliant  }.forEach { pack ->
+            pack.fileLicensings.forEach { fileLicensing ->
+                fileLicensing.licenses.forEach {
+                    if (CompoundLicense(it.license).isCompound && it.originalLicenses == null)
+                        logger.log("Compound license \"${it.license}\": no selector was found for this license!",
+                            Level.WARN, pack.id, phase = ProcessingPhase.SELECTION)
+                }
+            }
+        }
+        // 4. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(SELECTOR_LOGGER)) handleOSCakeIssues(project, logger,
             config.selector?.issueLevel ?: -1)
-        // 4. take care of issue level settings to create the correct output format
+        // 5. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
-        // 5. generate .zip and .oscc files
+        // 6. generate .zip and .oscc files
         createResultingFiles(archiveDir)
     }
 }
