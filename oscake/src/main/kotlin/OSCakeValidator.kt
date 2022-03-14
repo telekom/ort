@@ -36,28 +36,27 @@ class OSCakeValidator(private val oscc1: File, private val oscc2: File) {
     fun execute() {
         // still open: defaultCopyrights, dirLicensings, dirCopyrights
 
-        val osc1 = osccToModel(oscc1, logger, ProcessingPhase.VALIDATING)
-        val osc2 = osccToModel(oscc2, logger, ProcessingPhase.VALIDATING)
+        val project1 = Project.osccToModel(oscc1, logger, ProcessingPhase.VALIDATING)
+        val project2 = Project.osccToModel(oscc2, logger, ProcessingPhase.VALIDATING)
 
-        if (!packageComparison(osc1, osc2)) return else println("Package comparison is OK!")
+        if (!packageComparison(project1, project2)) return else println("Package comparison is OK!")
 
-        osc1.project.packs.forEach { pack ->
-            compareFileLicensings(pack, osc2.project.packs.first { it.id == pack.id })
+        project1.packs.forEach { pack ->
+            compareFileLicensings(pack, project2.packs.first { it.id == pack.id })
         }
 
-        osc1.project.packs.forEach { pack ->
-            compareLicenseTextInArchive(pack, osc2.project.packs.first { it.id == pack.id })
+        project1.packs.forEach { pack ->
+            compareLicenseTextInArchive(pack, project2.packs.first { it.id == pack.id })
         }
 
-        osc1.project.packs.forEach { pack ->
-            comparefileContentInArchive(pack, osc2.project.packs.first { it.id == pack.id })
+        project1.packs.forEach { pack ->
+            comparefileContentInArchive(pack, project2.packs.first { it.id == pack.id })
         }
 
-        osc1.project.packs.forEach { pack ->
-            println("PPPP: Package: ${pack.id.toCoordinates()}")
+        project1.packs.forEach { pack ->
             pack.fileLicensings.forEach { fileLicensing1 ->
                 var fileLicensing2: FileLicensing? = null
-                osc2.project.packs.filter { it.id == pack.id }.forEach { pack2 ->
+                project2.packs.filter { it.id == pack.id }.forEach { pack2 ->
                     fileLicensing2 = pack2.fileLicensings.firstOrNull { it.scope == fileLicensing1.scope }
                 }
                 if (fileLicensing2 != null) {
@@ -65,8 +64,8 @@ class OSCakeValidator(private val oscc1: File, private val oscc2: File) {
                 }
             }
         }
-        osc1.project.packs.forEach { pack ->
-            val defaultLicenses2 = osc2.project.packs.firstOrNull { it.id == pack.id }?.defaultLicensings
+        project1.packs.forEach { pack ->
+            val defaultLicenses2 = project2.packs.firstOrNull { it.id == pack.id }?.defaultLicensings
             if (defaultLicenses2 != null)
                 compareDefaultLicenses(pack.defaultLicensings, defaultLicenses2)
             else
@@ -198,15 +197,15 @@ class OSCakeValidator(private val oscc1: File, private val oscc2: File) {
         return rc
     }
 
-    fun packageComparison(osc1: OSCakeRoot, osc2: OSCakeRoot): Boolean {
-        val packs1 = osc1.project.packs.map { it.id }.toSet()
-        val packs2 = osc1.project.packs.map { it.id }.toSet()
+    fun packageComparison(project1: Project, project2: Project): Boolean {
+        val packs1 = project1.packs.map { it.id }.toSet()
+        val packs2 = project2.packs.map { it.id }.toSet()
         if (packs1.size >= packs2.size) {
             packs1.minus(packs2).forEach { println("Package: ${it.toCoordinates()} is missing in ${oscc2.name}") }
         }
         if (packs2.size > packs1.size) {
             packs2.minus(packs1).forEach { println("Package: ${it.toCoordinates()} is missing in ${oscc1.name}") }
         }
-        return osc1.project.packs.size == osc2.project.packs.size
+        return project1.packs.size == project2.packs.size
     }
 }

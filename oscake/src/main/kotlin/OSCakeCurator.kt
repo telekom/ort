@@ -26,7 +26,7 @@ import org.ossreviewtoolkit.oscake.curator.CurationManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.osccToModel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 
 /**
  * The [OSCakeCurator] provides a mechanism to curate issues (WARNINGS & ERRORS) in an *.oscc file. Additionally,
@@ -43,17 +43,17 @@ class OSCakeCurator(private val config: OSCakeConfiguration,
     fun execute() {
         val osccFile = File(commandLineParams["osccFile"]!!)
         val outputDir = File(commandLineParams["outputDir"]!!)
-        val osc = osccToModel(osccFile, logger, ProcessingPhase.CURATION)
+        val project = Project.osccToModel(osccFile, logger, ProcessingPhase.CURATION)
 
-        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR,
+        project.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR,
             RESOLVER_AUTHOR))
 
-        osc.project.config?.let { configInfo ->
+        project.config?.let { configInfo ->
             addParamsToConfig(config, commandLineParams, this)?.let {
                 configInfo.curator = it
             }
         }
 
-        CurationManager(osc.project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
+        CurationManager(project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
     }
 }

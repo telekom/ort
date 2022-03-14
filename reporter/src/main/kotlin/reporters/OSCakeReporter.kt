@@ -37,24 +37,13 @@ import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.DependencyTreeNode
 import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.EvaluatedModel
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ConfigInfo
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.LicenseTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ModeSelector
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfiguration
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeRoot
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.REPORTER_LOGGER
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ScopeLevel
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.getLicensesFolderPrefix
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.isInstancedLicense
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.zipAndCleanUp
 
 /**
  * A Reporter that creates the output for the Tdosca/OSCake projects
@@ -88,7 +77,7 @@ class OSCakeReporter : Reporter {
         prepareNativeScanResults(input.ortResult.scanner?.config?.options, OSCakeConfiguration.params)
         val scanDict = getNativeScanResults(input, OSCakeConfiguration.params)
         removeMultipleEqualLicensesPerFile(scanDict)
-        val osc = ingestAnalyzerOutput(input, scanDict, outputDir, OSCakeConfiguration.params)
+        val project = ingestAnalyzerOutput(input, scanDict, outputDir, OSCakeConfiguration.params)
 
         OSCakeConfiguration.params.forceIncludePackages.filter { !it.value }.forEach {
             logger.log("Package \"${it.key}\" is configured to be present due to \"forceIncludePackages-List\", " +
@@ -96,13 +85,13 @@ class OSCakeReporter : Reporter {
         }
 
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) {
-            handleOSCakeIssues(osc.project, logger, OSCakeConfiguration.params.issuesLevel)
+            handleOSCakeIssues(project, logger, OSCakeConfiguration.params.issuesLevel)
         }
         // transform result into json output
         val objectMapper = ObjectMapper()
         val outputFile = outputDir.resolve(reportFilename)
         outputFile.bufferedWriter().use {
-            it.write(objectMapper.writeValueAsString(osc.project))
+            it.write(objectMapper.writeValueAsString(project))
         }
         return listOf(outputFile)
     }
@@ -222,10 +211,10 @@ class OSCakeReporter : Reporter {
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
         outputDir: File,
         cfg: OSCakeConfigParams
-    ): OSCakeRoot {
+    ): Project {
         val pkgMap = mutableMapOf<Identifier, org.ossreviewtoolkit.model.Package>()
-        val osc = OSCakeRoot()
-        osc.project.complianceArtifactCollection.cid = input.ortResult.getProjects().first().id.toCoordinates()
+        val project = Project()
+        project.complianceArtifactCollection.cid = input.ortResult.getProjects().first().id.toCoordinates()
         // evaluated model contains a dependency tree of packages with its corresponding levels (=depth in the tree)
         val evaluatedModel = EvaluatedModel.create(input)
 
@@ -239,7 +228,7 @@ class OSCakeReporter : Reporter {
             Pack(it.id, it.vcsProcessed.url, input.ortResult.repository.vcs.path)
                 .apply {
                     declaredLicenses.add(it.declaredLicensesProcessed.spdxExpression.toString())
-                    osc.project.packs.add(this)
+                    project.packs.add(this)
                     reuseCompliant = isREUSECompliant(this, scanDict)
                 }
         }
@@ -261,7 +250,7 @@ class OSCakeReporter : Reporter {
             Pack(it.pkg.id, it.pkg.vcsProcessed.url, "")
                 .apply {
                     declaredLicenses.add(it.pkg.declaredLicensesProcessed.spdxExpression.toString())
-                    osc.project.packs.add(this)
+                    project.packs.add(this)
                     reuseCompliant = isREUSECompliant(this, scanDict)
                 }
         }
@@ -271,7 +260,7 @@ class OSCakeReporter : Reporter {
 
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
-        osc.project.packs.filter { scanDict.containsKey(it.id) }.forEach { pack ->
+        project.packs.filter { scanDict.containsKey(it.id) }.forEach { pack ->
             // makes sure that the "pack" is also in the scanResults-file and not only in the
             // "native-scan-results" (=scanDict)
             input.ortResult.scanner?.results?.scanResults?.containsKey(pack.id)?.let {
@@ -293,25 +282,25 @@ class OSCakeReporter : Reporter {
             }
         }
 
-        osc.project.complianceArtifactCollection.archivePath = "./" +
+        project.complianceArtifactCollection.archivePath = "./" +
                 input.ortResult.getProjects().first().id.name + ".zip"
 
-        osc.project.config = ConfigInfo(OSCakeConfiguration.osCakeConfigInfo)
+        project.config = ConfigInfo(OSCakeConfiguration.osCakeConfigInfo)
 
         if (OSCakeConfiguration.params.hideSections.isNotEmpty()) {
-            if (osc.project.hideSections(OSCakeConfiguration.params.hideSections, tmpDirectory)) {
-                osc.project.containsHiddenSections = true
+            if (project.hideSections(OSCakeConfiguration.params.hideSections, tmpDirectory)) {
+                project.containsHiddenSections = true
             }
         }
 
-        zipAndCleanUp(outputDir, tmpDirectory, osc.project.complianceArtifactCollection.archivePath,
+        zipAndCleanUp(outputDir, tmpDirectory, project.complianceArtifactCollection.archivePath,
             logger, ProcessingPhase.POST)
 
         cfg.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
             logger.log("packageRestrictions are enabled, but the package [$identifier] was not found",
                 Level.WARN, identifier, phase = ProcessingPhase.PROCESS)
         }
-        return osc
+        return project
     }
 
     /**

@@ -48,21 +48,21 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
      */
     fun execute() {
         val reportFile = File(osccFile.parent).resolve(extendFilename(File(osccFile.name), DEDUPLICATION_FILE_SUFFIX))
-        val osc = osccToModel(osccFile, logger, ProcessingPhase.DEDUPLICATION)
+        val project = Project.osccToModel(osccFile, logger, ProcessingPhase.DEDUPLICATION)
 
-        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, MERGER_AUTHOR))
+        project.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, MERGER_AUTHOR))
 
         val archiveDir = createTempDirectory(prefix = "oscakeDed_").toFile().apply {
-            File(osccFile.parent, osc.project.complianceArtifactCollection.archivePath).unpackZip(this)
+            File(osccFile.parent, project.complianceArtifactCollection.archivePath).unpackZip(this)
         }
 
-        osc.project.config?.let { configInfo ->
+        project.config?.let { configInfo ->
             addParamsToConfig(config, commandLineParams, this)?.let {
                 configInfo.deduplicator = it
             }
         }
 
-        osc.project.packs.forEach {
+        project.packs.forEach {
             var process = true
             if (config.deduplicator?.processPackagesWithIssues == true) {
                 if (it.hasIssues) logger.log("Package will be deduplicated, although \"hasIssues=true\"",
@@ -82,28 +82,28 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
             if (process) PackDeduplicator(it, archiveDir, config).deduplicate()
         }
 
-        val sourceZipFileName = File(stripRelativePathIndicators(osc.project.complianceArtifactCollection.archivePath))
+        val sourceZipFileName = File(stripRelativePathIndicators(project.complianceArtifactCollection.archivePath))
         val newZipFileName = extendFilename(sourceZipFileName, DEDUPLICATION_FILE_SUFFIX)
 
-        osc.project.complianceArtifactCollection.archivePath =
-                File(osc.project.complianceArtifactCollection.archivePath).parentFile.name + "/" + newZipFileName
-        osc.project.complianceArtifactCollection.author = DEDUPLICATION_AUTHOR
-        osc.project.complianceArtifactCollection.date = LocalDateTime.now().toString()
-        osc.project.complianceArtifactCollection.release = DEDUPLICATION_VERSION
+        project.complianceArtifactCollection.archivePath =
+                File(project.complianceArtifactCollection.archivePath).parentFile.name + "/" + newZipFileName
+        project.complianceArtifactCollection.author = DEDUPLICATION_AUTHOR
+        project.complianceArtifactCollection.date = LocalDateTime.now().toString()
+        project.complianceArtifactCollection.release = DEDUPLICATION_VERSION
 
         if (config.deduplicator?.hideSections?.isNotEmpty() == true) {
-            if (osc.project.hideSections(config.deduplicator!!.hideSections ?: emptyList(), archiveDir)) {
-                osc.project.containsHiddenSections = true
+            if (project.hideSections(config.deduplicator!!.hideSections ?: emptyList(), archiveDir)) {
+                project.containsHiddenSections = true
             }
         }
-        if (config.deduplicator?.createUnifiedCopyrights == true && osc.project.packs.any { !it.reuseCompliant }) {
-            osc.project.containsHiddenSections = true
+        if (config.deduplicator?.createUnifiedCopyrights == true && project.packs.any { !it.reuseCompliant }) {
+            project.containsHiddenSections = true
         }
 
-        var rc = compareLTIAwithArchive(osc.project, archiveDir, logger, ProcessingPhase.DEDUPLICATION)
-        rc = rc || osc.project.modelToOscc(reportFile, logger, ProcessingPhase.DEDUPLICATION)
+        var rc = compareLTIAwithArchive(project, archiveDir, logger, ProcessingPhase.DEDUPLICATION)
+        rc = rc || project.modelToOscc(reportFile, logger, ProcessingPhase.DEDUPLICATION)
         rc = rc || zipAndCleanUp(File(osccFile.parent), archiveDir,
-            osc.project.complianceArtifactCollection.archivePath, logger, ProcessingPhase.DEDUPLICATION)
+            project.complianceArtifactCollection.archivePath, logger, ProcessingPhase.DEDUPLICATION)
         if (rc) {
             logger.log("Deduplicator terminated with errors!", Level.ERROR, phase = ProcessingPhase.DEDUPLICATION)
             exitProcess(3)

@@ -24,10 +24,7 @@ import java.io.File
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.model.config.OSCakeSelector
 import org.ossreviewtoolkit.oscake.selector.SelectorManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.osccToModel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
 /**
  * The [OSCakeSelector] provides a mechanism to select a specific license from dual licenses in an *.oscc file.
@@ -41,17 +38,17 @@ class OSCakeSelector(private val config: OSCakeConfiguration, private val comman
     fun execute() {
         val osccFile = File(commandLineParams["osccFile"]!!)
         val outputDir = File(commandLineParams["outputDir"]!!)
-        val osc = osccToModel(osccFile, logger, ProcessingPhase.SELECTION)
+        val project = Project.osccToModel(osccFile, logger, ProcessingPhase.SELECTION)
 
-        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR,
+        project.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR,
             SELECTOR_AUTHOR))
 
-        osc.project.config?.let { configInfo ->
+        project.config?.let { configInfo ->
             addParamsToConfig(config, commandLineParams, this)?.let {
                 configInfo.selector = it
             }
         }
 
-        SelectorManager(osc.project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
+        SelectorManager(project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
     }
 }

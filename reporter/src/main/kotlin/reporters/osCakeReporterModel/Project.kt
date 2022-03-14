@@ -23,9 +23,12 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.security.MessageDigest
 import java.util.Enumeration
 import java.util.Locale
@@ -42,7 +45,6 @@ import org.apache.commons.compress.utils.IOUtils
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
-import java.io.IOException
 
 /**
  * The class [Project] wraps the meta information ([complianceArtifactCollection]) of the OSCakeReporter as well
@@ -118,6 +120,33 @@ data class Project(
                             "program termination! " + ex.toString(), Level.ERROR, phase = ProcessingPhase.MERGING)
                     exitProcess(2)
                 }
+            }
+        }
+        fun osccToModel(osccFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): Project {
+            val mapper = jacksonObjectMapper()
+            var project: Project? = null
+            try {
+                val json = osccFile.readText()
+                project = mapper.readValue<Project>(json)
+            } catch (e: IOException) {
+                logger.log("EXIT: Invalid json format found in file: \"$osccFile\".\n ${e.message} ",
+                    Level.ERROR, phase = processingPhase)
+                exitProcess(3)
+            } finally {
+                require(project != null) { "Project could not be initialized when reading: \"$osccFile\"" }
+                completeModel(project)
+            }
+            return project
+        }
+        // rebuild info for model completeness built on information in oscc
+        private fun completeModel(project: Project) {
+            project.packs.forEach { pack ->
+                pack.namespace = pack.id.namespace
+                pack.type = pack.id.type
+                pack.defaultLicensings.forEach {
+                    it.declared = it.path == FOUND_IN_FILE_SCOPE_DECLARED
+                }
+                pack.reuseCompliant = pack.reuseLicensings.isNotEmpty()
             }
         }
     }
@@ -400,5 +429,20 @@ data class Project(
                 }
             }
         }
+    }
+
+    fun isProcessingAllowed(logger: OSCakeLogger, osccFile: File, authorList: List<String>): Boolean {
+        if (authorList.contains(this.complianceArtifactCollection.author)) {
+            logger.log("The file \"${osccFile.name}\" cannot be processed, because it was already processed" +
+                    " in a former run! Check \"author\" in input file!", Level.ERROR, phase = ProcessingPhase.CURATION)
+            exitProcess(10)
+        }
+        if (this.containsHiddenSections == true) {
+            logger.log("The file \"${osccFile.name}\" cannot be processed, because some sections are missing!" +
+                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
+                phase = ProcessingPhase.CURATION)
+            exitProcess(12)
+        }
+        return true
     }
 }

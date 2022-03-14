@@ -21,7 +21,7 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 data class CompoundLicense(val expression: String?) {
     var isCompound = false
-    var left: String = expression?: ""
+    var left: String = expression ?: ""
     var right: String = ""
 
     init {
@@ -36,6 +36,5 @@ data class CompoundLicense(val expression: String?) {
     override fun toString(): String = expression ?: ""
 
     override fun equals(other: Any?): Boolean = other is CompoundLicense &&
-            ((other.left == left && other.right == right) || (other.left == right && other.right == left) )
-
+            ((other.left == left && other.right == right) || (other.left == right && other.right == left))
 }

@@ -26,7 +26,7 @@ import org.ossreviewtoolkit.oscake.resolver.ResolverManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.osccToModel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 
 /**
  * The [OSCakeResolver] provides a mechanism to resolve dual licenses in an *.oscc file.
@@ -40,17 +40,17 @@ class OSCakeResolver(private val config: OSCakeConfiguration, private val comman
     fun execute() {
         val osccFile = File(commandLineParams["osccFile"]!!)
         val outputDir = File(commandLineParams["outputDir"]!!)
-        val osc = osccToModel(osccFile, logger, ProcessingPhase.RESOLVING)
+        val project = Project.osccToModel(osccFile, logger, ProcessingPhase.RESOLVING)
 
-        osc.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, RESOLVER_AUTHOR, MERGER_AUTHOR,
+        project.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, RESOLVER_AUTHOR, MERGER_AUTHOR,
             SELECTOR_AUTHOR))
 
-        osc.project.config?.let { configInfo ->
+        project.config?.let { configInfo ->
             addParamsToConfig(config, commandLineParams, this)?.let {
                 configInfo.resolver = it
             }
         }
 
-        ResolverManager(osc.project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
+        ResolverManager(project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
     }
 }

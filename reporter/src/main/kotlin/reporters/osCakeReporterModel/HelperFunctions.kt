@@ -19,17 +19,11 @@
 @file:Suppress("TooManyFunctions")
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
-
 import java.io.File
 import java.io.IOException
 import java.lang.StringBuilder
 import java.nio.file.FileSystems
 import java.security.MessageDigest
-
-import kotlin.system.exitProcess
 
 import org.apache.logging.log4j.Level
 
@@ -429,9 +423,8 @@ fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLog
     return false
 }
 
-fun osccToModel(osccFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): OSCakeRoot {
+/*fun osccToModel(osccFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): Project {
     val mapper = jacksonObjectMapper()
-    val osc = OSCakeRoot()
     var project: Project? = null
     try {
         val json = osccFile.readText()
@@ -441,12 +434,10 @@ fun osccToModel(osccFile: File, logger: OSCakeLogger, processingPhase: Processin
             Level.ERROR, phase = processingPhase)
         exitProcess(3)
     } finally {
-        if (project != null) {
-            osc.project = project
-            completeModel(osc.project)
-        }
+        require(project != null) { "Project could not be initialized when reading: \"$osccFile\"" }
+        completeModel(project)
     }
-    return osc
+    return project
 }
 
 // rebuild info for model completeness built on information in oscc
@@ -459,7 +450,7 @@ private fun completeModel(project: Project) {
         }
         pack.reuseCompliant = pack.reuseLicensings.isNotEmpty()
     }
-}
+}*/
 
 fun zipAndCleanUp(outputDir: File, tmpDirectory: File, zipFileName: String, logger: OSCakeLogger,
                   processingPhase: ProcessingPhase): Boolean {

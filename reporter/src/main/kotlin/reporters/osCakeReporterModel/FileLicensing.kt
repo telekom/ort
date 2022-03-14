@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
 import java.io.File
-import java.util.*
+import java.util.SortedSet
 
 /**
  * The class FileLicensing is a collection of [FileLicense] instances for the given path (stored in [scope])
@@ -61,13 +61,13 @@ data class FileLicensing(
         return filesToDelete
     }
 
-    fun fitsInPath(scopes: List<String>, allResolverScopes: List<String>) = scopes.
-            contains(getBestFit(allResolverScopes))
+    fun fitsInPath(scopes: List<String>, allResolverScopes: List<String>) =
+        scopes.contains(getBestFit(allResolverScopes))
 
     private fun getBestFit(allResolverScopes: List<String>): String? {
         // replace for Windows based systems
         val fileScope = File(scope).path.replace("\\", "/")
-        val dirScope = (File(scope).parent?: "").replace("\\", "/")
+        val dirScope = (File(scope).parent ?: "").replace("\\", "/")
         // e.g. for fileScope is complete filename
         if (allResolverScopes.contains(fileScope)) return fileScope
 
