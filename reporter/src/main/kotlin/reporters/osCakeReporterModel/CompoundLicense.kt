@@ -20,15 +20,16 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 data class CompoundLicense(val expression: String?) {
-    val isCompound = expression?.contains(" OR ") ?: false
+    var isCompound = false
     var left: String = expression?: ""
     var right: String = ""
 
     init {
         val arr = expression?.split(" ")
-        expression?.takeIf { isCompound && arr?.size == 3 }?.let {
+        expression?.takeIf { expression.contains(" OR ") && arr?.size == 3 }?.let {
             left = arr?.get(0) ?: expression
             right = arr?.get(2) ?: ""
+            isCompound = true
         }
     }
 

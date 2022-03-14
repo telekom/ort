@@ -35,7 +35,7 @@ class ResolverProvider(val directory: File) :
         item as ResolverPackage
         val errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "
         val errorSuffix = " --> resolver action ignored"
-        val phase = ProcessingPhase.CURATION
+        val phase = ProcessingPhase.RESOLVING
 
         if (item.resolverBlocks.isEmpty()) {
             logger.log("$errorPrefix no resolve block found! $errorSuffix", Level.WARN, phase = phase)

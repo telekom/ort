@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CompoundLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 
 class SelectorProvider(val directory: File) :
@@ -35,33 +36,31 @@ class SelectorProvider(val directory: File) :
         item as SelectorPackage
         val errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "
         val errorSuffix = " --> selector action ignored"
-        val phase = ProcessingPhase.CURATION
+        val phase = ProcessingPhase.SELECTION
 
         if (item.selectorBlocks.isEmpty()) {
             logger.log("$errorPrefix no resolve block found! $errorSuffix", Level.WARN, phase = phase)
             return false
         }
- /*       item.resolverBlocks.forEach { resolverBlock ->
-            // 1. licenses must contain at least one license
-            if (resolverBlock.licenses.isEmpty()) {
-                logger.log("$errorPrefix license list is empty! $errorSuffix", Level.WARN, phase = phase)
-                return false
-            }
-            if (resolverBlock.licenses.any { it == null }) {
-                logger.log("$errorPrefix license list contains null-values! $errorSuffix", Level.WARN, phase = phase)
-                return false
-            }
-            // 2. result must consist of a compound license - linked with "OR"
-            if (!resolverBlock.result.split(" ").contains("OR")) {
+        item.selectorBlocks.forEach {
+            if (!CompoundLicense(it.specified).isCompound) {
                 logger.log(
-                    "$errorPrefix \"result\" contains a license expression without \"OR\"! $errorSuffix",
-                    Level.WARN, phase = phase
+                    "$errorPrefix specified license: \"${it.specified}\" is not a valid Compound-License! " +
+                            errorSuffix, Level.WARN, phase = phase
                 )
                 return false
             }
-            // 3. scopes must contain at least one item - if not, an entry with an empty string is created
-            if (resolverBlock.scopes.isEmpty()) resolverBlock.scopes.add("")
-        }*/
+        }
+        item.selectorBlocks.filter { CompoundLicense(it.specified).isCompound }.forEach {
+            val cl = CompoundLicense(it.specified)
+            if (it.selected != cl.left && it.selected != cl.right) {
+                logger.log(
+                    "$errorPrefix specified license: \"${it.selected}\" is not a valid selection " +
+                            "of \"${it.specified}\"! $errorSuffix", Level.WARN, phase = phase
+                )
+                return false
+            }
+        }
         return true
     }
 }

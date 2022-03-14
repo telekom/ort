@@ -298,7 +298,7 @@ internal data class CurationPackage(
             pack.fileLicensings.add(this)
         })).apply {
             // prevent duplicate entries
-            if(copyrights.none { it.copyright == copyrightStatement }) {
+            if (copyrights.none { it.copyright == copyrightStatement }) {
                 copyrights.add(FileCopyright(copyrightStatement))
                 updated = true
             }
