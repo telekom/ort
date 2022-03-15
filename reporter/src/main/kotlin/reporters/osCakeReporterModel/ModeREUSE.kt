@@ -56,7 +56,7 @@ internal class ModeREUSE(
             if (isInLicensesFolder) handleLicenses(fib, sourceCodeDir, tmpDirectory, getHash(provenance))
             // Phase II: handle files with ending  ".license" - should be binary files
             if (!isInLicensesFolder && fib.path.endsWith(".license")) handleBinaryFiles(fib)
-            // Phase III: handle all other files
+            // Phase III: handle all the other files
             if (!isInLicensesFolder && !fib.path.endsWith(".license")) handleDefaultFiles(fib)
             // Phase IV: handle Copyrights
             if (fib.copyrightTextEntries.size > 0) handleCopyrights(fib)

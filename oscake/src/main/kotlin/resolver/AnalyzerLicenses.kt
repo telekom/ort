@@ -23,6 +23,9 @@ import java.util.SortedSet
 
 import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 
+/**
+ * Data class which gets the infos from an ORT analyzer-results file
+ */
 internal data class AnalyzerLicenses(
     val declaredLicenses: SortedSet<String>,
     val declaredLicensesProcessed: String,

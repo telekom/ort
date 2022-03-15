@@ -21,22 +21,21 @@ package org.ossreviewtoolkit.oscake.curator
 
 import java.io.File
 
-import kotlin.io.path.createTempDirectory
-import kotlin.system.exitProcess
-
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.oscake.CURATION_AUTHOR
-import org.ossreviewtoolkit.oscake.CURATION_FILE_SUFFIX
 import org.ossreviewtoolkit.oscake.CURATION_LOGGER
-import org.ossreviewtoolkit.oscake.CURATION_VERSION
 import org.ossreviewtoolkit.oscake.common.ActionInfo
 import org.ossreviewtoolkit.oscake.common.ActionManager
-import org.ossreviewtoolkit.oscake.common.ActionProvider
 import org.ossreviewtoolkit.oscake.packageModifierMap
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
-import org.ossreviewtoolkit.utils.common.unpackZip
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.deleteFromArchive
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.getLicensesFolderPrefix
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 
 /**
  * The [CurationManager] handles the entire curation process: reads and analyzes the curation files,
@@ -61,24 +60,17 @@ internal class CurationManager(
      */
     override val config: OSCakeConfiguration,
     /**
-     * option which indicates that the Warnings on root level are removed
+     * Map of used commandline parameters
      */
     override val commandLineParams: Map<String, String>,
-
     ) : ActionManager(project, outputDir, reportFilename, config,
         ActionInfo.curator(config.curator?.issueLevel ?: -1), commandLineParams) {
 
-    private val ignoreRootWarnings: Boolean = commandLineParams.getOrDefault("ignoreRootWarnings", "false").toBoolean()
-
     /**
-     * If curations have to be applied, the reporter's zip-archive is unpacked into this temporary folder.
+     * [ignoreRootWarnings] is set via the commandline parameters and decides if the project is processed despite
+     * warnings
      */
-    private val archiveDir: File by lazy {
-        createTempDirectory(prefix = "oscakeCur_").toFile().apply {
-            File(outputDir, project.complianceArtifactCollection.archivePath).unpackZip(this)
-        }
-    }
-
+    private val ignoreRootWarnings: Boolean = commandLineParams.getOrDefault("ignoreRootWarnings", "false").toBoolean()
     /**
      * The [curationProvider] contains a list of [CurationPackage]s to be applied.
      */
@@ -86,20 +78,18 @@ internal class CurationManager(
         File(config.curator?.fileStore!!))
 
     /**
-     * The [logger] is only initialized, if there is something to log.
-     */
-    // private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
-
-    /**
      * The method takes the reporter's output, checks and updates the reported "hasIssues", prioritizes the
      * package modifiers, applies the curations, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
         // 0. Reset hasIssues = false - will be newly set at the end of the process
-        resetIssues()
+        project.resetIssues()
         // 1. handle packageModifiers
         val orderByModifier = packageModifierMap.keys.withIndex().associate { it.value to it.index }
-        curationProvider.curationPackages.sortedBy { orderByModifier[it.packageModifier] }.forEach { packageCuration ->
+        curationProvider.actions.sortedBy { orderByModifier[(it as CurationPackage).packageModifier] }
+            .forEach { packageCuration ->
+
+            packageCuration as CurationPackage
             when (packageCuration.packageModifier) {
                 "insert" -> if (project.packs.none { it.id == packageCuration.id }) {
                     eliminateIssueFromRoot(project.issueList, packageCuration.id.toCoordinates())
@@ -122,7 +112,7 @@ internal class CurationManager(
 
         // 2. curate each package regarding the "modifier" - insert, delete, update
         project.packs.forEach {
-            curationProvider.getCurationFor(it.id)?.
+            curationProvider.getActionFor(it.id)?.
                 process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger,
                     File(config.curator?.fileStore!!))
         }
@@ -138,7 +128,7 @@ internal class CurationManager(
         takeCareOfIssueLevel()
 
         // 6. generate .zip and .oscc files
-        createResultingFiles()
+        createResultingFiles(archiveDir)
     }
 
     /**
@@ -150,46 +140,11 @@ internal class CurationManager(
         } ?: false
 
     /**
-     * The method writes the output file in oscc format (json file named  "..._curated.oscc") and creates a zip file
-     * containing license text files named "..._curated.zip"
-     */
-    private fun createResultingFiles() {
-        val reportFile = File(File(reportFilename).parent).resolve(extendFilename(File(reportFilename),
-            CURATION_FILE_SUFFIX))
-        val sourceZipFileName = File(stripRelativePathIndicators(project.complianceArtifactCollection.archivePath))
-        val newZipFileName = extendFilename(sourceZipFileName, CURATION_FILE_SUFFIX)
-
-        var rc = false
-        if (archiveDir.exists()) {
-            rc = rc || compareLTIAwithArchive(project, archiveDir, logger, ProcessingPhase.CURATION)
-            rc = rc || zipAndCleanUp(outputDir, archiveDir, newZipFileName, logger, ProcessingPhase.CURATION)
-        } else {
-            val targetFile = File(outputDir.path, newZipFileName)
-            File(outputDir, sourceZipFileName.name).copyTo(targetFile, true)
-        }
-        project.complianceArtifactCollection.archivePath =
-            File(project.complianceArtifactCollection.archivePath).parentFile.name + "/" + newZipFileName
-        project.complianceArtifactCollection.author = CURATION_AUTHOR
-        project.complianceArtifactCollection.release = CURATION_VERSION
-
-        rc = rc || project.modelToOscc(reportFile, logger, ProcessingPhase.CURATION)
-
-        rc = rc || ActionProvider.errors
-        if (!rc) {
-            logger.log("Curator terminated successfully! Result is written to: ${reportFile.name}", Level.INFO,
-                phase = ProcessingPhase.CURATION)
-        } else {
-            logger.log("Curator terminated with errors!", Level.ERROR, phase = ProcessingPhase.CURATION)
-            exitProcess(4)
-        }
-    }
-
-    /**
      * Deletes a package from project
      */
     private fun deletePackage(curationPackage: CurationPackage, archiveDir: File) {
         val packsToDelete = mutableListOf<Pack>()
-        project.packs.filter { curationProvider.getCurationFor(it.id) == curationPackage }.forEach { pack ->
+        project.packs.filter { curationProvider.getActionFor(it.id) == curationPackage }.forEach { pack ->
             pack.fileLicensings.forEach { fileLicensing ->
                 deleteFromArchive(fileLicensing.fileContentInArchive, archiveDir)
                 fileLicensing.licenses.forEach {

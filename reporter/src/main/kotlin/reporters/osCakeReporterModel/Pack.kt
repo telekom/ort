@@ -150,6 +150,9 @@ data class Pack(
         this.dirLicensings.forEach { it.licenses.clear() }
     }
 
+    /**
+     * The method generates the Default- and Dir- Scope entries based on FileLicensings
+     */
     fun createDirDefaultScopes(
         logger: OSCakeLogger, params: OSCakeConfigParams, phase: ProcessingPhase,
         foundInFileScopeConfigured: Boolean = false) {

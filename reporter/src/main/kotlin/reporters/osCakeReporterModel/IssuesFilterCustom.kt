@@ -30,4 +30,9 @@ class IssuesFilterCustom {
 
         return false
     }
+
+    // automatically generated because of custom implementation of the "equals" method
+    override fun hashCode(): Int {
+        return javaClass.hashCode()
+    }
 }

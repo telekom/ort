@@ -23,7 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
 /**
- * A class representing a license item for REUSE packages [fileScope].
+ * A class representing a license item for REUSE packages.
  */
 @JsonPropertyOrder("foundInFileScope", "license", "licenseTextInArchive")
 class ReuseLicense(

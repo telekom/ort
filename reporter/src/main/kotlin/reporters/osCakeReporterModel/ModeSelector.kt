@@ -59,8 +59,8 @@ internal abstract class ModeSelector {
     internal val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(REPORTER_LOGGER) }
 
     /**
-     * if the source code for the package is not yet in side of the sourcecode cache and it is needed (e.g.
-     * for instanced licenses) it is copied into the sourcecode folder (defined by the package.id and
+     * if the source code for the package is not yet in side of the sourcecode cache, and it is needed (e.g.
+     * for instanced licenses) it is copied into the sourcecode folder (defined by the package-id and
      * the provenance, e.g. ./Maven/joda-time/joda-time/2.10.8/39b1a3cc0a54d8b34737520bc066d2baee2fe2a4 )
      */
     internal fun downloadSourcesWhenNeeded(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String,

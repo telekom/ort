@@ -159,7 +159,7 @@ data class OSCakeConfiguration(
             // init of params necessary, because the logger already needs this information
             params = OSCakeConfigParams(osCakeConfig.includeJsonPathInLogfile4ErrorsAndWarnings ?: false)
 
-            var oscakeScanResultsDir: String? = null
+            val oscakeScanResultsDir: String? = null
             params.dependencyGranularity = if (options["--dependency-granularity"]?.
                 toIntOrNull() != null) options["--dependency-granularity"]!!.toInt() else Int.MAX_VALUE
 

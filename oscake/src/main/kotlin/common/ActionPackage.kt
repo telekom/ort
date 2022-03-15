@@ -25,15 +25,17 @@ import com.vdurmont.semver4j.SemverException
 import java.io.File
 
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.oscake.curator.CurationPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
 
+/**
+ * Builds the base class for OSCake-Packages.
+ */
 internal abstract class ActionPackage(open val id: Identifier) {
     var belongsToFile: File? = null
     /**
-     * Returns true if this [CurationPackage] is applicable to the package with the given [pkgId],
+     * Returns true if this [ActionPackage] is applicable to the package with the given [pkgId],
      * disregarding the version.
      */
     private fun isApplicableDisregardingVersion(pkgId: Identifier) =
@@ -42,7 +44,7 @@ internal abstract class ActionPackage(open val id: Identifier) {
                 && id.name == pkgId.name
 
     /**
-     * Returns true if the version of this [CurationPackage] interpreted as an Ivy version matcher is applicable to the
+     * Returns true if the version of this [ActionPackage] interpreted as an Ivy version matcher is applicable to the
      * package with the given [pkgId].
      */
     private fun isApplicableIvyVersion(pkgId: Identifier) =
@@ -60,7 +62,7 @@ internal abstract class ActionPackage(open val id: Identifier) {
     private fun String.equalsOrIsBlank(other: String) = equals(other) || isBlank() || other.isBlank()
 
     /**
-     * Return true if this [ActionPackage] is applicable to the package with the given [pkgId]. The
+     * Returns true if this [ActionPackage] is applicable to the package with the given [pkgId]. The
      * curation's version may be an
      * [Ivy version matcher](http://ant.apache.org/ivy/history/2.4.0/settings/version-matchers.html).
      */

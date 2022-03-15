@@ -29,7 +29,7 @@ import org.ossreviewtoolkit.model.Identifier
   */
 class OSCakeLogger(
     /**
-     * [source] represents the origin (e.g. [CURATION_LOGGER] or [REPORTER_LOGGER]).
+     * [source] represents the origin (e.g. "CURATION_LOGGER" or "REPORTER_LOGGER").
      */
     val source: String,
     /**

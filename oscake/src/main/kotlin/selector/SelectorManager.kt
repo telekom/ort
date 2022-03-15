@@ -21,8 +21,6 @@ package org.ossreviewtoolkit.oscake.selector
 
 import java.io.File
 
-import kotlin.io.path.createTempDirectory
-
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
@@ -35,8 +33,12 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerM
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
-import org.ossreviewtoolkit.utils.common.unpackZip
 
+/**
+ * The [SelectorManager] handles the entire selection process: reads and analyzes the selector files,
+ * prepares the list of packages (passed by the reporter), applies the selector actions and writes the results into
+ * the output files - one oscc compliant file in json format and a zip-archive containing the license texts.
+ */
 internal class SelectorManager(
     /**
     * The [project] contains the processed output from the OSCakeReporter - specifically a list of packages.
@@ -47,7 +49,7 @@ internal class SelectorManager(
     */
     override val outputDir: File,
     /**
-    * The name of the reporter's output file which is extended by the [SelectionManager]
+    * The name of the reporter's output file which is extended by the [SelectorManager]
     */
     override val reportFilename: String,
     /**
@@ -66,15 +68,6 @@ internal class SelectorManager(
      * The [selectorProvider] contains a list of [SelectorPackage]s to be applied.
      */
     private var selectorProvider = SelectorProvider(File(config.selector?.directory!!))
-
-    /**
-     * If resolve actions have to be applied, the reporter's zip-archive is unpacked into this temporary folder.
-     */
-    private val archiveDir: File by lazy {
-        createTempDirectory(prefix = "oscakeAct_").toFile().apply {
-            File(outputDir, project.complianceArtifactCollection.archivePath).unpackZip(this)
-        }
-    }
 
     /**
      * The method takes the reporter's output, checks and updates the reported "hasIssues", applies the

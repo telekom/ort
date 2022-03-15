@@ -29,4 +29,9 @@ data class FileCopyright(
     val copyright: String
 ) {
     override fun equals(other: Any?) = (other is FileCopyright) && copyright.trim() == other.copyright.trim()
+
+    // automatically generated because custom implementation of "equals"
+    override fun hashCode(): Int {
+        return copyright.hashCode()
+    }
 }

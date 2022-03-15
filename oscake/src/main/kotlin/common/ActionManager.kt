@@ -22,17 +22,27 @@ package org.ossreviewtoolkit.oscake.common
 import java.io.File
 import java.time.LocalDateTime
 
+import kotlin.io.path.createTempDirectory
 import kotlin.system.exitProcess
 
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.oscake.curator.CurationManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.IssueList
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.compareLTIAwithArchive
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.extendFilename
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.propagateHasIssues
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.stripRelativePathIndicators
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.zipAndCleanUp
+import org.ossreviewtoolkit.utils.common.unpackZip
 
 /**
- * The class [ActionManager] is a skeleton (base class) of common properties and functions for the apps "curation",
- * "resolver", etc.
+ * The class [ActionManager] is a skeleton (base class) of common properties and functions for the OSCake apps:
+ * "curation", "resolver", etc.
  */
 open class ActionManager(
     /**
@@ -44,7 +54,7 @@ open class ActionManager(
       */
     open val outputDir: File,
     /**
-      * The name of the reporter's output file which is extended by the [CurationManager]
+      * The name of the reporter's output file which is extended by the [ActionManager]
       */
     open val reportFilename: String,
     /**
@@ -64,25 +74,14 @@ open class ActionManager(
      * The [logger] is only initialized, if there is something to log.
      */
     val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(actionInfo.loggerName) }
-
     /**
-     * the method sets all hasIssues properties in the project to false
+     * If actions have to be applied, the reporter's zip-archive is unpacked into this temporary folder.
      */
-    fun resetIssues() {
-        project.hasIssues = false
-        project.packs.forEach { pack ->
-            pack.hasIssues = false
-            pack.defaultLicensings.forEach {
-                it.hasIssues = false
-            }
-            pack.dirLicensings.forEach { dirLicensing ->
-                dirLicensing.licenses.forEach {
-                    it.hasIssues = false
-                }
-            }
+    val archiveDir: File by lazy {
+        createTempDirectory(prefix = "oscakeAct_").toFile().apply {
+            File(outputDir, project.complianceArtifactCollection.archivePath).unpackZip(this)
         }
     }
-
     /**
      * The method writes the output file in oscc format (json file named  "..._curated.oscc") and creates a zip file
      * containing license text files named "..._curated.zip"

@@ -50,7 +50,7 @@ class OSCakeValidator(private val oscc1: File, private val oscc2: File) {
         }
 
         project1.packs.forEach { pack ->
-            comparefileContentInArchive(pack, project2.packs.first { it.id == pack.id })
+            compareFileContentInArchive(pack, project2.packs.first { it.id == pack.id })
         }
 
         project1.packs.forEach { pack ->
@@ -80,11 +80,11 @@ class OSCakeValidator(private val oscc1: File, private val oscc2: File) {
         val dif2 = d2.minus(d1)
         if (dif1.isNotEmpty()) {
             println("=====>>>>> The following default licenses references are missing in oscc2: Filescope: $d1")
-            dif1.forEach { println(it.toString()) }
+            dif1.forEach { println(it) }
         }
         if (dif2.isNotEmpty()) {
             println("=====>>>>> The following licenses references are missing in oscc1:  Filescope: $d2")
-            dif2.forEach { println(it.toString()) }
+            dif2.forEach { println(it) }
         }
         return true
     }
@@ -103,31 +103,31 @@ class OSCakeValidator(private val oscc1: File, private val oscc2: File) {
         val dif2 = f2.minus(f1)
         if (dif1.isNotEmpty()) {
             println("=====>>>>> The following licenses references are missing in oscc2: Filescope: ${fL1.scope}")
-            dif1.forEach { println(it.toString()) }
+            dif1.forEach { println(it) }
         }
         if (dif2.isNotEmpty()) {
             println("=====>>>>> The following licenses references are missing in oscc1:  Filescope: ${fL2.scope}")
-            dif2.forEach { println(it.toString()) }
+            dif2.forEach { println(it) }
         }
 
         if (fL1.copyrights.size != fL2.copyrights.size)
             println("=====>>>>> The copyrights are missing maybe <null> in ${fL1.scope}")
-        val c1 = fL1.copyrights.mapNotNull { it.copyright }.toSet()
-        val c2 = fL2.copyrights.mapNotNull { it.copyright }.toSet()
+        val c1 = fL1.copyrights.map { it.copyright }.toSet()
+        val c2 = fL2.copyrights.map { it.copyright }.toSet()
         val cif1 = c1.minus(c2)
         val cif2 = c2.minus(c1)
         if (cif1.isNotEmpty()) {
             println("=====>>>>> The following copyrights are missing in oscc2: Filescope: ${fL1.scope}")
-            cif1.forEach { println(it.toString()) }
+            cif1.forEach { println(it) }
         }
         if (cif2.isNotEmpty()) {
             println("=====>>>>> The following copyrights are missing in oscc1:  Filescope: ${fL2.scope}")
-            cif2.forEach { println(it.toString()) }
+            cif2.forEach { println(it) }
         }
         return true
     }
 
-    private fun comparefileContentInArchive(pack1: Pack, pack2: Pack): Boolean {
+    private fun compareFileContentInArchive(pack1: Pack, pack2: Pack): Boolean {
         println("Analyzing fileContentInArchive: ${pack1.id}")
         var rc = true
         val fL1 = pack1.fileLicensings.mapNotNull { it.fileContentInArchive }.toSet()
@@ -136,12 +136,12 @@ class OSCakeValidator(private val oscc1: File, private val oscc2: File) {
         val dif2 = fL2.minus(fL1)
         if (dif1.isNotEmpty()) {
             println("=====>>>>> The following fileContentInArchive references are missing in oscc2: ")
-            dif1.forEach { println(it.toString()) }
+            dif1.forEach { println(it) }
             rc = false
         }
         if (dif2.isNotEmpty()) {
             println("=====>>>>> The following fileContentInArchive references are missing in oscc1: ")
-            dif2.forEach { println(it.toString()) }
+            dif2.forEach { println(it) }
             rc = false
         }
         if (rc) println("${fL1.size} fileContentInArchive references compared!")
@@ -149,19 +149,19 @@ class OSCakeValidator(private val oscc1: File, private val oscc2: File) {
     }
 
     private fun compareLicenseTextInArchive(pack1: Pack, pack2: Pack): Boolean {
-        println("Analyzing LicenseTextInarchive: ${pack1.id}")
+        println("Analyzing LicenseTextInArchive: ${pack1.id}")
         var rc = true
         var ltia1: List<String?> = emptyList()
         var ltia2: List<String?> = emptyList()
-        pack1.fileLicensings.forEach {
-            ltia1 = it.licenses.mapNotNull { it.licenseTextInArchive }.toList()
+        pack1.fileLicensings.forEach { fileLicensing ->
+            ltia1 = fileLicensing.licenses.mapNotNull { it.licenseTextInArchive }.toList()
         }
-        pack2.fileLicensings.forEach {
-            ltia2 = it.licenses.mapNotNull { it.licenseTextInArchive }.toList()
+        pack2.fileLicensings.forEach { fileLicensing ->
+            ltia2 = fileLicensing.licenses.mapNotNull { it.licenseTextInArchive }.toList()
         }
 
-        val dif1 = ltia1.minus(ltia2)
-        val dif2 = ltia2.minus(ltia1)
+        val dif1 = ltia1.minus(ltia2.toSet())
+        val dif2 = ltia2.minus(ltia1.toSet())
         if (dif1.isNotEmpty()) {
             println("=====>>>>> The following LicenseTextInArchive are missing in oscc2: ")
             dif1.forEach { println(it.toString()) }
@@ -185,19 +185,19 @@ class OSCakeValidator(private val oscc1: File, private val oscc2: File) {
         val dif2 = fL2.minus(fL1)
         if (dif1.isNotEmpty()) {
             println("=====>>>>> The following fileLicensings are missing in oscc2: ")
-            dif1.forEach { println(it.toString()) }
+            dif1.forEach { println(it) }
             rc = false
         }
         if (dif2.isNotEmpty()) {
             println("=====>>>>> The following fileLicensings are missing in oscc1: ")
-            dif2.forEach { println(it.toString()) }
+            dif2.forEach { println(it) }
             rc = false
         }
         if (rc) println("${fL1.size} fileLicensings compared!")
         return rc
     }
 
-    fun packageComparison(project1: Project, project2: Project): Boolean {
+    private fun packageComparison(project1: Project, project2: Project): Boolean {
         val packs1 = project1.packs.map { it.id }.toSet()
         val packs2 = project2.packs.map { it.id }.toSet()
         if (packs1.size >= packs2.size) {

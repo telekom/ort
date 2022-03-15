@@ -23,12 +23,10 @@ import com.vdurmont.semver4j.Semver
 import com.vdurmont.semver4j.SemverException
 
 import java.io.File
-import java.io.IOException
 
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.oscake.CURATION_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider
@@ -43,53 +41,18 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
  */
 internal class CurationProvider(
     /**
-     * Contains the root folder containing curation files in yml format (may be organized in subdirectories).
+     * Contains the root folder containing curation files in yml format (possibly organized in subdirectories).
      */
     curationDirectory: File,
     /**
-     *  Contains the root folder containing files with license texts (may be organized in subdirectories).
+     *  Contains the root folder containing files with license texts (possibly organized in subdirectories).
      */
     fileStore: File
 ) : ActionProvider(curationDirectory, fileStore, CURATION_LOGGER, CurationPackage::class, ProcessingPhase.CURATION) {
     /**
      * List of available [CurationPackage]s
      */
-    internal val curationPackages = mutableListOf<CurationPackage>()
-    /**
-     * The init method walks through the folder hierarchy - starting at "curationDirectory" - and creates a list
-     * of "PackageCurations".
-     */
-    init {
-        if (curationDirectory.isDirectory) {
-            curationDirectory.walkTopDown().filter { it.isFile && it.extension == "yml" }.forEach {
-                try {
-                    it.readValue<List<CurationPackage>>().forEach { packageCuration ->
-                        if (checkSemantics(packageCuration, it.name, fileStore)) curationPackages.add(packageCuration)
-                    }
-                } catch (e: IOException) {
-                    logger.log("Error while processing file: ${it.absoluteFile}! - Curation not applied! ${e.message}",
-                        Level.ERROR, phase = ProcessingPhase.CURATION
-                    )
-                    ActionProvider.errors = true
-                }
-            }
-        }
-    }
-
-    /**
-     * Returns the [CurationPackage] which is applicable for a specific package Id or null if there is none or
-     * more than one.
-     */
-    internal fun getCurationFor(pkgId: Identifier): CurationPackage? {
-        curationPackages.filter { it.isApplicable(pkgId) }.apply {
-            if (size > 1) logger.log("Error: more than one curation was found for" +
-                    " package: $pkgId - don't know which one to take!", Level.ERROR, pkgId,
-                phase = ProcessingPhase.CURATION
-            )
-            if (size != 1) return null
-            return first()
-        }
-    }
+    // internal val curationPackages = mutableListOf<CurationPackage>()
 
     /**
      * Checks semantics of the [item]. In case of incongruities, these are logged and the curation is
@@ -136,7 +99,7 @@ internal class CurationProvider(
             // 5.1 check file_licenses
             if (curationFileItem.fileLicenses?.filter { modifiers.elementAt(0).contains(it.modifier) }?.size !=
                 curationFileItem.fileLicenses?.size) {
-                logger.log("$errorPrefix unallowed package_modifier/modifier combination found in " +
+                logger.log("$errorPrefix prohibited package_modifier/modifier combination found in " +
                         "file_licenses! $errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
                 )
                 return false
@@ -144,7 +107,7 @@ internal class CurationProvider(
             // 5.2 check copyright_licenses
             if (curationFileItem.fileCopyrights?.filter { modifiers.elementAt(1).contains(it.modifier) }?.size !=
                 curationFileItem.fileCopyrights?.size) {
-                logger.log("$errorPrefix unallowed package_modifier/modifier combination found in " +
+                logger.log("$errorPrefix prohibited package_modifier/modifier combination found in " +
                         "copyright_licenses! $errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
                 )
                 return false
@@ -283,7 +246,7 @@ internal class CurationProvider(
                     return false
                 }
             }
-            // 10.3 licenseTextInArchive must be null for files outside of the LICENSES folder
+            // 10.3 licenseTextInArchive must be null for files outside the LICENSES folder
             item.curations?.filter { !it.fileScope.startsWith(getLicensesFolderPrefix(""))
                 }?.forEach { curationFileItem1 ->
                 if (curationFileItem1.fileLicenses?.any { it.licenseTextInArchive != null } == true) {
@@ -304,7 +267,7 @@ internal class CurationProvider(
             )
             return false
         }
-        val pattern = "(E|W|I)\\d\\d".toRegex()
+        val pattern = "([EWI])\\d\\d".toRegex()
         if (item.packageModifier == "update" && !item.resolvedIssues.isNullOrEmpty()) {
             item.resolvedIssues.forEach {
                 if (!pattern.matches(it)) {

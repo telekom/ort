@@ -38,6 +38,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
  * A [CurationPackage] contains a curation for a specific package, identified by an [id]. The instances are created
  * during processing the curation (yml) files.
  */
+@Suppress("DuplicatedCode")
 internal data class CurationPackage(
     /**
      * The [id] contains a package identification as defined in the [Identifier] class. The version information may
@@ -298,6 +299,7 @@ internal data class CurationPackage(
             pack.fileLicensings.add(this)
         })).apply {
             // prevent duplicate entries
+            @Suppress("DuplicatedCode")
             if (copyrights.none { it.copyright == copyrightStatement }) {
                 copyrights.add(FileCopyright(copyrightStatement))
                 updated = true

@@ -28,9 +28,16 @@ import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 
+/**
+ * The [ResolverProvider] gets the locations where to find the yml-files containing actions (their semantics
+ * is checked while processing) and a list of possible [ResolverPackage]s is created.
+ */
 class ResolverProvider(val directory: File) :
     ActionProvider(directory, null, RESOLVER_LOGGER, ResolverPackage::class, ProcessingPhase.RESOLVING) {
 
+    /**
+     * Checks if the action statements are logically correct and consistent
+     */
     override fun checkSemantics(item: ActionPackage, fileName: String, fileStore: File?): Boolean {
         item as ResolverPackage
         val errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "

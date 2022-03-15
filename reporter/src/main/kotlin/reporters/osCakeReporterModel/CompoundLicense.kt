@@ -19,6 +19,10 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+/**
+ * The class [CompoundLicense] represent a license string consisting of two SPFX license identifier
+ * combined with "OR"
+ */
 data class CompoundLicense(val expression: String?) {
     var isCompound = false
     var left: String = expression ?: ""
@@ -37,4 +41,13 @@ data class CompoundLicense(val expression: String?) {
 
     override fun equals(other: Any?): Boolean = other is CompoundLicense &&
             ((other.left == left && other.right == right) || (other.left == right && other.right == left))
+
+    // automatically generated because custom implementation of "equals"
+    override fun hashCode(): Int {
+        var result = expression?.hashCode() ?: 0
+        result = 31 * result + isCompound.hashCode()
+        result = 31 * result + left.hashCode()
+        result = 31 * result + right.hashCode()
+        return result
+    }
 }

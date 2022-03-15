@@ -77,7 +77,7 @@ data class Project(
     /**
      * [packs] is a list of packages [Pack] which are part of the project.
      */
-    @get:JsonProperty("complianceArtifactPackages") val packs: MutableList<Pack> = mutableListOf<Pack>()
+    @get:JsonProperty("complianceArtifactPackages") val packs: MutableList<Pack> = mutableListOf()
 ) {
     companion object {
         private lateinit var zipOutput: ArchiveOutputStream
@@ -195,7 +195,7 @@ data class Project(
         val packagesToAdd = mutableListOf<Pack>()
         val filesToArchive = mutableListOf<String>()
         val prefix = getNewPrefix(project)
-        var absoluteFilePathToZip: File?
+        val absoluteFilePathToZip: File?
         val originDir = originFile.parentFile
 
         if (project.hasIssues) {
@@ -269,9 +269,8 @@ data class Project(
             logger.log("Error when copying zip file from <$absoluteFilePathToZip> to <${archiveFile!!.name}>: " +
                     ex.toString(), Level.ERROR, phase = ProcessingPhase.MERGING)
             rc = false
-        } finally {
-            return rc
         }
+        return rc
     }
 
     /**
@@ -444,5 +443,23 @@ data class Project(
             exitProcess(12)
         }
         return true
+    }
+
+    /**
+     * the method sets all hasIssues properties in the project to false
+     */
+    fun resetIssues() {
+        this.hasIssues = false
+        this.packs.forEach { pack ->
+            pack.hasIssues = false
+            pack.defaultLicensings.forEach {
+                it.hasIssues = false
+            }
+            pack.dirLicensings.forEach { dirLicensing ->
+                dirLicensing.licenses.forEach {
+                    it.hasIssues = false
+                }
+            }
+        }
     }
 }

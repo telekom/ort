@@ -25,7 +25,7 @@ import org.ossreviewtoolkit.model.Identifier
 
 /**
  * [OSCakeIssue] represents a class containing information about problems which occurred during processing data of the
- * [OSCakeReporter] or the [CurationManager].
+ * OSCakeReporter or the CurationManager.
   */
 internal data class OSCakeIssue(
     /**
@@ -49,11 +49,11 @@ internal data class OSCakeIssue(
      */
     val reference: Any?,
     /**
-     * describes on which level the error occured
+     * describes on which level the error occurred
      */
     val scope: ScopeLevel?,
     /**
-     * describes in which phase the error occured
+     * describes in which phase the error occurred
      */
     val phase: ProcessingPhase?
 ) {

@@ -34,8 +34,13 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 
-abstract class ActionProvider(directory: File, fileStore: File?, loggerName: String, clazz: Any,
-                              processingPhase: ProcessingPhase) {
+/**
+ * The [ActionProvider] walks through the given "directory" and collects the identified
+ * [ActionPackage]s.
+ */
+abstract class ActionProvider internal constructor(
+    directory: File, fileStore: File?, loggerName: String,
+    clazz: Any, processingPhase: ProcessingPhase) {
 
     internal val actions = mutableListOf<ActionPackage>()
     /**
@@ -46,14 +51,12 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
      * Stores the actual processing phase for logger reasons
      */
     private val phase = processingPhase
-
     /**
      * [errors] stores if there were some errors during the processing
      */
     companion object {
         var errors = false
     }
-
     /**
      * The init method walks through the folder hierarchy - starting at "directory" - and creates a list
      * of actions.
@@ -82,12 +85,12 @@ abstract class ActionProvider(directory: File, fileStore: File?, loggerName: Str
     }
 
     /**
-     * [checkSemantics] has to be implemented in order to validate the actions
+     * [checkSemantics] has to be implemented by child classes in order to validate the actions
      */
     internal abstract fun checkSemantics(item: ActionPackage, fileName: String, fileStore: File?): Boolean
 
     /**
-     * Returns the [ActionPackage] which is applicable for a specific package Id or null if there is none or
+     * Returns the [ActionPackage] which is applicable for a specific package ID or null if there is none or
      * more than one.
      */
     internal fun getActionFor(pkgId: Identifier, globalAllowed: Boolean = false): ActionPackage? {

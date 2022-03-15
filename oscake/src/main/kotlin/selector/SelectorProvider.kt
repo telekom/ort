@@ -29,6 +29,10 @@ import org.ossreviewtoolkit.oscake.common.ActionProvider
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CompoundLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 
+/**
+ * The [SelectorProvider] gets the locations where to find the yml-files containing actions (their semantics
+ * is checked while processing).
+ */
 class SelectorProvider(val directory: File) :
     ActionProvider(directory, null, SELECTOR_LOGGER, SelectorPackage::class, ProcessingPhase.SELECTION) {
 

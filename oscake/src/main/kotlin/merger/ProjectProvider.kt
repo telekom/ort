@@ -45,15 +45,14 @@ internal class ProjectProvider private constructor() {
             try {
                 val json = File(source.absolutePath).readText()
                 project = mapper.readValue<Project>(json)
-                // store the originating file name inside of the project instance for collision detection
+                // store the originating file name inside the project instance for collision detection
                 project.packs.forEach {
                     it.origin = source.name
                 }
             } catch (e: IOException) {
                 logger.log(e.stackTraceToString(), Level.ERROR)
-            } finally {
-                return project
             }
+            return project
         }
     }
 }
