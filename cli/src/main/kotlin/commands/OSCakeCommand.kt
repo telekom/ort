@@ -55,14 +55,14 @@ sealed class OscakeConfig(name: String) : OptionGroup(name)
  */
 class ValidatorOptions : OscakeConfig("Options for oscake application: validator") {
     val oscc1 by option(
-        "--oscc1", "-o1",
+        "--valInp1", "-vI1",
         help = "An oscc file produced by an OSCake-Reporter."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
         .convert { it.absoluteFile.normalize() }
         .required()
     val oscc2 by option(
-        "--oscc2", "-o2",
+        "--valInp2", "-vI2",
         help = "An oscc file produced by an OSCake-Reporter."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
@@ -74,7 +74,7 @@ class ValidatorOptions : OscakeConfig("Options for oscake application: validator
  */
 class ResolverOptions : OscakeConfig("Options for oscake application: resolver") {
     val osccFile by option(
-        "--oscc-File", "-F",
+        "--resInp", "-rI",
         help = "An oscc file produced by an OSCake-Reporter."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
@@ -82,7 +82,7 @@ class ResolverOptions : OscakeConfig("Options for oscake application: resolver")
         .required()
 
     val outputDir by option(
-        "--output-Dir", "-D",
+        "--resOut-Dir", "-rO",
         help = "The directory to write the resolved oscc file."
     ).convert { it.expandTilde() }
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
@@ -90,7 +90,7 @@ class ResolverOptions : OscakeConfig("Options for oscake application: resolver")
         .required()
 
     val analyzerFile by option(
-        "--analyzer-File", "-A",
+        "--analyzer-File", "-rA",
         help = "An analyzer-result.yml file produced by ORT (base of the OSCake-Reporter stored in oscc-file)."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
@@ -102,7 +102,7 @@ class ResolverOptions : OscakeConfig("Options for oscake application: resolver")
  */
 class SelectorOptions : OscakeConfig("Options for oscake application: selector") {
     val osccFile by option(
-        "--oscc-sFile", "-sF",
+        "--selInp", "-sI",
         help = "An oscc file produced by an OSCake-Reporter or by an OSCake-Resolver."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
@@ -110,7 +110,7 @@ class SelectorOptions : OscakeConfig("Options for oscake application: selector")
         .required()
 
     val outputDir by option(
-        "--output-sDir", "-sD",
+        "--selOut-Dir", "-sO",
         help = "The directory to write the generated oscc file."
     ).convert { it.expandTilde() }
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
@@ -123,7 +123,7 @@ class SelectorOptions : OscakeConfig("Options for oscake application: selector")
  */
 class CuratorOptions : OscakeConfig("Options for oscake application: curator") {
     val osccFile by option(
-        "--oscc-file", "-i",
+        "--curInp", "-cI",
         help = "An oscc file produced by an OSCake-Reporter."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
@@ -131,7 +131,7 @@ class CuratorOptions : OscakeConfig("Options for oscake application: curator") {
         .required()
 
     val outputDir by option(
-        "--output-dir", "-o",
+        "--curOut-Dir", "-cO",
         help = "The directory to write the curated oscc file."
     ).convert { it.expandTilde() }
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
@@ -145,18 +145,18 @@ class CuratorOptions : OscakeConfig("Options for oscake application: curator") {
  * Contains the options for the merger application
  */
 class MergerOptions : OscakeConfig("Options for oscake application: merger") {
-    internal val inputDir by option("--inputDirectory", "-id", help = "The path to a folder containing oscc " +
+    internal val inputDir by option("--merInp-Dir", "-mI", help = "The path to a folder containing oscc " +
             "files and their corresponding archives. May also consist of subdirectories.")
         .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
         .required()
 
-    internal val outputDirArg by option("--outputDirectory", "-od", help = "The path to the output folder.")
+    internal val outputDirArg by option("--merOut-Dir", "-mO", help = "The path to the output folder.")
         .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = true, mustBeReadable = true)
 
-    internal val cid by option("--cid", "-c", help = "Id of the Compliance Artifact Collection - IVY format preferred.")
+    internal val cid by option("--cid", help = "Id of the Compliance Artifact Collection - IVY format preferred.")
         .required()
 
-    internal val outputFileArg by option("--outputFile", "-of", help = "Name of the output file. When -o is " +
+    internal val outputFileArg by option("--merOut-File", "-mF", help = "Name of the output file. When -mO is " +
             "also specified, the path to the outputFile is stripped to its name.")
         .file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
 
@@ -190,7 +190,7 @@ class MergerOptions : OscakeConfig("Options for oscake application: merger") {
  */
 class DeduplicatorOptions : OscakeConfig("Options for oscake application: deduplicator") {
     val osccFile by option(
-        "--osccFile", "-if",
+        "--dedInp", "-dI",
         help = "An oscc file produced by an OSCake-Reporter or OSCake-Curator."
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
