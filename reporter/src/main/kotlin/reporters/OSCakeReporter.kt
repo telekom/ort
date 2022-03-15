@@ -76,7 +76,7 @@ class OSCakeReporter : Reporter {
         // start processing
         prepareNativeScanResults(input.ortResult.scanner?.config?.options, OSCakeConfiguration.params)
         val scanDict = getNativeScanResults(input, OSCakeConfiguration.params)
-        removeMultipleEqualLicensesPerFile(scanDict)
+        removeScoreBasedMultipleLicensesPerFile(scanDict)
         val project = ingestAnalyzerOutput(input, scanDict, outputDir, OSCakeConfiguration.params)
 
         OSCakeConfiguration.params.forceIncludePackages.filter { !it.value }.forEach {
@@ -167,34 +167,30 @@ class OSCakeReporter : Reporter {
      * If a file contains more than one license text entry for a specific license and the difference of the
      * scores of the licenses is greater than 1, then the entry is removed - the one with the highest score remains.
      */
-    private fun removeMultipleEqualLicensesPerFile(scanDict: MutableMap<Identifier,
+    private fun removeScoreBasedMultipleLicensesPerFile(scanDict: MutableMap<Identifier,
             MutableMap<String, FileInfoBlock>>) {
+
         scanDict.forEach { (pkg, fibMap) ->
-            fibMap.forEach { (_, fib) ->
-                // create a map consisting of key=license, value=List of LicenseTextEntry
-                val licMap: MutableMap<String, MutableList<LicenseTextEntry>> = mutableMapOf()
-                fib.licenseTextEntries.forEach {
-                    (licMap.getOrPut(it.license!!) { mutableListOf() }).add(it)
+            fibMap.filter { it.value.licenseTextEntries.size > 1 }
+                .forEach { (_, fib) ->
+                val lteToRemove = mutableListOf<LicenseTextEntry>()
+                // sort by score descending
+                val sortedPairs = fib.licenseTextEntries.sortedBy { -it.score }.map { it to it.score }
+                // take the one with the highest score
+                var lastFound = sortedPairs[0]
+                sortedPairs.forEach {
+                    // if the difference between lastFound and the next in ranking is > 1, the next will be removed!
+                    if (lastFound.second > it.second + 1) {
+                        lteToRemove.add(it.first)
+                        logger.log(
+                            "License text finding for license \"${it.first.license}\" in " +
+                                    "file: \"${fib.path}\" was removed, " +
+                                    "due to multiple similar entries in the file!",
+                            Level.DEBUG, pkg, fib.path, it.first, ScopeLevel.FILE, ProcessingPhase.PRE
+                        )
+                    } else lastFound = it
                 }
-                if (licMap.isNotEmpty()) {
-                    val lteToRemove = mutableListOf<LicenseTextEntry>()
-                    licMap.filterValues { it.size > 1 }.forEach { (_, lteList) ->
-                        val sortedList = lteList.toMutableList()
-                        sortedList.sortByDescending { it.score }
-                        val highest = sortedList[0]
-                        for (i in 1 until lteList.size) {
-                            // check if there is more than 1 percent difference in the scores
-                            if (highest.score - sortedList[i].score > 1) {
-                                lteToRemove.add(sortedList[i])
-                                logger.log(
-                                    "License text finding for license \"${highest.license}\" was removed, " +
-                                            "due to multiple similar entries in the file!",
-                                    Level.DEBUG, pkg, fib.path, highest, ScopeLevel.FILE, ProcessingPhase.PRE)
-                            }
-                        }
-                    }
-                    if (lteToRemove.isNotEmpty()) fib.licenseTextEntries.removeAll(lteToRemove)
-                }
+                if (lteToRemove.isNotEmpty()) fib.licenseTextEntries.removeAll(lteToRemove)
             }
         }
     }
