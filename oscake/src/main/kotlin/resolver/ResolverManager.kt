@@ -84,8 +84,8 @@ internal class ResolverManager(
      * resolver actions, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
-        // 1. Automatically create resolving actions for packages with more than one license which have
-        // no resolving action defined
+        // 1. Automatically create resolving actions for packages with more than one license (either in
+        // analyzer-results.yml or in a file license) which have no manually created resolving action defined
         project.packs.forEach { pack -> resolverProvider.getActionFor(pack.id) ?: appendAction(pack) }
 
         // 2. Process resolver-package if it's valid, applicable and pack is not reuse-compliant
