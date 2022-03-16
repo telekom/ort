@@ -270,7 +270,7 @@ internal class CurationProvider(
         val pattern = "([EWI])\\d\\d".toRegex()
         if (item.packageModifier == "update" && !item.resolvedIssues.isNullOrEmpty()) {
             item.resolvedIssues.forEach {
-                if (!pattern.matches(it)) {
+                if (!pattern.matches(it) && it != "W*" && it != "E*") {
                     logger.log(
                         "$errorPrefix Issue-ID \"$it\" not a valid format! $errorSuffix",
                         Level.WARN, phase = ProcessingPhase.CURATION

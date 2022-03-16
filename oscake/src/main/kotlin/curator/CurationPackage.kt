@@ -504,6 +504,15 @@ internal data class CurationPackage(
         // issues in curation for this package
         val remedyList = (resolvedIssues?.filter { it [0] == 'E' || it[0] == 'W' } ?: emptyList())
             .toMutableList()
+        if (resolvedIssues?.contains("W*") == true) {
+            remedyList.removeAll { it [0] == 'W' }
+            remedyList.addAll(issueList2resolve.filter { it[0] == 'W' })
+        }
+        if (resolvedIssues?.contains("E*") == true) {
+            remedyList.removeAll { it [0] == 'E' }
+            remedyList.addAll(issueList2resolve.filter { it[0] == 'E' })
+        }
+
         val issueList2resolveClone = issueList2resolve.toList()
         val remedyListClone = remedyList.toList()
         issueList2resolve.removeAll(remedyList)
