@@ -72,6 +72,7 @@ class ValidatorOptions : OscakeConfig("Options for oscake application: validator
 /**
  * Contains the options for the resolver application
  */
+@Suppress("unused")
 class ResolverOptions : OscakeConfig("Options for oscake application: resolver") {
     val osccFile by option(
         "--resInp", "-rI",
@@ -100,6 +101,7 @@ class ResolverOptions : OscakeConfig("Options for oscake application: resolver")
 /**
  * Contains the options for the resolver application
  */
+@Suppress("unused")
 class SelectorOptions : OscakeConfig("Options for oscake application: selector") {
     val osccFile by option(
         "--selInp", "-sI",
@@ -121,6 +123,7 @@ class SelectorOptions : OscakeConfig("Options for oscake application: selector")
 /**
  * Contains the options for the curator application
  */
+@Suppress("unused")
 class CuratorOptions : OscakeConfig("Options for oscake application: curator") {
     val osccFile by option(
         "--curInp", "-cI",
@@ -144,14 +147,17 @@ class CuratorOptions : OscakeConfig("Options for oscake application: curator") {
 /**
  * Contains the options for the merger application
  */
+@Suppress("MemberVisibilityCanBePrivate")
 class MergerOptions : OscakeConfig("Options for oscake application: merger") {
     internal val inputDir by option("--merInp-Dir", "-mI", help = "The path to a folder containing oscc " +
             "files and their corresponding archives. May also consist of subdirectories.")
         .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
         .required()
 
     internal val outputDirArg by option("--merOut-Dir", "-mO", help = "The path to the output folder.")
         .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = true, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
 
     internal val cid by option("--cid", help = "Id of the Compliance Artifact Collection - IVY format preferred.")
         .required()
@@ -159,6 +165,7 @@ class MergerOptions : OscakeConfig("Options for oscake application: merger") {
     internal val outputFileArg by option("--merOut-File", "-mF", help = "Name of the output file. When -mO is " +
             "also specified, the path to the outputFile is stripped to its name.")
         .file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
+        .convert { it.absoluteFile.normalize() }
 
     internal lateinit var outputFile: File
 
