@@ -135,7 +135,11 @@ data class OSCakeConfiguration(
     /**
      * defines if license findings starting with "LicenseRef" are ignored
      */
-    val ignoreLicenseRef: Boolean? = false
+    val ignoreLicenseRef: Boolean? = false,
+    /**
+     * defines the boundary for license scores - every license finding below this threshold will be logged as warning
+     */
+    val licenseScoreThreshold: Int? = 0
     ) {
     companion object {
         private lateinit var osCakeConfig: OSCakeConfiguration
@@ -224,6 +228,7 @@ data class OSCakeConfiguration(
             params.ignoreLicenseRefScancodeUnknown = osCakeConfig.ignoreLicenseRefScancodeUnknown ?: false
             params.ignoreLicenseRef = osCakeConfig.ignoreLicenseRef ?: false
             params.hideSections = osCakeConfig.hideSections ?: emptyList()
+            params.licenseScoreThreshold = osCakeConfig.licenseScoreThreshold?: 0
 
             options.forEach {
                 commandLineParams[it.key] = it.value

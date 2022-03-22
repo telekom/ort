@@ -77,6 +77,7 @@ class OSCakeReporter : Reporter {
         prepareNativeScanResults(input.ortResult.scanner?.config?.options, OSCakeConfiguration.params)
         val scanDict = getNativeScanResults(input, OSCakeConfiguration.params)
         removeScoreBasedMultipleLicensesPerFile(scanDict)
+        reportScoreBelowThreshold(scanDict)
         val project = ingestAnalyzerOutput(input, scanDict, outputDir, OSCakeConfiguration.params)
 
         OSCakeConfiguration.params.forceIncludePackages.filter { !it.value }.forEach {
@@ -162,6 +163,23 @@ class OSCakeReporter : Reporter {
         }
         return ret
     }
+
+    /**
+     * [reportScoreBelowThreshold] logs every license entry which has a score lower than the configured threshold
+     */
+    private fun reportScoreBelowThreshold(scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>) =
+        scanDict.forEach { (pkg, fibMap) ->
+            fibMap.forEach { (_, fib) ->
+                fib.licenseTextEntries.filter { it.score <= OSCakeConfiguration.params.licenseScoreThreshold }
+                    .forEach {
+                        logger.log("Score <${it.score}> of license: ${it.license} in file \"${fib.path}\" is " +
+                               "lower than the configured threshold of " +
+                                "<${OSCakeConfiguration.params.licenseScoreThreshold}>!", Level.WARN, pkg,
+                            phase = ProcessingPhase.PRE
+                    )
+                }
+            }
+        }
 
     /**
      * If a file contains more than one license text entry for a specific license and the difference of the
