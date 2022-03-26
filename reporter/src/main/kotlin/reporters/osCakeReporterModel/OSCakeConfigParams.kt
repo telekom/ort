@@ -74,7 +74,8 @@ data class OSCakeConfigParams(
     var hideSections: List<String> = emptyList(),
     var lowerCaseComparisonOfScopePatterns: Boolean = true,
     var ignoreLicenseRef: Boolean = false,
-    var licenseScoreThreshold: Int = 0
+    var licenseScoreThreshold: Int = 0,
+    var distributionMap: MutableMap<String, String> = mutableMapOf()
 ) {
     constructor(includeJsonPathInLogfile: Boolean) : this(
         includeJsonPathInLogfile4ErrorsAndWarnings = includeJsonPathInLogfile,

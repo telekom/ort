@@ -45,6 +45,7 @@ import org.apache.commons.compress.utils.IOUtils
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.EvaluatedModel
 
 /**
  * The class [Project] wraps the meta information ([complianceArtifactCollection]) of the OSCakeReporter as well
@@ -462,4 +463,14 @@ data class Project(
             }
         }
     }
+
+    /**
+     * Set the distribution type based on the "scope" per package
+     */
+    fun setDistributionType(evaluatedModel: EvaluatedModel) = packs.forEach {
+            it.setDistributionType(evaluatedModel, Identifier(complianceArtifactCollection.cid))
+            // set default value
+            if (it.distribution == DistributionType.EMPTY) it.distribution = DistributionType.DISTRIBUTED
+        }
+
 }

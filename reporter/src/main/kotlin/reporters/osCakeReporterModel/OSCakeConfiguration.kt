@@ -139,7 +139,12 @@ data class OSCakeConfiguration(
     /**
      * defines the boundary for license scores - every license finding below this threshold will be logged as warning
      */
-    val licenseScoreThreshold: Int? = 0
+    val licenseScoreThreshold: Int? = 0,
+    /**
+     * contains a mapping between scope names (may contain a regex expression) and its distribution type
+     * the scope names may be prefixed by the name of a package manager
+     */
+    val distributionMap: MutableMap<String, String>? = mutableMapOf()
     ) {
     companion object {
         private lateinit var osCakeConfig: OSCakeConfiguration
@@ -230,6 +235,15 @@ data class OSCakeConfiguration(
             params.hideSections = osCakeConfig.hideSections ?: emptyList()
             params.licenseScoreThreshold = osCakeConfig.licenseScoreThreshold?: 0
 
+            osCakeConfig.distributionMap?.forEach { item ->
+                if (enumValueOfOrNull<DistributionType>(item.value) != null)
+                    params.distributionMap[item.key] = item.value
+                else
+                    logger.log("Invalid config value \"${item.value}\" in distributionMap - must be one " +
+                         "of ${DistributionType.values().map { it.name }} --> ignored", Level.INFO,
+                        phase = ProcessingPhase.CONFIG)
+            }
+
             options.forEach {
                 commandLineParams[it.key] = it.value
             }
@@ -254,5 +268,13 @@ data class OSCakeConfiguration(
          */
         private fun isValidFolder(dir: String?): Boolean =
             !(dir == null || !File(dir).exists() || !File(dir).isDirectory)
+
+        /**
+         * Returns an enum entry with the specified name or `null` if no such entry was found.
+         */
+        inline fun <reified T : Enum<T>> enumValueOfOrNull(name: String): T? {
+            return enumValues<T>().find { it.name == name }
+        }
+
     }
 }

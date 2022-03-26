@@ -296,16 +296,15 @@ class OSCakeReporter : Reporter {
             }
         }
 
+        project.setDistributionType(evaluatedModel)
+
         project.complianceArtifactCollection.archivePath = "./" +
                 input.ortResult.getProjects().first().id.name + ".zip"
 
         project.config = ConfigInfo(OSCakeConfiguration.osCakeConfigInfo)
 
-        if (OSCakeConfiguration.params.hideSections.isNotEmpty()) {
-            if (project.hideSections(OSCakeConfiguration.params.hideSections, tmpDirectory)) {
-                project.containsHiddenSections = true
-            }
-        }
+        project.containsHiddenSections = OSCakeConfiguration.params.hideSections.isNotEmpty() &&
+                project.hideSections(OSCakeConfiguration.params.hideSections, tmpDirectory)
 
         zipAndCleanUp(outputDir, tmpDirectory, project.complianceArtifactCollection.archivePath,
             logger, ProcessingPhase.POST)

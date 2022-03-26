@@ -30,6 +30,7 @@ import java.util.SortedSet
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.EvaluatedModel
 
 /**
  * The class [Pack] holds license information found in license files. The [Identifier] stores the unique name of the
@@ -37,8 +38,9 @@ import org.ossreviewtoolkit.model.Identifier
  * [ScopeLevel]s: [defaultLicensings], [dirLicensings], etc. If the sourcecode is not placed in the
  * root directory of the repository (e.g. git), then the property [packageRoot] shows the path to the root directory
   */
-@JsonPropertyOrder("pid", "release", "repository", "id", "sourceRoot", "reuseCompliant", "hasIssues", "issues",
-    "defaultLicenses", "defaultCopyrights", "unifiedCopyrights", "dirLicensings", "reuseLicenses", "fileLicensings")
+@JsonPropertyOrder("pid", "release", "repository", "id", "distribution", "sourceRoot", "reuseCompliant", "hasIssues",
+    "issues", "defaultLicenses", "defaultCopyrights", "unifiedCopyrights", "dirLicensings", "reuseLicenses",
+    "fileLicensings")
 @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
 data class Pack(
     /**
@@ -118,7 +120,10 @@ data class Pack(
      * [origin] contains the name of the source file and is set during deserialization
      */
     @JsonIgnore var origin: String = ""
-
+    /**
+     * Defines the kind of [distribution]
+     */
+    var distribution: DistributionType = DistributionType.EMPTY
     /**
      * Removes the file specified in [path] from the directory, if there is no reference to it anymore
      */
@@ -386,4 +391,34 @@ data class Pack(
         issueList.infos.clear()
         return issuesNumbers
     }
+
+    fun setDistributionType(evaluatedModel: EvaluatedModel, projectId: Identifier) {
+        if (projectId == id)
+            // the scope for a package which is the project is not set in evaluatedModel
+            evaluatedModel.packages.firstOrNull { it.id == id && it.isProject }?.apply {
+                distribution += getDistributionType(projectId, "")
+            }
+        else
+            evaluatedModel.packages.firstOrNull { it.id == id }?.scopes?.forEach {
+                distribution += getDistributionType(projectId, it.name)
+            }
+    }
+
+    private fun getDistributionType(projectId: Identifier, scope: String): DistributionType {
+        // the projectId contains as type the used package manager (see definition in ORT)
+        val packageManager = projectId.type
+        var pmDist:String? = null
+        var dist: String? = null
+
+        OSCakeConfiguration.params.distributionMap.forEach { item ->
+            val regex = Regex(item.key)
+            if (regex.matches("$packageManager:$scope")) pmDist = item.value
+            if (regex.matches(scope)) dist = item.value
+        }
+        if (pmDist != null) return DistributionType.valueOf(pmDist!!)
+        if (dist != null) return DistributionType.valueOf(dist!!)
+
+        return DistributionType.EMPTY
+    }
+
 }
