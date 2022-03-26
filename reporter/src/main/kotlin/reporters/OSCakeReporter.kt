@@ -297,6 +297,7 @@ class OSCakeReporter : Reporter {
         }
 
         project.setDistributionType(evaluatedModel)
+        project.setPackageType()
 
         project.complianceArtifactCollection.archivePath = "./" +
                 input.ortResult.getProjects().first().id.name + ".zip"

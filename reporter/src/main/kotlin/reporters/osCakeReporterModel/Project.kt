@@ -469,8 +469,18 @@ data class Project(
      */
     fun setDistributionType(evaluatedModel: EvaluatedModel) = packs.forEach {
             it.setDistributionType(evaluatedModel, Identifier(complianceArtifactCollection.cid))
-            // set default value
-            if (it.distribution == DistributionType.EMPTY) it.distribution = DistributionType.DISTRIBUTED
         }
 
+    /**
+     * Set th packageType depending on the package (project vs. package)
+     */
+    fun setPackageType() {
+        packs.forEach {
+            if (it.id == Identifier(complianceArtifactCollection.cid)) {
+                it.packageType = PackageType.EXECUTABLE
+            } else {
+                it.packageType = PackageType.LIBRARY
+            }
+        }
+    }
 }

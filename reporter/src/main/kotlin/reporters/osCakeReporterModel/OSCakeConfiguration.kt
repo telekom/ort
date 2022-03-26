@@ -233,7 +233,7 @@ data class OSCakeConfiguration(
             params.ignoreLicenseRefScancodeUnknown = osCakeConfig.ignoreLicenseRefScancodeUnknown ?: false
             params.ignoreLicenseRef = osCakeConfig.ignoreLicenseRef ?: false
             params.hideSections = osCakeConfig.hideSections ?: emptyList()
-            params.licenseScoreThreshold = osCakeConfig.licenseScoreThreshold?: 0
+            params.licenseScoreThreshold = osCakeConfig.licenseScoreThreshold ?: 0
 
             osCakeConfig.distributionMap?.forEach { item ->
                 if (enumValueOfOrNull<DistributionType>(item.value) != null)
@@ -275,6 +275,5 @@ data class OSCakeConfiguration(
         inline fun <reified T : Enum<T>> enumValueOfOrNull(name: String): T? {
             return enumValues<T>().find { it.name == name }
         }
-
     }
 }
