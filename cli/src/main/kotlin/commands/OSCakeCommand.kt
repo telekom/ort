@@ -40,6 +40,7 @@ import org.ossreviewtoolkit.cli.GlobalOptions
 import org.ossreviewtoolkit.oscake.OSCakeApplication
 import org.ossreviewtoolkit.oscake.OSCakeCurator
 import org.ossreviewtoolkit.oscake.OSCakeDeduplicator
+import org.ossreviewtoolkit.oscake.OSCakeInjector
 import org.ossreviewtoolkit.oscake.OSCakeMerger
 import org.ossreviewtoolkit.oscake.OSCakeResolver
 import org.ossreviewtoolkit.oscake.OSCakeSelector
@@ -118,6 +119,29 @@ class SelectorOptions : OscakeConfig("Options for oscake application: selector")
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
         .required()
+}
+
+/**
+ * Contains the options for the injector application
+ */
+@Suppress("unused")
+class InjectorOptions : OscakeConfig("Options for oscake application: injector") {
+    val osccFile by option(
+        "--injInp", "-iI",
+        help = "An oscc file produced by an OSCake-Reporter or by an OSCake-Resolver."
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+
+    val outputDir by option(
+        "--injOut-Dir", "-iO",
+        help = "The directory to write the generated oscc file."
+    ).convert { it.expandTilde() }
+        .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
+        .convert { it.absoluteFile.normalize() }
+        .required()
+    val ignoreFromChecks by option("--ignoreFromChecks", help = "Ignore the semantic check for from").flag()
 }
 
 /**
@@ -224,6 +248,7 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
         "validator" to ValidatorOptions(),
         "resolver" to ResolverOptions(),
         "selector" to SelectorOptions(),
+        "injector" to InjectorOptions(),
     ).required()
 
     private val globalOptionsForSubcommands by requireObject<GlobalOptions>()
@@ -266,6 +291,17 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
                     "Directory for \"config.oscake.selector.directory\" is not set correctly in ort.conf"
                 }
                 OSCakeSelector(config.oscake, getCommandLineParams(it, fieldsList)).execute()
+            }
+            is InjectorOptions -> {
+                if (config.oscake.injector?.distribution?.enabled == true)
+                    require(isValidDirectory(config.oscake.injector?.distribution?.directory)) {
+                    "Directory for \"config.oscake.injector.distribution\" is not set correctly in ort.conf"
+                }
+                if (config.oscake.injector?.packageType?.enabled == true)
+                    require(isValidDirectory(config.oscake.injector?.packageType?.directory)) {
+                    "Directory for \"config.oscake.injector.packageType\" is not set correctly in ort.conf"
+                }
+                OSCakeInjector(config.oscake, getCommandLineParams(it, fieldsList)).execute()
             }
         }
     }

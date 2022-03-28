@@ -26,8 +26,9 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.oscake.SELECTOR_GLOBAL_INDICATOR
+import org.ossreviewtoolkit.oscake.GLOBAL_INDICATOR
 import org.ossreviewtoolkit.oscake.curator.CurationPackage
+import org.ossreviewtoolkit.oscake.injector.DistributorPackage
 import org.ossreviewtoolkit.oscake.resolver.ResolverPackage
 import org.ossreviewtoolkit.oscake.selector.SelectorPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
@@ -69,6 +70,7 @@ abstract class ActionProvider internal constructor(
                         ResolverPackage::class -> file.readValue<List<ResolverPackage>>()
                         CurationPackage::class -> file.readValue<List<CurationPackage>>()
                         SelectorPackage::class -> file.readValue<List<SelectorPackage>>()
+                        DistributorPackage::class -> file.readValue<List<DistributorPackage>>()
                         else -> { listOf() }
                     }.forEach {
                         it.belongsToFile = file
@@ -100,8 +102,8 @@ abstract class ActionProvider internal constructor(
                 phase = phase
             )
             // only needed for selector-application with id [GLOBAL]
-            if (globalAllowed && size == 0 && actions.any { it.id.type == SELECTOR_GLOBAL_INDICATOR })
-                return actions.first { it.id.type == SELECTOR_GLOBAL_INDICATOR }
+            if (globalAllowed && size == 0 && actions.any { it.id.type == GLOBAL_INDICATOR })
+                return actions.first { it.id.type == GLOBAL_INDICATOR }
             if (size != 1) return null
             return first()
         }

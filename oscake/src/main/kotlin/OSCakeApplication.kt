@@ -56,7 +56,14 @@ const val SELECTOR_FILE_SUFFIX = "_selected"
 const val SELECTOR_AUTHOR = "OSCake-Selector"
 const val SELECTOR_VERSION = "0.1"
 const val SELECTOR_ACTOR = "Selector"
-const val SELECTOR_GLOBAL_INDICATOR = "[GLOBAL]"
+
+const val GLOBAL_INDICATOR = "[GLOBAL]"
+
+const val INJECTOR_LOGGER = "OSCakeInjector"
+const val INJECTOR_FILE_SUFFIX = "_injected"
+const val INJECTOR_AUTHOR = "OSCake-Injector"
+const val INJECTOR_VERSION = "0.1"
+const val INJECTOR_ACTOR = "Injector"
 
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
@@ -88,7 +95,7 @@ fun isValidDirectory(dirName: String?): Boolean =
     if (dirName != null) File(dirName).exists() && File(dirName).isDirectory else false
 
 object OSCakeApplication {
-   val ALL by lazy { listOf("curator", "merger", "deduplicator", "validator", "resolver", "selector") }
+   val ALL by lazy { listOf("curator", "merger", "deduplicator", "validator", "resolver", "selector", "injector") }
 }
 
 /**
@@ -141,6 +148,14 @@ fun addParamsToConfig(config: OSCakeConfiguration, commandLineParams: Map<String
             is org.ossreviewtoolkit.model.config.OSCakeDeduplicator -> {
                 if (clazz is OSCakeDeduplicator) {
                     org.ossreviewtoolkit.model.config.OSCakeDeduplicator::class.memberProperties.forEach { member2 ->
+                        paramMap[member2.name] = member2.get(v).toString()
+                    }
+                    return ConfigBlockInfo(commandLineParams, paramMap)
+                }
+            }
+            is org.ossreviewtoolkit.model.config.OSCakeInjector -> {
+                if (clazz is OSCakeInjector) {
+                    org.ossreviewtoolkit.model.config.OSCakeInjector::class.memberProperties.forEach { member2 ->
                         paramMap[member2.name] = member2.get(v).toString()
                     }
                     return ConfigBlockInfo(commandLineParams, paramMap)

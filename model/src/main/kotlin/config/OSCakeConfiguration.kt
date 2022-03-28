@@ -29,7 +29,8 @@ data class OSCakeConfiguration(
     val curator: OSCakeCurator? = null,
     val deduplicator: OSCakeDeduplicator? = null,
     val resolver: OSCakeResolver? = null,
-    val selector: OSCakeSelector? = null
+    val selector: OSCakeSelector? = null,
+    val injector: OSCakeInjector? = null
 )
 
 data class OSCakeDeduplicator(
@@ -76,4 +77,39 @@ data class OSCakeSelector(
      * [issueLevel]: -1..not enabled, 0..ERROR, 1..WARN + ERROR, 2..INFO + WARN + ERROR
      */
     val issueLevel: Int? = -1,
+)
+
+data class OSCakeInjector(
+    /**
+     * The [distribution] information
+     */
+    val distribution: OSCakeInjectorDistribution? = null,
+    /**
+     * The [packageType] information
+     */
+    val packageType: OSCakeInjectorPackageType? = null,
+    /**
+     * [issueLevel]: -1..not enabled, 0..ERROR, 1..WARN + ERROR, 2..INFO + WARN + ERROR
+     */
+    val issueLevel: Int? = -1,
+)
+data class OSCakeInjectorDistribution(
+    /**
+     * mechanism enabled?
+     */
+    val enabled: Boolean? = false,
+    /**
+     * The [directory] where to find the yml files to be used for distribution
+     */
+    val directory: String? = null
+)
+data class OSCakeInjectorPackageType(
+    /**
+     * mechanism enabled?
+     */
+    val enabled: Boolean? = false,
+    /**
+     * The [directory] where to find the yml files to be used for changing the package type
+     */
+    val directory: String? = null
 )

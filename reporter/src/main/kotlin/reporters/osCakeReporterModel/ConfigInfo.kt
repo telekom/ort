@@ -40,4 +40,5 @@ data class ConfigInfo(
     var merger: ConfigBlockInfo? = null
     var resolver: ConfigBlockInfo? = null
     var selector: ConfigBlockInfo? = null
+    var injector: ConfigBlockInfo? = null
 }

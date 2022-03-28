@@ -24,6 +24,11 @@ import org.ossreviewtoolkit.oscake.CURATION_AUTHOR
 import org.ossreviewtoolkit.oscake.CURATION_FILE_SUFFIX
 import org.ossreviewtoolkit.oscake.CURATION_LOGGER
 import org.ossreviewtoolkit.oscake.CURATION_VERSION
+import org.ossreviewtoolkit.oscake.INJECTOR_ACTOR
+import org.ossreviewtoolkit.oscake.INJECTOR_AUTHOR
+import org.ossreviewtoolkit.oscake.INJECTOR_FILE_SUFFIX
+import org.ossreviewtoolkit.oscake.INJECTOR_LOGGER
+import org.ossreviewtoolkit.oscake.INJECTOR_VERSION
 import org.ossreviewtoolkit.oscake.RESOLVER_ACTOR
 import org.ossreviewtoolkit.oscake.RESOLVER_AUTHOR
 import org.ossreviewtoolkit.oscake.RESOLVER_FILE_SUFFIX
@@ -75,6 +80,15 @@ class ActionInfo private constructor (
             SELECTOR_VERSION,
             SELECTOR_ACTOR,
             SELECTOR_FILE_SUFFIX,
+            issueLevel
+        )
+        internal fun injector(issueLevel: Int) = ActionInfo(
+            INJECTOR_LOGGER,
+            ProcessingPhase.INJECTION,
+            INJECTOR_AUTHOR,
+            INJECTOR_VERSION,
+            INJECTOR_ACTOR,
+            INJECTOR_FILE_SUFFIX,
             issueLevel
         )
     }

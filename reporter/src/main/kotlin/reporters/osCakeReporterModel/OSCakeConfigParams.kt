@@ -75,7 +75,8 @@ data class OSCakeConfigParams(
     var lowerCaseComparisonOfScopePatterns: Boolean = true,
     var ignoreLicenseRef: Boolean = false,
     var licenseScoreThreshold: Int = 0,
-    var distributionMap: MutableMap<String, String> = mutableMapOf()
+    var distributionMap: MutableMap<String, String> = mutableMapOf(),
+    var ignoreFromChecks: Boolean = false
 ) {
     constructor(includeJsonPathInLogfile: Boolean) : this(
         includeJsonPathInLogfile4ErrorsAndWarnings = includeJsonPathInLogfile,
@@ -106,6 +107,9 @@ data class OSCakeConfigParams(
             params.scopeIgnorePatterns = scopeIgnorePatterns
             params.copyrightScopePatterns = copyrightScopePatterns
             params.lowerCaseComparisonOfScopePatterns = lowerCaseComparisonOfScopePatterns
+            project.config?.injector?.commandLineParams?.get("ignoreFromChecks")?.let {
+                params.ignoreFromChecks = it.toBoolean()
+            }
             return params
         }
     }

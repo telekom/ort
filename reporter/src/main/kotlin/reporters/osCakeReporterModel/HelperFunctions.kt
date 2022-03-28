@@ -160,6 +160,11 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
     issueNumberPerPackage[null]?.set("infno", getNextNo(project.issueList.infos))
     issueNumberPerPackage[null]?.set("warno", getNextNo(project.issueList.warnings))
     issueNumberPerPackage[null]?.set("errno", getNextNo(project.issueList.errors))
+    project.packs.forEach {
+        issueNumberPerPackage[it.id.toCoordinates()]?.set("infno", getNextNo(it.issueList.infos))
+        issueNumberPerPackage[it.id.toCoordinates()]?.set("warno", getNextNo(it.issueList.warnings))
+        issueNumberPerPackage[it.id.toCoordinates()]?.set("errno", getNextNo(it.issueList.errors))
+    }
 
     // Root-Level: handle OSCakeIssues with no package info
     issuesPerPackage[null]?.forEach {

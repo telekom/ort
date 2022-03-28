@@ -17,10 +17,20 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.oscake.injector
+
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DistributionType
 
 /**
- * License information may be valid for different scope levels [ProcessingPhase].
-*/
-enum class ProcessingPhase { ORIGINAL, CONFIG, PRE, SCANRESULT, DOWNLOAD, PROCESS, POST, CURATION,
-    MERGING, DEDUPLICATION, VALIDATING, RESOLVING, SELECTION, INJECTION }
+ * A [DistributorBlock] contains one distributor-action for a specific package
+ */
+internal data class DistributorBlock(
+    /**
+     * change distribution from
+     */
+    val from: DistributionType,
+    /**
+     * change distribution to
+     */
+    val to: DistributionType,
+)
