@@ -63,6 +63,10 @@ internal class InjectorManager(
      * The [distributorProvider] contains a list of [DistributorPackage]s to be applied.
      */
     private var distributorProvider = DistributorProvider(File(config.injector?.distribution?.directory!!))
+    /**
+     * The [packageTypeProvider] contains a list of [PackageTypePackage]s to be applied.
+     */
+    private var packageTypeProvider = PackageTypeProvider(File(config.injector?.packageType?.directory!!))
 
     /**
      * The method takes the reporter's output, checks and updates the reported "hasIssues", applies the
@@ -76,8 +80,11 @@ internal class InjectorManager(
                 process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
             }
         // 2. Process packageType-package if it's valid and applicable
-        // todo
-
+        if (config.injector?.packageType?.enabled == true)
+            project.packs.forEach {
+                packageTypeProvider.getActionFor(it.id, true)?.
+                process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
+            }
         // 3. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(INJECTOR_LOGGER)) handleOSCakeIssues(project, logger,
             config.injector?.issueLevel ?: -1)

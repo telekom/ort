@@ -29,6 +29,7 @@ import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.oscake.GLOBAL_INDICATOR
 import org.ossreviewtoolkit.oscake.curator.CurationPackage
 import org.ossreviewtoolkit.oscake.injector.DistributorPackage
+import org.ossreviewtoolkit.oscake.injector.PackageTypePackage
 import org.ossreviewtoolkit.oscake.resolver.ResolverPackage
 import org.ossreviewtoolkit.oscake.selector.SelectorPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
@@ -71,6 +72,7 @@ abstract class ActionProvider internal constructor(
                         CurationPackage::class -> file.readValue<List<CurationPackage>>()
                         SelectorPackage::class -> file.readValue<List<SelectorPackage>>()
                         DistributorPackage::class -> file.readValue<List<DistributorPackage>>()
+                        PackageTypePackage::class -> file.readValue<List<PackageTypePackage>>()
                         else -> { listOf() }
                     }.forEach {
                         it.belongsToFile = file

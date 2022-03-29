@@ -24,7 +24,10 @@ enum class DistributionType { DISTRIBUTED, PREINSTALLED, DEV }
 // implements the priority rules, if the type is already set
 operator fun DistributionType.plus(newType: DistributionType?): DistributionType? {
     if (this == DistributionType.DISTRIBUTED) return DistributionType.DISTRIBUTED
-    if (this == DistributionType.PREINSTALLED) return DistributionType.PREINSTALLED
+    if (newType == DistributionType.DISTRIBUTED) return DistributionType.DISTRIBUTED
+    if (this == DistributionType.PREINSTALLED) DistributionType.PREINSTALLED
+    if (newType == DistributionType.PREINSTALLED) return DistributionType.PREINSTALLED
     if (this == DistributionType.DEV) return DistributionType.DEV
+    if (newType == DistributionType.DEV) return DistributionType.DEV
     return newType
 }
