@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.oscake.injector
+package org.ossreviewtoolkit.oscake.metadata
 
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DistributionType
 

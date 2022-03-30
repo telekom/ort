@@ -17,12 +17,12 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.oscake.injector
+package org.ossreviewtoolkit.oscake.metadata
 
 import java.io.File
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.oscake.INJECTOR_LOGGER
+import org.ossreviewtoolkit.oscake.METADATAMANAGER_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionInfo
 import org.ossreviewtoolkit.oscake.common.ActionManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
@@ -31,11 +31,11 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
 
 /**
- * The [InjectorManager] handles the entire injector process: reads and analyzes the distributor and packageType
+ * The [MetaDataManager] handles the entire metadatamanager process: reads and analyzes the distributor and packageType
  * files, applies the different actions and writes the results into the output files - one oscc compliant
  * file in json format and a zip-archive containing the license texts.
  */
-internal class InjectorManager(
+internal class MetaDataManager(
     /**
     * The [project] contains the processed output from the OSCakeReporter - specifically a list of packages.
     */
@@ -45,7 +45,7 @@ internal class InjectorManager(
     */
     override val outputDir: File,
     /**
-    * The name of the reporter's output file which is extended by the [InjectorManager]
+    * The name of the reporter's output file which is extended by the [MetaDataManager]
     */
     override val reportFilename: String,
     /**
@@ -57,37 +57,37 @@ internal class InjectorManager(
      */
     override val commandLineParams: Map<String, String>
 ) : ActionManager(project, outputDir, reportFilename, config,
-    ActionInfo.injector(config.injector?.issueLevel ?: -1), commandLineParams) {
+    ActionInfo.metadatamanager(config.metadatamanager?.issueLevel ?: -1), commandLineParams) {
 
     /**
      * The [distributorProvider] contains a list of [DistributorPackage]s to be applied.
      */
-    private var distributorProvider = DistributorProvider(File(config.injector?.distribution?.directory!!))
+    private var distributorProvider = DistributorProvider(File(config.metadatamanager?.distribution?.directory!!))
     /**
      * The [packageTypeProvider] contains a list of [PackageTypePackage]s to be applied.
      */
-    private var packageTypeProvider = PackageTypeProvider(File(config.injector?.packageType?.directory!!))
+    private var packageTypeProvider = PackageTypeProvider(File(config.metadatamanager?.packageType?.directory!!))
 
     /**
      * The method takes the reporter's output, checks and updates the reported "hasIssues", applies the
-     * injector actions, reports emerged issues and finally, writes the output files.
+     * metadatamanager actions, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
         // 1. Process distributor-package if it's valid and applicable
-        if (config.injector?.distribution?.enabled == true)
+        if (config.metadatamanager?.distribution?.enabled == true)
             project.packs.forEach {
                 distributorProvider.getActionFor(it.id, true)?.
                 process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
             }
         // 2. Process packageType-package if it's valid and applicable
-        if (config.injector?.packageType?.enabled == true)
+        if (config.metadatamanager?.packageType?.enabled == true)
             project.packs.forEach {
                 packageTypeProvider.getActionFor(it.id, true)?.
                 process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
             }
         // 3. report [OSCakeIssue]s
-        if (OSCakeLoggerManager.hasLogger(INJECTOR_LOGGER)) handleOSCakeIssues(project, logger,
-            config.injector?.issueLevel ?: -1)
+        if (OSCakeLoggerManager.hasLogger(METADATAMANAGER_LOGGER)) handleOSCakeIssues(project, logger,
+            config.metadatamanager?.issueLevel ?: -1)
         // 4. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
         // 5. generate .zip and .oscc files

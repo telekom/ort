@@ -38,6 +38,7 @@ class OSCakeResolver(private val config: OSCakeConfiguration, private val comman
     * Checks valid commandline parameters and starts the resolving algorithm
     */
     fun execute() {
+        require(config.resolver != null) { "No \"resolver\" section found in ort.conf" }
         val osccFile = File(commandLineParams["osccFile"]!!)
         val outputDir = File(commandLineParams["outputDir"]!!)
         val project = Project.osccToModel(osccFile, logger, ProcessingPhase.RESOLVING)

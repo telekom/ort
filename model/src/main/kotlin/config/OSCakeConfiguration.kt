@@ -30,7 +30,7 @@ data class OSCakeConfiguration(
     val deduplicator: OSCakeDeduplicator? = null,
     val resolver: OSCakeResolver? = null,
     val selector: OSCakeSelector? = null,
-    val injector: OSCakeInjector? = null
+    val metadatamanager: OSCakeMetaDataManager? = null
 )
 
 data class OSCakeDeduplicator(
@@ -79,21 +79,21 @@ data class OSCakeSelector(
     val issueLevel: Int? = -1,
 )
 
-data class OSCakeInjector(
+data class OSCakeMetaDataManager(
     /**
      * The [distribution] information
      */
-    val distribution: OSCakeInjectorDistribution? = null,
+    val distribution: OSCakeMetaDataManagerDistribution? = null,
     /**
      * The [packageType] information
      */
-    val packageType: OSCakeInjectorPackageType? = null,
+    val packageType: OSCakeMetaDataManagerPackageType? = null,
     /**
      * [issueLevel]: -1..not enabled, 0..ERROR, 1..WARN + ERROR, 2..INFO + WARN + ERROR
      */
     val issueLevel: Int? = -1,
 )
-data class OSCakeInjectorDistribution(
+data class OSCakeMetaDataManagerDistribution(
     /**
      * mechanism enabled?
      */
@@ -103,7 +103,7 @@ data class OSCakeInjectorDistribution(
      */
     val directory: String? = null
 )
-data class OSCakeInjectorPackageType(
+data class OSCakeMetaDataManagerPackageType(
     /**
      * mechanism enabled?
      */

@@ -40,8 +40,8 @@ import org.ossreviewtoolkit.cli.GlobalOptions
 import org.ossreviewtoolkit.oscake.OSCakeApplication
 import org.ossreviewtoolkit.oscake.OSCakeCurator
 import org.ossreviewtoolkit.oscake.OSCakeDeduplicator
-import org.ossreviewtoolkit.oscake.OSCakeInjector
 import org.ossreviewtoolkit.oscake.OSCakeMerger
+import org.ossreviewtoolkit.oscake.OSCakeMetaDataManager
 import org.ossreviewtoolkit.oscake.OSCakeResolver
 import org.ossreviewtoolkit.oscake.OSCakeSelector
 import org.ossreviewtoolkit.oscake.OSCakeValidator
@@ -122,10 +122,10 @@ class SelectorOptions : OscakeConfig("Options for oscake application: selector")
 }
 
 /**
- * Contains the options for the injector application
+ * Contains the options for the metadata-manager application
  */
 @Suppress("unused")
-class InjectorOptions : OscakeConfig("Options for oscake application: injector") {
+class MetaDataManagerOptions : OscakeConfig("Options for oscake application: metadata-manager") {
     val osccFile by option(
         "--injInp", "-iI",
         help = "An oscc file produced by an OSCake-Reporter or by an OSCake-Resolver."
@@ -141,7 +141,8 @@ class InjectorOptions : OscakeConfig("Options for oscake application: injector")
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
         .required()
-    val ignoreFromChecks by option("--ignoreFromChecks", help = "Ignore the semantic check for from").flag()
+    val ignoreFromChecks by option("--ignoreFromChecks", help = "Ignore the semantic checks " +
+            "for \"from\"-tag").flag()
 }
 
 /**
@@ -248,7 +249,7 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
         "validator" to ValidatorOptions(),
         "resolver" to ResolverOptions(),
         "selector" to SelectorOptions(),
-        "injector" to InjectorOptions(),
+        "metadata-manager" to MetaDataManagerOptions(),
     ).required()
 
     private val globalOptionsForSubcommands by requireObject<GlobalOptions>()
@@ -292,16 +293,16 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
                 }
                 OSCakeSelector(config.oscake, getCommandLineParams(it, fieldsList)).execute()
             }
-            is InjectorOptions -> {
-                if (config.oscake.injector?.distribution?.enabled == true)
-                    require(isValidDirectory(config.oscake.injector?.distribution?.directory)) {
-                    "Directory for \"config.oscake.injector.distribution\" is not set correctly in ort.conf"
+            is MetaDataManagerOptions -> {
+                if (config.oscake.metadatamanager?.distribution?.enabled == true)
+                    require(isValidDirectory(config.oscake.metadatamanager?.distribution?.directory)) {
+                    "Directory for \"config.oscake.metadatamanager.distribution\" is not set correctly in ort.conf"
                 }
-                if (config.oscake.injector?.packageType?.enabled == true)
-                    require(isValidDirectory(config.oscake.injector?.packageType?.directory)) {
-                    "Directory for \"config.oscake.injector.packageType\" is not set correctly in ort.conf"
+                if (config.oscake.metadatamanager?.packageType?.enabled == true)
+                    require(isValidDirectory(config.oscake.metadatamanager?.packageType?.directory)) {
+                    "Directory for \"config.oscake.metadatamanager.packageType\" is not set correctly in ort.conf"
                 }
-                OSCakeInjector(config.oscake, getCommandLineParams(it, fieldsList)).execute()
+                OSCakeMetaDataManager(config.oscake, getCommandLineParams(it, fieldsList)).execute()
             }
         }
     }

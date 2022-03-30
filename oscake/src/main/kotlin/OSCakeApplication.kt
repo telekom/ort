@@ -59,11 +59,11 @@ const val SELECTOR_ACTOR = "Selector"
 
 const val GLOBAL_INDICATOR = "[GLOBAL]"
 
-const val INJECTOR_LOGGER = "OSCakeInjector"
-const val INJECTOR_FILE_SUFFIX = "_injected"
-const val INJECTOR_AUTHOR = "OSCake-Injector"
-const val INJECTOR_VERSION = "0.1"
-const val INJECTOR_ACTOR = "Injector"
+const val METADATAMANAGER_LOGGER = "OSCakeMetaDataManager"
+const val METADATAMANAGER_FILE_SUFFIX = "_metadata"
+const val METADATAMANAGER_AUTHOR = "OSCake-MetaDataManager"
+const val METADATAMANAGER_VERSION = "0.1"
+const val METADATAMANAGER_ACTOR = "MetaDataManager"
 
 /**
  * The [packageModifierMap] is a Hashmap which defines the allowed packageModifier (=key) and their associated
@@ -95,7 +95,8 @@ fun isValidDirectory(dirName: String?): Boolean =
     if (dirName != null) File(dirName).exists() && File(dirName).isDirectory else false
 
 object OSCakeApplication {
-   val ALL by lazy { listOf("curator", "merger", "deduplicator", "validator", "resolver", "selector", "injector") }
+   val ALL by lazy { listOf("curator", "merger", "deduplicator", "validator", "resolver", "selector",
+       "metadata-manager") }
 }
 
 /**
@@ -153,9 +154,9 @@ fun addParamsToConfig(config: OSCakeConfiguration, commandLineParams: Map<String
                     return ConfigBlockInfo(commandLineParams, paramMap)
                 }
             }
-            is org.ossreviewtoolkit.model.config.OSCakeInjector -> {
-                if (clazz is OSCakeInjector) {
-                    org.ossreviewtoolkit.model.config.OSCakeInjector::class.memberProperties.forEach { member2 ->
+            is org.ossreviewtoolkit.model.config.OSCakeMetaDataManager -> {
+                if (clazz is OSCakeMetaDataManager) {
+                    org.ossreviewtoolkit.model.config.OSCakeMetaDataManager::class.memberProperties.forEach { member2 ->
                         paramMap[member2.name] = member2.get(v).toString()
                     }
                     return ConfigBlockInfo(commandLineParams, paramMap)

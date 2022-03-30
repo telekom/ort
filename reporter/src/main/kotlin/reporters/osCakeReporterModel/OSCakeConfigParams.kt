@@ -107,7 +107,7 @@ data class OSCakeConfigParams(
             params.scopeIgnorePatterns = scopeIgnorePatterns
             params.copyrightScopePatterns = copyrightScopePatterns
             params.lowerCaseComparisonOfScopePatterns = lowerCaseComparisonOfScopePatterns
-            project.config?.injector?.commandLineParams?.get("ignoreFromChecks")?.let {
+            project.config?.metadatamanager?.commandLineParams?.get("ignoreFromChecks")?.let {
                 params.ignoreFromChecks = it.toBoolean()
             }
             return params

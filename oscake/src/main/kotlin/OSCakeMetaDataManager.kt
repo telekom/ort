@@ -22,19 +22,21 @@ package org.ossreviewtoolkit.oscake
 import java.io.File
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.oscake.injector.InjectorManager
+import org.ossreviewtoolkit.oscake.metadata.MetaDataManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
 /**
- * The [OSCakeInjector] provides a mechanism to change the type of distribution in an *.oscc file.
+ * The [OSCakeMetaDataManager] provides a mechanism to change the type of distribution in an *.oscc file.
  */
-class OSCakeInjector(private val config: OSCakeConfiguration, private val commandLineParams: Map<String, String>) {
+class OSCakeMetaDataManager(private val config: OSCakeConfiguration,
+                            private val commandLineParams: Map<String, String>) {
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(SELECTOR_LOGGER) }
 
     /**
     * Checks valid commandline parameters and starts the resolving algorithm
     */
     fun execute() {
+        require(config.metadatamanager != null) { "No \"metadatamanager\" section found in ort.conf" }
         val osccFile = File(commandLineParams["osccFile"]!!)
         val outputDir = File(commandLineParams["outputDir"]!!)
         val project = Project.osccToModel(osccFile, logger, ProcessingPhase.SELECTION)
@@ -43,10 +45,10 @@ class OSCakeInjector(private val config: OSCakeConfiguration, private val comman
 
         project.config?.let { configInfo ->
             addParamsToConfig(config, commandLineParams, this)?.let {
-                configInfo.injector = it
+                configInfo.metadatamanager = it
             }
         }
 
-        InjectorManager(project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
+        MetaDataManager(project, outputDir, osccFile.absolutePath, config, commandLineParams).manage()
     }
 }

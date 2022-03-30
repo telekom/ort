@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.oscake.injector
+package org.ossreviewtoolkit.oscake.metadata
 
 import com.fasterxml.jackson.annotation.JsonProperty
 
@@ -58,7 +58,7 @@ internal data class PackageTypePackage(
            logger.log(
                "The kind of packageType \"${packageTypeBlock.from}\" is different to the PackageType \"from\"" +
                        " definition found in file: \"$belongsToFile\"!", Level.WARN, pack.id,
-               phase = ProcessingPhase.INJECTION
+               phase = ProcessingPhase.METADATAMANAGER
            )
        }
     }

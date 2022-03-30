@@ -41,6 +41,7 @@ class OSCakeCurator(private val config: OSCakeConfiguration,
      * Generates the json from file and starts the curation process
      */
     fun execute() {
+        require(config.curator != null) { "No \"curator\" section found in ort.conf" }
         val osccFile = File(commandLineParams["osccFile"]!!)
         val outputDir = File(commandLineParams["outputDir"]!!)
         val project = Project.osccToModel(osccFile, logger, ProcessingPhase.CURATION)

@@ -47,6 +47,7 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
      * as a zip file.
      */
     fun execute() {
+        require(config.deduplicator != null) { "No \"deduplicator\" section found in ort.conf" }
         val reportFile = File(osccFile.parent).resolve(extendFilename(File(osccFile.name), DEDUPLICATION_FILE_SUFFIX))
         val project = Project.osccToModel(osccFile, logger, ProcessingPhase.DEDUPLICATION)
 

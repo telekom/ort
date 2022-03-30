@@ -23,4 +23,4 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
  * License information may be valid for different scope levels [ProcessingPhase].
 */
 enum class ProcessingPhase { ORIGINAL, CONFIG, PRE, SCANRESULT, DOWNLOAD, PROCESS, POST, CURATION,
-    MERGING, DEDUPLICATION, VALIDATING, RESOLVING, SELECTION, INJECTION }
+    MERGING, DEDUPLICATION, VALIDATING, RESOLVING, SELECTION, METADATAMANAGER }

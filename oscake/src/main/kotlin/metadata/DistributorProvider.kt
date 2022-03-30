@@ -17,31 +17,32 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.oscake.injector
+package org.ossreviewtoolkit.oscake.metadata
 
 import java.io.File
 
 import org.apache.logging.log4j.Level
 
-import org.ossreviewtoolkit.oscake.INJECTOR_LOGGER
+import org.ossreviewtoolkit.oscake.METADATAMANAGER_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 
 /**
- * The [PackageTypeProvider] gets the locations where to find the yml-files containing actions (their semantics
+ * The [DistributorProvider] gets the locations where to find the yml-files containing actions (their semantics
  * is checked while processing).
  */
-class PackageTypeProvider(val directory: File) :
-    ActionProvider(directory, null, INJECTOR_LOGGER, PackageTypePackage::class, ProcessingPhase.INJECTION) {
+class DistributorProvider(val directory: File) :
+    ActionProvider(directory, null, METADATAMANAGER_LOGGER, DistributorPackage::class,
+        ProcessingPhase.METADATAMANAGER) {
 
     override fun checkSemantics(item: ActionPackage, fileName: String, fileStore: File?): Boolean {
-        item as PackageTypePackage
+        item as DistributorPackage
         val errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "
         val errorSuffix = " --> distributor action ignored"
-        val phase = ProcessingPhase.INJECTION
+        val phase = ProcessingPhase.METADATAMANAGER
 
-        if (item.packageTypeBlock.from == item.packageTypeBlock.to) {
+        if (item.distributionBlock.from == item.distributionBlock.to) {
             logger.log("$errorPrefix \"from\" and \"to\" are equal! $errorSuffix", Level.WARN, phase = phase)
             return false
         }

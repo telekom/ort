@@ -28,8 +28,8 @@ import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.oscake.GLOBAL_INDICATOR
 import org.ossreviewtoolkit.oscake.curator.CurationPackage
-import org.ossreviewtoolkit.oscake.injector.DistributorPackage
-import org.ossreviewtoolkit.oscake.injector.PackageTypePackage
+import org.ossreviewtoolkit.oscake.metadata.DistributorPackage
+import org.ossreviewtoolkit.oscake.metadata.PackageTypePackage
 import org.ossreviewtoolkit.oscake.resolver.ResolverPackage
 import org.ossreviewtoolkit.oscake.selector.SelectorPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
