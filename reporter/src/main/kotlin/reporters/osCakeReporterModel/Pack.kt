@@ -406,7 +406,10 @@ data class Pack(
             }
         else
             evaluatedModel.packages.firstOrNull { it.id == id }?.scopes?.forEach {
-                distribution = distribution?.plus(getDistributionType(projectId, it.name))
+                distribution = if (distribution == null)
+                    getDistributionType(projectId, it.name)
+                else
+                    distribution?.plus(getDistributionType(projectId, it.name))
             }
         // default rule
         if (distribution == null) distribution = DistributionType.DISTRIBUTED
@@ -419,9 +422,9 @@ data class Pack(
         var dist: String? = null
 
         OSCakeConfiguration.params.distributionMap.forEach { item ->
-            val regex = Regex(item.key)
-            if (regex.matches("$packageManager:$scope")) pmDist = item.value
-            if (regex.matches(scope)) dist = item.value
+            val regex = item.key.toRegex()
+            if (regex.containsMatchIn("$packageManager:$scope")) pmDist = item.value
+            if (regex.containsMatchIn(scope)) dist = item.value
         }
         if (pmDist != null) return DistributionType.valueOf(pmDist!!)
         if (dist != null) return DistributionType.valueOf(dist!!)
