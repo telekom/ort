@@ -406,10 +406,8 @@ data class Pack(
             }
         else
             evaluatedModel.packages.firstOrNull { it.id == id }?.scopes?.forEach {
-                distribution = if (distribution == null)
-                    getDistributionType(projectId, it.name)
-                else
-                    distribution?.plus(getDistributionType(projectId, it.name))
+                val distType = getDistributionType(projectId, it.name)
+                distribution = if (distribution == null) distType else distribution?.plus(distType)
             }
         // default rule
         if (distribution == null) distribution = DistributionType.DISTRIBUTED
