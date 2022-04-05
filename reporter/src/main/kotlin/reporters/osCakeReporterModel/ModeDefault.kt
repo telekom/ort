@@ -64,8 +64,11 @@ internal class ModeDefault(
         phaseI(sourceCodeDir, tmpDirectory, provenance)
 
         /* Phase II:    based on the FileLicenses, the default- and dir-scopes are created when the filename matches
-         *              the oscake.scopePatterns
+         *              the oscake.scopePatterns; if no default license exist, set treatMetaInfAsDefault to "true" for
+         *              the package
          */
+        pack.treatMetaInfAsDefault = pack.fileLicensings.none { getScopeLevel(it.scope, pack.packageRoot,
+            OSCakeConfiguration.params, false) == ScopeLevel.DEFAULT}
         pack.createDirDefaultScopes(logger, OSCakeConfiguration.params, ProcessingPhase.PROCESS)
 
         /* Phase III:   copy archived files from scanner archive - and insert/update the fileLicensing entry
@@ -84,7 +87,7 @@ internal class ModeDefault(
     private fun phaseI(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance) {
         val provHash = getHash(provenance)
         scanDict[pack.id]?.forEach { (fileName, fib) ->
-            val scopeLevel = getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params)
+            val scopeLevel = getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params, false)
             // if fileName opens a dir- or default-scope, copy the original file to the archive
             // and create a fileLicensing to set fileContentInArchive accordingly
             if (scopeLevel == ScopeLevel.DEFAULT || scopeLevel == ScopeLevel.DIR) {
@@ -151,7 +154,7 @@ internal class ModeDefault(
                             copyrights.add(FileCopyright(it.matchedText!!))
                         }
                     }
-                val scopeLevel = getScopeLevel4Copyrights(fib.path, pack.packageRoot, OSCakeConfiguration.params)
+                val scopeLevel = getScopeLevel4Copyrights(fib.path, pack.packageRoot, OSCakeConfiguration.params, pack.treatMetaInfAsDefault)
                 if (scopeLevel == ScopeLevel.DEFAULT) {
                     fib.copyrightTextEntries.forEach {
                         pack.defaultCopyrights.add(DefaultDirCopyright(getPathName(pack, fib), it.matchedText!!))

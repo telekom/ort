@@ -129,6 +129,10 @@ data class Pack(
      * Defines the kind of [packageType]
      */
     var packageType: PackageType? = null
+    /**
+     * [treatMetaInfAsDefault] if no defaultlicense exist, the directory "META-INF" is treated like the default scope
+     */
+    @JsonIgnore var treatMetaInfAsDefault: Boolean = false
 
     /**
      * Removes the file specified in [path] from the directory, if there is no reference to it anymore
@@ -169,7 +173,7 @@ data class Pack(
         foundInFileScopeConfigured: Boolean = false) {
 
         fileLicensings.forEach { fileLicensing ->
-            val scopeLevel = getScopeLevel(fileLicensing.scope, packageRoot, params)
+            val scopeLevel = getScopeLevel(fileLicensing.scope, packageRoot, params, treatMetaInfAsDefault)
             if (scopeLevel == ScopeLevel.DEFAULT) {
                 fileLicensing.licenses.forEach { fileLicense ->
                     var fileLicensingScope = fileLicensing.scope

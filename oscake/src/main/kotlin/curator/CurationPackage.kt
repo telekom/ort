@@ -292,7 +292,8 @@ internal data class CurationPackage(
         params: OSCakeConfigParams
     ) {
         val copyrightStatement = curFileCopyrightItem.copyright!!.replace("\\?", "?").replace("\\*", "*")
-        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params)
+        // todo
+        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params, false)
 
         var updated = false
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: (FileLicensing(fileScope).apply {
@@ -324,7 +325,8 @@ internal data class CurationPackage(
     private fun curateCopyrightDeleteAll(fileScope: String, pack: Pack, params: OSCakeConfigParams) {
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
         val fileSystem = FileSystems.getDefault()
-        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params)
+        // todo
+        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params, false)
         pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
             File(it.scope).toPath()
         ) }.forEach { fileLicensing ->
@@ -355,7 +357,8 @@ internal data class CurationPackage(
         params: OSCakeConfigParams
     ) {
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
-        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params)
+        // todo
+        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params, false)
         val fileSystem = FileSystems.getDefault()
         pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
             File(it.scope).toPath()
@@ -422,7 +425,8 @@ internal data class CurationPackage(
         fileStore: File,
         params: OSCakeConfigParams
     ) {
-        val scopeLevel = getScopeLevel(curationFileItem.fileScope, pack.packageRoot, params)
+        // todo
+        val scopeLevel = getScopeLevel(curationFileItem.fileScope, pack.packageRoot, params, false)
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
