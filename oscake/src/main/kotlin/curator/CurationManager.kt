@@ -111,9 +111,9 @@ internal class CurationManager(
         }
 
         // 2. curate each package regarding the "modifier" - insert, delete, update
-        project.packs.forEach {
-            curationProvider.getActionFor(it.id)?.
-                process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger,
+        project.packs.forEach { pack ->
+            curationProvider.getActionFor(pack.id)?.takeIf { (it as CurationPackage).packageModifier != "delete" }
+                ?.process(pack, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger,
                     File(config.curator?.fileStore!!))
         }
 

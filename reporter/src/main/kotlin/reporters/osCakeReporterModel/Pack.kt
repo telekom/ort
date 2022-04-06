@@ -130,7 +130,7 @@ data class Pack(
      */
     var packageType: PackageType? = null
     /**
-     * [treatMetaInfAsDefault] if no defaultlicense exist, the directory "META-INF" is treated like the default scope
+     * [treatMetaInfAsDefault] if no default-license exist, the directory "META-INF" is treated like the default scope
      */
     @JsonIgnore var treatMetaInfAsDefault: Boolean = false
 
@@ -140,7 +140,7 @@ data class Pack(
     fun dedupRemoveFile(tmpDirectory: File, path: String?) {
         if (path != null) {
             val file = tmpDirectory.resolve(path)
-            if (findReferences(path) == 1 && file.exists()) file.delete()
+            if (findReferences(path) <= 1 && file.exists()) file.delete()
         }
     }
     /**
@@ -160,29 +160,59 @@ data class Pack(
         return cnt
     }
 
-    fun removeDirDefaultScopes() {
+    private fun removeDirDefaultScopes() {
         this.defaultLicensings.clear()
-        this.dirLicensings.forEach { it.licenses.clear() }
+        this.defaultCopyrights.clear()
+        this.dirLicensings.clear()
+    }
+
+    fun createConsolidatedScopes(
+        logger: OSCakeLogger, params: OSCakeConfigParams, phase: ProcessingPhase,
+        tmpDirectory: File,
+        foundInFileScopeConfigured: Boolean = false
+    ) {
+
+        if (reuseCompliant)
+            createReuseScope()
+        else
+            createDirDefaultScopes(logger, params, phase, tmpDirectory, foundInFileScopeConfigured)
+    }
+
+    fun createReuseScope() {
+        // todo
     }
 
     /**
-     * The method generates the Default- and Dir- Scope entries based on FileLicensings
+     * The method generates the Default- and Dir- Scope entries based on FileLicensings; if no default licenses are
+     * found, the files from subdirectory "META-INF" are treated as default licenses (if it exists)
      */
-    fun createDirDefaultScopes(
+    private fun createDirDefaultScopes(
         logger: OSCakeLogger, params: OSCakeConfigParams, phase: ProcessingPhase,
-        foundInFileScopeConfigured: Boolean = false) {
+        tmpDirectory: File,
+        foundInFileScopeConfigured: Boolean
+    ) {
+
+        // reset "treatMetaInfAsDefault"
+        resetTreatMetaInfAsDefault(params)
+        // Copy the content, for the case that a [DECLARED] license exists in default licensing.
+        // A [DECLARED] license has no associated file license and therefore, cannot be regenerated
+        val saveDefaultLicensings = defaultLicensings.toList()
+        // consequently, removes all hasIssues from dir- and default scope and set hasIssues to false
+        removeDirDefaultScopes()
 
         fileLicensings.forEach { fileLicensing ->
             val scopeLevel = getScopeLevel(fileLicensing.scope, packageRoot, params, treatMetaInfAsDefault)
+            // handle the "Default-Scope"
             if (scopeLevel == ScopeLevel.DEFAULT) {
                 fileLicensing.licenses.forEach { fileLicense ->
                     var fileLicensingScope = fileLicensing.scope
+                    // "foundInFileScopeConfigured" is true if the method is called from the OSCake-Application
+                    // "Resolver" or "Selector"
                     if (foundInFileScopeConfigured && (CompoundLicense(fileLicense.originalLicenses).isCompound ||
                         CompoundLicense(fileLicense.license).isCompound)) {
                         fileLicensingScope = FOUND_IN_FILE_SCOPE_CONFIGURED
                     }
-                    if (defaultLicensings.none { it.license == fileLicense.license &&
-                                it.path == fileLicensingScope })
+                    if (defaultLicensings.none { it.license == fileLicense.license && it.path == fileLicensingScope })
                         defaultLicensings.add(DefaultLicense(fileLicense.license, fileLicensingScope,
                             fileLicense.licenseTextInArchive, false, originalLicenses = fileLicense.originalLicenses))
                     else {
@@ -192,6 +222,7 @@ data class Pack(
                     }
                 }
             }
+            // handle the "Dir-Scope"
             if (scopeLevel == ScopeLevel.DIR) {
                 val dirScope = getDirScopePath(this, fileLicensing.scope)
                 var fibPathWithoutPackage = getPathWithoutPackageRoot(this, fileLicensing.scope)
@@ -211,6 +242,46 @@ data class Pack(
                                 "file found - ignored!", ll, id, phase = phase)
                     }
                 }
+            }
+        }
+
+        // may happen when a [DECLARED] license is substituted by a file license and the default license has a
+        // file associated by a licenseTextInArchive entry
+        if (defaultLicensings.isNotEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED ||
+                    it.path == FOUND_IN_FILE_SCOPE_CONFIGURED}) {
+            saveDefaultLicensings.forEach {
+                dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
+            }
+        }
+
+        // if defaultLicensings is empty, then it is possible that an item is found in the saveDefaultLicensings list
+        // with "foundInFileScope": "[DECLARED]" or "foundInFileScope": "[CONFIGURED]"; technically
+        // these items cannot have Copyrights
+        if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED ||
+                    it.path == FOUND_IN_FILE_SCOPE_CONFIGURED}) {
+            // is true if the method is called from the OSCake-Application "Resolver" or "Selector"
+            if (foundInFileScopeConfigured)
+                saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_DECLARED }.forEach {
+                    it.path = FOUND_IN_FILE_SCOPE_CONFIGURED
+                }
+            defaultLicensings.addAll(saveDefaultLicensings)
+        }
+
+        // manage Copyrights
+        fileLicensings.forEach { fileLicensing ->
+            val scopeLevel = getScopeLevel4Copyrights(fileLicensing.scope, packageRoot, params, treatMetaInfAsDefault)
+            if (scopeLevel == ScopeLevel.DEFAULT) {
+                fileLicensing.copyrights.forEach {
+                    defaultCopyrights.add(DefaultDirCopyright(fileLicensing.scope, it.copyright))
+                }
+            }
+            if (scopeLevel == ScopeLevel.DIR) {
+                (dirLicensings.firstOrNull { it.scope == getDirScopePath(this, fileLicensing.scope) } ?:
+                DirLicensing(getDirScopePath(this, fileLicensing.scope)).apply { dirLicensings.add(this) })
+                    .apply { fileLicensing.copyrights.forEach {
+                        copyrights.add(DefaultDirCopyright(fileLicensing.scope, it.copyright))
+                    }
+                    }
             }
         }
     }
@@ -432,5 +503,15 @@ data class Pack(
         if (dist != null) return DistributionType.valueOf(dist!!)
 
         return null
+    }
+
+    fun setTreatMetaInfAsDefault() {
+        treatMetaInfAsDefault = (defaultLicensings.any { !it.declared && it.path?.startsWith("META-INF/") == true })
+    }
+
+    fun resetTreatMetaInfAsDefault(params: OSCakeConfigParams) {
+        treatMetaInfAsDefault = fileLicensings.none { fileLicensing ->
+            getScopeLevel(fileLicensing.scope, packageRoot, params, false) == ScopeLevel.DEFAULT
+        }
     }
 }

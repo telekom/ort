@@ -145,8 +145,9 @@ data class Project(
                 pack.namespace = pack.id.namespace
                 pack.type = pack.id.type
                 pack.defaultLicensings.forEach {
-                    it.declared = it.path == FOUND_IN_FILE_SCOPE_DECLARED
+                    it.declared = it.path == FOUND_IN_FILE_SCOPE_DECLARED || it.path == FOUND_IN_FILE_SCOPE_CONFIGURED
                 }
+                pack.setTreatMetaInfAsDefault()
                 pack.reuseCompliant = pack.reuseLicensings.isNotEmpty()
             }
         }

@@ -67,28 +67,21 @@ internal data class SelectorPackage(
         }
        if (!hasChanged) return
 
-       pack.apply {
+       with (pack) {
            removePackageIssues().takeIf { it.isNotEmpty() }?.also {
                logger.log("The original issues (ERRORS/WARNINGS) were removed due to Selector actions: " +
                        it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.SELECTION)
            } // because the content has changed
-           val saveDefaultLicensings = defaultLicensings.toList() // copy the content, otherwise it would be deleted
-           removeDirDefaultScopes() // consequently, removes all hasIssues --> set to false
-           createDirDefaultScopes(logger, params, ProcessingPhase.SELECTION, true)
-           // if path == [DECLARED] --> defaultLicensings are empty
-           if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED }) {
-               saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach {
-                   it.path = FOUND_IN_FILE_SCOPE_CONFIGURED
-               }
-               // apply selector logic to default licensings
-               saveDefaultLicensings.forEach { defaultLicense ->
-                   selectorBlocks.filter { CompoundLicense(it.specified) == CompoundLicense(defaultLicense.license) }
-                       .forEach {
-                            defaultLicense.originalLicenses = defaultLicense.license
-                            defaultLicense.license = it.selected
-                        }
-               }
-               defaultLicensings.addAll(saveDefaultLicensings)
+
+           createConsolidatedScopes(logger, params, ProcessingPhase.SELECTION, archiveDir, true)
+
+           // post operations for default licensings
+           defaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach { defaultLicense ->
+               selectorBlocks.filter { CompoundLicense(it.specified) == CompoundLicense(defaultLicense.license) }
+                   .forEach {
+                       defaultLicense.originalLicenses = defaultLicense.license
+                       defaultLicense.license = it.selected
+                   }
            }
        }
     }

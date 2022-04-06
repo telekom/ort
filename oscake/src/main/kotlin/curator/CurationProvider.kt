@@ -27,6 +27,7 @@ import java.io.File
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.oscake.CURATION_DEFAULT_LICENSING
 import org.ossreviewtoolkit.oscake.CURATION_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider
@@ -279,6 +280,18 @@ internal class CurationProvider(
                 }
             }
         }
+        // 12. if file_scope == <DEFAULT_LICENSING> no insert is allowed
+        item.curations?.forEach { curationFileItem ->
+            if (curationFileItem.fileLicenses?.any { it.modifier == "insert" &&
+                        curationFileItem.fileScope == CURATION_DEFAULT_LICENSING } == true) {
+                logger.log(
+                    "$errorPrefix modifier = \"insert\" is not allowed for file scope: " +
+                            "$CURATION_DEFAULT_LICENSING $errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
+                )
+                return false
+            }
+        }
+
         return true
     }
 

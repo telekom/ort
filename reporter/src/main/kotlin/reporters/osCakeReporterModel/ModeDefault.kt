@@ -52,7 +52,6 @@ internal class ModeDefault(
      * scopeLevel (FILE, DIR, or DEFAULT) additional Licensings are added to the dirLicensings or defaultLicensings
      * lists. Information about copyrights is transferred from the fib (file info block) to the [pack].
      */
-//    @Suppress("ComplexMethod")
     override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance) {
         /* Phase I: go through all files in this package
          *       - step 1:   if fileName opens a dir- or default-scope, copy the original file to the archive and
@@ -63,25 +62,22 @@ internal class ModeDefault(
          */
         phaseI(sourceCodeDir, tmpDirectory, provenance)
 
-        /* Phase II:    based on the FileLicenses, the default- and dir-scopes are created when the filename matches
-         *              the oscake.scopePatterns; if no default license exist, set treatMetaInfAsDefault to "true" for
-         *              the package
-         */
-        pack.treatMetaInfAsDefault = pack.fileLicensings.none { getScopeLevel(it.scope, pack.packageRoot,
-            OSCakeConfiguration.params, false) == ScopeLevel.DEFAULT}
-        pack.createDirDefaultScopes(logger, OSCakeConfiguration.params, ProcessingPhase.PROCESS)
-
-        /* Phase III:   copy archived files from scanner archive - and insert/update the fileLicensing entry
+        /* Phase II:   copy archived files from scanner archive - and insert/update the fileLicensing entry
          *              (Info: files are archived from scanner, if the filename matches a pattern in ort.conf)
          *              This step is taken for completeness only, because normally the oscake patterns include
          *              the ORT scope patterns
          */
-        phaseIII(tmpDirectory)
+        phaseII(tmpDirectory)
 
         /*
-         * Phase IV: transfer Copyright text entries
+         * Phase III: transfer Copyright text entries
          */
-        phaseIV()
+        phaseIII()
+
+        /* Phase IV:    based on the FileLicenses, the default- and dir-scopes are created when the filename matches
+         *              the oscake.scopePatterns
+         */
+        pack.createConsolidatedScopes(logger, OSCakeConfiguration.params, ProcessingPhase.PROCESS, tmpDirectory, false)
     }
 
     private fun phaseI(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance) {
@@ -122,7 +118,7 @@ internal class ModeDefault(
         }
     }
 
-    private fun phaseIII(tmpDirectory: File) {
+    private fun phaseII(tmpDirectory: File) {
         reporterInput.licenseInfoResolver.resolveLicenseFiles(pack.id).files.forEach {
             var path = it.path.replace("\\", "/")
             if (it.path.startsWith(pack.packageRoot) && pack.packageRoot != "") path = path.replaceFirst(
@@ -144,34 +140,22 @@ internal class ModeDefault(
         }
     }
 
-    private fun phaseIV() {
-        scanDict[pack.id]?.forEach { (_, fib) ->
-            if (fib.copyrightTextEntries.size > 0) {
-                (pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?:
+    private fun phaseIII() {
+        scanDict[pack.id]?.filter { (_,fib) -> fib.copyrightTextEntries.size > 0 }?.forEach { (_, fib) ->
+            (pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?:
                 FileLicensing(getPathName(pack, fib)).apply { pack.fileLicensings.add(this) })
                     .apply {
                         fib.copyrightTextEntries.forEach {
                             copyrights.add(FileCopyright(it.matchedText!!))
                         }
                     }
-                val scopeLevel = getScopeLevel4Copyrights(fib.path, pack.packageRoot, OSCakeConfiguration.params, pack.treatMetaInfAsDefault)
-                if (scopeLevel == ScopeLevel.DEFAULT) {
-                    fib.copyrightTextEntries.forEach {
-                        pack.defaultCopyrights.add(DefaultDirCopyright(getPathName(pack, fib), it.matchedText!!))
-                    }
-                }
-                if (scopeLevel == ScopeLevel.DIR) {
-                    (pack.dirLicensings.firstOrNull { it.scope == getDirScopePath(pack, fib.path) } ?:
-                    DirLicensing(getPathName(pack, fib)).apply { pack.dirLicensings.add(this) })
-                        .apply { fib.copyrightTextEntries.forEach {
-                            copyrights.add(DefaultDirCopyright(getPathName(pack, fib), it.matchedText!!))
-                        }
-                        }
-                }
-            }
         }
     }
 
+    /**
+     *  Depending on the flag "[licenseTextEntry].isInstancedLicense" the license text is generated and written
+     *  to disk.
+     */
     private fun writeLicenseText(licenseTextEntry: LicenseTextEntry, fib: FileInfoBlock, sourceCodeDir: String?,
                                  tmpDirectory: File, provHash: String): String? {
         try {
@@ -216,6 +200,9 @@ internal class ModeDefault(
         return getLinesFromFile(fileName, copyrightStartLine, licenseTextEntry.endLine)
     }
 
+    /**
+     * Returns the text from file ([path]) beginning at [startLine] to [endLine]
+     */
     private fun getLinesFromFile(path: String, startLine: Int, endLine: Int): String =
         File(path).readLines()
             .slice(startLine - 1 until endLine)
@@ -292,6 +279,10 @@ internal class ModeDefault(
         return null
     }
 
+    /**
+     * if no default licensings exist a default entry based on "declared_license" (analyzer_results.yml) is created;
+     * report if multiple different licenses in default- or dir-scope are found.
+     */
     override fun postActivities(tmpDirectory: File) {
         if (pack.defaultLicensings.size == 0) prepareEntryForScopeDefault(pack, reporterInput)
         val def = pack.defaultLicensings.mapNotNull { it.license }.distinct()
@@ -314,7 +305,7 @@ internal class ModeDefault(
     }
 
     /**
-     * decides if the source code is needed, e.g. for isLicenseText == true
+     * Decides if the source code is needed, e.g. for isLicenseText == true
      */
     override fun needsSourceCode(
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,

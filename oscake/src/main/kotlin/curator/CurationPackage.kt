@@ -84,71 +84,67 @@ internal data class CurationPackage(
      */
     override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
                          fileStore: File?) {
-        if (packageModifier == "insert" || packageModifier == "update") {
-            eliminateIssueFromPackage(pack)
-            curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
-                val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
-                curationFileItem.fileLicenses?.sortedBy { orderLicenseByModifier[packageModifier]?.get(it.modifier)
-                    }?.forEach { curationFileLicenseItem ->
-                    when (curationFileLicenseItem.modifier) {
-                        "insert" -> curateLicenseInsert(curationFileItem, curationFileLicenseItem, pack, archiveDir,
-                            fileStore!!, params)
-                        "delete" -> curateLicenseDelete(curationFileItem, curationFileLicenseItem, pack, archiveDir)
-                        "update" -> curateLicenseUpdate(
-                            curationFileItem, curationFileLicenseItem, pack, archiveDir,
-                            fileStore!!
-                        )
-                    }
+
+        eliminateIssueFromPackage(pack)
+        curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
+            val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
+            // manage licenses
+            curationFileItem.fileLicenses?.sortedBy { orderLicenseByModifier[packageModifier]?.get(it.modifier)
+                }?.forEach { curationFileLicenseItem ->
+                when (curationFileLicenseItem.modifier) {
+                    "insert" -> curateLicenseInsert(curationFileItem, curationFileLicenseItem, pack, archiveDir,
+                        fileStore!!)
+                    "delete" -> curateLicenseDelete(curationFileItem, curationFileLicenseItem, pack, archiveDir)
+                    "update" -> curateLicenseUpdate(
+                        curationFileItem, curationFileLicenseItem, pack, archiveDir,
+                        fileStore!!
+                    )
                 }
-                curationFileItem.fileCopyrights?.sortedBy { orderCopyrightByModifier[packageModifier]?.get(it.modifier)
-                    }?.forEach { curationFileCopyrightItem ->
-                    when (curationFileCopyrightItem.modifier) {
-                        "insert" -> curateCopyrightInsert(fileScope, curationFileCopyrightItem, pack, params)
-                        "delete" -> curateCopyrightDelete(fileScope, pack, curationFileCopyrightItem.copyright!!,
-                            params)
-                        "delete-all" -> curateCopyrightDeleteAll(fileScope, pack, params)
-                    }
-                }
+                pack.resetTreatMetaInfAsDefault(params)
             }
-            curations?.filter { it.fileScope == CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
-                curationFileItem.fileLicenses?.sortedBy { orderLicenseByModifier[packageModifier]?.get(it.modifier)
-                    }?.forEach { curationFileLicenseItem ->
-                    when (curationFileLicenseItem.modifier) {
-                        "insert" -> pack.defaultLicensings.add(
-                            DefaultLicense(
-                                curationFileLicenseItem.license,
-                                FOUND_IN_FILE_SCOPE_DECLARED, insertLTIA(
-                                    curationFileLicenseItem.licenseTextInArchive,
-                                    archiveDir, curationFileLicenseItem.license!!, fileStore!!, pack
-                                ), true
-                            )
-                        )
-                        "delete" -> pack.defaultLicensings.filter {
-                            it.declared && (it.license == curationFileLicenseItem.license ||
-                                    curationFileLicenseItem.license == "*") &&
-                                    (it.licenseTextInArchive == curationFileLicenseItem.licenseTextInArchive ||
-                                            curationFileLicenseItem.licenseTextInArchive == "*")
-                        }.onEach { deleteFromArchive(it.licenseTextInArchive, archiveDir) }.also {
-                            pack.defaultLicensings.removeAll(it)
-                        }
-                        "update" -> pack.defaultLicensings.filter {
-                            it.declared && (it.license == curationFileLicenseItem.license ||
-                                    curationFileLicenseItem.license == "*") &&
-                                    it.licenseTextInArchive != curationFileLicenseItem.licenseTextInArchive
-                        }.forEach {
-                            deleteFromArchive(it.licenseTextInArchive, archiveDir)
-                            it.licenseTextInArchive = curationFileLicenseItem.licenseTextInArchive
-                            if (curationFileLicenseItem.licenseTextInArchive != null) {
-                                it.licenseTextInArchive = insertLTIA(
-                                    curationFileLicenseItem.licenseTextInArchive,
-                                    archiveDir, it.license ?: "", fileStore!!, pack
-                                )
-                            }
-                        }
-                    }
+            // manage copyrights
+            curationFileItem.fileCopyrights?.sortedBy { orderCopyrightByModifier[packageModifier]?.get(it.modifier)
+                }?.forEach { curationFileCopyrightItem ->
+                when (curationFileCopyrightItem.modifier) {
+                    "insert" -> curateCopyrightInsert(fileScope, curationFileCopyrightItem, pack)
+                    "delete" -> curateCopyrightDelete(fileScope, pack, curationFileCopyrightItem.copyright!!)
+                    "delete-all" -> curateCopyrightDeleteAll(fileScope, pack)
                 }
             }
         }
+        curations?.filter { it.fileScope == CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
+            // no need for Copyright handling due to [DECLARED]
+            curationFileItem.fileLicenses?.sortedBy { orderLicenseByModifier[packageModifier]?.get(it.modifier)
+                }?.forEach { curationFileLicenseItem ->
+                when (curationFileLicenseItem.modifier) {
+                    // "insert" not allowed due to semantic checks
+                    "delete" -> pack.defaultLicensings.filter {
+                        it.declared && (it.license == curationFileLicenseItem.license ||
+                                curationFileLicenseItem.license == "*") &&
+                                (it.licenseTextInArchive == curationFileLicenseItem.licenseTextInArchive ||
+                                        curationFileLicenseItem.licenseTextInArchive == "*")
+                    }.onEach { deleteFromArchive(it.licenseTextInArchive, archiveDir) }.also {
+                        pack.defaultLicensings.removeAll(it)
+                    }
+                    "update" -> pack.defaultLicensings.filter {
+                        it.declared && (it.license == curationFileLicenseItem.license ||
+                                curationFileLicenseItem.license == "*") &&
+                                it.licenseTextInArchive != curationFileLicenseItem.licenseTextInArchive
+                    }.forEach {
+                        deleteFromArchive(it.licenseTextInArchive, archiveDir)
+                        it.licenseTextInArchive = curationFileLicenseItem.licenseTextInArchive
+                        if (curationFileLicenseItem.licenseTextInArchive != null) {
+                            it.licenseTextInArchive = insertLTIA(
+                                curationFileLicenseItem.licenseTextInArchive,
+                                archiveDir, it.license ?: "", fileStore!!, pack
+                            )
+                        }
+                    }
+                }
+                pack.resetTreatMetaInfAsDefault(params)
+            }
+        }
+        pack.createConsolidatedScopes(logger, params, ProcessingPhase.CURATION, archiveDir, false)
     }
 
     private fun curateLicenseUpdate(
@@ -167,10 +163,8 @@ internal data class CurationPackage(
             fileLicensing.licenses.filter {
                 curationFileLicenseItem.license == "*" || curationFileLicenseItem.license == it.license
                 }.forEach { fileLicense ->
-                    var hasChanged = false
                     if (fileLicense.licenseTextInArchive != null &&
                         curationFileLicenseItem.licenseTextInArchive == null) {
-                        hasChanged = true
                         deleteFromArchive(fileLicense.licenseTextInArchive, archiveDir)
                         fileLicense.licenseTextInArchive = null
                     }
@@ -180,7 +174,6 @@ internal data class CurationPackage(
                         if (fileLicense.licenseTextInArchive != null &&
                             fileLicense.licenseTextInArchive != curationFileLicenseItem.licenseTextInArchive
                         ) {
-                            hasChanged = true
                             deleteFromArchive(fileLicense.licenseTextInArchive, archiveDir)
                             fileLicense.licenseTextInArchive = insertLTIA(
                                 curationFileLicenseItem.licenseTextInArchive,
@@ -191,7 +184,6 @@ internal data class CurationPackage(
                             )
                         }
                         if (fileLicense.licenseTextInArchive == null) {
-                            hasChanged = true
                             fileLicense.licenseTextInArchive = insertLTIA(
                                 curationFileLicenseItem.licenseTextInArchive,
                                 archiveDir,
@@ -199,25 +191,6 @@ internal data class CurationPackage(
                                 fileStore,
                                 pack
                             )
-                        }
-                    }
-                    if (hasChanged) {
-                        // update defaultScope
-                        pack.defaultLicensings.filter { it.path == fileLicensing.scope &&
-                                it.license == fileLicense.license }.forEach {
-                                    it.licenseTextInArchive = fileLicense.licenseTextInArchive
-                        }
-                        // dirScope
-                        pack.dirLicensings.forEach { dirLicensing ->
-                            dirLicensing.licenses.filter { it.path == fileLicensing.scope &&
-                                it.license == fileLicense.license }.forEach {
-                                    it.licenseTextInArchive = fileLicense.licenseTextInArchive
-                            }
-                        }
-                        // update reuseScope
-                        pack.reuseLicensings.filter { it.path == fileLicensing.scope &&
-                                it.license == fileLicense.license }.forEach {
-                            it.licenseTextInArchive = fileLicense.licenseTextInArchive
                         }
                     }
             }
@@ -250,30 +223,10 @@ internal data class CurationPackage(
                         (curationFileLicenseItem.licenseTextInArchive == licenseEntry.licenseTextInArchive ||
                                 curationFileLicenseItem.licenseTextInArchive == "*")) copyCandidate = false
                 }
-                if (copyCandidate) fileLicensing.licenses.add(licenseEntry)
-                else {
-                    // delete from defaultScope
-                    pack.defaultLicensings.removeAll(pack.defaultLicensings.filter {
-                        it.path == fileLicensing.scope && it.license == licenseEntry.license &&
-                                it.licenseTextInArchive == licenseEntry.licenseTextInArchive
-                    })
-                    // delete from reuseLicensings
-                    pack.reuseLicensings.removeAll(pack.reuseLicensings.filter {
-                        it.path == fileLicensing.scope && it.license == licenseEntry.license &&
-                                it.licenseTextInArchive == licenseEntry.licenseTextInArchive
-                    })
+                if (copyCandidate)
+                    fileLicensing.licenses.add(licenseEntry)
+                else
                     deleteFromArchive(licenseEntry.licenseTextInArchive, archiveDir)
-
-                    // delete from DirScope
-                    pack.dirLicensings.forEach { dirLicensing ->
-                        dirLicensing.licenses.removeAll(dirLicensing.licenses.filter {
-                            it.path == fileLicensing.scope && it.license == licenseEntry.license &&
-                                    it.licenseTextInArchive == licenseEntry.licenseTextInArchive
-                        })
-                    }
-                    // clean up DirScope: there may be a dirScope without any license
-                    pack.dirLicensings.removeAll(pack.dirLicensings.filter { it.licenses.size == 0 })
-                }
             }
             // clean-up FileLicensing
             if (fileLicensing.licenses.size == 0) {
@@ -288,14 +241,9 @@ internal data class CurationPackage(
     private fun curateCopyrightInsert(
         fileScope: String,
         curFileCopyrightItem: CurationFileCopyrightItem,
-        pack: Pack,
-        params: OSCakeConfigParams
+        pack: Pack
     ) {
         val copyrightStatement = curFileCopyrightItem.copyright!!.replace("\\?", "?").replace("\\*", "*")
-        // todo
-        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params, false)
-
-        var updated = false
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: (FileLicensing(fileScope).apply {
             pack.fileLicensings.add(this)
         })).apply {
@@ -303,48 +251,21 @@ internal data class CurationPackage(
             @Suppress("DuplicatedCode")
             if (copyrights.none { it.copyright == copyrightStatement }) {
                 copyrights.add(FileCopyright(copyrightStatement))
-                updated = true
-            }
-        }
-
-        if (updated) {
-            if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
-                pack.defaultCopyrights.add(DefaultDirCopyright(fileScope, copyrightStatement))
-            }
-            if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
-                (pack.dirLicensings.firstOrNull { it.scope == getDirScopePath(pack, fileScope) } ?: DirLicensing(
-                    fileScope
-                ).apply { pack.dirLicensings.add(this) })
-                    .apply {
-                        copyrights.add(DefaultDirCopyright(fileScope, copyrightStatement))
-                    }
+           //     updated = true
             }
         }
     }
 
-    private fun curateCopyrightDeleteAll(fileScope: String, pack: Pack, params: OSCakeConfigParams) {
+    private fun curateCopyrightDeleteAll(fileScope: String, pack: Pack) {
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
         val fileSystem = FileSystems.getDefault()
-        // todo
-        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params, false)
+
         pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
             File(it.scope).toPath()
         ) }.forEach { fileLicensing ->
                 fileLicensing.copyrights.clear()
                 if (fileLicensing.licenses.isEmpty() && fileLicensing.copyrights.isEmpty()) {
                     fileLicensingsToDelete.add(fileLicensing)
-                }
-                if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
-                    pack.defaultCopyrights.removeAll(
-                        pack.defaultCopyrights.filter { it.copyright != null && it.path == fileLicensing.scope }
-                    )
-                }
-                if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
-                    pack.dirLicensings.forEach { dirLicensing ->
-                        dirLicensing.copyrights.removeAll(
-                            dirLicensing.copyrights.filter { it.path == fileLicensing.scope }
-                        )
-                    }
                 }
           }
         pack.fileLicensings.removeAll(fileLicensingsToDelete)
@@ -353,13 +274,11 @@ internal data class CurationPackage(
     private fun curateCopyrightDelete(
         fileScope: String,
         pack: Pack,
-        copyrightMatch: String,
-        params: OSCakeConfigParams
+        copyrightMatch: String
     ) {
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
-        // todo
-        val scopeLevel = getScopeLevel4Copyrights(fileScope, pack.packageRoot, params, false)
         val fileSystem = FileSystems.getDefault()
+
         pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
             File(it.scope).toPath()
         ) }.forEach { fileLicensing ->
@@ -370,21 +289,6 @@ internal data class CurationPackage(
             fileLicensing.copyrights.removeAll(copyrightsToDelete)
             if (fileLicensing.licenses.isEmpty() && fileLicensing.copyrights.isEmpty()) {
                 fileLicensingsToDelete.add(fileLicensing)
-            }
-
-            if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
-                pack.defaultCopyrights.removeAll(
-                    pack.defaultCopyrights.filter { it.copyright != null && it.path == fileLicensing.scope &&
-                            matchExt(copyrightMatch, it.copyright!!) }
-                )
-            }
-            if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
-                pack.dirLicensings.forEach { dirLicensing ->
-                    dirLicensing.copyrights.removeAll(
-                        dirLicensing.copyrights.filter { it.path == fileLicensing.scope &&
-                            matchExt(copyrightMatch, it.copyright!!) }
-                    )
-                }
             }
         }
         pack.fileLicensings.removeAll(fileLicensingsToDelete)
@@ -423,10 +327,7 @@ internal data class CurationPackage(
         pack: Pack,
         archiveDir: File,
         fileStore: File,
-        params: OSCakeConfigParams
     ) {
-        // todo
-        val scopeLevel = getScopeLevel(curationFileItem.fileScope, pack.packageRoot, params, false)
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
@@ -449,28 +350,11 @@ internal data class CurationPackage(
             if (pack.fileLicensings.none { it.scope == fileScope }) pack.fileLicensings.add(this)
         }
 
+
         if (pack.reuseCompliant && fileScope.startsWith(REUSE_LICENSES_FOLDER)) pack.reuseLicensings.add(
             ReuseLicense(
             fileLicense.license, fileScope, fileLicense.licenseTextInArchive)
         )
-
-        if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DEFAULT) {
-            pack.defaultLicensings.add(
-                DefaultLicense(
-                    fileLicense.license, fileScope, fileLicense.licenseTextInArchive,
-                    false
-                )
-            )
-        }
-        if (!pack.reuseCompliant && scopeLevel == ScopeLevel.DIR) {
-            val dirScope = getDirScopePath(pack, fileScope)
-            (pack.dirLicensings.firstOrNull { it.scope == dirScope } ?: run
-                {
-                    DirLicensing(dirScope).apply { pack.dirLicensings.add(this) }
-                }).apply {
-                    licenses.add(DirLicense(fileLicense.license!!, fileLicense.licenseTextInArchive, fileScope))
-                }
-        }
     }
 
     /**

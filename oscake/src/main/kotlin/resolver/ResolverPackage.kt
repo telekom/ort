@@ -73,25 +73,17 @@ internal data class ResolverPackage(
        }
        if (changedFileLicensings.isEmpty()) return
 
-       pack.apply {
+       // delete affected files
+       filesToDelete.forEach { archiveDir.absoluteFile.resolve(it).delete() }
+
+       with (pack) {
            removePackageIssues().takeIf { it.isNotEmpty() }?.also {
                logger.log("The original issues (ERRORS/WARNINGS) were removed due to Resolver actions: " +
                        it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.RESOLVING)
            } // because the content has changed
-           val saveDefaultLicensings = defaultLicensings.toList() // copy the content, otherwise it would be deleted
-           removeDirDefaultScopes() // consequently, removes all hasIssues --> set to false
-           createDirDefaultScopes(logger, params, ProcessingPhase.RESOLVING, true)
-           // if path == [DECLARED] --> defaultLicensings are empty
-           if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED }) {
-               saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_DECLARED }.forEach {
-                   it.path = FOUND_IN_FILE_SCOPE_CONFIGURED
-               }
-               defaultLicensings.addAll(saveDefaultLicensings)
-           }
+           createConsolidatedScopes(logger, params, ProcessingPhase.RESOLVING, archiveDir, true)
        }
 
-       filesToDelete.forEach {
-           archiveDir.absoluteFile.resolve(it).delete()
-       }
+
     }
 }
