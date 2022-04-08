@@ -76,14 +76,12 @@ internal data class ResolverPackage(
        // delete affected files
        filesToDelete.forEach { archiveDir.absoluteFile.resolve(it).delete() }
 
-       with (pack) {
+       with(pack) {
            removePackageIssues().takeIf { it.isNotEmpty() }?.also {
                logger.log("The original issues (ERRORS/WARNINGS) were removed due to Resolver actions: " +
                        it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.RESOLVING)
            } // because the content has changed
            createConsolidatedScopes(logger, params, ProcessingPhase.RESOLVING, archiveDir, true)
        }
-
-
     }
 }

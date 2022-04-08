@@ -65,9 +65,16 @@ internal data class SelectorPackage(
                 }
             }
         }
+        // log when compound license still exists --> no action was defined for this case
+        pack.fileLicensings.forEach { fileLicensing ->
+            if (fileLicensing.licenses.map { it.license }.any { CompoundLicense(it).isCompound })
+                logger.log("There are still unselected compound licenses in file ${fileLicensing.scope}!",
+                    Level.INFO, this.id, phase = ProcessingPhase.SELECTION)
+        }
+
        if (!hasChanged) return
 
-       with (pack) {
+       with(pack) {
            removePackageIssues().takeIf { it.isNotEmpty() }?.also {
                logger.log("The original issues (ERRORS/WARNINGS) were removed due to Selector actions: " +
                        it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.SELECTION)

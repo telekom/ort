@@ -86,6 +86,8 @@ internal data class CurationPackage(
                          fileStore: File?) {
 
         eliminateIssueFromPackage(pack)
+
+        // handle curations with fileScope different from CURATION_DEFAULT_LICENSING
         curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
             val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
             // manage licenses
@@ -112,12 +114,20 @@ internal data class CurationPackage(
                 }
             }
         }
+        // handle curations for specific fileScope == CURATION_DEFAULT_LICENSING
         curations?.filter { it.fileScope == CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
-            // no need for Copyright handling due to [DECLARED]
+            // no need for Copyright handling due to CURATION_DEFAULT_LICENSING
             curationFileItem.fileLicenses?.sortedBy { orderLicenseByModifier[packageModifier]?.get(it.modifier)
                 }?.forEach { curationFileLicenseItem ->
                 when (curationFileLicenseItem.modifier) {
-                    // "insert" not allowed due to semantic checks
+                    "insert" -> if (pack.defaultLicensings.isEmpty())
+                        pack.defaultLicensings.add(DefaultLicense(curationFileLicenseItem.license,
+                            FOUND_IN_FILE_SCOPE_DECLARED, insertLTIA(
+                                curationFileLicenseItem.licenseTextInArchive,
+                                archiveDir, curationFileLicenseItem.license!!, fileStore!!, pack
+                            ), true)
+                        ) else logger.log("Insert of a default license is not allowed because one already exists! " +
+                            "Delete it beforehand!", Level.WARN, pack.id, phase = ProcessingPhase.CURATION)
                     "delete" -> pack.defaultLicensings.filter {
                         it.declared && (it.license == curationFileLicenseItem.license ||
                                 curationFileLicenseItem.license == "*") &&
@@ -144,6 +154,7 @@ internal data class CurationPackage(
                 pack.resetTreatMetaInfAsDefault(params)
             }
         }
+        // generate dir- and default scopes
         pack.createConsolidatedScopes(logger, params, ProcessingPhase.CURATION, archiveDir, false)
     }
 
@@ -350,7 +361,6 @@ internal data class CurationPackage(
             if (pack.fileLicensings.none { it.scope == fileScope }) pack.fileLicensings.add(this)
         }
 
-
         if (pack.reuseCompliant && fileScope.startsWith(REUSE_LICENSES_FOLDER)) pack.reuseLicensings.add(
             ReuseLicense(
             fileLicense.license, fileScope, fileLicense.licenseTextInArchive)
@@ -369,7 +379,8 @@ internal data class CurationPackage(
         File(fileStore.path + "/" + newPath).apply {
             if (exists()) copyTo(targetFileDeDup)
             else {
-                logger.log("File '$name' in file store not found --> set to null", Level.ERROR, pack.id)
+                logger.log("File '$name' in file store not found --> set to null", Level.ERROR, pack.id,
+                    phase = ProcessingPhase.CURATION)
                 return null
             }
         }
