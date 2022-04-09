@@ -279,7 +279,6 @@ internal class CurationProvider(
                 }
             }
         }
-
         return true
     }
 

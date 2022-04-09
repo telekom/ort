@@ -32,6 +32,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPha
  * The [DistributorProvider] gets the locations where to find the yml-files containing actions (their semantics
  * is checked while processing).
  */
+@Suppress("DuplicatedCode")
 class DistributorProvider(val directory: File) :
     ActionProvider(directory, null, METADATAMANAGER_LOGGER, DistributorPackage::class,
         ProcessingPhase.METADATAMANAGER) {

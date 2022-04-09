@@ -71,7 +71,7 @@ internal abstract class ActionPackage(open val id: Identifier) {
                 && (id.version.equalsOrIsBlank(pkgId.version) || isApplicableIvyVersion(pkgId))
 
     /**
-     * [process] has to be overridden by the child classes
+     * [process] has to be overridden by the child classes and contains the complete application logic
      */
     abstract fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
                          fileStore: File? = null)

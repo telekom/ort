@@ -116,7 +116,6 @@ fun isValidFilePathName(path: String): Boolean =
  * transferred to output format. If some parameters are added to the config, the entries will be automatically
  * transferred
  */
-
 fun addParamsToConfig(config: OSCakeConfiguration, commandLineParams: Map<String, String>,
                       clazz: Any): ConfigBlockInfo? {
     OSCakeConfiguration::class.memberProperties.forEach { member ->

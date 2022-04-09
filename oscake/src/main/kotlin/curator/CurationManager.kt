@@ -67,7 +67,7 @@ internal class CurationManager(
         ActionInfo.curator(config.curator?.issueLevel ?: -1), commandLineParams) {
 
     /**
-     * [ignoreRootWarnings] is set via the commandline parameters and decides if the project is processed despite
+     * [ignoreRootWarnings] is set via the commandline parameters and determines if the project is processed despite
      * warnings
      */
     private val ignoreRootWarnings: Boolean = commandLineParams.getOrDefault("ignoreRootWarnings", "false").toBoolean()

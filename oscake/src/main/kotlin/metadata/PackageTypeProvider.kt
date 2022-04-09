@@ -32,6 +32,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPha
  * The [PackageTypeProvider] gets the locations where to find the yml-files containing actions (their semantics
  * is checked while processing).
  */
+@Suppress("DuplicatedCode")
 class PackageTypeProvider(val directory: File) :
     ActionProvider(directory, null, METADATAMANAGER_LOGGER, PackageTypePackage::class,
         ProcessingPhase.METADATAMANAGER) {
@@ -39,7 +40,7 @@ class PackageTypeProvider(val directory: File) :
     override fun checkSemantics(item: ActionPackage, fileName: String, fileStore: File?): Boolean {
         item as PackageTypePackage
         val errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "
-        val errorSuffix = " --> distributor action ignored"
+        val errorSuffix = " --> packageType action ignored"
         val phase = ProcessingPhase.METADATAMANAGER
 
         if (item.packageTypeBlock.from == item.packageTypeBlock.to) {

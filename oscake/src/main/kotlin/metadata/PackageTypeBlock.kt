@@ -26,11 +26,11 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.PackageType
  */
 internal data class PackageTypeBlock(
     /**
-     * change distribution from
+     * change package type from
      */
     val from: PackageType,
     /**
-     * change distribution to
+     * change package type to
      */
     val to: PackageType,
 )
