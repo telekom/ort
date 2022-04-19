@@ -53,13 +53,15 @@ internal data class SelectorPackage(
    override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
                         fileStore: File?) {
 
-        var hasChanged = false
+        // for special cases
+        if (pack.fileLicensings.isEmpty() && pack.defaultLicensings.isEmpty()) return
 
+        var hasChanged = false
         selectorBlocks.forEach { block ->
             pack.fileLicensings.forEach { fileLicensing ->
                 fileLicensing.licenses.filter { it.license != null &&
-                        CompoundLicense(it.license) == CompoundLicense(block.specified) }.forEach {
-                    it.originalLicenses = CompoundLicense(it.license!!).toString()
+                        CompoundOrLicense(it.license) == CompoundOrLicense(block.specified) }.forEach {
+                    it.originalLicenses = CompoundOrLicense(it.license!!).toString()
                     it.license = block.selected
                     hasChanged = true
                 }
@@ -67,12 +69,12 @@ internal data class SelectorPackage(
         }
         // log when compound license still exists --> no action was defined for this case
         pack.fileLicensings.forEach { fileLicensing ->
-            if (fileLicensing.licenses.map { it.license }.any { CompoundLicense(it).isCompound })
+            if (fileLicensing.licenses.map { it.license }.any { CompoundOrLicense(it).isCompound })
                 logger.log("There are still unselected compound licenses in file ${fileLicensing.scope}!",
-                    Level.INFO, this.id, phase = ProcessingPhase.SELECTION)
+                    Level.INFO, phase = ProcessingPhase.SELECTION)
         }
 
-       if (!hasChanged) return
+       if (!hasChanged && pack.fileLicensings.isNotEmpty()) return
 
        with(pack) {
            removePackageIssues().takeIf { it.isNotEmpty() }?.also {
@@ -84,7 +86,7 @@ internal data class SelectorPackage(
 
            // post operations for default licensings
            defaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach { defaultLicense ->
-               selectorBlocks.filter { CompoundLicense(it.specified) == CompoundLicense(defaultLicense.license) }
+               selectorBlocks.filter { CompoundOrLicense(it.specified) == CompoundOrLicense(defaultLicense.license) }
                    .forEach {
                        defaultLicense.originalLicenses = defaultLicense.license
                        defaultLicense.license = it.selected

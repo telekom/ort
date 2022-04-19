@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CompoundLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CompoundOrLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 
 /**
@@ -47,7 +47,7 @@ class SelectorProvider(val directory: File) :
             return false
         }
         item.selectorBlocks.forEach {
-            if (!CompoundLicense(it.specified).isCompound) {
+            if (!CompoundOrLicense(it.specified).isCompound) {
                 logger.log(
                     "$errorPrefix specified license: \"${it.specified}\" is not a valid Compound-License! " +
                             errorSuffix, Level.WARN, phase = phase
@@ -55,9 +55,9 @@ class SelectorProvider(val directory: File) :
                 return false
             }
         }
-        item.selectorBlocks.filter { CompoundLicense(it.specified).isCompound }.forEach {
-            val cl = CompoundLicense(it.specified)
-            if (it.selected != cl.left && it.selected != cl.right) {
+        item.selectorBlocks.filter { CompoundOrLicense(it.specified).isCompound }.forEach {
+            val cl = CompoundOrLicense(it.specified)
+            if (!cl.licenseList.contains(it.selected)) {
                 logger.log(
                     "$errorPrefix specified license: \"${it.selected}\" is not a valid selection " +
                             "of \"${it.specified}\"! $errorSuffix", Level.WARN, phase = phase

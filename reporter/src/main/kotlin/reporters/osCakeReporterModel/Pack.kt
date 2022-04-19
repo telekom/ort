@@ -208,8 +208,8 @@ data class Pack(
                     var fileLicensingScope = fileLicensing.scope
                     // "foundInFileScopeConfigured" is true if the method is called from the OSCake-Application
                     // "Resolver" or "Selector"
-                    if (foundInFileScopeConfigured && (CompoundLicense(fileLicense.originalLicenses).isCompound ||
-                        CompoundLicense(fileLicense.license).isCompound)) {
+                    if (foundInFileScopeConfigured && (CompoundOrLicense(fileLicense.originalLicenses).isCompound ||
+                        CompoundOrLicense(fileLicense.license).isCompound)) {
                         fileLicensingScope = FOUND_IN_FILE_SCOPE_CONFIGURED
                     }
                     if (defaultLicensings.none { it.license == fileLicense.license && it.path == fileLicensingScope })
@@ -229,8 +229,8 @@ data class Pack(
                 val dirLicensing = dirLicensings.firstOrNull { it.scope == dirScope } ?: DirLicensing(dirScope)
                     .apply { dirLicensings.add(this) }
                 fileLicensing.licenses.forEach { fileLicense ->
-                    if (foundInFileScopeConfigured && (CompoundLicense(fileLicense.originalLicenses).isCompound ||
-                            CompoundLicense(fileLicense.license).isCompound))
+                    if (foundInFileScopeConfigured && (CompoundOrLicense(fileLicense.originalLicenses).isCompound ||
+                            CompoundOrLicense(fileLicense.license).isCompound))
                         fibPathWithoutPackage = FOUND_IN_FILE_SCOPE_CONFIGURED
                     if (dirLicensing.licenses.none { it.license == fileLicense.license &&
                                 it.path == fibPathWithoutPackage })

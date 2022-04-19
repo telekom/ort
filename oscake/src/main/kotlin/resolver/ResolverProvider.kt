@@ -66,7 +66,15 @@ class ResolverProvider(val directory: File) :
                 )
                 return false
             }
-            // 3. scopes must contain at least one item - if not, an entry with an empty string is created
+            // 3. result must not contain "AND"
+            if (resolverBlock.result.split(" ").contains("AND")) {
+                logger.log(
+                    "$errorPrefix \"result\" contains a license expression with \"AND\" --> not allowed! $errorSuffix",
+                    Level.WARN, phase = phase
+                )
+                return false
+            }
+            // 4. scopes must contain at least one item - if not, an entry with an empty string is created
             if (resolverBlock.scopes.isEmpty()) resolverBlock.scopes.add("")
         }
         return true

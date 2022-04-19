@@ -27,7 +27,7 @@ import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionInfo
 import org.ossreviewtoolkit.oscake.common.ActionManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CompoundLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CompoundOrLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
@@ -85,7 +85,7 @@ internal class SelectorManager(
         project.packs.filter { !it.reuseCompliant }.forEach { pack ->
             pack.fileLicensings.forEach { fileLicensing ->
                 fileLicensing.licenses.forEach {
-                    if (CompoundLicense(it.license).isCompound && it.originalLicenses == null)
+                    if (CompoundOrLicense(it.license).isCompound && it.originalLicenses == null)
                         logger.log("Compound license \"${it.license}\": no selector was found for this license!",
                             Level.WARN, pack.id, phase = ProcessingPhase.SELECTION)
                 }
