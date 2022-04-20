@@ -20,6 +20,7 @@
 package org.ossreviewtoolkit.oscake.resolver
 
 import java.io.File
+import java.util.SortedSet
 
 import org.apache.logging.log4j.Level
 
@@ -76,6 +77,31 @@ class ResolverProvider(val directory: File) :
             }
             // 4. scopes must contain at least one item - if not, an entry with an empty string is created
             if (resolverBlock.scopes.isEmpty()) resolverBlock.scopes.add("")
+        }
+
+        // 5. check multiple equal scopes with equal licenses
+        val scopeLicenses: MutableList<Pair<String, ResolverBlock>> = mutableListOf()
+        item.resolverBlocks.forEach { resolverBlock ->
+            resolverBlock.scopes.forEach {
+                scopeLicenses.add(Pair(it, resolverBlock))
+            }
+        }
+        val scopeDict = scopeLicenses.groupBy { it.first }
+        scopeDict.forEach { (key, list) ->
+            val listOfLicenseLists: MutableList<SortedSet<String?>> = emptyList<SortedSet<String?>>().toMutableList()
+            if (list.size > 1) {
+                // more than one block for this scope was found
+                list.forEach { pair ->
+                    listOfLicenseLists.add(pair.second.licenses.toSortedSet(compareBy { it }))
+                }
+                if (listOfLicenseLists.size != listOfLicenseLists.distinct().size) {
+                    logger.log(
+                        "$errorPrefix found multiple blocks for scope \"$key\" with equal licenses --> " +
+                                "not allowed! $errorSuffix", Level.WARN, phase = phase
+                    )
+                    return false
+                }
+            }
         }
         return true
     }

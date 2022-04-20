@@ -49,7 +49,7 @@ data class FileLicensing(
     @JsonProperty("fileCopyrights") val copyrights = mutableListOf<FileCopyright>()
 
     fun coversAllLicenses(resolveLicenses: SortedSet<String>): Boolean =
-        resolveLicenses == licenses.mapNotNull { it.license?.lowercase() }.toSortedSet()
+        resolveLicenses == licenses.mapNotNull { it.license }.toSortedSet()
 
     fun handleCompoundLicense(newLicense: String): List<String> {
         val filesToDelete = mutableListOf<String>()
@@ -59,28 +59,5 @@ data class FileLicensing(
         licenses.clear()
         licenses.add(FileLicense(newLicense))
         return filesToDelete
-    }
-
-    fun fitsInPath(scopes: List<String>, allResolverScopes: List<String>) =
-        scopes.contains(getBestFit(allResolverScopes))
-
-    private fun getBestFit(allResolverScopes: List<String>): String? {
-        // replace for Windows based systems
-        val fileScope = File(scope).path.replace("\\", "/")
-        val dirScope = (File(scope).parent ?: "").replace("\\", "/")
-        // e.g. for fileScope is complete filename
-        if (allResolverScopes.contains(fileScope)) return fileScope
-
-        val dirList = mutableListOf<Pair<String, Int>>()
-        if (scope.isNotEmpty()) {
-            allResolverScopes.filter { dirScope.startsWith(it) }.forEach { dirLicensing ->
-                dirList.add(Pair(dirLicensing, dirScope.replaceFirst(dirLicensing, "").length))
-            }
-            if (dirList.isNotEmpty()) {
-                val score = dirList.minOf { it.second }
-                return dirList.first { it.second == score }.first
-            }
-        }
-        return null
     }
 }
