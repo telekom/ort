@@ -77,10 +77,14 @@ internal data class ResolverPackage(
        filesToDelete.forEach { archiveDir.absoluteFile.resolve(it).delete() }
 
        with(pack) {
-           removePackageIssues().takeIf { it.isNotEmpty() }?.also {
-               logger.log("The original issues (ERRORS/WARNINGS) were removed due to Resolver actions: " +
-                       it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.RESOLVING)
-           } // because the content has changed
+           if (pack.fileLicensings.isNotEmpty()) {
+               removePackageIssues().takeIf { it.isNotEmpty() }?.also {
+                   logger.log(
+                       "The original issues (ERRORS/WARNINGS) were removed due to Resolver actions: " +
+                               it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.RESOLVING
+                   )
+               } // because the content has changed
+           }
            createConsolidatedScopes(logger, params, ProcessingPhase.RESOLVING, archiveDir, true)
        }
     }

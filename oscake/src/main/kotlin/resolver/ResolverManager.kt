@@ -164,11 +164,15 @@ internal class ResolverManager(
                     )
             }
             ortResult?.analyzer?.result?.packages?.filter { !ortResult.isExcluded(it.pkg.id) }?.forEach { it ->
-                if (it.pkg.declaredLicenses.size > 1 &&
-                    isValidLicense(it.pkg.declaredLicensesProcessed.spdxExpression.toString()))
-                    licMap[it.pkg.id] = AnalyzerLicenses(it.pkg.declaredLicenses,
-                        it.pkg.declaredLicensesProcessed.spdxExpression.toString(),
-                        it.pkg.declaredLicensesProcessed.mapped)
+                if (it.pkg.declaredLicenses.size > 1) {
+                    if (isValidLicense(it.pkg.declaredLicensesProcessed.spdxExpression.toString()))
+                        licMap[it.pkg.id] = AnalyzerLicenses(it.pkg.declaredLicenses,
+                            it.pkg.declaredLicensesProcessed.spdxExpression.toString(),
+                            it.pkg.declaredLicensesProcessed.mapped)
+                    else
+                        logger.log("The package contains a compound license with \"AND\" - this is not supported " +
+                                "by OSCake, yet!", Level.WARN, it.pkg.id, phase = ProcessingPhase.RESOLVING)
+                }
             }
         } else
             logger.log("Results from ORT-Analyzer not found or not provided!", Level.WARN,

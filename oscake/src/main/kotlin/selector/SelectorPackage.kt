@@ -77,11 +77,14 @@ internal data class SelectorPackage(
        if (!hasChanged && pack.fileLicensings.isNotEmpty()) return
 
        with(pack) {
-           removePackageIssues().takeIf { it.isNotEmpty() }?.also {
-               logger.log("The original issues (ERRORS/WARNINGS) were removed due to Selector actions: " +
-                       it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.SELECTION)
-           } // because the content has changed
-
+           if (hasChanged) {
+               removePackageIssues().takeIf { it.isNotEmpty() }?.also {
+                   logger.log(
+                       "The original issues (ERRORS/WARNINGS) were removed due to Selector actions: " +
+                               it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.SELECTION
+                   )
+               } // because the content has changed
+           }
            createConsolidatedScopes(logger, params, ProcessingPhase.SELECTION, archiveDir, true)
 
            // post operations for default licensings

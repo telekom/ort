@@ -55,6 +55,15 @@ class SelectorProvider(val directory: File) :
                 return false
             }
         }
+        item.selectorBlocks.forEach {
+            if (it.specified.contains(" AND ")) {
+                logger.log(
+                    "$errorPrefix specified license: \"${it.specified}\" contains \"AND\" - this is not a " +
+                            "valid Compound-License, yet! " + errorSuffix, Level.WARN, phase = phase
+                )
+                return false
+            }
+        }
         item.selectorBlocks.filter { CompoundOrLicense(it.specified).isCompound }.forEach {
             val cl = CompoundOrLicense(it.specified)
             if (!cl.licenseList.contains(it.selected)) {
