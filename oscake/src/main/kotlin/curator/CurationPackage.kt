@@ -82,8 +82,7 @@ internal data class CurationPackage(
      * the special case of "fileScope" == CURATION_DEFAULT_LICENSING (This special processing is necessary if
      * defaultLicensings exist, which are not based on fileLicensings - aka "declared license").
      */
-    override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
-                         fileStore: File?) {
+    override fun process(pack: Pack, archiveDir: File, logger: OSCakeLogger, fileStore: File?) {
 
         eliminateIssueFromPackage(pack)
 
@@ -102,7 +101,7 @@ internal data class CurationPackage(
                         fileStore!!
                     )
                 }
-                pack.resetTreatMetaInfAsDefault(params)
+                pack.resetTreatMetaInfAsDefault()
             }
             // manage copyrights
             curationFileItem.fileCopyrights?.sortedBy { orderCopyrightByModifier[packageModifier]?.get(it.modifier)
@@ -151,11 +150,11 @@ internal data class CurationPackage(
                         }
                     }
                 }
-                pack.resetTreatMetaInfAsDefault(params)
+                pack.resetTreatMetaInfAsDefault()
             }
         }
         // generate dir- and default scopes
-        pack.createConsolidatedScopes(logger, params, ProcessingPhase.CURATION, archiveDir, false)
+        pack.createConsolidatedScopes(logger, ProcessingPhase.CURATION, archiveDir, false)
     }
 
     private fun curateLicenseUpdate(

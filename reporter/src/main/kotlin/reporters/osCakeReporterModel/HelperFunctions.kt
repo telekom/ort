@@ -80,14 +80,14 @@ fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null):
  * Depending on the [path] of the file and the name of the file (contained in list scopePatterns) the
  * [ScopeLevel] is identified.
  */
-fun getScopeLevel(path: String, packageRoot: String, params: OSCakeConfigParams, treatMetaInfAsDefault: Boolean) =
-    getScopeLevel4All(path, packageRoot, params.scopePatterns, params.scopeIgnorePatterns,
-        params.lowerCaseComparisonOfScopePatterns, treatMetaInfAsDefault)
+fun getScopeLevel(path: String, packageRoot: String, treatMetaInfAsDefault: Boolean) =
+    getScopeLevel4All(path, packageRoot, OSCakeConfigParams.scopePatterns, OSCakeConfigParams.scopeIgnorePatterns,
+        OSCakeConfigParams.lowerCaseComparisonOfScopePatterns, treatMetaInfAsDefault)
 
-fun getScopeLevel4Copyrights(path: String, packageRoot: String, params: OSCakeConfigParams,
+fun getScopeLevel4Copyrights(path: String, packageRoot: String,
                              treatMetaInfAsDefault: Boolean) = getScopeLevel4All(path,
-    packageRoot, params.copyrightScopePatterns, params.scopeIgnorePatterns, params.lowerCaseComparisonOfScopePatterns,
-    treatMetaInfAsDefault)
+    packageRoot, OSCakeConfigParams.copyrightScopePatterns, OSCakeConfigParams.scopeIgnorePatterns,
+        OSCakeConfigParams.lowerCaseComparisonOfScopePatterns, treatMetaInfAsDefault)
 
 fun getScopeLevel4All(path: String, packageRoot: String, scopePatterns: List<String>, scopeIgnorePatterns: List<String>,
                       lowerCaseComparisonOfScopePatterns: Boolean, treatMetaInfAsDefault: Boolean): ScopeLevel {

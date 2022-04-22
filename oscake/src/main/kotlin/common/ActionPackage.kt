@@ -25,7 +25,6 @@ import com.vdurmont.semver4j.SemverException
 import java.io.File
 
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
 
@@ -73,6 +72,5 @@ internal abstract class ActionPackage(open val id: Identifier) {
     /**
      * [process] has to be overridden by the child classes and contains the complete application logic
      */
-    abstract fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
-                         fileStore: File? = null)
+    abstract fun process(pack: Pack, archiveDir: File, logger: OSCakeLogger, fileStore: File? = null)
 }

@@ -73,17 +73,16 @@ internal class MetaDataManager(
      * metadatamanager actions, reports emerged issues and finally, writes the output files.
      */
     internal fun manage() {
+        OSCakeConfigParams.setParamsFromProject(project)
         // 1. Process distributor-package if it's valid and applicable
         if (config.metadatamanager?.distribution?.enabled == true)
             project.packs.forEach {
-                distributorProvider.getActionFor(it.id, true)?.
-                process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
+                distributorProvider.getActionFor(it.id, true)?.process(it, archiveDir, logger)
             }
         // 2. Process packageType-package if it's valid and applicable
         if (config.metadatamanager?.packageType?.enabled == true)
             project.packs.forEach {
-                packageTypeProvider.getActionFor(it.id, true)?.
-                process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
+                packageTypeProvider.getActionFor(it.id, true)?.process(it, archiveDir, logger)
             }
         // 3. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(METADATAMANAGER_LOGGER)) handleOSCakeIssues(project, logger,

@@ -50,8 +50,7 @@ internal data class SelectorPackage(
      * Walks through all [FileLicensing]s which contains the specified compound license. Afterwards, the dir
      * and default-scopes are regenerated.
      */
-   override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
-                        fileStore: File?) {
+   override fun process(pack: Pack, archiveDir: File, logger: OSCakeLogger, fileStore: File?) {
 
         // for special cases
         if (pack.fileLicensings.isEmpty() && pack.defaultLicensings.isEmpty()) return
@@ -85,7 +84,7 @@ internal data class SelectorPackage(
                    )
                } // because the content has changed
            }
-           createConsolidatedScopes(logger, params, ProcessingPhase.SELECTION, archiveDir, true)
+           createConsolidatedScopes(logger, ProcessingPhase.SELECTION, archiveDir, true)
 
            // post operations for default licensings
            defaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach { defaultLicense ->

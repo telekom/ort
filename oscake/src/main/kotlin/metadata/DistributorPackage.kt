@@ -49,10 +49,9 @@ internal data class DistributorPackage(
     /**
      * Changes the distribution according to the [distributionBlock]
      */
-   override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
-                        fileStore: File?) {
+   override fun process(pack: Pack, archiveDir: File, logger: OSCakeLogger, fileStore: File?) {
 
-       if (pack.distribution == distributionBlock.from || params.ignoreFromChecks) {
+       if (pack.distribution == distributionBlock.from || OSCakeConfigParams.ignoreFromChecks) {
            pack.distribution = distributionBlock.to
        } else {
            logger.log(

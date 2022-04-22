@@ -77,13 +77,13 @@ internal class ModeDefault(
         /* Phase IV:    based on the FileLicenses, the default- and dir-scopes are created when the filename matches
          *              the oscake.scopePatterns
          */
-        pack.createConsolidatedScopes(logger, OSCakeConfiguration.params, ProcessingPhase.PROCESS, tmpDirectory, false)
+        pack.createConsolidatedScopes(logger, ProcessingPhase.PROCESS, tmpDirectory, false)
     }
 
     private fun phaseI(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance) {
         val provHash = getHash(provenance)
         scanDict[pack.id]?.forEach { (fileName, fib) ->
-            val scopeLevel = getScopeLevel(fileName, pack.packageRoot, OSCakeConfiguration.params, false)
+            val scopeLevel = getScopeLevel(fileName, pack.packageRoot, false)
             // if fileName opens a dir- or default-scope, copy the original file to the archive
             // and create a fileLicensing to set fileContentInArchive accordingly
             if (scopeLevel == ScopeLevel.DEFAULT || scopeLevel == ScopeLevel.DIR) {
@@ -141,7 +141,7 @@ internal class ModeDefault(
     }
 
     private fun phaseIII() {
-        scanDict[pack.id]?.filter { (_,fib) -> fib.copyrightTextEntries.size > 0 }?.forEach { (_, fib) ->
+        scanDict[pack.id]?.filter { (_, fib) -> fib.copyrightTextEntries.size > 0 }?.forEach { (_, fib) ->
             (pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?:
                 FileLicensing(getPathName(pack, fib)).apply { pack.fileLicensings.add(this) })
                     .apply {
@@ -312,7 +312,7 @@ internal class ModeDefault(
         pack: Pack
     ): Boolean = scanDict[pack.id]?.any { entry ->
         entry.value.licenseTextEntries.any { lte -> lte.isLicenseText } ||
-                OSCakeConfiguration.params.scopePatterns.any {
+                OSCakeConfigParams.scopePatterns.any {
                     FileSystems.getDefault().getPathMatcher("glob:$it").matches(
                         File(File(entry.value.path).name).toPath())
                 }

@@ -60,11 +60,9 @@ class OSCakeLogger(
             scope, phase).also {
             if (level != Level.DEBUG) osCakeIssues.add(it)
             // OSCake apps (Deduplicator, Curator, ...) have no params initialized
-            if (OSCakeConfiguration.isParamsInitialized()) {
-                if (OSCakeConfiguration.params.includeJsonPathInLogfile4ErrorsAndWarnings &&
+            if (OSCakeConfigParams.includeJsonPathInLogfile4ErrorsAndWarnings &&
                     (level == Level.ERROR || level == Level.WARN)
                 ) jsonPath = it.generateJSONPath()
-            }
         }
 
         var prefix = ""

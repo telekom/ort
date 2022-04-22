@@ -49,10 +49,9 @@ internal data class PackageTypePackage(
     /**
      * Changes the packageType according to the [packageTypeBlock]
      */
-   override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
-                        fileStore: File?) {
+   override fun process(pack: Pack, archiveDir: File, logger: OSCakeLogger, fileStore: File?) {
 
-       if (pack.packageType == packageTypeBlock.from || params.ignoreFromChecks) {
+       if (pack.packageType == packageTypeBlock.from || OSCakeConfigParams.ignoreFromChecks) {
            pack.packageType = packageTypeBlock.to
        } else {
            logger.log(

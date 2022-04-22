@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-@file:Suppress("TooManyFunctions")
+@file:Suppress("TooManyFunctions", "ComplexMethod")
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.annotation.JsonIgnore
@@ -167,7 +167,7 @@ data class Pack(
     }
 
     fun createConsolidatedScopes(
-        logger: OSCakeLogger, params: OSCakeConfigParams, phase: ProcessingPhase,
+        logger: OSCakeLogger, phase: ProcessingPhase,
         tmpDirectory: File,
         foundInFileScopeConfigured: Boolean = false
     ) {
@@ -175,7 +175,7 @@ data class Pack(
         if (reuseCompliant)
             createReuseScope()
         else
-            createDirDefaultScopes(logger, params, phase, tmpDirectory, foundInFileScopeConfigured)
+            createDirDefaultScopes(logger, phase, tmpDirectory, foundInFileScopeConfigured)
     }
 
     fun createReuseScope() {
@@ -187,13 +187,13 @@ data class Pack(
      * found, the files from subdirectory "META-INF" are treated as default licenses (if it exists)
      */
     private fun createDirDefaultScopes(
-        logger: OSCakeLogger, params: OSCakeConfigParams, phase: ProcessingPhase,
+        logger: OSCakeLogger, phase: ProcessingPhase,
         tmpDirectory: File,
         foundInFileScopeConfigured: Boolean
     ) {
 
         // reset "treatMetaInfAsDefault"
-        resetTreatMetaInfAsDefault(params)
+        resetTreatMetaInfAsDefault()
         // Copy the content, for the case that a [DECLARED] license exists in default licensing.
         // A [DECLARED] license has no associated file license and therefore, cannot be regenerated
         val saveDefaultLicensings = defaultLicensings.toList()
@@ -201,7 +201,7 @@ data class Pack(
         removeDirDefaultScopes()
 
         fileLicensings.forEach { fileLicensing ->
-            val scopeLevel = getScopeLevel(fileLicensing.scope, packageRoot, params, treatMetaInfAsDefault)
+            val scopeLevel = getScopeLevel(fileLicensing.scope, packageRoot, treatMetaInfAsDefault)
             // handle the "Default-Scope"
             if (scopeLevel == ScopeLevel.DEFAULT) {
                 fileLicensing.licenses.forEach { fileLicense ->
@@ -248,7 +248,7 @@ data class Pack(
         // may happen when a [DECLARED] license is substituted by a file license and the default license has a
         // file associated by a licenseTextInArchive entry
         if (defaultLicensings.isNotEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED ||
-                    it.path == FOUND_IN_FILE_SCOPE_CONFIGURED}) {
+                    it.path == FOUND_IN_FILE_SCOPE_CONFIGURED }) {
             saveDefaultLicensings.forEach {
                 dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
             }
@@ -258,7 +258,7 @@ data class Pack(
         // with "foundInFileScope": "[DECLARED]" or "foundInFileScope": "[CONFIGURED]"; technically
         // these items cannot have Copyrights
         if (defaultLicensings.isEmpty() && saveDefaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED ||
-                    it.path == FOUND_IN_FILE_SCOPE_CONFIGURED}) {
+                    it.path == FOUND_IN_FILE_SCOPE_CONFIGURED }) {
             // is true if the method is called from the OSCake-Application "Resolver" or "Selector"
             if (foundInFileScopeConfigured)
                 saveDefaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_DECLARED }.forEach {
@@ -269,7 +269,7 @@ data class Pack(
 
         // manage Copyrights
         fileLicensings.forEach { fileLicensing ->
-            val scopeLevel = getScopeLevel4Copyrights(fileLicensing.scope, packageRoot, params, treatMetaInfAsDefault)
+            val scopeLevel = getScopeLevel4Copyrights(fileLicensing.scope, packageRoot, treatMetaInfAsDefault)
             if (scopeLevel == ScopeLevel.DEFAULT) {
                 fileLicensing.copyrights.forEach {
                     defaultCopyrights.add(DefaultDirCopyright(fileLicensing.scope, it.copyright))
@@ -494,7 +494,7 @@ data class Pack(
         var pmDist: String? = null
         var dist: String? = null
 
-        OSCakeConfiguration.params.distributionMap.forEach { item ->
+        OSCakeConfigParams.distributionMap.forEach { item ->
             val regex = item.key.toRegex()
             if (regex.containsMatchIn("$packageManager:$scope")) pmDist = item.value
             if (regex.containsMatchIn(scope)) dist = item.value
@@ -509,9 +509,9 @@ data class Pack(
         treatMetaInfAsDefault = (defaultLicensings.any { !it.declared && it.path?.startsWith("META-INF/") == true })
     }
 
-    fun resetTreatMetaInfAsDefault(params: OSCakeConfigParams) {
+    fun resetTreatMetaInfAsDefault() {
         treatMetaInfAsDefault = fileLicensings.none { fileLicensing ->
-            getScopeLevel(fileLicensing.scope, packageRoot, params, false) == ScopeLevel.DEFAULT
+            getScopeLevel(fileLicensing.scope, packageRoot, false) == ScopeLevel.DEFAULT
         }
     }
 }

@@ -50,8 +50,7 @@ internal data class ResolverPackage(
      * Walks through all [FileLicensing]s which contains the appropriate license information and fit into the given
      * path. Afterwards, the dir and default-scopes are regenerated.
      */
-   override fun process(pack: Pack, params: OSCakeConfigParams, archiveDir: File, logger: OSCakeLogger,
-                        fileStore: File?) {
+   override fun process(pack: Pack, archiveDir: File, logger: OSCakeLogger, fileStore: File?) {
 
        val filesToDelete = mutableListOf<String>()
        val changedFileLicensings = mutableListOf<FileLicensing>()
@@ -86,7 +85,7 @@ internal data class ResolverPackage(
                    )
                } // because the content has changed
            }
-           createConsolidatedScopes(logger, params, ProcessingPhase.RESOLVING, archiveDir, true)
+           createConsolidatedScopes(logger, ProcessingPhase.RESOLVING, archiveDir, true)
        }
     }
 

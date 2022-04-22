@@ -25,10 +25,6 @@ import com.sksamuel.hoplite.fp.getOrElse
 
 import java.io.File
 
-import org.apache.logging.log4j.Level
-
-import org.ossreviewtoolkit.model.Identifier
-
 /**
  * Part of the [OSCakeConfiguration]
  */
@@ -146,108 +142,30 @@ data class OSCakeConfiguration(
      */
     val distributionMap: MutableMap<String, String>? = mutableMapOf()
     ) {
+    /**
+     * The [OSCakeConfiguration] is read by the jackson deserializer as part of the ORT start up process.
+     * Some values need to be processed before being used in the OSCake applications. Therefore, a singleton
+     * of [OSCakeConfigParams] is created and filled with the original/adapted values. The original
+     * instance of [OSCakeConfiguration] is kept for reporting reasons in the output (oscc-file: config).
+     */
     companion object {
         private lateinit var osCakeConfig: OSCakeConfiguration
         private val commandLineParams: MutableMap<String, String> = mutableMapOf()
-        private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(REPORTER_LOGGER) }
-        lateinit var params: OSCakeConfigParams
-        lateinit var osCakeConfigInfo: OSCakeConfigInfo
-
-        fun isParamsInitialized() = ::params.isInitialized
 
         /**
          * [setConfigParams] contains logical checks and combinations of configuration entries set in
-         * osCakeConfig
+         * osCakeConfig and sets the values in [OSCakeConfigParams]
          */
         internal fun setConfigParams(options: Map<String, String>) {
             osCakeConfig = getOSCakeConfiguration(options["configFile"]!!)
             require(isValidFolder(osCakeConfig.sourceCodesDir)) {
                 "Invalid or missing config entry found for \"sourceCodesDir\" in oscake.conf"
             }
-            val ortScanResultsDir = osCakeConfig.ortScanResultsDir
-            // init of params necessary, because the logger already needs this information
-            params = OSCakeConfigParams(osCakeConfig.includeJsonPathInLogfile4ErrorsAndWarnings ?: false)
-
-            val oscakeScanResultsDir: String? = null
-            params.dependencyGranularity = if (options["--dependency-granularity"]?.
-                toIntOrNull() != null) options["--dependency-granularity"]!!.toInt() else Int.MAX_VALUE
-
-            val onlyIncludePackagesMap: MutableMap<Identifier, Boolean> = mutableMapOf()
-            osCakeConfig.packageRestrictions?.let { packageRestriction ->
-                if (packageRestriction.enabled != null && packageRestriction.enabled) {
-                    var infoStr = "The output is restricted - set in configuration - to the following package(s):\n"
-                    packageRestriction.onlyIncludePackages?.forEach {
-                        val id = Identifier(it)
-                        onlyIncludePackagesMap[id] = false
-                        infoStr += "   $id\n"
-                    }
-                    logger.log(infoStr, Level.INFO, phase = ProcessingPhase.CONFIG)
-                    params.dependencyGranularity = Int.MAX_VALUE
-                    logger.log("commandline parameter \"dependency-granularity\" is overruled due to " +
-                            "packageRestrictions", Level.INFO, phase = ProcessingPhase.CONFIG)
-                }
-            }
-
-            var issueLevel: Int
-            osCakeConfig.includeIssues?.enabled.let {
-                issueLevel = osCakeConfig.includeIssues?.level ?: -1
-                if (issueLevel > 2) issueLevel = 2
-                if (it == false) issueLevel = -1
-            }
-
-            params.ortScanResultsDir = ortScanResultsDir
-            params.oscakeScanResultsDir = oscakeScanResultsDir
-            params.onlyIncludePackages = onlyIncludePackagesMap
-
-            val forceIncludePackagesMap: MutableMap<Identifier, Boolean> = mutableMapOf()
-            osCakeConfig.packageInclusions?.let { packageInclusion ->
-                 if (params.dependencyGranularity != Int.MAX_VALUE && packageInclusion.enabled != null &&
-                     packageInclusion.enabled) {
-                     var infoStr = "The output is extended (set in configuration and despite of the commandline " +
-                             "parameter: \"dependency-granularity\" ) with the following package(s):\n"
-                     packageInclusion.forceIncludePackages?.forEach {
-                         val id = Identifier(it)
-                         forceIncludePackagesMap[id] = false
-                         infoStr += "   $id\n"
-                     }
-                     logger.log(infoStr, Level.INFO, phase = ProcessingPhase.CONFIG)
-                 }
-             }
-            params.forceIncludePackages = forceIncludePackagesMap
-
-            params.issuesLevel = issueLevel
-            params.sourceCodesDir = osCakeConfig.sourceCodesDir
-
-            params.lowerCaseComparisonOfScopePatterns = osCakeConfig.lowerCaseComparisonOfScopePatterns ?: true
-            params.scopePatterns = osCakeConfig.scopePatterns
-            params.copyrightScopePatterns = (osCakeConfig.copyrightScopePatterns +
-                    osCakeConfig.scopePatterns).toList()
-            params.scopeIgnorePatterns = osCakeConfig.scopeIgnorePatterns
-            if (params.lowerCaseComparisonOfScopePatterns) {
-                params.scopePatterns = params.scopePatterns.map { it.lowercase() }.distinct().toList()
-                params.copyrightScopePatterns = params.copyrightScopePatterns.map { it.lowercase() }.distinct().toList()
-                params.scopeIgnorePatterns = params.scopeIgnorePatterns.map { it.lowercase() }.distinct().toList()
-            }
-
-            params.ignoreNOASSERTION = osCakeConfig.ignoreNOASSERTION ?: false
-            params.ignoreLicenseRefScancodeUnknown = osCakeConfig.ignoreLicenseRefScancodeUnknown ?: false
-            params.ignoreLicenseRef = osCakeConfig.ignoreLicenseRef ?: false
-            params.hideSections = osCakeConfig.hideSections ?: emptyList()
-            params.licenseScoreThreshold = osCakeConfig.licenseScoreThreshold ?: 0
-
-            osCakeConfig.distributionMap?.forEach { item ->
-                if (enumValueOfOrNull<DistributionType>(item.value) != null)
-                    params.distributionMap[item.key] = item.value
-                else
-                    logger.log("Invalid config value \"${item.value}\" in distributionMap - must be one " +
-                         "of ${DistributionType.values().map { it.name }} --> ignored", Level.INFO,
-                        phase = ProcessingPhase.CONFIG)
-            }
-
+            // generate the commandline info and configuration info for the oscc file
             options.forEach {
                 commandLineParams[it.key] = it.value
             }
-            osCakeConfigInfo = OSCakeConfigInfo(commandLineParams, osCakeConfig)
+            OSCakeConfigParams.setParams(OSCakeConfigInfo(commandLineParams, osCakeConfig))
         }
         /**
          * fetches the options which were passed via "-O OSCake=...=..."
@@ -268,12 +186,5 @@ data class OSCakeConfiguration(
          */
         private fun isValidFolder(dir: String?): Boolean =
             !(dir == null || !File(dir).exists() || !File(dir).isDirectory)
-
-        /**
-         * Returns an enum entry with the specified name or `null` if no such entry was found.
-         */
-        inline fun <reified T : Enum<T>> enumValueOfOrNull(name: String): T? {
-            return enumValues<T>().find { it.name == name }
-        }
     }
 }

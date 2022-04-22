@@ -89,9 +89,9 @@ internal class ResolverManager(
         project.packs.forEach { pack -> resolverProvider.getActionFor(pack.id) ?: appendAction(pack) }
 
         // 2. Process resolver-package if it's valid, applicable and pack is not reuse-compliant
+        OSCakeConfigParams.setParamsFromProject(project)
         project.packs.filter { !it.reuseCompliant }.forEach {
-            resolverProvider.getActionFor(it.id)?.
-                process(it, OSCakeConfigParams.setParamsForCompatibilityReasons(project), archiveDir, logger)
+            resolverProvider.getActionFor(it.id)?.process(it, archiveDir, logger)
         }
         // 3. log info for REUSE packages
         logReuseCase(ProcessingPhase.RESOLVING)
@@ -111,13 +111,14 @@ internal class ResolverManager(
     private fun appendAction(pack: Pack) {
         // handle [DECLARED] licenses
         if (pack.defaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED })
-            analyzedPackageLicenses[pack.id]?.let {
-                if (it.mappedLicenses.toList().any { it?.contains(" AND ") == true })
+            analyzedPackageLicenses[pack.id]?.let { analyzerLicenses ->
+                if (analyzerLicenses.mappedLicenses.toList().any { it?.contains(" AND ") == true })
                     logger.log("DECLARED License expression contains the operator \"AND\" and cannot be processed!",
                         Level.WARN, phase = ProcessingPhase.RESOLVING)
                 else
                     resolverProvider.actions.add(ResolverPackage(pack.id, listOf(ResolverBlock(
-                        it.mappedLicenses.toList(), it.declaredLicensesProcessed, mutableListOf("")))))
+                        analyzerLicenses.mappedLicenses.toList(), analyzerLicenses.declaredLicensesProcessed,
+                        mutableListOf("")))))
             }
         // handle all others if default licenses and declaredLicenses are equivalent
         else {

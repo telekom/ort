@@ -63,6 +63,7 @@ class OSCakeReporter : Reporter {
             "Value for 'OSCakeConf' is not a valid file!\n Add -O OSCake=configFile=... to the commandline"
         }
         OSCakeConfiguration.setConfigParams(options)
+
         // relay issues from ORT
         input.ortResult.analyzer?.result?.let {
             if (it.hasIssues)logger.log("Issue in ORT-ANALYZER - please check ORT-logfile or console output " +
@@ -74,19 +75,19 @@ class OSCakeReporter : Reporter {
         }
 
         // start processing
-        prepareNativeScanResults(input.ortResult.scanner?.config?.options, OSCakeConfiguration.params)
-        val scanDict = getNativeScanResults(input, OSCakeConfiguration.params)
+        prepareNativeScanResults(input.ortResult.scanner?.config?.options)
+        val scanDict = getNativeScanResults(input)
         removeScoreBasedMultipleLicensesPerFile(scanDict)
         reportScoreBelowThreshold(scanDict)
-        val project = ingestAnalyzerOutput(input, scanDict, outputDir, OSCakeConfiguration.params)
+        val project = ingestAnalyzerOutput(input, scanDict, outputDir)
 
-        OSCakeConfiguration.params.forceIncludePackages.filter { !it.value }.forEach {
+        OSCakeConfigParams.forceIncludePackages.filter { !it.value }.forEach {
             logger.log("Package \"${it.key}\" is configured to be present due to \"forceIncludePackages-List\", " +
                     "but was not found!", Level.WARN, it.key, phase = ProcessingPhase.POST)
         }
 
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) {
-            handleOSCakeIssues(project, logger, OSCakeConfiguration.params.issuesLevel)
+            handleOSCakeIssues(project, logger, OSCakeConfigParams.issuesLevel)
         }
         // transform result into json output
         val objectMapper = ObjectMapper()
@@ -101,7 +102,7 @@ class OSCakeReporter : Reporter {
      * If the folder "native-scan-results" is empty, the raw data files from scanner are copied. The folder for
      * the raw data files is configured in ort.conf (scanner.options.ScanCode) as parameter "--json"
      */
-    private fun prepareNativeScanResults(options: Map<String, ScannerOptions>?, params: OSCakeConfigParams) {
+    private fun prepareNativeScanResults(options: Map<String, ScannerOptions>?) {
         // get folder name "rawDir" of scanner files from file "scan-result.yml"
         val scannerCommandLineParams = (options?.get("ScanCode")?.get("commandLine") ?: "").split(" ")
         val ind = scannerCommandLineParams.indexOfFirst { it == "--json" }
@@ -111,7 +112,7 @@ class OSCakeReporter : Reporter {
         val rawDir = File(scannerRaw).parent
 
         val rawDataExists = File(rawDir).exists() && File(rawDir).listFiles()!!.isNotEmpty()
-        val ortScanResultsDir = File(params.ortScanResultsDir!!)
+        val ortScanResultsDir = File(OSCakeConfigParams.ortScanResultsDir!!)
         val scanDataExists = ortScanResultsDir.exists() && ortScanResultsDir.listFiles()!!.isNotEmpty()
 
         require(!(!rawDataExists && !scanDataExists)) {
@@ -127,7 +128,7 @@ class OSCakeReporter : Reporter {
 
                 fileName += "scan-results_ScanCode.json"
                 if (ortScanResultsDir.resolve(fileName).exists()) logger.log("File $fileName (${it.name}) " +
-                        "already exists and will be overwritten in ${params.ortScanResultsDir}!", Level.INFO,
+                    "already exists and will be overwritten in ${OSCakeConfigParams.ortScanResultsDir}!", Level.INFO,
                     phase = ProcessingPhase.PRE)
 
                 it.copyTo(ortScanResultsDir.resolve(fileName), true)
@@ -135,7 +136,7 @@ class OSCakeReporter : Reporter {
             // delete rawData
             File(rawDir).deleteRecursively()
             File(rawDir).mkdir()
-            logger.log("ScanCode raw data files were copied from $rawDir to ${params.ortScanResultsDir}",
+            logger.log("ScanCode raw data files were copied from $rawDir to ${OSCakeConfigParams.ortScanResultsDir}",
                 Level.INFO, phase = ProcessingPhase.PRE)
         }
     }
@@ -170,11 +171,11 @@ class OSCakeReporter : Reporter {
     private fun reportScoreBelowThreshold(scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>) =
         scanDict.forEach { (pkg, fibMap) ->
             fibMap.forEach { (_, fib) ->
-                fib.licenseTextEntries.filter { it.score <= OSCakeConfiguration.params.licenseScoreThreshold }
+                fib.licenseTextEntries.filter { it.score <= OSCakeConfigParams.licenseScoreThreshold }
                     .forEach {
                         logger.log("Score <${it.score}> of license: ${it.license} in file \"${fib.path}\" is " +
                                "lower than the configured threshold of " +
-                                "<${OSCakeConfiguration.params.licenseScoreThreshold}>!", Level.WARN, pkg,
+                                "<${OSCakeConfigParams.licenseScoreThreshold}>!", Level.WARN, pkg,
                             phase = ProcessingPhase.PRE
                     )
                 }
@@ -224,7 +225,6 @@ class OSCakeReporter : Reporter {
         input: ReporterInput,
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
         outputDir: File,
-        cfg: OSCakeConfigParams
     ): Project {
         val pkgMap = mutableMapOf<Identifier, org.ossreviewtoolkit.model.Package>()
         val project = Project()
@@ -234,8 +234,9 @@ class OSCakeReporter : Reporter {
 
         // prepare projects and packages
         input.ortResult.analyzer?.result?.projects?.
-            filter { cfg.onlyIncludePackages.isEmpty() ||
-                    (cfg.onlyIncludePackages.isNotEmpty() && cfg.onlyIncludePackages.contains(it.toPackage().id)) }?.
+            filter { OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
+                    (OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
+                            OSCakeConfigParams.onlyIncludePackages.contains(it.toPackage().id)) }?.
         forEach {
             val pkg = it.toPackage()
             pkgMap[pkg.id] = it.toPackage()
@@ -250,11 +251,14 @@ class OSCakeReporter : Reporter {
         var cntLevelExcluded = 0
         input.ortResult.analyzer?.result?.packages?.
             filter { !input.ortResult.isExcluded(it.pkg.id) }?.
-            filter { cfg.onlyIncludePackages.isEmpty() ||
-                (cfg.onlyIncludePackages.isNotEmpty() && cfg.onlyIncludePackages.contains(it.pkg.id)) }?.
+            filter { OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
+                        (OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
+                        OSCakeConfigParams.onlyIncludePackages.contains(it.pkg.id)) }?.
         forEach {
-            if (cfg.dependencyGranularity < Int.MAX_VALUE && cfg.onlyIncludePackages.isEmpty()) {
-                if (!treeLevelIncluded(evaluatedModel.dependencyTrees, cfg.dependencyGranularity, it.pkg.id)) {
+            if (OSCakeConfigParams.dependencyGranularity < Int.MAX_VALUE &&
+                OSCakeConfigParams.onlyIncludePackages.isEmpty()) {
+                if (!treeLevelIncluded(evaluatedModel.dependencyTrees, OSCakeConfigParams.dependencyGranularity,
+                        it.pkg.id)) {
                     cntLevelExcluded++
                     return@forEach
                 }
@@ -269,8 +273,8 @@ class OSCakeReporter : Reporter {
                 }
         }
         if (cntLevelExcluded > 0) logger.log("Attention: 'dependency-granularity' is restricted to level:" +
-                " ${cfg.dependencyGranularity} via option! $cntLevelExcluded package(s) were excluded!", Level.INFO,
-                phase = ProcessingPhase.PROCESS)
+                " ${OSCakeConfigParams.dependencyGranularity} via option! $cntLevelExcluded package(s) were" +
+                " excluded!", Level.INFO, phase = ProcessingPhase.PROCESS)
 
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
@@ -290,7 +294,7 @@ class OSCakeReporter : Reporter {
                     }
                     val provenance = input.ortResult.scanner?.results?.scanResults!![pack.id]!!.first().provenance
                     downloadSourcesWhenNeeded(pack, scanDict, provenance)
-                    fetchInfosFromScanDictionary(OSCakeConfiguration.params.sourceCodesDir, tmpDirectory, provenance)
+                    fetchInfosFromScanDictionary(OSCakeConfigParams.sourceCodesDir, tmpDirectory, provenance)
                     postActivities(tmpDirectory)
                 }
             }
@@ -302,15 +306,15 @@ class OSCakeReporter : Reporter {
         project.complianceArtifactCollection.archivePath = "./" +
                 input.ortResult.getProjects().first().id.name + ".zip"
 
-        project.config = ConfigInfo(OSCakeConfiguration.osCakeConfigInfo)
+        project.config = ConfigInfo(OSCakeConfigParams.osCakeConfigInformation)
 
-        project.containsHiddenSections = OSCakeConfiguration.params.hideSections.isNotEmpty() &&
-                project.hideSections(OSCakeConfiguration.params.hideSections, tmpDirectory)
+        project.containsHiddenSections = OSCakeConfigParams.hideSections.isNotEmpty() &&
+                project.hideSections(OSCakeConfigParams.hideSections, tmpDirectory)
 
         zipAndCleanUp(outputDir, tmpDirectory, project.complianceArtifactCollection.archivePath,
             logger, ProcessingPhase.POST)
 
-        cfg.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
+        OSCakeConfigParams.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
             logger.log("packageRestrictions are enabled, but the package [$identifier] was not found",
                 Level.WARN, identifier, phase = ProcessingPhase.PROCESS)
         }
@@ -330,33 +334,34 @@ class OSCakeReporter : Reporter {
      */
     private fun getNativeScanResults(
         input: ReporterInput,
-        cfg: OSCakeConfigParams
     ): MutableMap<Identifier, MutableMap<String, FileInfoBlock>> {
 
         val scanDict = mutableMapOf<Identifier, MutableMap<String, FileInfoBlock>>()
 
         input.ortResult.scanner?.results?.scanResults?.
             filter { !input.ortResult.isExcluded(it.key) }?.
-            filter { cfg.onlyIncludePackages.isEmpty() ||
-                    (cfg.onlyIncludePackages.isNotEmpty() && cfg.onlyIncludePackages.contains(it.key)) }?.
+            filter { OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
+                    (OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
+                            OSCakeConfigParams.onlyIncludePackages.contains(it.key)) }?.
             forEach { (key, pp) ->
             if (pp.size > 1) logger.log("Package has more than one provenance! " +
                             "Only the first one is taken!", Level.WARN, key, phase = ProcessingPhase.SCANRESULT)
-            if (cfg.onlyIncludePackages.isNotEmpty()) cfg.onlyIncludePackages[key] = true
+            if (OSCakeConfigParams.onlyIncludePackages.isNotEmpty()) OSCakeConfigParams.onlyIncludePackages[key] = true
             pp.first().also { scanResult ->
                 try {
                     val fileInfoBlockDict = HashMap<String, FileInfoBlock>()
                     val nsr = getNativeScanResultJson(
                         key,
-                        cfg.ortScanResultsDir
+                        OSCakeConfigParams.ortScanResultsDir
                     )
 
                     scanResult.summary.licenseFindings
-                        .filter { !(it.license.toString() == "NOASSERTION" && cfg.ignoreNOASSERTION) }
+                        .filter { !(it.license.toString() == "NOASSERTION" && OSCakeConfigParams.ignoreNOASSERTION) }
                         .filter { !(it.license.toString().startsWith("LicenseRef") &&
-                                cfg.ignoreLicenseRef) }
+                                OSCakeConfigParams.ignoreLicenseRef) }
                         .filter { !(it.license.toString().startsWith("LicenseRef-scancode") &&
-                                it.license.toString().contains("unknown") && cfg.ignoreLicenseRefScancodeUnknown) }
+                                it.license.toString().contains("unknown") &&
+                                OSCakeConfigParams.ignoreLicenseRefScancodeUnknown) }
                         .forEach {
                         val fileInfoBlock =
                             fileInfoBlockDict.getOrPut(it.location.path) { FileInfoBlock(it.location.path) }
@@ -458,8 +463,8 @@ class OSCakeReporter : Reporter {
     ): Boolean {
         var rc = false
         // include package despite the dependency-granularity level
-        if (OSCakeConfiguration.params.forceIncludePackages.contains(id)) {
-            OSCakeConfiguration.params.forceIncludePackages[id] = true
+        if (OSCakeConfigParams.forceIncludePackages.contains(id)) {
+            OSCakeConfigParams.forceIncludePackages[id] = true
             return true
         }
 
