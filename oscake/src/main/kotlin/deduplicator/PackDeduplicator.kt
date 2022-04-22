@@ -18,9 +18,11 @@
  */
 package org.ossreviewtoolkit.oscake.deduplicator
 
+import org.apache.logging.log4j.Level
 import java.io.File
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
+import org.ossreviewtoolkit.oscake.DEDUPLICATION_LOGGER
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
 /**
@@ -30,7 +32,19 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
                        private val config: OSCakeConfiguration) {
 
+    private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(DEDUPLICATION_LOGGER) }
+
     fun deduplicate() {
+        if (pack.defaultLicensings.any { it.license?.contains(" OR ") == true } ||
+            pack.fileLicensings.any { fileLicensing -> fileLicensing.licenses.
+            any { it.license?.contains(" OR ") == true }}) {
+
+            logger.log("The package \"${pack.id.toCoordinates()}\" contains compound licenses combined with" +
+                    " \"OR\"! Use resolver/selector applications first!", Level.WARN, pack.id,
+                phase = ProcessingPhase.DEDUPLICATION)
+            return
+        }
+
         val presFileScope = config.deduplicator?.preserveFileScopes == true
         val cmpOnlyDistinct = config.deduplicator?.compareOnlyDistinctLicensesCopyrights == true
 
