@@ -178,8 +178,16 @@ data class Pack(
             createDirDefaultScopes(logger, phase, tmpDirectory, foundInFileScopeConfigured)
     }
 
-    fun createReuseScope() {
-        // todo
+    /**
+     * This method regenerates the [reuseLicensings]-section based on [fileLicensings]
+     */
+    private fun createReuseScope() {
+        reuseLicensings.clear()
+        fileLicensings.filter { it.scope.startsWith(REUSE_LICENSES_FOLDER) }.forEach { fileLicensing ->
+            fileLicensing.licenses.forEach {
+                reuseLicensings.add(ReuseLicense(it.license, fileLicensing.scope, it.licenseTextInArchive))
+            }
+        }
     }
 
     /**

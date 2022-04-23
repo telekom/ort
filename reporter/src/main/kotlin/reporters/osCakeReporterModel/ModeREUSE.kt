@@ -61,6 +61,7 @@ internal class ModeREUSE(
             // Phase IV: handle Copyrights
             if (fib.copyrightTextEntries.size > 0) handleCopyrights(fib)
         }
+        pack.createConsolidatedScopes(logger, ProcessingPhase.PROCESS, tmpDirectory, false)
     }
 
     /**
@@ -112,10 +113,9 @@ internal class ModeREUSE(
                 this.licenses.add(FileLicense(it.license, pathFlat))
                 pack.fileLicensings.add(this)
             }
-            pack.reuseLicensings.add(ReuseLicense(it.license, fib.path, pathFlat))
         }
         if (fib.licenseTextEntries.any { it.isLicenseText && fib.licenseTextEntries.size > 1 }) {
-            logger.log("More then one license text was found for file: ${fib.path}", Level.WARN, pack.id, fib.path,
+            logger.log("More than one license text was found for file: ${fib.path}", Level.WARN, pack.id, fib.path,
                 phase = ProcessingPhase.PROCESS)
         }
         if (fib.licenseTextEntries.any { it.isLicenseNotice }) {

@@ -340,7 +340,7 @@ internal data class CurationPackage(
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
             if (pack.reuseCompliant && licenses.isNotEmpty()) {
-                logger.log("In REUSE compliant projects only one license per is file allowed --> curation " +
+                logger.log("In REUSE compliant projects only one license per file is allowed --> curation " +
                         "insert ignored!", Level.WARN, pack.id, curationFileItem.fileScope)
                 return
             }
@@ -357,11 +357,6 @@ internal data class CurationPackage(
             licenses.add(fileLicense)
             if (pack.fileLicensings.none { it.scope == fileScope }) pack.fileLicensings.add(this)
         }
-
-        if (pack.reuseCompliant && fileScope.startsWith(REUSE_LICENSES_FOLDER)) pack.reuseLicensings.add(
-            ReuseLicense(
-            fileLicense.license, fileScope, fileLicense.licenseTextInArchive)
-        )
     }
 
     /**
