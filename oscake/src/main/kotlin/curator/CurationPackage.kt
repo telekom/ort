@@ -341,7 +341,8 @@ internal data class CurationPackage(
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
             if (pack.reuseCompliant && licenses.isNotEmpty()) {
                 logger.log("In REUSE compliant projects only one license per file is allowed --> curation " +
-                        "insert ignored!", Level.WARN, pack.id, curationFileItem.fileScope)
+                        "insert ignored!", Level.WARN, pack.id, curationFileItem.fileScope,
+                    phase = ProcessingPhase.CURATION)
                 return
             }
             fileLicense = FileLicense(
