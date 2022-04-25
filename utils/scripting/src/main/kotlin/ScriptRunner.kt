@@ -57,20 +57,31 @@ abstract class ScriptRunner {
 
         log.perf { "Compiling the script took $duration." }
 
+        logReports(result.reports)
+
         return result is ResultWithDiagnostics.Success
     }
 
     /**
      * Run the given [script], returning a [ResultValue].
      */
-    open fun run(script: String): Any {
+    fun runScript(script: String): ResultValue {
         val (result, duration) = measureTimedValue {
             scriptingHost.eval(script.toScriptSource(), compConfig, evalConfig)
         }
 
         log.perf { "Evaluating the script took $duration." }
 
-        result.reports.forEach { report ->
+        logReports(result.reports)
+
+        val value = result.valueOrThrow().returnValue
+        if (value is ResultValue.Error) throw value.error
+
+        return value
+    }
+
+    private fun logReports(reports: List<ScriptDiagnostic>) =
+        reports.forEach { report ->
             when (report.severity) {
                 ScriptDiagnostic.Severity.DEBUG -> log.debug(report.message, report.exception)
                 ScriptDiagnostic.Severity.INFO -> log.info(report.message, report.exception)
@@ -79,7 +90,4 @@ abstract class ScriptRunner {
                 ScriptDiagnostic.Severity.FATAL -> log.fatal(report.message, report.exception)
             }
         }
-
-        return result.valueOrThrow().returnValue
-    }
 }

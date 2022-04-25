@@ -102,46 +102,54 @@ abstract class PackageManager(
 
             val result = mutableMapOf<PackageManagerFactory, MutableList<File>>()
 
-            Files.walkFileTree(directory.toPath(), object : SimpleFileVisitor<Path>() {
-                override fun preVisitDirectory(dir: Path, attributes: BasicFileAttributes): FileVisitResult {
-                    if (IGNORED_DIRECTORY_MATCHERS.any { it.matches(dir) }) {
-                        PackageManager.log.info { "Not analyzing directory '$dir' as it is hard-coded to be ignored." }
-                        return FileVisitResult.SKIP_SUBTREE
-                    }
+            Files.walkFileTree(
+                directory.toPath(),
+                object : SimpleFileVisitor<Path>() {
+                    override fun preVisitDirectory(dir: Path, attributes: BasicFileAttributes): FileVisitResult {
+                        if (IGNORED_DIRECTORY_MATCHERS.any { it.matches(dir) }) {
+                            PackageManager.log.info {
+                                "Not analyzing directory '$dir' as it is hard-coded to be ignored."
+                            }
 
-                    val dirAsFile = dir.toFile()
-
-                    // Note that although FileVisitOption.FOLLOW_LINKS is not set, this would still follow junctions on
-                    // Windows, so do a better check here.
-                    if (dirAsFile.isSymbolicLink()) {
-                        PackageManager.log.info { "Not following symbolic link to directory '$dir'." }
-                        return FileVisitResult.SKIP_SUBTREE
-                    }
-
-                    val filesInDir = dirAsFile.walk().maxDepth(1).filter { it.isFile && it.length() > 0 }.toList()
-
-                    packageManagers.forEach { manager ->
-                        // Create a list of lists of matching files per glob.
-                        val matchesPerGlob = manager.matchersForDefinitionFiles.mapNotNull { glob ->
-                            // Create a list of files in the current directory that match the current glob.
-                            val filesMatchingGlob = filesInDir.filter { glob.matches(it.toPath()) }
-                            filesMatchingGlob.takeIf { it.isNotEmpty() }
+                            return FileVisitResult.SKIP_SUBTREE
                         }
 
-                        if (matchesPerGlob.isNotEmpty()) {
-                            // Only consider all matches for the first glob that has matches. This is because globs are
-                            // defined in order of priority, and multiple globs may just be alternative ways to detect
-                            // the exact same project.
-                            // That is, at the example of a PIP project, if a directory contains all three files
-                            // "requirements-py2.txt", "requirements-py3.txt" and "setup.py", only consider the
-                            // former two as they match the glob with the highest priority, but ignore "setup.py".
-                            result.getOrPut(manager) { mutableListOf() } += matchesPerGlob.first()
-                        }
-                    }
+                        val dirAsFile = dir.toFile()
 
-                    return FileVisitResult.CONTINUE
+                        // Note that although FileVisitOption.FOLLOW_LINKS is not set, this would still follow junctions
+                        // on Windows, so do a better check here.
+                        if (dirAsFile.isSymbolicLink()) {
+                            PackageManager.log.info { "Not following symbolic link to directory '$dir'." }
+                            return FileVisitResult.SKIP_SUBTREE
+                        }
+
+                        val filesInDir = dirAsFile.walk().maxDepth(1).filter {
+                            it.isFile && it.length() > 0
+                        }.toList()
+
+                        packageManagers.forEach { manager ->
+                            // Create a list of lists of matching files per glob.
+                            val matchesPerGlob = manager.matchersForDefinitionFiles.mapNotNull { glob ->
+                                // Create a list of files in the current directory that match the current glob.
+                                val filesMatchingGlob = filesInDir.filter { glob.matches(it.toPath()) }
+                                filesMatchingGlob.takeIf { it.isNotEmpty() }
+                            }
+
+                            if (matchesPerGlob.isNotEmpty()) {
+                                // Only consider all matches for the first glob that has matches. This is because globs
+                                // are defined in order of priority, and multiple globs may just be alternative ways to
+                                // detect the exact same project.
+                                // That is, at the example of a PIP project, if a directory contains all three files
+                                // "requirements-py2.txt", "requirements-py3.txt" and "setup.py", only consider the
+                                // former two as they match the glob with the highest priority, but ignore "setup.py".
+                                result.getOrPut(manager) { mutableListOf() } += matchesPerGlob.first()
+                            }
+                        }
+
+                        return FileVisitResult.CONTINUE
+                    }
                 }
-            })
+            )
 
             return result
         }
@@ -153,8 +161,8 @@ abstract class PackageManager(
         fun processPackageVcs(vcsFromPackage: VcsInfo, vararg fallbackUrls: String): VcsInfo {
             val normalizedVcsFromPackage = vcsFromPackage.normalize()
 
-            val fallbackVcs = fallbackUrls.mapTo(mutableListOf(VcsHost.toVcsInfo(normalizedVcsFromPackage.url))) {
-                VcsHost.toVcsInfo(normalizeVcsUrl(it))
+            val fallbackVcs = fallbackUrls.mapTo(mutableListOf(VcsHost.parseUrl(normalizedVcsFromPackage.url))) {
+                VcsHost.parseUrl(normalizeVcsUrl(it))
             }.find {
                 // Ignore fallback VCS information that changes a known type, or where the VCS type is unknown.
                 if (normalizedVcsFromPackage.type != VcsType.UNKNOWN) {
@@ -236,9 +244,9 @@ abstract class PackageManager(
         beforeResolution(definitionFiles)
 
         definitionFiles.forEach { definitionFile ->
-            val relativePath = definitionFile.relativeTo(analysisRoot).invariantSeparatorsPath
+            val relativePath = definitionFile.relativeTo(analysisRoot).invariantSeparatorsPath.ifEmpty { "." }
 
-            log.info { "Resolving $managerName dependencies for '$relativePath'..." }
+            log.info { "Resolving $managerName dependencies for path '$relativePath'..." }
 
             val duration = measureTime {
                 runCatching {
@@ -264,7 +272,7 @@ abstract class PackageManager(
                     val issues = listOf(
                         createAndLogIssue(
                             source = managerName,
-                            message = "Resolving $managerName dependencies for '$relativePath' failed with: " +
+                            message = "Resolving $managerName dependencies for path '$relativePath' failed with: " +
                                     it.collectMessagesAsString()
                         )
                     )
@@ -273,7 +281,7 @@ abstract class PackageManager(
                 }
             }
 
-            log.info { "Resolving $managerName dependencies for '$relativePath' took ${duration.inWholeSeconds}s." }
+            log.info { "Resolving $managerName dependencies for path '$relativePath' took $duration." }
         }
 
         afterResolution(definitionFiles)

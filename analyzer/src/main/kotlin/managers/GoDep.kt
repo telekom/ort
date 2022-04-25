@@ -27,6 +27,7 @@ import java.net.URI
 
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
+import org.ossreviewtoolkit.downloader.VcsHost
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
@@ -38,6 +39,7 @@ import org.ossreviewtoolkit.model.ProjectAnalyzerResult
 import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.Scope
 import org.ossreviewtoolkit.model.VcsInfo
+import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
@@ -257,7 +259,10 @@ class GoDep(
     }
 
     private fun resolveVcsInfo(importPath: String, revision: String, gopath: File): VcsInfo {
-        val pc = ProcessCapture("go", "get", "-d", importPath, environment = mapOf("GOPATH" to gopath.path))
+        val pc = ProcessCapture(
+            "go", "get", "-d", importPath,
+            environment = mapOf("GOPATH" to gopath.path, "GO111MODULE" to "off")
+        )
 
         // HACK Some failure modes from "go get" can be ignored:
         // 1. repositories that don't have .go files in the root directory
@@ -276,7 +281,14 @@ class GoDep(
 
         val repoRoot = gopath.resolve("src/$importPath")
 
+        // The "processProjectVcs()" function should always be able to deduce VCS information from the working tree
+        // created by "go get". However, if that fails for whatever reason, fall back to guessing VCS information from
+        // the "importPath" (which usually resembles a URL).
+        val fallbackVcsInfo = VcsHost.parseUrl("https://$importPath").takeIf {
+            it.type != VcsType.UNKNOWN
+        } ?: VcsInfo.EMPTY
+
         // We want the revision recorded in Gopkg.lock contained in "vcs", not the one "go get" fetched.
-        return processProjectVcs(repoRoot).copy(revision = revision)
+        return processProjectVcs(repoRoot, fallbackVcsInfo).copy(revision = revision)
     }
 }

@@ -43,18 +43,18 @@ import java.util.Locale
 /**
  * Return a string of hexadecimal digits representing the bytes in the array.
  */
-fun ByteArray.toHexString(): String = joinToString("") { String.format(Locale.ROOT, "%02x", it) }
+fun ByteArray.encodeHex(): String = joinToString("") { String.format(Locale.ROOT, "%02x", it) }
 
 /**
  * Return the duplicates as identified by [keySelector] of a collection.
  */
-fun <T, K> Collection<T>.getDuplicates(keySelector: (T) -> K): Set<K> =
-    if (this is Set) emptySet() else groupBy(keySelector).filter { it.value.size > 1 }.keys
+fun <T, K> Collection<T>.getDuplicates(keySelector: (T) -> K): Map<K, List<T>> =
+    if (this is Set) emptyMap() else groupBy(keySelector).filter { it.value.size > 1 }
 
 /**
  * Return the duplicates of a collection.
  */
-fun <T> Collection<T>.getDuplicates(): Set<T> = getDuplicates { it }
+fun <T> Collection<T>.getDuplicates(): Set<T> = getDuplicates { it }.keys
 
 /**
  * Format this [Double] as a string with the provided number of [decimalPlaces].
@@ -99,29 +99,33 @@ fun File.safeCopyRecursively(target: File, overwrite: Boolean = false) {
     val sourcePath = absoluteFile.toPath()
     val targetPath = target.absoluteFile.toPath()
 
-    val copyOptions = mutableListOf<CopyOption>(LinkOption.NOFOLLOW_LINKS).apply {
+    val copyOptions = buildList<CopyOption> {
+        add(LinkOption.NOFOLLOW_LINKS)
         if (overwrite) add(StandardCopyOption.REPLACE_EXISTING)
     }.toTypedArray()
 
-    Files.walkFileTree(sourcePath, object : SimpleFileVisitor<Path>() {
-        override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
-            // Note that although FileVisitOption.FOLLOW_LINKS is not set, this would still follow junctions on Windows,
-            // so do a better check here.
-            if (dir.toFile().isSymbolicLink()) return FileVisitResult.SKIP_SUBTREE
+    Files.walkFileTree(
+        sourcePath,
+        object : SimpleFileVisitor<Path>() {
+            override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                // Note that although FileVisitOption.FOLLOW_LINKS is not set, this would still follow junctions on
+                // Windows, so do a better check here.
+                if (dir.toFile().isSymbolicLink()) return FileVisitResult.SKIP_SUBTREE
 
-            val targetDir = targetPath.resolve(sourcePath.relativize(dir))
-            targetDir.toFile().safeMkdirs()
+                val targetDir = targetPath.resolve(sourcePath.relativize(dir))
+                targetDir.toFile().safeMkdirs()
 
-            return FileVisitResult.CONTINUE
+                return FileVisitResult.CONTINUE
+            }
+
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                val targetFile = targetPath.resolve(sourcePath.relativize(file))
+                Files.copy(file, targetFile, *copyOptions)
+
+                return FileVisitResult.CONTINUE
+            }
         }
-
-        override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-            val targetFile = targetPath.resolve(sourcePath.relativize(file))
-            Files.copy(file, targetFile, *copyOptions)
-
-            return FileVisitResult.CONTINUE
-        }
-    })
+    )
 }
 
 /**
@@ -300,6 +304,14 @@ fun <K, V : Set<T>, T> Map<K, V>.zipWithCollections(other: Map<K, V>): Map<K, V>
  * Converts this [Number] from bytes to mebibytes (MiB).
  */
 fun Number.bytesToMib(): Double = toDouble() / (1024 * 1024)
+
+/**
+ * Decode a hex-string and return the value as a [ByteArray].
+ */
+fun String.decodeHex(): ByteArray {
+    require(length % 2 == 0) { "The string must have an even number of characters." }
+    return chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+}
 
 /**
  * Return the string encoded for safe use as a file name or [emptyValue] encoded for safe use as a file name, if this

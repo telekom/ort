@@ -24,8 +24,6 @@ import io.kotest.matchers.nulls.beNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 
-import java.net.URI
-
 import org.ossreviewtoolkit.downloader.VcsHost.BITBUCKET
 import org.ossreviewtoolkit.downloader.VcsHost.GITHUB
 import org.ossreviewtoolkit.downloader.VcsHost.GITLAB
@@ -66,6 +64,12 @@ class VcsHostTest : WordSpec({
         "be able to create source archive links from project URLs" {
             BITBUCKET.toArchiveDownloadUrl(vcsInfo) shouldBe
                     "https://bitbucket.org/yevster/spdxtraxample/get/287aebca5e7ff4167af1fb648640dcdbdf4ec666.tar.gz"
+        }
+
+        "be able to create raw download URLs from file URLs" {
+            BITBUCKET.toRawDownloadUrl(
+                "https://bitbucket.org/pypa/distlib/src/8ed03aab48add854f377ce392efffb79bb4d6091/setup.py"
+            ) shouldBe "https://bitbucket.org/pypa/distlib/raw/8ed03aab48add854f377ce392efffb79bb4d6091/setup.py"
         }
     }
 
@@ -116,6 +120,12 @@ class VcsHostTest : WordSpec({
             GITHUB.toArchiveDownloadUrl(vcsInfo) shouldBe
                     "https://github.com/oss-review-toolkit/ort/archive/da7e3a814fc0e6301bf3ed394eba1a661e4d88d7.tar.gz"
         }
+
+        "be able to create raw download URLs from file URLs" {
+            GITHUB.toRawDownloadUrl(
+                "https://github.com/dotnet/corefx/blob/master/LICENSE.TXT"
+            ) shouldBe "https://github.com/dotnet/corefx/raw/master/LICENSE.TXT"
+        }
     }
 
     "The GitLab implementation" should {
@@ -164,6 +174,12 @@ class VcsHostTest : WordSpec({
             GITLAB.toArchiveDownloadUrl(vcsInfo) shouldBe
                     "https://gitlab.com/mbunkus/mkvtoolnix/-/archive/ec80478f87f1941fe52f15c5f4fa7ee6a70d7006/" +
                     "mkvtoolnix-ec80478f87f1941fe52f15c5f4fa7ee6a70d7006.tar.gz"
+        }
+
+        "be able to create raw download URLs from file URLs" {
+            GITLAB.toRawDownloadUrl(
+                "https://gitlab.com/mbunkus/mkvtoolnix/-/blob/main/AUTHORS"
+            ) shouldBe "https://gitlab.com/mbunkus/mkvtoolnix/-/raw/main/AUTHORS"
         }
     }
 
@@ -216,11 +232,21 @@ class VcsHostTest : WordSpec({
         "be able to create source archive links from project URLs" {
             SOURCEHUT.toArchiveDownloadUrl(gitVcsInfo) shouldBe "https://git.sr.ht/~ben/web/archive/2c3d173d.tar.gz"
         }
+
+        "be able to create raw download URLs from file URLs" {
+            SOURCEHUT.toRawDownloadUrl(
+                "https://git.sr.ht/~ben/web/tree/master/keybase.txt"
+            ) shouldBe "https://git.sr.ht/~ben/web/blob/master/keybase.txt"
+        }
     }
 
     "The generic implementation" should {
+        "handle blank URLs" {
+            VcsHost.parseUrl("    ") shouldBe VcsInfo.EMPTY
+        }
+
         "split paths from a URL to a Git repository" {
-            val actual = VcsHost.toVcsInfo(
+            val actual = VcsHost.parseUrl(
                 "https://git-wip-us.apache.org/repos/asf/zeppelin.git"
             )
             val expected = VcsInfo(
@@ -233,7 +259,7 @@ class VcsHostTest : WordSpec({
         }
 
         "split paths from a URL to a Git repository with path" {
-            val actual = VcsHost.toVcsInfo(
+            val actual = VcsHost.parseUrl(
                 "https://git-wip-us.apache.org/repos/asf/zeppelin.git/zeppelin-interpreter"
             )
             val expected = VcsInfo(
@@ -246,7 +272,7 @@ class VcsHostTest : WordSpec({
         }
 
         "split the revision from an NPM URL to a Git repository" {
-            val actual = VcsHost.toVcsInfo(
+            val actual = VcsHost.parseUrl(
                 "git+ssh://sub.domain.com:42/foo-bar#b3b5b3c60dcdc39347b23cf94ab8f577239b7df3"
             )
             val expected = VcsInfo(
@@ -259,7 +285,7 @@ class VcsHostTest : WordSpec({
         }
 
         "split the revision from a NPM URL to a GitHub repository" {
-            val actual = VcsHost.toVcsInfo(
+            val actual = VcsHost.parseUrl(
                 "https://github.com/mochajs/mocha.git#5bd33a0ba201d227159759e8ced86756595b0c54"
             )
             val expected = VcsInfo(
@@ -276,7 +302,7 @@ class VcsHostTest : WordSpec({
                 "https://ibm-alm-server/tfs/org/project/_git/repo?version=GBmaster",
                 "https://hosted.visualstudio.com/org/project/_git/repo?foo=bar&version=GBmain",
                 "https://hosted.visualstudio.com/tfs/project/_git/repo"
-            ).map { VcsHost.toVcsInfo(it) }
+            ).map { VcsHost.parseUrl(it) }
 
             val expected = listOf(
                 VcsInfo(
@@ -303,7 +329,7 @@ class VcsHostTest : WordSpec({
         }
 
         "separate an SVN branch into the revision" {
-            val actual = VcsHost.toVcsInfo(
+            val actual = VcsHost.parseUrl(
                 "http://svn.osdn.net/svnroot/tortoisesvn/branches/1.13.x"
             )
             val expected = VcsInfo(
@@ -316,7 +342,7 @@ class VcsHostTest : WordSpec({
         }
 
         "separate branch and path from an SVN URL" {
-            val actual = VcsHost.toVcsInfo(
+            val actual = VcsHost.parseUrl(
                 "http://svn.osdn.net/svnroot/tortoisesvn/branches/1.13.x/src/gpl.txt"
             )
             val expected = VcsInfo(
@@ -329,7 +355,7 @@ class VcsHostTest : WordSpec({
         }
 
         "separate an SVN tag into the revision" {
-            val actual = VcsHost.toVcsInfo(
+            val actual = VcsHost.parseUrl(
                 "http://svn.terracotta.org/svn/ehcache/tags/ehcache-parent-2.21"
             )
             val expected = VcsInfo(
@@ -342,7 +368,7 @@ class VcsHostTest : WordSpec({
         }
 
         "separate tag and path from an SVN URL" {
-            val actual = VcsHost.toVcsInfo(
+            val actual = VcsHost.parseUrl(
                 "http://svn.terracotta.org/svn/ehcache/tags/ehcache-parent-2.21/pom.xml"
             )
             val expected = VcsInfo(
@@ -355,29 +381,29 @@ class VcsHostTest : WordSpec({
         }
     }
 
-    "The conversion from URI to VcsHost" should {
-        "convert a Github URI" {
-            VcsHost.toVcsHost(URI("https://github.com/oss-review-toolkit/ort")) shouldBe GITHUB
+    "Creating a VcsHost from a URL" should {
+        "work for a GitHub URL" {
+            VcsHost.fromUrl("https://github.com/oss-review-toolkit/ort") shouldBe GITHUB
         }
 
-        "convert a Gitlab URI" {
-            VcsHost.toVcsHost(URI("https://gitlab.com/gitlab-org/gitlab")) shouldBe GITLAB
+        "work for a GitLab URL" {
+            VcsHost.fromUrl("https://gitlab.com/gitlab-org/gitlab") shouldBe GITLAB
         }
 
-        "convert a Bitbucket URI" {
-            VcsHost.toVcsHost(URI("https://bitbucket.org/yevster/spdxtraxample")) shouldBe BITBUCKET
+        "work for a Bitbucket URL" {
+            VcsHost.fromUrl("https://bitbucket.org/yevster/spdxtraxample") shouldBe BITBUCKET
         }
 
-        "convert a SourceHut git URI" {
-            VcsHost.toVcsHost(URI("https://git.sr.ht/~sircmpwn/sourcehut.org")) shouldBe SOURCEHUT
+        "work for a SourceHut URL to a Git repository" {
+            VcsHost.fromUrl("https://git.sr.ht/~sircmpwn/sourcehut.org") shouldBe SOURCEHUT
         }
 
-        "convert a SourceHut hg URI" {
-            VcsHost.toVcsHost(URI("https://hg.sr.ht/~sircmpwn/invertbucket")) shouldBe SOURCEHUT
+        "work for a SourceHut URL to a Mercurial repository" {
+            VcsHost.fromUrl("https://hg.sr.ht/~sircmpwn/invertbucket") shouldBe SOURCEHUT
         }
 
-        "handle an unknown URI" {
-            VcsHost.toVcsHost(URI("https://host.tld/path/to/repo")) should beNull()
+        "handle an unknown URL" {
+            VcsHost.fromUrl("https://host.tld/path/to/repo") should beNull()
         }
     }
 })

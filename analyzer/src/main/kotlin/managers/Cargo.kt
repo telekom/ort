@@ -52,6 +52,7 @@ import org.ossreviewtoolkit.utils.common.textValueOrEmpty
 import org.ossreviewtoolkit.utils.core.DeclaredLicenseProcessor
 import org.ossreviewtoolkit.utils.core.ProcessedDeclaredLicense
 import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.spdx.SpdxConstants
 import org.ossreviewtoolkit.utils.spdx.SpdxOperator
 
 /**
@@ -75,7 +76,10 @@ class Cargo(
 
     override fun command(workingDir: File?) = "cargo"
 
-    override fun transformVersion(output: String) = output.removePrefix("cargo ")
+    override fun transformVersion(output: String) =
+        // The version string can be something like:
+        // cargo 1.35.0 (6f3e9c367 2019-04-04)
+        output.removePrefix("cargo ").substringBefore(' ')
 
     private fun runMetadata(workingDir: File): String = run(workingDir, "metadata", "--format-version=1").stdout
 
@@ -244,11 +248,11 @@ private fun parseDeclaredLicenses(node: JsonNode): SortedSet<String> {
         .filterTo(sortedSetOf()) { it.isNotEmpty() }
 
     // Cargo allows to declare non-SPDX licenses only by referencing a license file. If a license file is specified, add
-    // an unknown declared license to indicate that there is a declared license but we cannot know which it is at this
+    // an unknown declared license to indicate that there is a declared license, but we cannot know which it is at this
     // point.
     // See: https://doc.rust-lang.org/cargo/reference/manifest.html#the-license-and-license-file-fields
     if (node["license_file"].textValueOrEmpty().isNotBlank()) {
-        declaredLicenses += "LicenseRef-ort-unknown-license-reference"
+        declaredLicenses += SpdxConstants.NOASSERTION
     }
 
     return declaredLicenses
@@ -307,7 +311,7 @@ private fun parseSourceArtifact(
 }
 
 private fun parseVcsInfo(node: JsonNode) =
-    VcsHost.toVcsInfo(parseRepositoryUrl(node))
+    VcsHost.parseUrl(parseRepositoryUrl(node))
 
 private fun getResolvedVersion(
     parentName: String,

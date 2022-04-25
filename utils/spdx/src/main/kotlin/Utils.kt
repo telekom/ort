@@ -30,9 +30,9 @@ import java.security.MessageDigest
 import org.ossreviewtoolkit.utils.common.Os
 import org.ossreviewtoolkit.utils.common.VCS_DIRECTORIES
 import org.ossreviewtoolkit.utils.common.calculateHash
+import org.ossreviewtoolkit.utils.common.encodeHex
 import org.ossreviewtoolkit.utils.common.isSymbolicLink
 import org.ossreviewtoolkit.utils.common.realFile
-import org.ossreviewtoolkit.utils.common.toHexString
 import org.ossreviewtoolkit.utils.spdx.SpdxConstants.LICENSE_REF_PREFIX
 
 /**
@@ -49,23 +49,13 @@ internal val yamlMapper = YAMLMapper().registerKotlinModule()
  * The directory that contains the ScanCode license texts. This is located using a heuristic based on the path of the
  * ScanCode binary.
  */
-private val scanCodeLicenseTextDir by lazy {
-    val scanCodeDir = Os.getPathFromEnvironment("scancode")?.realFile()?.parentFile
+val scanCodeLicenseTextDir by lazy {
+    val scanCodeExeDir = Os.getPathFromEnvironment("scancode")?.realFile()?.parentFile
 
-    // Locate directories that contain the Python version in their name.
-    val candidates = scanCodeDir?.resolve("../lib")?.listFiles().orEmpty()
-        .filter { it.isDirectory && it.name.startsWith("python") }
-        .map { "../lib/${it.name}/site-packages/licensedcode/data/licenses" }
+    val pythonBinDir = listOf("bin", "Scripts")
+    val scanCodeBaseDir = scanCodeExeDir?.takeUnless { it.name in pythonBinDir } ?: scanCodeExeDir?.parentFile
 
-    sequenceOf(
-        "src/licensedcode/data/licenses",
-        "../src/licensedcode/data/licenses",
-        "../site-packages/licensedcode/data/licenses",
-        "../lib/site-packages/licensedcode/data/licenses",
-        *candidates.toTypedArray()
-    ).mapNotNull { relativePath ->
-        scanCodeDir?.resolve(relativePath)?.takeIf { it.isDirectory }
-    }.firstOrNull()
+    scanCodeBaseDir?.walkTopDown()?.find { it.isDirectory && it.endsWith("licensedcode/data/licenses") }
 }
 
 /**
@@ -77,7 +67,7 @@ private val scanCodeLicenseTextDir by lazy {
 fun calculatePackageVerificationCode(sha1sums: Sequence<String>, excludes: Sequence<String> = emptySequence()): String {
     val sha1sum = sha1sums.sorted().fold(MessageDigest.getInstance("SHA-1")) { digest, sha1sum ->
         digest.apply { update(sha1sum.toByteArray()) }
-    }.digest().toHexString()
+    }.digest().encodeHex()
 
     return if (excludes.none()) {
         sha1sum
@@ -93,7 +83,7 @@ fun calculatePackageVerificationCode(sha1sums: Sequence<String>, excludes: Seque
  */
 @JvmName("calculatePackageVerificationCodeForFiles")
 fun calculatePackageVerificationCode(files: Sequence<File>, excludes: Sequence<String> = emptySequence()): String =
-    calculatePackageVerificationCode(files.map { calculateHash(it).toHexString() }, excludes)
+    calculatePackageVerificationCode(files.map { calculateHash(it).encodeHex() }, excludes)
 
 /**
  * Calculate the [SPDX package verification code][1] for all files in a [directory]. If [directory] points to a file
@@ -146,11 +136,11 @@ fun getLicenseTextReader(
 ): (() -> String)? {
     return if (id.startsWith(LICENSE_REF_PREFIX)) {
         getLicenseTextResource(id)?.let { { it.readText() } }
-            ?: addScanCodeLicenseTextsDir(licenseTextDirectories).asSequence().mapNotNull {
+            ?: addScanCodeLicenseTextsDir(licenseTextDirectories).asSequence().firstNotNullOfOrNull {
                 getLicenseTextFile(id, it)?.let { file -> { file.readText() } }
-            }.firstOrNull()
+            }
     } else {
-        SpdxLicense.forId(id)?.let { { it.text } }
+        SpdxLicense.forId(id.removeSuffix("+"))?.let { { it.text } }
             ?: SpdxLicenseException.forId(id)?.takeIf { handleExceptions }?.let { { it.text } }
     }
 }
@@ -162,14 +152,18 @@ private val LICENSE_REF_FILENAME_REGEX by lazy { Regex("^LicenseRef-\\w+-") }
 
 private fun getLicenseTextFile(id: String, dir: File): File? =
     id.replace(LICENSE_REF_FILENAME_REGEX, "").let { idWithoutLicenseRefNamespace ->
-        sequenceOf(
+        listOfNotNull(
             id,
             id.removePrefix("LicenseRef-"),
             idWithoutLicenseRefNamespace,
-            "$idWithoutLicenseRefNamespace.LICENSE"
-        ).mapNotNull { filename ->
+            "$idWithoutLicenseRefNamespace.LICENSE",
+            "x11-xconsortium_veillard.LICENSE".takeIf {
+                // Work around for https://github.com/nexB/scancode-toolkit/issues/2813.
+                id == "LicenseRef-scancode-x11-xconsortium-veillard"
+            }
+        ).firstNotNullOfOrNull { filename ->
             dir.resolve(filename).takeIf { it.isFile }
-        }.firstOrNull()
+        }
     }
 
 private fun addScanCodeLicenseTextsDir(licenseTextDirectories: List<File>): List<File> =

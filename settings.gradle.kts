@@ -37,8 +37,10 @@ pluginManagement {
                 gradle.rootProject.properties[versionPropertyName]?.let { version ->
                     logger.info("Setting '${requested.id.id}' plugin version to $version.")
                     useVersion(version.toString())
-                } ?: logger.warn("No version specified for plugin '${requested.id.id}' and property " +
-                        "'$versionPropertyName' does not exist.")
+                } ?: logger.warn(
+                    "No version specified for plugin '${requested.id.id}' and property '$versionPropertyName' does " +
+                            "not exist."
+                )
             }
         }
     }
@@ -54,11 +56,13 @@ include(":clients:fossid-webapp")
 include(":clients:github-graphql")
 include(":clients:nexus-iq")
 include(":clients:oss-index")
+include(":clients:scanoss")
 include(":clients:vulnerable-code")
 include(":detekt-rules")
 include(":downloader")
 include(":evaluator")
 include(":examples:evaluator-rules")
+include(":examples:notifications")
 include(":helper-cli")
 include(":model")
 include(":notifier")

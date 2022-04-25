@@ -89,6 +89,9 @@ enum class VcsHost(
 
         override fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
             "https://$hostname/$userOrOrg/$project/get/${vcsInfo.revision}.tar.gz"
+
+        override fun toRawDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
+            "https://$hostname/$userOrOrg/$project/raw/${vcsInfo.revision}/${vcsInfo.path}"
     },
 
     /**
@@ -124,6 +127,9 @@ enum class VcsHost(
 
         override fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
             "https://$hostname/$userOrOrg/$project/archive/${vcsInfo.revision}.tar.gz"
+
+        override fun toRawDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
+            "https://$hostname/$userOrOrg/$project/raw/${vcsInfo.revision}/${vcsInfo.path}"
     },
 
     /**
@@ -165,6 +171,9 @@ enum class VcsHost(
 
         override fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
             "https://$hostname/$userOrOrg/$project/-/archive/${vcsInfo.revision}/$project-${vcsInfo.revision}.tar.gz"
+
+        override fun toRawDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
+            "https://$hostname/$userOrOrg/$project/-/raw/${vcsInfo.revision}/${vcsInfo.path}"
     },
 
     SOURCEHUT("sr.ht", VcsType.GIT, VcsType.MERCURIAL) {
@@ -238,6 +247,10 @@ enum class VcsHost(
         override fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
             "https://${vcsInfo.type.toString().lowercase()}.$hostname/~$userOrOrg/$project/archive/" +
                     "${vcsInfo.revision}.tar.gz"
+
+        override fun toRawDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
+            "https://${vcsInfo.type.toString().lowercase()}.$hostname/~$userOrOrg/$project/blob/${vcsInfo.revision}/" +
+                    "${vcsInfo.path}"
     };
 
     companion object {
@@ -246,16 +259,22 @@ enum class VcsHost(
         private val GIT_REVISION_FRAGMENT = Regex("git.+#[a-fA-F0-9]{7,}")
 
         /**
-         * Return the [VcsHost] for a [vcsUrl].
+         * Return the applicable [VcsHost] for the given [url], or null if no applicable host is found.
          */
-        fun toVcsHost(vcsUrl: URI): VcsHost? = values().find { host -> host.isApplicable(vcsUrl) }
+        fun fromUrl(url: URI): VcsHost? = values().find { host -> host.isApplicable(url) }
 
         /**
-         * Return all [VcsInfo] that can be parsed from [projectUrl] without actually making a network request.
+         * Return the applicable [VcsHost] for the given [url], or null if no applicable host is found.
          */
-        fun toVcsInfo(projectUrl: String): VcsInfo {
-            val unknownVcs = VcsInfo(type = VcsType.UNKNOWN, url = projectUrl, revision = "")
-            val projectUri = projectUrl.takeUnless { it.isBlank() }?.toUri()?.getOrNull() ?: return unknownVcs
+        fun fromUrl(url: String): VcsHost? = url.toUri { fromUrl(it) }.getOrNull()
+
+        /**
+         * Return all [VcsInfo] that can be parsed from the [vcsUrl] without actually making a network request.
+         */
+        fun parseUrl(vcsUrl: String): VcsInfo {
+            val projectUrl = vcsUrl.takeUnless { it.isBlank() } ?: return VcsInfo.EMPTY
+            val unknownVcsInfo = VcsInfo.EMPTY.copy(url = projectUrl)
+            val projectUri = projectUrl.toUri().getOrNull() ?: return unknownVcsInfo
 
             fun URI.isTfsGitUrl() = path != null && host != null &&
                     ("/tfs/" in path || ".visualstudio.com" in host) && "/_git/" in path
@@ -321,11 +340,21 @@ enum class VcsHost(
                     )
                 }
 
-                else -> unknownVcs
+                else -> unknownVcsInfo
             }
 
-            val vcsInfoFromHost = toVcsHost(projectUri)?.toVcsInfoInternal(projectUri)
+            val vcsInfoFromHost = fromUrl(projectUri)?.toVcsInfoInternal(projectUri)
             return vcsInfoFromHost?.merge(vcsInfoFromUrl) ?: vcsInfoFromUrl
+        }
+
+        /**
+         * Return the host-specific permanent link to browse the code location described by [vcsInfo] with optional
+         * highlighting of [startLine] to [endLine].
+         */
+        fun toPermalink(vcsInfo: VcsInfo, startLine: Int = -1, endLine: Int = -1): String? {
+            if (!isValidLineRange(startLine, endLine)) return null
+            return values().find { host -> host.isApplicable(vcsInfo) }
+                ?.toPermalinkInternal(vcsInfo.normalize(), startLine, endLine)
         }
 
         /**
@@ -344,13 +373,17 @@ enum class VcsHost(
         }
 
         /**
-         * Return the host-specific permanent link to browse the code location described by [vcsInfo] with optional
-         * highlighting of [startLine] to [endLine].
+         * Return the download URL to the raw file referenced by [fileUrl], or null if no raw download URL can be
+         * determined.
          */
-        fun toPermalink(vcsInfo: VcsInfo, startLine: Int = -1, endLine: Int = -1): String? {
-            if (!isValidLineRange(startLine, endLine)) return null
-            return values().find { host -> host.isApplicable(vcsInfo) }
-                ?.toPermalinkInternal(vcsInfo.normalize(), startLine, endLine)
+        fun toRawDownloadUrl(fileUrl: String): String? {
+            val host = values().find { it.isApplicable(fileUrl) } ?: return null
+            return fileUrl.toUri {
+                val userOrOrg = host.getUserOrOrgInternal(it) ?: return@toUri null
+                val project = host.getProjectInternal(it) ?: return@toUri null
+                val vcsInfo = host.toVcsInfoInternal(it)
+                host.toRawDownloadUrlInternal(userOrOrg, project, vcsInfo)
+            }.getOrNull()
         }
     }
 
@@ -396,6 +429,18 @@ enum class VcsHost(
     protected abstract fun toVcsInfoInternal(projectUrl: URI): VcsInfo
 
     /**
+     * Return the host-specific permanent link to browse the code location described by [vcsInfo] with optional
+     * highlighting of [startLine] to [endLine].
+     */
+    fun toPermalink(vcsInfo: VcsInfo, startLine: Int = -1, endLine: Int = -1): String? {
+        val normalizedVcsInfo = vcsInfo.normalize()
+        if (!isApplicable(normalizedVcsInfo) || !isValidLineRange(startLine, endLine)) return null
+        return toPermalinkInternal(normalizedVcsInfo, startLine, endLine)
+    }
+
+    protected abstract fun toPermalinkInternal(vcsInfo: VcsInfo, startLine: Int, endLine: Int): String
+
+    /**
      * Return the download URL to an archive generated for the referenced [vcsInfo], or null if no download URL can be
      * determined.
      */
@@ -413,16 +458,20 @@ enum class VcsHost(
     abstract fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo): String
 
     /**
-     * Return the host-specific permanent link to browse the code location described by [vcsInfo] with optional
-     * highlighting of [startLine] to [endLine].
+     * Return the download URL to the raw file referenced by [fileUrl], or null if no raw download URL can be
+     * determined.
      */
-    fun toPermalink(vcsInfo: VcsInfo, startLine: Int = -1, endLine: Int = -1): String? {
-        val normalizedVcsInfo = vcsInfo.normalize()
-        if (!isApplicable(normalizedVcsInfo) || !isValidLineRange(startLine, endLine)) return null
-        return toPermalinkInternal(normalizedVcsInfo, startLine, endLine)
+    fun toRawDownloadUrl(fileUrl: String): String? {
+        return fileUrl.toUri {
+            if (!isApplicable(it)) return@toUri null
+            val userOrOrg = getUserOrOrgInternal(it) ?: return@toUri null
+            val project = getProjectInternal(it) ?: return@toUri null
+            val vcsInfo = toVcsInfoInternal(it)
+            toRawDownloadUrlInternal(userOrOrg, project, vcsInfo)
+        }.getOrNull()
     }
 
-    protected abstract fun toPermalinkInternal(vcsInfo: VcsInfo, startLine: Int, endLine: Int): String
+    abstract fun toRawDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo): String
 }
 
 private fun String.isPathToMarkdownFile() =

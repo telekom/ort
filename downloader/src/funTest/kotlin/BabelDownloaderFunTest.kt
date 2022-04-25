@@ -41,7 +41,7 @@ import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 class BabelDownloaderFunTest : StringSpec() {
     private lateinit var outputDir: File
 
-    override fun beforeTest(testCase: TestCase) {
+    override suspend fun beforeTest(testCase: TestCase) {
         outputDir = createTestTempDir()
     }
 
@@ -52,7 +52,7 @@ class BabelDownloaderFunTest : StringSpec() {
                 url = "https://github.com/babel/babel/tree/master/packages/babel-cli",
                 revision = ""
             )
-            val vcsFromUrl = VcsHost.toVcsInfo(normalizeVcsUrl(vcsFromPackage.url))
+            val vcsFromUrl = VcsHost.parseUrl(normalizeVcsUrl(vcsFromPackage.url))
             val vcsMerged = vcsFromUrl.merge(vcsFromPackage)
 
             val pkg = Package(

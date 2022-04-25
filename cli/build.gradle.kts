@@ -42,11 +42,39 @@ plugins {
 
     // Apply third-party plugins.
     id("com.github.johnrengelman.shadow")
+    id("com.palantir.graal")
 }
 
 application {
     applicationName = "ort"
-    mainClassName = "org.ossreviewtoolkit.cli.OrtMainKt"
+    mainClass.set("org.ossreviewtoolkit.cli.OrtMainKt")
+}
+
+graal {
+    graalVersion("22.0.0.2")
+    javaVersion("17")
+
+    option("--no-fallback")
+
+    // Work-around for:
+    // "com.oracle.graal.pointsto.constraints.UnresolvedElementException:
+    //  Discovered unresolved type during parsing: android.os.Build$VERSION"
+    option("--allow-incomplete-classpath")
+
+    // Work-around for:
+    // "Error: Classes that should be initialized at run time got initialized during image building"
+    option("--initialize-at-build-time=org.jruby.util.RubyFileTypeDetector")
+
+    // Work-around for:
+    // "Unsupported method java.lang.invoke.MethodHandleNatives.setCallSiteTargetNormal() is reachable"
+    option("--report-unsupported-elements-at-runtime")
+
+    // Work-around for:
+    // "Error: Non-reducible loop requires too much duplication"
+    option("-H:MaxDuplicationFactor=3.0")
+
+    mainClass("org.ossreviewtoolkit.cli.OrtMainKt")
+    outputName("ort")
 }
 
 tasks.withType<ShadowJar> {
@@ -58,12 +86,20 @@ tasks.named<CreateStartScripts>("startScripts").configure {
         // Work around the command line length limit on Windows when passing the classpath to Java, see
         // https://github.com/gradle/gradle/issues/1989#issuecomment-395001392.
         val windowsScriptText = windowsScript.readText(Charset.defaultCharset())
-        windowsScript.writeText(windowsScriptText.replace(Regex("set CLASSPATH=%APP_HOME%\\\\lib\\\\.*"),
-            "set CLASSPATH=%APP_HOME%\\\\lib\\\\*;%APP_HOME%\\\\plugin\\\\*"))
+        windowsScript.writeText(
+            windowsScriptText.replace(
+                Regex("set CLASSPATH=%APP_HOME%\\\\lib\\\\.*"),
+                "set CLASSPATH=%APP_HOME%\\\\lib\\\\*;%APP_HOME%\\\\plugin\\\\*"
+            )
+        )
 
         val unixScriptText = unixScript.readText(Charset.defaultCharset())
-        unixScript.writeText(unixScriptText.replace(Regex("CLASSPATH=\\\$APP_HOME/lib/.*"),
-            "CLASSPATH=\\\$APP_HOME/lib/*:\\\$APP_HOME/plugin/*"))
+        unixScript.writeText(
+            unixScriptText.replace(
+                Regex("CLASSPATH=\\\$APP_HOME/lib/.*"),
+                "CLASSPATH=\\\$APP_HOME/lib/*:\\\$APP_HOME/plugin/*"
+            )
+        )
     }
 }
 
@@ -107,6 +143,7 @@ repositories {
 
         filter {
             includeGroupByRegex("com\\.atlassian\\..*")
+            includeVersionByRegex("log4j", "log4j", ".*-atlassian-.*")
         }
     }
 }
@@ -121,6 +158,7 @@ dependencies {
     implementation(project(":reporter"))
     implementation(project(":scanner"))
     implementation(project(":utils:core-utils"))
+    implementation(project(":utils:spdx-utils"))
     implementation(project(":oscake"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")

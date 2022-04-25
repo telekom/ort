@@ -20,7 +20,6 @@
 val apacheCommonsEmailVersion: String by project
 val jiraRestClientVersion: String by project
 val mockkVersion: String by project
-val wiremockVersion: String by project
 
 plugins {
     // Apply core plugins.
@@ -35,12 +34,14 @@ repositories {
 
         filter {
             includeGroupByRegex("com\\.atlassian\\..*")
+            includeVersionByRegex("log4j", "log4j", ".*-atlassian-.*")
         }
     }
 }
 
 dependencies {
     api(project(":model"))
+    api(project(":utils:scripting-utils"))
 
     implementation(project(":utils:core-utils"))
 
@@ -49,7 +50,8 @@ dependencies {
         exclude("org.slf4j", "slf4j-log4j12")
     }
     implementation("org.apache.commons:commons-email:$apacheCommonsEmailVersion")
+    implementation("org.jetbrains.kotlin:kotlin-scripting-common")
+    implementation("org.jetbrains.kotlin:kotlin-scripting-jvm-host")
 
-    testImplementation("com.github.tomakehurst:wiremock-jre8:$wiremockVersion")
     testImplementation("io.mockk:mockk:$mockkVersion")
 }

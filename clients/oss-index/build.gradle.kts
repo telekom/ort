@@ -35,13 +35,15 @@ dependencies {
     api("com.squareup.retrofit2:retrofit:$retrofitVersion")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinxSerializationVersion")
-    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:" +
-            retrofitKotlinxSerializationConverterVersion)
+    implementation(
+        "com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:" +
+                retrofitKotlinxSerializationConverterVersion
+    )
 }
 
 tasks.withType<KotlinCompile> {
     val customCompilerArgs = listOf(
-        "-Xopt-in=kotlinx.serialization.ExperimentalSerializationApi"
+        "-opt-in=kotlinx.serialization.ExperimentalSerializationApi"
     )
 
     kotlinOptions {

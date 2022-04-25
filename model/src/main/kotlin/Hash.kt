@@ -28,7 +28,8 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import java.io.File
 import java.util.Base64
 
-import org.ossreviewtoolkit.utils.common.toHexString
+import org.ossreviewtoolkit.utils.common.decodeHex
+import org.ossreviewtoolkit.utils.common.encodeHex
 
 /**
  * A class that bundles a hash algorithm with its hash value.
@@ -61,7 +62,7 @@ data class Hash(
                 // Support Subresource Integrity (SRI) hashes, see
                 // https://w3c.github.io/webappsec-subresource-integrity/
                 Hash(
-                    value = Base64.getDecoder().decode(splitValue.last()).toHexString(),
+                    value = Base64.getDecoder().decode(splitValue.last()).encodeHex(),
                     algorithm = HashAlgorithm.fromString(splitValue.first())
                 )
             } else {
@@ -80,6 +81,11 @@ data class Hash(
                 }
             }
     }
+
+    /**
+     * Return the hash in Support Subresource Integrity (SRI) format.
+     */
+    fun toSri() = "${algorithm.toString().lowercase()}-${Base64.getEncoder().encodeToString(value.decodeHex())}"
 
     /**
      * Verify that the [file] matches this hash.

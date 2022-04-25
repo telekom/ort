@@ -282,8 +282,11 @@ private class Graph(private val nodeMap: MutableMap<Identifier, Set<Identifier>>
      * construct graphs for specific scopes.
      */
     fun subgraph(subNodes: Set<Identifier>): Graph =
-        Graph(nodeMap.filter { it.key in subNodes }
-            .mapValuesTo(mutableMapOf()) { e -> e.value.filterTo(mutableSetOf()) { it in subNodes } })
+        Graph(
+            nodeMap.filter { it.key in subNodes }.mapValuesTo(mutableMapOf()) { e ->
+                e.value.filterTo(mutableSetOf()) { it in subNodes }
+            }
+        )
 
     /**
      * Search for the single package that represents the main project. This is the only package without a version.
@@ -347,6 +350,8 @@ private class Graph(private val nodeMap: MutableMap<Identifier, Set<Identifier>>
     private fun dependencies(id: Identifier): Set<Identifier> = nodeMap[id].orEmpty()
 }
 
+private val GITHUB_NAME_REGEX = "(github\\.com/[^/]+/[^/]+)/v\\d".toRegex()
+
 private const val DATE_REVISION_PATTERN = "[\\d]{14}-(?<sha1>[0-9a-f]+)"
 
 // See https://golang.org/ref/mod#pseudo-versions.
@@ -381,7 +386,11 @@ private fun getRevision(version: String): String {
 }
 
 internal fun Identifier.toVcsInfo(): VcsInfo {
-    val vcsInfo = VcsHost.toVcsInfo("https://$name")
+    val hostname = GITHUB_NAME_REGEX.matchEntire(name)?.let {
+        it.groupValues[1]
+    } ?: name
+
+    val vcsInfo = VcsHost.parseUrl("https://$hostname")
     return vcsInfo.copy(revision = getRevision(version))
 }
 

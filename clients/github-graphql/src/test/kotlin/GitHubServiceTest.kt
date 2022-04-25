@@ -49,7 +49,6 @@ import java.net.URI
 import java.util.regex.Pattern
 
 import org.ossreviewtoolkit.clients.github.issuesquery.Issue
-import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class GitHubServiceTest : WordSpec({
     val server = WireMockServer(
@@ -129,7 +128,7 @@ class GitHubServiceTest : WordSpec({
 
             val issuesResult = service.repositoryIssues(REPO_OWNER, REPO_NAME)
 
-            issuesResult.check { pagedResult ->
+            issuesResult.shouldBeSuccess { pagedResult ->
                 val titles = pagedResult.items.map(Issue::title)
 
                 titles should containExactly(
@@ -162,7 +161,7 @@ class GitHubServiceTest : WordSpec({
 
             val issuesResult = service.repositoryIssues(REPO_OWNER, REPO_NAME, paging)
 
-            issuesResult.check { pagedResult ->
+            issuesResult.shouldBeSuccess { pagedResult ->
                 val titles = pagedResult.items.map(Issue::title)
 
                 titles should containExactly(
@@ -185,7 +184,7 @@ class GitHubServiceTest : WordSpec({
 
             val releasesResult = service.repositoryReleases(REPO_OWNER, REPO_NAME)
 
-            releasesResult.check { pagedResult ->
+            releasesResult.shouldBeSuccess { pagedResult ->
                 val names = pagedResult.items.mapNotNull { it.name }
 
                 names should containExactly(
@@ -216,7 +215,7 @@ class GitHubServiceTest : WordSpec({
 
             val releasesResult = service.repositoryReleases(REPO_OWNER, REPO_NAME, paging)
 
-            releasesResult.check { pagedResult ->
+            releasesResult.shouldBeSuccess { pagedResult ->
                 pagedResult.items shouldHaveSize 2
                 pagedResult.pageSize shouldBe PAGE_SIZE
                 pagedResult.cursor shouldBe "Y3Vyc29yOnYyOpK5MjAyMC0wNi0yM1QxMzoyNzo1NiswMjowMM4BqJGR"
@@ -292,12 +291,14 @@ private fun variablesRegex(variables: List<Pair<String, Any>>): String {
  * variable can be provided.
  */
 private fun repoVariablesRegex(pageSize: Int = PAGE_SIZE, cursor: String? = null): String =
-    variablesRegex(listOfNotNull(
-        "repo_owner" to REPO_OWNER,
-        "repo_name" to REPO_NAME,
-        "page_size" to pageSize,
-        cursor?.let { "cursor" to it }
-    ))
+    variablesRegex(
+        listOfNotNull(
+            "repo_owner" to REPO_OWNER,
+            "repo_name" to REPO_NAME,
+            "page_size" to pageSize,
+            cursor?.let { "cursor" to it }
+        )
+    )
 
 /**
  * Read an expected GraphQL query from a file with the given [name] and convert it to a form, so that it can be
@@ -307,13 +308,4 @@ private fun repoVariablesRegex(pageSize: Int = PAGE_SIZE, cursor: String? = null
 private fun readExpectedQuery(name: String): String {
     val lines = File("src/main/assets/$name.graphql").readLines()
     return lines.joinToString("\\n")
-}
-
-/**
- * Check whether this [Result] is successful and contains a non-null value. If so, invoke [block] on the value.
- */
-private fun <T> Result<T>.check(block: (T) -> Unit) {
-    shouldBeSuccess { value ->
-        value.shouldNotBeNull { block(this) }
-    }
 }

@@ -52,7 +52,6 @@ import org.ossreviewtoolkit.model.config.Resolutions
 import org.ossreviewtoolkit.model.config.SendMailConfiguration
 import org.ossreviewtoolkit.model.licenses.LicenseClassifications
 import org.ossreviewtoolkit.model.readValue
-import org.ossreviewtoolkit.model.utils.createLicenseInfoResolver
 import org.ossreviewtoolkit.notifier.Notifier
 import org.ossreviewtoolkit.reporter.HowToFixTextProvider
 import org.ossreviewtoolkit.reporter.ReporterInput
@@ -120,19 +119,18 @@ class ExamplesFunTest : StringSpec() {
             }
         }
 
-        "how-to-fix-text-provider.kts provides the expected how-to-fix text" {
-            val script = takeExampleFile("how-to-fix-text-provider.kts").readText()
-            val howToFixTextProvider = HowToFixTextProvider.fromKotlinScript(script, OrtResult.EMPTY)
-            val issue = OrtIssue(
-                message = "ERROR: Timeout after 360 seconds while scanning file 'src/res/data.json'.",
-                source = "ScanCode",
-                severity = Severity.ERROR,
-                timestamp = Instant.now()
+        "asciidoctor-pdf-theme.yml is a valid asciidoctor-pdf theme" {
+            val outputDir = createSpecTempDir()
+
+            takeExampleFile("asciidoctor-pdf-theme.yml")
+
+            val report = PdfTemplateReporter().generateReport(
+                ReporterInput(OrtResult.EMPTY),
+                outputDir,
+                mapOf("pdf.theme.file" to examplesDir.resolve("asciidoctor-pdf-theme.yml").path)
             )
 
-            val howToFixText = howToFixTextProvider.getHowToFixText(issue)
-
-            howToFixText shouldContain "Manually verify that the file does not contain any license information."
+            report shouldHaveSize 1
         }
 
         "example.rules.kts can be compiled and executed" {
@@ -141,7 +139,6 @@ class ExamplesFunTest : StringSpec() {
             val ortResult = resultFile.readValue<OrtResult>()
             val evaluator = Evaluator(
                 ortResult = ortResult,
-                licenseInfoResolver = ortResult.createLicenseInfoResolver(),
                 licenseClassifications = licenseFile.readValue()
             )
 
@@ -158,28 +155,15 @@ class ExamplesFunTest : StringSpec() {
             )
         }
 
-        "asciidoctor-pdf-theme.yml is a valid asciidoctor-pdf theme" {
-            val outputDir = createSpecTempDir()
-
-            takeExampleFile("asciidoctor-pdf-theme.yml")
-
-            val report = PdfTemplateReporter().generateReport(
-                ReporterInput(OrtResult.EMPTY),
-                outputDir,
-                mapOf("pdf.theme.file" to examplesDir.resolve("asciidoctor-pdf-theme.yml").path)
-            )
-
-            report shouldHaveSize 1
-        }
-
-        "notifications.kts can be complied and executed" {
+        "example.notifications.kts can be complied and executed" {
             val greenMail = GreenMail(ServerSetup.SMTP.dynamicPort())
             greenMail.setUser("no-reply@oss-review-toolkit.org", "no-reply@oss-review-toolkit.org", "pwd")
             greenMail.start()
 
             val ortResult = File("src/funTest/assets/semver4j-analyzer-result.yml").readValue<OrtResult>()
             val notifier = Notifier(
-                ortResult, NotifierConfiguration(
+                ortResult,
+                NotifierConfiguration(
                     SendMailConfiguration(
                         hostName = "localhost",
                         port = greenMail.smtp.serverSetup.port,
@@ -191,9 +175,9 @@ class ExamplesFunTest : StringSpec() {
                 )
             )
 
-            val notifications = takeExampleFile("notifications.kts").readText()
+            val script = examplesDir.resolve("notifications/src/main/resources/example.notifications.kts").readText()
 
-            notifier.run(notifications)
+            notifier.run(script)
 
             greenMail.waitForIncomingEmail(1000, 1) shouldBe true
             val actualBody = GreenMailUtil.getBody(greenMail.receivedMessages[0])
@@ -203,6 +187,21 @@ class ExamplesFunTest : StringSpec() {
             actualBody shouldContain "Number of issues found: ${ortResult.collectIssues().size}"
 
             greenMail.stop()
+        }
+
+        "how-to-fix-text-provider.kts provides the expected how-to-fix text" {
+            val script = takeExampleFile("how-to-fix-text-provider.kts").readText()
+            val howToFixTextProvider = HowToFixTextProvider.fromKotlinScript(script, OrtResult.EMPTY)
+            val issue = OrtIssue(
+                message = "ERROR: Timeout after 360 seconds while scanning file 'src/res/data.json'.",
+                source = "ScanCode",
+                severity = Severity.ERROR,
+                timestamp = Instant.now()
+            )
+
+            val howToFixText = howToFixTextProvider.getHowToFixText(issue)
+
+            howToFixText shouldContain "Manually verify that the file does not contain any license information."
         }
 
         "All example files should have been tested" {

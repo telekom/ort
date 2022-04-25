@@ -26,9 +26,8 @@ import java.security.MessageDigest
 import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.KnownProvenance
 import org.ossreviewtoolkit.model.RepositoryProvenance
-import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.utils.common.collectMessagesAsString
-import org.ossreviewtoolkit.utils.common.toHexString
+import org.ossreviewtoolkit.utils.common.encodeHex
 import org.ossreviewtoolkit.utils.core.createOrtTempFile
 import org.ossreviewtoolkit.utils.core.log
 import org.ossreviewtoolkit.utils.core.storage.FileStorage
@@ -81,16 +80,10 @@ private val SHA1_DIGEST by lazy { MessageDigest.getInstance("SHA-1") }
 private fun KnownProvenance.hash(): String {
     val key = when (this) {
         is ArtifactProvenance -> "${sourceArtifact.url}${sourceArtifact.hash.value}"
-        is RepositoryProvenance -> {
-            // The content on the archives does not depend on the VCS path in general, thus that path must not be part
-            // of the storage key. However, for Git-Repo that path must be part of the storage key because it denotes
-            // the Git-Repo manifest location rather than the path to be (sparse) checked out.
-            val path = vcsInfo.path.takeIf { vcsInfo.type == VcsType.GIT_REPO }.orEmpty()
-            "${vcsInfo.type}${vcsInfo.url}${resolvedRevision}$path"
-        }
+        is RepositoryProvenance -> "${vcsInfo.type}${vcsInfo.url}$resolvedRevision"
     }
 
-    return SHA1_DIGEST.digest(key.toByteArray()).toHexString()
+    return SHA1_DIGEST.digest(key.toByteArray()).encodeHex()
 }
 
 internal fun getArchivePath(provenance: KnownProvenance): String = "${provenance.hash()}/archive.zip"
