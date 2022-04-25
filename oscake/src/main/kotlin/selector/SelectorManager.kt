@@ -76,12 +76,10 @@ internal class SelectorManager(
     internal fun manage() {
         // 1. Process resolver-package if it's valid, applicable and pack is not reuse-compliant
         OSCakeConfigParams.setParamsFromProject(project)
-        project.packs.filter { !it.reuseCompliant }.forEach {
+        project.packs.forEach {
             selectorProvider.getActionFor(it.id, true)?.process(it, archiveDir, logger)
         }
-        // 2. log info for REUSE packages
-        logReuseCase(ProcessingPhase.SELECTION)
-        // 3. Check if compound license and no originalLicense is set --> no resolver package exists
+        // 2. Check if compound license and no originalLicense is set --> no resolver package exists
         project.packs.filter { !it.reuseCompliant }.forEach { pack ->
             pack.fileLicensings.forEach { fileLicensing ->
                 fileLicensing.licenses.forEach {
@@ -91,12 +89,12 @@ internal class SelectorManager(
                 }
             }
         }
-        // 4. report [OSCakeIssue]s
+        // 3. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(SELECTOR_LOGGER)) handleOSCakeIssues(project, logger,
             config.selector?.issueLevel ?: -1)
-        // 5. take care of issue level settings to create the correct output format
+        // 4. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
-        // 6. generate .zip and .oscc files
+        // 5. generate .zip and .oscc files
         createResultingFiles(archiveDir)
     }
 }

@@ -176,12 +176,4 @@ open class ActionManager(
         project.issueList.warnings.removeAll { idList.contains(it.id) }
         propagateHasIssues(project)
     }
-
-    /**
-     * Check if package is REUSE compliant and log it as INFO
-     */
-    fun logReuseCase(phase: ProcessingPhase) = project.packs.filter { it.reuseCompliant }.forEach {
-            logger.log("Package is reuse-compliant and is NOT handled by the resolver!", Level.INFO,
-                it.id, phase = phase)
-        }
 }
