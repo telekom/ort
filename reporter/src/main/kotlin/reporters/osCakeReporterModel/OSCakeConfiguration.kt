@@ -140,7 +140,11 @@ data class OSCakeConfiguration(
      * contains a mapping between scope names (may contain a regex expression) and its distribution type
      * the scope names may be prefixed by the name of a package manager
      */
-    val distributionMap: MutableMap<String, String>? = mutableMapOf()
+    val distributionMap: MutableMap<String, String>? = mutableMapOf(),
+    /**
+     * if set tor true, the oscc file will be pretty printed (json)
+     */
+    val prettyPrint: Boolean = false
     ) {
     /**
      * The [OSCakeConfiguration] is read by the jackson deserializer as part of the ORT start up process.

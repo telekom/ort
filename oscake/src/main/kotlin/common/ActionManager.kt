@@ -108,7 +108,7 @@ open class ActionManager(
         project.complianceArtifactCollection.date = LocalDateTime.now().toString()
         project.complianceArtifactCollection.release = actionInfo.release
 
-        rc = rc || project.modelToOscc(reportFile, logger, actionInfo.phase)
+        rc = rc || project.modelToOscc(reportFile, logger, actionInfo.phase, config.prettyPrint ?: false)
 
         rc = rc || ActionProvider.errors
         if (!rc) {

@@ -93,7 +93,10 @@ class OSCakeReporter : Reporter {
         val objectMapper = ObjectMapper()
         val outputFile = outputDir.resolve(reportFilename)
         outputFile.bufferedWriter().use {
-            it.write(objectMapper.writeValueAsString(project))
+            if (OSCakeConfigParams.prettyPrint)
+                it.write(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(project))
+            else
+                it.write(objectMapper.writeValueAsString(project))
         }
         return listOf(outputFile)
     }

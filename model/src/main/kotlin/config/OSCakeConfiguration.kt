@@ -30,7 +30,8 @@ data class OSCakeConfiguration(
     val deduplicator: OSCakeDeduplicator? = null,
     val resolver: OSCakeResolver? = null,
     val selector: OSCakeSelector? = null,
-    val metadatamanager: OSCakeMetaDataManager? = null
+    val metadatamanager: OSCakeMetaDataManager? = null,
+    val prettyPrint: Boolean? = false
 )
 
 data class OSCakeDeduplicator(

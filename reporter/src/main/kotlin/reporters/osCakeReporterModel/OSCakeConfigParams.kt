@@ -45,6 +45,7 @@ object OSCakeConfigParams {
     var ignoreLicenseRef: Boolean = false
     var licenseScoreThreshold: Int = 0
     var distributionMap: MutableMap<String, String> = mutableMapOf()
+    var prettyPrint = false
     var ignoreFromChecks: Boolean = false
     lateinit var osCakeConfigInformation: OSCakeConfigInfo
 
@@ -130,6 +131,7 @@ object OSCakeConfigParams {
         licenseScoreThreshold = osCakeConfigInfo.configFile.licenseScoreThreshold ?: 0
         includeJsonPathInLogfile4ErrorsAndWarnings =
             osCakeConfigInfo.configFile.includeJsonPathInLogfile4ErrorsAndWarnings ?: false
+        prettyPrint = osCakeConfigInfo.configFile.prettyPrint
     }
     /**
      * Returns an enum entry with the specified name or `null` if no such entry was found.

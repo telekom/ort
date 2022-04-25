@@ -120,6 +120,9 @@ fun addParamsToConfig(config: OSCakeConfiguration, commandLineParams: Map<String
                       clazz: Any): ConfigBlockInfo? {
     OSCakeConfiguration::class.memberProperties.forEach { member ->
         val paramMap = mutableMapOf<String, String>()
+        config.prettyPrint?.let {
+            paramMap["prettyPrint"] = it.toString()
+        }
         when (val v = member.get(config)) {
             is org.ossreviewtoolkit.model.config.OSCakeCurator -> {
                 if (clazz is OSCakeCurator) {

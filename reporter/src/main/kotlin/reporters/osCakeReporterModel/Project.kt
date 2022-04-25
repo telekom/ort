@@ -159,11 +159,15 @@ data class Project(
     /**
      * Writes the model to disk (in json format)
      */
-    fun modelToOscc(outputFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): Boolean {
+    fun modelToOscc(outputFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase,
+                    prettyPrint: Boolean): Boolean {
         val objectMapper = ObjectMapper()
         try {
             outputFile.bufferedWriter().use {
-                it.write(objectMapper.writeValueAsString(this))
+                if (prettyPrint)
+                    it.write(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(this))
+                else
+                    it.write(objectMapper.writeValueAsString(this))
             }
         } catch (e: IOException) {
             logger.log("Error when writing json file: \"$outputFile\".\n ${e.message} ",
