@@ -35,7 +35,7 @@ import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.utils.common.packZip
-import org.ossreviewtoolkit.utils.common.toHexString
+import org.ossreviewtoolkit.utils.common.encodeHex
 
 const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
 const val FOUND_IN_FILE_SCOPE_CONFIGURED = "[CONFIGURED]"
@@ -355,7 +355,7 @@ internal fun getHash(provenance: Provenance): String {
         is UnknownProvenance -> "unknownProvenance"
     }
 
-    return SHA1_DIGEST.digest(key.toByteArray()).toHexString()
+    return SHA1_DIGEST.digest(key.toByteArray()).encodeHex()
 }
 
 @Suppress("ComplexMethod")

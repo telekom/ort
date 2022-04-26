@@ -19,7 +19,7 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
-import com.sksamuel.hoplite.ConfigLoader
+import com.sksamuel.hoplite.ConfigLoaderBuilder
 import com.sksamuel.hoplite.PropertySource
 import com.sksamuel.hoplite.fp.getOrElse
 
@@ -175,8 +175,8 @@ data class OSCakeConfiguration(
          * fetches the options which were passed via "-O OSCake=...=..."
          */
         private fun getOSCakeConfiguration(fileName: String): OSCakeConfiguration {
-            val config = ConfigLoader.Builder()
-                .addSource(PropertySource.file(File(fileName)))
+            val config = ConfigLoaderBuilder.default()
+                .addPropertySource(PropertySource.file(File(fileName)))
                 .build()
                 .loadConfig<OSCakeWrapper>()
 

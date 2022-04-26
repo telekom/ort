@@ -34,6 +34,7 @@ val mockkVersion: String by project
 val retrofitVersion: String by project
 val saxonHeVersion: String by project
 val simpleExcelVersion: String by project
+val hopliteVersion: String by project
 
 plugins {
     // Apply core plugins.
