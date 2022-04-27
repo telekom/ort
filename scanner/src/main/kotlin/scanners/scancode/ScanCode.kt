@@ -186,13 +186,7 @@ class ScanCode internal constructor(
         val startTime = Instant.now()
 
         val resultFile = createOrtTempDir().resolve("result.json")
-        val process = ProcessCapture(
-            scannerPath.absolutePath,
-            *commandLineOptions.joinToString(",").replace("{rawFileName}", java.util.UUID.randomUUID().toString()).split(",").toTypedArray(),
-            path.absolutePath,
-            OUTPUT_FORMAT_OPTION,
-            resultFile.absolutePath
-        )
+        val process = runScanCode(path, resultFile)
 
         val endTime = Instant.now()
 
@@ -222,14 +216,15 @@ class ScanCode internal constructor(
         resultFile: File
     ) = ProcessCapture(
         scannerPath.absolutePath,
-        *commandLineOptions.toTypedArray(),
+        //*commandLineOptions.toTypedArray(),
+        *commandLineOptions.joinToString(",").replace("{rawFileName}", java.util.UUID.randomUUID().toString()).split(",").toTypedArray(),
         path.absolutePath,
         OUTPUT_FORMAT_OPTION,
         resultFile.absolutePath
     )
 
     override fun getVersion(workingDir: File?): String =
-        // The release candidate version names lack a hyphen in between the minor version and the extension, e.g.
+    // The release candidate version names lack a hyphen in between the minor version and the extension, e.g.
         // 3.2.1rc2. Insert that hyphen for compatibility with Semver.
         super.getVersion(workingDir).let {
             val index = it.indexOf("rc")
