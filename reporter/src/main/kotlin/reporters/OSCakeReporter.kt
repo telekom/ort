@@ -206,7 +206,7 @@ class OSCakeReporter : Reporter {
                         lteToRemove.add(it.first)
                         logger.log(
                             "License text finding for license \"${it.first.license}\" in " +
-                                    "file: \"${fib.path}\" was removed, " +
+                                    "file: \"${fib.path}\" was removed (${it.first.startLine}/${it.first.endLine}), " +
                                     "due to multiple similar entries in the file!",
                             Level.DEBUG, pkg, fib.path, it.first, ScopeLevel.FILE, ProcessingPhase.PRE
                         )
@@ -374,7 +374,13 @@ class OSCakeReporter : Reporter {
                             isInstancedLicense = isInstancedLicense(input, it.license.toString())
                             startLine = it.location.startLine
                             endLine = it.location.endLine
-                            combineNativeScanResults(fileInfoBlock.path, this, nsr)
+                            score = if (it.score == null) 0.0 else it.score!!.toDouble()
+                            if (license != "NOASSERTION")
+                                combineNativeScanResults(fileInfoBlock.path, this, nsr)
+                            else {
+                                isLicenseNotice = true
+                                isLicenseText = false
+                            }
                             fileInfoBlock.licenseTextEntries.add(this)
                             license?.let { lic ->
                                 if (lic.startsWith("LicenseRef")) logger.log("LicenseReference found:" +
@@ -443,12 +449,11 @@ class OSCakeReporter : Reporter {
             if (file["path"].asText() == path) {
                 for (license in file["licenses"]) {
                     if (licenseTextEntry.startLine == license["start_line"].intValue() &&
-                        licenseTextEntry.endLine == license["end_line"].intValue()) {
+                            licenseTextEntry.endLine == license["end_line"].intValue() &&
+                            licenseTextEntry.license == license["spdx_license_key"].toString().replace("\"", "")) {
                         licenseTextEntry.isLicenseText = license["matched_rule"]["is_license_text"].asBoolean()
-                        licenseTextEntry.isLicenseNotice = license["matched_rule"]["is_license_notice"].asBoolean()
-                                || license["matched_rule"]["is_license_reference"].asBoolean()
-                                || license["matched_rule"]["is_license_tag"].asBoolean()
-                        licenseTextEntry.score = license["score"].asDouble()
+                        licenseTextEntry.isLicenseNotice = !licenseTextEntry.isLicenseText
+                        return
                     }
                 }
             }
