@@ -314,7 +314,10 @@ internal class ModeDefault(
         entry.value.licenseTextEntries.any { lte -> lte.isLicenseText } ||
                 OSCakeConfigParams.scopePatterns.any {
                     FileSystems.getDefault().getPathMatcher("glob:$it").matches(
-                        File(File(entry.value.path).name).toPath())
+                        if (OSCakeConfigParams.lowerCaseComparisonOfScopePatterns)
+                            File(File(entry.value.path).name.lowercase()).toPath()
+                        else
+                            File(File(entry.value.path).name).toPath())
                 }
     } ?: false
 
