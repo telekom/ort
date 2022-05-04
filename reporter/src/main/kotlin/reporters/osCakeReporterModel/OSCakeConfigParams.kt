@@ -59,8 +59,12 @@ object OSCakeConfigParams {
             ignoreFromChecks = it.toBoolean()
         }
         project.config?.reporter?.let {
-            setParams(OSCakeConfigInfo(project.config?.reporter?.commandLineParams ?: emptyMap(),
-                project.config?.reporter?.configFile!!))
+            setParams(
+                OSCakeConfigInfo(
+                    project.config?.reporter?.commandLineParams ?: emptyMap(),
+                    project.config?.reporter?.configFile!!
+                )
+            )
         }
     }
 
@@ -68,8 +72,8 @@ object OSCakeConfigParams {
         osCakeConfigInformation = osCakeConfigInfo
 
         dependencyGranularity = if (osCakeConfigInfo.commandLineParams["--dependency-granularity"]?.
-            toIntOrNull() != null) osCakeConfigInfo.commandLineParams["--dependency-granularity"]!!
-            .toInt() else Int.MAX_VALUE
+            toIntOrNull() != null
+        ) osCakeConfigInfo.commandLineParams["--dependency-granularity"]!!.toInt() else Int.MAX_VALUE
 
         osCakeConfigInfo.configFile.packageRestrictions?.let { packageRestriction ->
             if (packageRestriction.enabled != null && packageRestriction.enabled) {
@@ -80,13 +84,17 @@ object OSCakeConfigParams {
                 }
                 logger.log(infoStr, Level.INFO, phase = ProcessingPhase.CONFIG)
                 dependencyGranularity = Int.MAX_VALUE
-                logger.log("commandline parameter \"dependency-granularity\" is overruled due to " +
-                        "packageRestrictions", Level.INFO, phase = ProcessingPhase.CONFIG)
+                logger.log(
+                    "commandline parameter \"dependency-granularity\" is overruled due to packageRestrictions",
+                    Level.INFO,
+                    phase = ProcessingPhase.CONFIG
+                )
             }
         }
         osCakeConfigInfo.configFile.packageInclusions?.let { packageInclusion ->
             if (dependencyGranularity != Int.MAX_VALUE && packageInclusion.enabled != null &&
-                packageInclusion.enabled) {
+                packageInclusion.enabled
+            ) {
                 var infoStr = "The output is extended (set in configuration and despite of the commandline " +
                         "parameter: \"dependency-granularity\" ) with the following package(s):\n"
                 packageInclusion.forceIncludePackages?.forEach {
@@ -107,17 +115,21 @@ object OSCakeConfigParams {
             if (enumValueOfOrNull<DistributionType>(item.value) != null)
                 distributionMap[item.key] = item.value
             else
-                logger.log("Invalid config value \"${item.value}\" in distributionMap - must be one " +
-                        "of ${DistributionType.values().map { it.name }} --> ignored", Level.INFO,
-                    phase = ProcessingPhase.CONFIG)
+                logger.log(
+                    "Invalid config value \"${item.value}\" in distributionMap - must be one " +
+                        "of ${DistributionType.values().map { it.name }} --> ignored",
+                    Level.INFO,
+                    phase = ProcessingPhase.CONFIG
+                )
         }
 
         ortScanResultsDir = osCakeConfigInfo.configFile.ortScanResultsDir
         sourceCodesDir = osCakeConfigInfo.configFile.sourceCodesDir
         lowerCaseComparisonOfScopePatterns = osCakeConfigInfo.configFile.lowerCaseComparisonOfScopePatterns ?: true
         scopePatterns = osCakeConfigInfo.configFile.scopePatterns
-        copyrightScopePatterns = (osCakeConfigInfo.configFile.copyrightScopePatterns +
-                osCakeConfigInfo.configFile.scopePatterns).toList()
+        copyrightScopePatterns = (
+                osCakeConfigInfo.configFile.copyrightScopePatterns + osCakeConfigInfo.configFile.scopePatterns
+            ).toList()
         scopeIgnorePatterns = osCakeConfigInfo.configFile.scopeIgnorePatterns
         if (lowerCaseComparisonOfScopePatterns) {
             scopePatterns = scopePatterns.map { it.lowercase() }.distinct().toList()

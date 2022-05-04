@@ -51,8 +51,10 @@ import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.EvaluatedModel
  * The class [Project] wraps the meta information ([complianceArtifactCollection]) of the OSCakeReporter as well
  * as a list of included projects and packages store in instances of [Pack]
  */
-@JsonPropertyOrder("hasIssues", "containsHiddenSections", "issues", "config", "complianceArtifactCollection",
-    "complianceArtifactPackages")
+@JsonPropertyOrder(
+    "hasIssues", "containsHiddenSections", "issues", "config", "complianceArtifactCollection",
+    "complianceArtifactPackages"
+)
 @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = IssuesFilterCustom::class)
 data class Project(
     /**
@@ -103,8 +105,12 @@ data class Project(
                 zipOutputStream = FileOutputStream(arcFile)
                 zipOutput = ArchiveStreamFactory().createArchiveOutputStream(ArchiveStreamFactory.ZIP, zipOutputStream)
             } catch (ex: ArchiveException) {
-                logger.log("Error when handling the archive file <$archiveFile> - Abnormal program termination! " +
-                        ex.toString(), Level.ERROR, phase = ProcessingPhase.MERGING)
+                logger.log(
+                    "Error when handling the archive file <$archiveFile> - Abnormal program termination! " +
+                        ex.toString(),
+                    Level.ERROR,
+                    phase = ProcessingPhase.MERGING
+                )
                 exitProcess(2)
             }
 
@@ -117,8 +123,12 @@ data class Project(
                     zipOutput.finish()
                     zipOutputStream.close()
                 } catch (ex: ArchiveException) {
-                    logger.log("Error when terminating the archive file <$archiveFile> handling - Abnormal " +
-                            "program termination! " + ex.toString(), Level.ERROR, phase = ProcessingPhase.MERGING)
+                    logger.log(
+                        "Error when terminating the archive file <$archiveFile> handling - Abnormal " +
+                            "program termination! " + ex.toString(),
+                        Level.ERROR,
+                        phase = ProcessingPhase.MERGING
+                    )
                     exitProcess(2)
                 }
             }
@@ -130,8 +140,11 @@ data class Project(
                 val json = osccFile.readText()
                 project = mapper.readValue<Project>(json)
             } catch (e: IOException) {
-                logger.log("EXIT: Invalid json format found in file: \"$osccFile\".\n ${e.message} ",
-                    Level.ERROR, phase = processingPhase)
+                logger.log(
+                    "EXIT: Invalid json format found in file: \"$osccFile\".\n ${e.message} ",
+                    Level.ERROR,
+                    phase = processingPhase
+                )
                 exitProcess(3)
             } finally {
                 require(project != null) { "Project could not be initialized when reading: \"$osccFile\"" }
@@ -159,8 +172,12 @@ data class Project(
     /**
      * Writes the model to disk (in json format)
      */
-    fun modelToOscc(outputFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase,
-                    prettyPrint: Boolean): Boolean {
+    fun modelToOscc(
+        outputFile: File,
+        logger: OSCakeLogger,
+        processingPhase: ProcessingPhase,
+        prettyPrint: Boolean
+    ): Boolean {
         val objectMapper = ObjectMapper()
         try {
             outputFile.bufferedWriter().use {
@@ -170,8 +187,11 @@ data class Project(
                     it.write(objectMapper.writeValueAsString(this))
             }
         } catch (e: IOException) {
-            logger.log("Error when writing json file: \"$outputFile\".\n ${e.message} ",
-                Level.ERROR, phase = processingPhase)
+            logger.log(
+                "Error when writing json file: \"$outputFile\".\n ${e.message} ",
+                Level.ERROR,
+                phase = processingPhase
+            )
             return true
         }
         return false
@@ -187,14 +207,21 @@ data class Project(
         // do not process, if definitions in [complianceArtifactCollection] or itself are missing
         if (project.complianceArtifactCollection.cid == "") return false
         if (project.complianceArtifactCollection.author == prohibitedAuthor) {
-            logger.log("The file \"${originFile.name}\" cannot be processed, because it was already deduplicated" +
-                    " in a former run!", Level.WARN, phase = ProcessingPhase.MERGING)
+            logger.log(
+                "The file \"${originFile.name}\" cannot be processed, because it was already deduplicated" +
+                    " in a former run!",
+                Level.WARN,
+                phase = ProcessingPhase.MERGING
+            )
             return false
         }
         if (project.containsHiddenSections == true) {
-            logger.log("The file \"${originFile.name}\" cannot be processed, because some sections are missing!" +
-                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
-                phase = ProcessingPhase.MERGING)
+            logger.log(
+                "The file \"${originFile.name}\" cannot be processed, because some sections are missing!" +
+                    " (maybe it was created with config option \"hideSections\")",
+                Level.ERROR,
+                phase = ProcessingPhase.MERGING
+            )
             return false
         }
 
@@ -205,22 +232,32 @@ data class Project(
         val originDir = originFile.parentFile
 
         if (project.hasIssues) {
-            logger.log("<${originFile.name}> contains unresolved issues - not processed!", Level.ERROR,
-                phase = ProcessingPhase.MERGING)
+            logger.log(
+                "<${originFile.name}> contains unresolved issues - not processed!",
+                Level.ERROR,
+                phase = ProcessingPhase.MERGING
+            )
             hasIssues = true
             return false
         }
 
         if (project.complianceArtifactCollection.cid == "") {
-            logger.log("Incomplete <complianceArtifactCollection> in file: <${originFile.name}>", Level.ERROR,
-                phase = ProcessingPhase.MERGING)
+            logger.log(
+                "Incomplete <complianceArtifactCollection> in file: <${originFile.name}>",
+                Level.ERROR,
+                phase = ProcessingPhase.MERGING
+            )
             hasIssues = true
             return false
         } else {
             absoluteFilePathToZip = originDir.resolve(project.complianceArtifactCollection.archivePath)
             if (!absoluteFilePathToZip.exists()) {
-                logger.log("Archive file <$absoluteFilePathToZip> for project in <${originFile.name}> does " +
-                        "not exist!", Level.ERROR, phase = ProcessingPhase.MERGING)
+                logger.log(
+                    "Archive file <$absoluteFilePathToZip> for project in <${originFile.name}> does " +
+                        "not exist!",
+                    Level.ERROR,
+                    phase = ProcessingPhase.MERGING
+                )
                 hasIssues = true
                 return false
             }
@@ -272,8 +309,12 @@ data class Project(
                 }
             }
         } catch (ex: ArchiveException) {
-            logger.log("Error when copying zip file from <$absoluteFilePathToZip> to <${archiveFile!!.name}>: " +
-                    ex.toString(), Level.ERROR, phase = ProcessingPhase.MERGING)
+            logger.log(
+                "Error when copying zip file from <$absoluteFilePathToZip> to <${archiveFile!!.name}>: " +
+                    ex.toString(),
+                Level.ERROR,
+                phase = ProcessingPhase.MERGING
+            )
             rc = false
         }
         return rc
@@ -327,7 +368,8 @@ data class Project(
     private fun getNewPrefix(project: Project): String {
         val key = project.complianceArtifactCollection.cid
         return DIGEST.digest(key.toByteArray()).joinToString("") {
-             String.format(Locale.GERMAN, "%02x", it) } + "-"
+             String.format(Locale.GERMAN, "%02x", it)
+        } + "-"
     }
 
     /**
@@ -344,7 +386,8 @@ data class Project(
         error = error || oriCap.defaultLicensings.size != cap.defaultLicensings.size
         oriCap.defaultLicensings.forEach { oriDefaultLicense ->
             error = error || cap.defaultLicensings.none {
-                it.path == oriDefaultLicense.path && it.license == oriDefaultLicense.license }
+                it.path == oriDefaultLicense.path && it.license == oriDefaultLicense.license
+            }
         }
         // find differences in dirLicensings
         if (oriCap.dirLicensings.size != cap.dirLicensings.size) error = true
@@ -354,16 +397,20 @@ data class Project(
             if (dirLicensing == null) { error = true } else {
                 error = error || (oriDirLicensing.licenses.size != dirLicensing.licenses.size)
                 oriDirLicensing.licenses.forEach { oriDirLicense ->
-                    error = error || (dirLicensing.licenses.none {
-                        oriDirLicense.license == it.license && oriDirLicense.path == it.path })
+                    error = error || (
+                            dirLicensing.licenses.none {
+                                oriDirLicense.license == it.license && oriDirLicense.path == it.path
+                            }
+                    )
                 }
             }
         }
         // find differences in reuseLicensings
         error = error || oriCap.reuseLicensings.size != cap.reuseLicensings.size
         oriCap.reuseLicensings.forEach { oriReuseLicense ->
-            error = error || cap.reuseLicensings.none { it.path == oriReuseLicense.path &&
-                    it.license == oriReuseLicense.license }
+            error = error || cap.reuseLicensings.none {
+                it.path == oriReuseLicense.path && it.license == oriReuseLicense.license
+            }
         }
         // find differences in fileLicensings
         error = error || (oriCap.fileLicensings.size != cap.fileLicensings.size)
@@ -382,8 +429,11 @@ data class Project(
             }
         }
 
-        if (error) logger.log("[${oriCap.origin}: ${cap.id}]: difference(s) in file ${cap.origin}!", Level.WARN,
-            phase = ProcessingPhase.MERGING)
+        if (error) logger.log(
+            "[${oriCap.origin}: ${cap.id}]: difference(s) in file ${cap.origin}!",
+            Level.WARN,
+            phase = ProcessingPhase.MERGING
+        )
         return error
     }
 
@@ -438,14 +488,21 @@ data class Project(
 
     fun isProcessingAllowed(logger: OSCakeLogger, osccFile: File, authorList: List<String>): Boolean {
         if (authorList.contains(this.complianceArtifactCollection.author)) {
-            logger.log("The file \"${osccFile.name}\" cannot be processed, because it was already processed" +
-                    " in a former run! Check \"author\" in input file!", Level.ERROR, phase = ProcessingPhase.CURATION)
+            logger.log(
+                "The file \"${osccFile.name}\" cannot be processed, because it was already processed" +
+                    " in a former run! Check \"author\" in input file!",
+                Level.ERROR,
+                phase = ProcessingPhase.CURATION
+            )
             exitProcess(10)
         }
         if (this.containsHiddenSections == true) {
-            logger.log("The file \"${osccFile.name}\" cannot be processed, because some sections are missing!" +
-                    " (maybe it was created with config option \"hideSections\")", Level.ERROR,
-                phase = ProcessingPhase.CURATION)
+            logger.log(
+                "The file \"${osccFile.name}\" cannot be processed, because some sections are missing!" +
+                    " (maybe it was created with config option \"hideSections\")",
+                Level.ERROR,
+                phase = ProcessingPhase.CURATION
+            )
             exitProcess(12)
         }
         return true

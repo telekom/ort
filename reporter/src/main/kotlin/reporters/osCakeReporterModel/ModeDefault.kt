@@ -154,9 +154,8 @@ internal class ModeDefault(
             (
                 pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?:
                 FileLicensing(getPathName(pack, fib)).apply { pack.fileLicensings.add(this) }
-            )
-                    .apply {
-                        fib.copyrightTextEntries.forEach {
+            ).apply {
+                    fib.copyrightTextEntries.forEach {
                             copyrights.add(FileCopyright(it.matchedText!!))
                         }
                     }
@@ -167,24 +166,35 @@ internal class ModeDefault(
      *  Depending on the flag "[licenseTextEntry].isInstancedLicense" the license text is generated and written
      *  to disk.
      */
-    private fun writeLicenseText(licenseTextEntry: LicenseTextEntry, fib: FileInfoBlock, sourceCodeDir: String?,
-                                 tmpDirectory: File, provHash: String): String? {
+    private fun writeLicenseText(
+        licenseTextEntry: LicenseTextEntry,
+        fib: FileInfoBlock,
+        sourceCodeDir: String?,
+        tmpDirectory: File,
+        provHash: String
+    ): String? {
         try {
             val genText =
-                if (licenseTextEntry.isInstancedLicense) generateInstancedLicenseText(pack, fib, sourceCodeDir,
-                    licenseTextEntry, provHash)
+                if (licenseTextEntry.isInstancedLicense) generateInstancedLicenseText(
+                    pack, fib, sourceCodeDir, licenseTextEntry, provHash
+                )
                 else generateNonInstancedLicenseText(pack, fib, sourceCodeDir, licenseTextEntry, provHash)
             genText?.let {
-                val dedupFileName = deduplicateFileName(tmpDirectory.path + "/" +
-                        createPathFlat(pack.id, fib.path, licenseTextEntry.license))
+                val dedupFileName = deduplicateFileName(
+                    tmpDirectory.path + "/" + createPathFlat(pack.id, fib.path, licenseTextEntry.license)
+                )
                 File(dedupFileName).apply {
                     this.writeText(it)
                     return this.relativeTo(File(tmpDirectory.path)).name
                 }
             }
         } catch (ex: FileNotFoundException) {
-            logger.log("File not found: ${ex.message}  while generating license texts!", Level.ERROR, pack.id,
-                phase = ProcessingPhase.PROCESS)
+            logger.log(
+                "File not found: ${ex.message}  while generating license texts!",
+                Level.ERROR,
+                pack.id,
+                phase = ProcessingPhase.PROCESS
+            )
         }
         return null
     }
@@ -193,19 +203,34 @@ internal class ModeDefault(
      * The method calculates the first and the last line of the requested license text and returns it (an instanced
      * license must begin with a copyright statement).
      */
-    private fun generateInstancedLicenseText(pack: Pack, fileInfoBlock: FileInfoBlock, sourceCodeDir: String?,
-                                             licenseTextEntry: LicenseTextEntry, provHash: String): String? {
+    private fun generateInstancedLicenseText(
+        pack: Pack,
+        fileInfoBlock: FileInfoBlock,
+        sourceCodeDir: String?,
+        licenseTextEntry: LicenseTextEntry,
+        provHash: String
+    ): String? {
 
         val fileName = sourceCodeDir + "/" + pack.id.toPath("/") + "/" + provHash + "/" + fileInfoBlock.path
         val copyrightStartLine = getCopyrightStartline(fileInfoBlock, licenseTextEntry, fileName)
         if (copyrightStartLine == null) {
-            logger.log("No Copyright-Startline found in ${fileInfoBlock.path}", Level.ERROR, pack.id,
-                fileInfoBlock.path, phase = ProcessingPhase.PROCESS)
+            logger.log(
+                "No Copyright-Startline found in ${fileInfoBlock.path}",
+                Level.ERROR,
+                pack.id,
+                fileInfoBlock.path,
+                phase = ProcessingPhase.PROCESS
+            )
             return null
         }
         if (copyrightStartLine > licenseTextEntry.endLine) {
-            logger.log("Line markers $copyrightStartLine : ${licenseTextEntry.endLine} not valid in: " +
-                    fileInfoBlock.path, Level.ERROR, pack.id, fileInfoBlock.path, phase = ProcessingPhase.PROCESS)
+            logger.log(
+                "Line markers $copyrightStartLine : ${licenseTextEntry.endLine} not valid in: ${fileInfoBlock.path}",
+                Level.ERROR,
+                pack.id,
+                fileInfoBlock.path,
+                phase = ProcessingPhase.PROCESS
+            )
             return null
         }
         return getLinesFromFile(fileName, copyrightStartLine, licenseTextEntry.endLine)
@@ -223,8 +248,11 @@ internal class ModeDefault(
      * The copyright statement must be found above of the license text [licenseTextEntry]; therefore, search for the
      * smallest startline of a copyright entry without crossing another license text
      */
-    private fun getCopyrightStartline(fileInfoBlock: FileInfoBlock, licenseTextEntry: LicenseTextEntry, fileName:
-    String): Int? {
+    private fun getCopyrightStartline(
+        fileInfoBlock: FileInfoBlock,
+        licenseTextEntry: LicenseTextEntry,
+        fileName: String
+    ): Int? {
         val completeList = fileInfoBlock.licenseTextEntries.filter { it.isLicenseText }.toMutableList<TextEntry>()
         completeList.addAll(fileInfoBlock.copyrightTextEntries)
         completeList.sortByDescending { it.startLine }
@@ -268,8 +296,9 @@ internal class ModeDefault(
          */
         line ?: lastLicenseTextEntry?.run {
             if (completeList.filterIsInstance<CopyrightTextEntry>().any {
-                    it.startLine >= lastLicenseTextEntry.startLine && it.endLine <= lastLicenseTextEntry.endLine })
-                line = lastLicenseTextEntry.startLine
+                    it.startLine >= lastLicenseTextEntry.startLine && it.endLine <= lastLicenseTextEntry.endLine
+                }
+            ) line = lastLicenseTextEntry.startLine
         }
 
         return line
@@ -278,10 +307,16 @@ internal class ModeDefault(
     /**
      * The method provides the license text for non-instanced licenses directly from the source file.
      */
-    private fun generateNonInstancedLicenseText(pack: Pack, fileInfoBlock: FileInfoBlock, sourceCodeDir: String?,
-                                                licenseTextEntry: LicenseTextEntry, provHash: String): String? {
-        val textBlockList = fileInfoBlock.licenseTextEntries.filter { it.isLicenseText &&
-                it.license == licenseTextEntry.license }.toMutableList<TextEntry>()
+    private fun generateNonInstancedLicenseText(
+        pack: Pack,
+        fileInfoBlock: FileInfoBlock,
+        sourceCodeDir: String?,
+        licenseTextEntry: LicenseTextEntry,
+        provHash: String
+    ): String? {
+        val textBlockList = fileInfoBlock.licenseTextEntries.filter {
+            it.isLicenseText && it.license == licenseTextEntry.license
+        }.toMutableList<TextEntry>()
         if (textBlockList.size > 0) {
             textBlockList.sortBy { it.startLine }
             val fileName = sourceCodeDir + "/" + pack.id.toPath("/") + "/" + provHash + "/" + fileInfoBlock.path
@@ -300,8 +335,12 @@ internal class ModeDefault(
         if (def.size > 1) {
             var s = ""
             def.forEach { s += "\n--> $it" }
-            logger.log("DefaultScope: more than one license found: $s \ndual licensed or multiple licenses",
-                Level.WARN, pack.id, phase = ProcessingPhase.POST)
+            logger.log(
+                "DefaultScope: more than one license found: $s \ndual licensed or multiple licenses",
+                Level.WARN,
+                pack.id,
+                phase = ProcessingPhase.POST
+            )
         }
         // check dirScope
         pack.dirLicensings.forEach { dirLicensing ->
@@ -309,8 +348,13 @@ internal class ModeDefault(
             if (dir.size > 1) {
                 var s = ""
                 dir.forEach { s += "\n--> $it" }
-                logger.log("DirScope <${dirLicensing.scope}>: more than one license found: $s " +
-                        "\ndual licensed or multiple licenses", Level.WARN, pack.id, phase = ProcessingPhase.POST)
+                logger.log(
+                    "DirScope <${dirLicensing.scope}>: more than one license found: $s " +
+                        "\ndual licensed or multiple licenses",
+                    Level.WARN,
+                    pack.id,
+                    phase = ProcessingPhase.POST
+                )
             }
         }
     }
@@ -328,7 +372,8 @@ internal class ModeDefault(
                         if (OSCakeConfigParams.lowerCaseComparisonOfScopePatterns)
                             File(File(entry.value.path).name.lowercase()).toPath()
                         else
-                            File(File(entry.value.path).name).toPath())
+                            File(File(entry.value.path).name).toPath()
+                    )
                 }
     } ?: false
 
@@ -337,8 +382,12 @@ internal class ModeDefault(
      * declaredLicenses (its origin is the package manager and not the scanner).
      */
     private fun prepareEntryForScopeDefault(pack: Pack, input: ReporterInput) {
-        if (pack.declaredLicenses.size == 0) logger.log("No declared license found for project/package!",
-            Level.WARN, pack.id, phase = ProcessingPhase.POST)
+        if (pack.declaredLicenses.size == 0) logger.log(
+            "No declared license found for project/package!",
+            Level.WARN,
+            pack.id,
+            phase = ProcessingPhase.POST
+        )
         pack.declaredLicenses.forEach {
             val pathInArchive: String? = null
             DefaultLicense(it.toString(), FOUND_IN_FILE_SCOPE_DECLARED, pathInArchive).apply {
@@ -346,10 +395,17 @@ internal class ModeDefault(
                 if (isInstancedLicense(input, it.toString())) {
                     logger.log(
                         "Declared license: <$it> is instanced license - no license text provided!",
-                        Level.WARN, pack.id, phase = ProcessingPhase.POST)
+                        Level.WARN,
+                        pack.id,
+                        phase = ProcessingPhase.POST
+                    )
                 } else {
-                    logger.log("Declared license <$it> used for project/package", Level.INFO,
-                        pack.id, phase = ProcessingPhase.POST)
+                    logger.log(
+                        "Declared license <$it> used for project/package",
+                        Level.INFO,
+                        pack.id,
+                        phase = ProcessingPhase.POST
+                    )
                 }
             }
         }

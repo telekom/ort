@@ -39,8 +39,11 @@ internal abstract class ModeSelector {
     /**
      * The method processes the packages and fetches infos from the scanner output
      */
-    internal abstract fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File,
-                                                       provenance: Provenance)
+    internal abstract fun fetchInfosFromScanDictionary(
+        sourceCodeDir: String?,
+        tmpDirectory: File,
+        provenance: Provenance
+    )
 
     /**
      * Defines program steps after terminating the [fetchInfosFromScanDictionary] method
@@ -50,8 +53,10 @@ internal abstract class ModeSelector {
     /**
      * Defines if the source code has to be downloaded
      */
-    internal abstract fun needsSourceCode(scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
-                                          pack: Pack): Boolean
+    internal abstract fun needsSourceCode(
+        scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
+        pack: Pack
+    ): Boolean
 
     /**
      * The [logger] is only initialized, if there is something to log.
@@ -63,8 +68,12 @@ internal abstract class ModeSelector {
      * for instanced licenses) it is copied into the sourcecode folder (defined by the package-id and
      * the provenance, e.g. ./Maven/joda-time/joda-time/2.10.8/39b1a3cc0a54d8b34737520bc066d2baee2fe2a4 )
      */
-    internal fun downloadSourcesWhenNeeded(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String,
-            FileInfoBlock>>, scannerPackageProvenance: Provenance) {
+    internal fun downloadSourcesWhenNeeded(
+        pack: Pack,
+        scanDict: MutableMap<Identifier,
+        MutableMap<String, FileInfoBlock>>,
+        scannerPackageProvenance: Provenance
+    ) {
         if (!needsSourceCode(scanDict, pack)) return
         val pkg = pkgMap[pack.id]!!
 
@@ -78,17 +87,27 @@ internal abstract class ModeSelector {
             val downloadDirectory = downloadDir.resolve(pkg.id.toPath()).resolve(provenanceHash)
             // Check if package has already been downloaded
             if (downloadDirectory.exists()) {
-                logger.log("No source code download necessary for Package: ${pkg.id}.", Level.DEBUG,
-                phase = ProcessingPhase.DOWNLOAD)
+                logger.log(
+                    "No source code download necessary for Package: ${pkg.id}.",
+                    Level.DEBUG,
+                    phase = ProcessingPhase.DOWNLOAD
+                )
                 return
             } else logger.log("Source code for ${pkg.id} is being downloaded.", Level.DEBUG)
             val downloadProvenance = Downloader(downloaderConfig).download(pkg, downloadDirectory)
-            logger.log("Source code download for ${pkg.id} completed.", Level.DEBUG,
-                phase = ProcessingPhase.DOWNLOAD)
+            logger.log(
+                "Source code download for ${pkg.id} completed.",
+                Level.DEBUG,
+                phase = ProcessingPhase.DOWNLOAD
+            )
 
             if (downloadProvenance != scannerPackageProvenance) {
-                logger.log("Mismatching provenance when creating missing source code for ${pkg.id}.",
-                    Level.WARN, pkg.id, phase = ProcessingPhase.DOWNLOAD)
+                logger.log(
+                    "Mismatching provenance when creating missing source code for ${pkg.id}.",
+                    Level.WARN,
+                    pkg.id,
+                    phase = ProcessingPhase.DOWNLOAD
+                )
             }
         } catch (ex: DownloadException) {
             logger.log("Error when downloading sources.", Level.WARN, pkg.id, phase = ProcessingPhase.DOWNLOAD)
@@ -101,9 +120,13 @@ internal abstract class ModeSelector {
          * The [getMode] method returns an instance of [ModeREUSE] or [ModeDefault] depending on the type
          * of package
          */
-        internal fun getMode(pack: Pack, scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
-                             reporterInput: ReporterInput,
-                             packageMap: MutableMap<Identifier, Package>): ModeSelector {
+        internal fun getMode(
+            pack: Pack,
+            scanDict: MutableMap<Identifier,
+            MutableMap<String, FileInfoBlock>>,
+            reporterInput: ReporterInput,
+            packageMap: MutableMap<Identifier, Package>
+        ): ModeSelector {
             pkgMap = packageMap
             return when (pack.reuseCompliant) {
                 true -> ModeREUSE(pack, scanDict)

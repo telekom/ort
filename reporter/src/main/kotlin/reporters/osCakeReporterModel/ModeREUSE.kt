@@ -39,18 +39,26 @@ internal class ModeREUSE(
      * [scanDict] is a map which contains the scanner output for every package in the project.
      */
     private val scanDict: MutableMap<Identifier,
-        MutableMap<String, FileInfoBlock>>) : ModeSelector() {
+        MutableMap<String, FileInfoBlock>>
+) : ModeSelector() {
 
     /**
      * The method combines data from the package with data from the scanner output
      */
-    override fun fetchInfosFromScanDictionary(sourceCodeDir: String?, tmpDirectory: File, provenance: Provenance
+    override fun fetchInfosFromScanDictionary(
+        sourceCodeDir: String?,
+        tmpDirectory: File,
+        provenance: Provenance
     ) {
         scanDict[pack.id]?.forEach { (_, fib) ->
             val isInLicensesFolder = fib.path.startsWith(getLicensesFolderPrefix(pack.packageRoot))
-            if (fib.licenseTextEntries.any { it.isLicenseText && !isInLicensesFolder }) logger.log("Found a " +
-                    "license text in \"${fib.path}\" - this is outside of the LICENSES folder" +
-                        " - will be ignored!", Level.WARN, pack.id, fib.path, phase = ProcessingPhase.PROCESS)
+            if (fib.licenseTextEntries.any { it.isLicenseText && !isInLicensesFolder }) logger.log(
+                "Found a license text in \"${fib.path}\" - this is outside of the LICENSES folder - will be ignored!",
+                Level.WARN,
+                pack.id,
+                fib.path,
+                phase = ProcessingPhase.PROCESS
+            )
 
             // Phase I: inspect ./LICENSES/* folder
             if (isInLicensesFolder) handleLicenses(fib, sourceCodeDir, tmpDirectory, getHash(provenance))
@@ -85,9 +93,14 @@ internal class ModeREUSE(
         val fileNameWithoutExtension = getPathName(pack, fib)
         // check if there is no licenseTextEntry for a file without this extension
         if (scanDict[pack.id]?.any { it.key == fileNameWithoutExtension } == true) {
-            logger.log("File \"${fileNameWithoutExtension}\" shows license infos although \"${fib.path}\" " +
-                        "also exists! --> Files ignored!", Level.WARN, pack.id, fib.path,
-                phase = ProcessingPhase.PROCESS)
+            logger.log(
+                "File \"${fileNameWithoutExtension}\" shows license infos although \"${fib.path}\" " +
+                        "also exists! --> Files ignored!",
+                Level.WARN,
+                pack.id,
+                fib.path,
+                phase = ProcessingPhase.PROCESS
+            )
             return
         }
         FileLicensing(fileNameWithoutExtension).apply {
@@ -115,12 +128,22 @@ internal class ModeREUSE(
             }
         }
         if (fib.licenseTextEntries.any { it.isLicenseText && fib.licenseTextEntries.size > 1 }) {
-            logger.log("More than one license text was found for file: ${fib.path}", Level.WARN, pack.id, fib.path,
-                phase = ProcessingPhase.PROCESS)
+            logger.log(
+                "More than one license text was found for file: ${fib.path}",
+                Level.WARN,
+                pack.id,
+                fib.path,
+                phase = ProcessingPhase.PROCESS
+            )
         }
         if (fib.licenseTextEntries.any { it.isLicenseNotice }) {
-            logger.log("License Notice was found for a file in LICENSES folder in file: ${fib.path}", Level.WARN,
-                pack.id, fib.path, phase = ProcessingPhase.PROCESS)
+            logger.log(
+                "License Notice was found for a file in LICENSES folder in file: ${fib.path}",
+                Level.WARN,
+                pack.id,
+                fib.path,
+                phase = ProcessingPhase.PROCESS
+            )
         }
     }
 
@@ -128,10 +151,11 @@ internal class ModeREUSE(
      * Handle copyrights stored in [fib] and creates copyright entries for the package
      */
     private fun handleCopyrights(fib: FileInfoBlock) =
-        (pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?: FileLicensing(
-            getPathName(pack, fib)
-        ).apply { pack.fileLicensings.add(this) })
-            .apply {
+        (
+            pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?: FileLicensing(
+                getPathName(pack, fib)
+            ).apply { pack.fileLicensings.add(this) }
+        ).apply {
                 fib.copyrightTextEntries.forEach {
                     copyrights.add(FileCopyright(it.matchedText!!))
                 }

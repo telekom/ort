@@ -182,7 +182,8 @@ data class OSCakeConfiguration(
 
             return config.map { it.OSCake }.getOrElse { failure ->
                 throw IllegalArgumentException(
-                    "Failed to load configuration from ${failure.description()}")
+                    "Failed to load configuration from ${failure.description()}"
+                )
             }
         }
         /**
