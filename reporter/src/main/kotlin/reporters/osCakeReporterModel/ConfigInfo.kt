@@ -26,7 +26,8 @@ import com.fasterxml.jackson.annotation.JsonInclude
  */
 data class ConfigBlockInfo(
     var commandLineParams: Map<String, String>,
-    val configFile: Map<String, String>)
+    val configFile: Map<String, String>
+    )
 
 /**
  * The class [ConfigInfo] wraps the config information to be present in oscc file

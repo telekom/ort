@@ -45,7 +45,8 @@ internal class ModeDefault(
     /**
      * [reporterInput] provides information about the analyzed and scanned packages (from ORT)
      */
-    private val reporterInput: ReporterInput) : ModeSelector() {
+    private val reporterInput: ReporterInput
+) : ModeSelector() {
 
     /**
      * The method creates [FileLicensing]s for each file containing license information. Depending on the
@@ -95,8 +96,12 @@ internal class ModeDefault(
                                 it.copyTo(File(tmpDirectory.path + "/" + pathFlat))
                                 this.fileContentInArchive = pathFlat
                                 pack.fileLicensings.add(this)
-                            } else logger.log("File \"${it.name}\" not found during creation of \"File" +
-                                    "Licensings\"", Level.ERROR, pack.id, phase = ProcessingPhase.PROCESS)
+                            } else logger.log(
+                                "File \"${it.name}\" not found during creation of \"File Licensings\"",
+                                Level.ERROR,
+                                pack.id,
+                                phase = ProcessingPhase.PROCESS
+                            )
                         }
                 }
             }
@@ -105,13 +110,16 @@ internal class ModeDefault(
                 val path = getPathName(pack, fib)
                 val fileLicensing = pack.fileLicensings.firstOrNull { it.scope == path } ?: FileLicensing(path)
 
-                if (fileLicensing.licenses.none { it.license == licenseTextEntry.license &&
-                            it.startLine == licenseTextEntry.startLine }) {
+                if (fileLicensing.licenses.none {
+                        it.license == licenseTextEntry.license && it.startLine == licenseTextEntry.startLine
+                    }
+                ) {
                     var dedupFileName: String? = null
                     if (licenseTextEntry.isLicenseText)
                         dedupFileName = writeLicenseText(licenseTextEntry, fib, sourceCodeDir, tmpDirectory, provHash)
-                    fileLicensing.licenses.add(FileLicense(licenseTextEntry.license, dedupFileName,
-                        licenseTextEntry.startLine))
+                    fileLicensing.licenses.add(
+                        FileLicense(licenseTextEntry.license, dedupFileName, licenseTextEntry.startLine)
+                    )
                 }
                 if (pack.fileLicensings.none { it.scope == path }) pack.fileLicensings.add(fileLicensing)
             }
@@ -122,7 +130,8 @@ internal class ModeDefault(
         reporterInput.licenseInfoResolver.resolveLicenseFiles(pack.id).files.forEach {
             var path = it.path.replace("\\", "/")
             if (it.path.startsWith(pack.packageRoot) && pack.packageRoot != "") path = path.replaceFirst(
-                pack.packageRoot, "").substring(1)
+                pack.packageRoot, ""
+            ).substring(1)
 
             val fl = pack.fileLicensings.firstOrNull { lic -> lic.scope == path } ?: FileLicensing(path).apply {
                 licenses.add(FileLicense(null))
@@ -142,8 +151,10 @@ internal class ModeDefault(
 
     private fun phaseIII() {
         scanDict[pack.id]?.filter { (_, fib) -> fib.copyrightTextEntries.size > 0 }?.forEach { (_, fib) ->
-            (pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?:
-                FileLicensing(getPathName(pack, fib)).apply { pack.fileLicensings.add(this) })
+            (
+                pack.fileLicensings.firstOrNull { it.scope == getPathName(pack, fib) } ?:
+                FileLicensing(getPathName(pack, fib)).apply { pack.fileLicensings.add(this) }
+            )
                     .apply {
                         fib.copyrightTextEntries.forEach {
                             copyrights.add(FileCopyright(it.matchedText!!))

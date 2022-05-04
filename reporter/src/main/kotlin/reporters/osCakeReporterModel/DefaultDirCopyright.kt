@@ -31,4 +31,5 @@ class DefaultDirCopyright(
     /**
      * [copyright] contains the copyright string.
      */
-    val copyright: String?)
+    val copyright: String?
+)

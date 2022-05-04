@@ -33,7 +33,8 @@ data class FileLicensing(
     /**
      * [scope] contains the name of the file to which the licenses belong.
      */
-    @get:JsonProperty("fileScope") val scope: String) {
+    @get:JsonProperty("fileScope") val scope: String
+) {
     /**
      * Represents the path to the file containing the license text in the archive.
      */

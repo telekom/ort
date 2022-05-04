@@ -34,16 +34,18 @@ import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.utils.common.packZip
 import org.ossreviewtoolkit.utils.common.encodeHex
+import org.ossreviewtoolkit.utils.common.packZip
 
 const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
 const val FOUND_IN_FILE_SCOPE_CONFIGURED = "[CONFIGURED]"
 const val REUSE_LICENSES_FOLDER = "LICENSES/"
 internal const val REPORTER_LOGGER = "OSCakeReporter"
 
-val commentPrefixRegexList = listOf("""\*""", """/\*+""", "//", "#", "<#", """\.\.\.""", "REM",
-    "<!--", "!", "'", "--", ";", """\(\*""", """\{""").generatePrefixRegex()
+val commentPrefixRegexList = listOf(
+    """\*""", """/\*+""", "//", "#", "<#", """\.\.\.""", "REM", "<!--", "!", "'", "--", ";", """\(\*""", """\{"""
+).generatePrefixRegex()
+
 val commentSuffixRegexList = listOf("""\*+/""", "-->", "#>", """\*\)""", """\}""").generateSuffixRegex()
 
 /**
@@ -51,8 +53,10 @@ val commentSuffixRegexList = listOf("""\*+/""", "-->", "#>", """\*\)""", """\}""
  * "license-classifications.yml" (passed as program parameter).
  */
 internal fun isInstancedLicense(input: ReporterInput, license: String): Boolean =
-    input.licenseClassifications.licensesByCategory.getOrDefault("instanced",
-        setOf()).map { it.simpleLicense() }.contains(license)
+    input.licenseClassifications.licensesByCategory.getOrDefault(
+        "instanced",
+        setOf()
+    ).map { it.simpleLicense() }.contains(license)
 
 /**
  * If a file with [path] already exists, a suffix is prepared for uniqueness and the adapted path is returned.
@@ -73,7 +77,8 @@ fun getLicensesFolderPrefix(packageRoot: String) = packageRoot +
         (if (packageRoot != "") "/" else "") + REUSE_LICENSES_FOLDER
 
 fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null): String =
-    id.toPath("%") + "%" + path.replace('/', '%').replace('\\', '%'
+    id.toPath("%") + "%" + path.replace('/', '%').replace(
+        '\\', '%'
     ) + if (fileExtension != null) ".$fileExtension" else ""
 
 /**
@@ -81,16 +86,28 @@ fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null):
  * [ScopeLevel] is identified.
  */
 fun getScopeLevel(path: String, packageRoot: String, treatMetaInfAsDefault: Boolean) =
-    getScopeLevel4All(path, packageRoot, OSCakeConfigParams.scopePatterns, OSCakeConfigParams.scopeIgnorePatterns,
-        OSCakeConfigParams.lowerCaseComparisonOfScopePatterns, treatMetaInfAsDefault)
+    getScopeLevel4All(
+        path, packageRoot, OSCakeConfigParams.scopePatterns, OSCakeConfigParams.scopeIgnorePatterns,
+        OSCakeConfigParams.lowerCaseComparisonOfScopePatterns, treatMetaInfAsDefault
+    )
 
-fun getScopeLevel4Copyrights(path: String, packageRoot: String,
-                             treatMetaInfAsDefault: Boolean) = getScopeLevel4All(path,
-    packageRoot, OSCakeConfigParams.copyrightScopePatterns, OSCakeConfigParams.scopeIgnorePatterns,
-        OSCakeConfigParams.lowerCaseComparisonOfScopePatterns, treatMetaInfAsDefault)
+fun getScopeLevel4Copyrights(
+    path: String,
+    packageRoot: String,
+    treatMetaInfAsDefault: Boolean
+) = getScopeLevel4All(
+    path,
+    packageRoot,
+    OSCakeConfigParams.copyrightScopePatterns,
+    OSCakeConfigParams.scopeIgnorePatterns,
+    OSCakeConfigParams.lowerCaseComparisonOfScopePatterns,
+    treatMetaInfAsDefault
+)
 
-fun getScopeLevel4All(path: String, packageRoot: String, scopePatterns: List<String>, scopeIgnorePatterns: List<String>,
-                      lowerCaseComparisonOfScopePatterns: Boolean, treatMetaInfAsDefault: Boolean): ScopeLevel {
+fun getScopeLevel4All(
+    path: String, packageRoot: String, scopePatterns: List<String>, scopeIgnorePatterns: List<String>,
+                      lowerCaseComparisonOfScopePatterns: Boolean, treatMetaInfAsDefault: Boolean
+): ScopeLevel {
 
     var scopeLevel = ScopeLevel.FILE
     val fileSystem = FileSystems.getDefault()
@@ -99,7 +116,9 @@ fun getScopeLevel4All(path: String, packageRoot: String, scopePatterns: List<Str
         File(File(path).name).toPath()
 
     if (scopeIgnorePatterns.isNotEmpty() && scopeIgnorePatterns.any {
-            fileSystem.getPathMatcher("glob:$it").matches(comparePath) }) return scopeLevel
+            fileSystem.getPathMatcher("glob:$it").matches(comparePath)
+        }
+    ) return scopeLevel
 
     if (scopePatterns.any { fileSystem.getPathMatcher("glob:$it").matches(comparePath) }) {
         scopeLevel = ScopeLevel.DIR
@@ -183,8 +202,10 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
     val packIdList = project.packs.map { it.id.toCoordinates() }
     idList.filterNot { packIdList.contains(it) || it == null }.forEach { idString ->
         issuesPerPackage[idString]?.forEach {
-            addIssue(it, project.issueList, issuesLevel, issueNumberPerPackage[null]!!,
-                it.id?.toCoordinates() ?: "")
+            addIssue(
+                it, project.issueList, issuesLevel, issueNumberPerPackage[null]!!,
+                it.id?.toCoordinates() ?: ""
+            )
         }
     }
 
@@ -219,8 +240,9 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
     propagateHasIssues(project)
 }
 
-    private fun getNextNo(iwe: MutableList<Issue>) = (iwe.filter { !it.id.contains("_") }.maxOfOrNull
-                    { it.id.substring(1).toInt() } ?: 0) + 1
+    private fun getNextNo(iwe: MutableList<Issue>) = (
+            iwe.filter { !it.id.contains("_") }.maxOfOrNull { it.id.substring(1).toInt() } ?: 0
+            ) + 1
 
 /**
  *  sets and propagates hasIssue from the different levels: DefaultLicensing, DirLicensing, Package to Project
@@ -243,16 +265,22 @@ fun propagateHasIssues(project: Project) {
         pack.hasIssues = pkgHasIssues
         projectHasIssues = projectHasIssues || pack.hasIssues
     }
-    project.hasIssues = projectHasIssues || (project.issueList.errors.isNotEmpty() ||
-            project.issueList.warnings.isNotEmpty())
+    project.hasIssues = projectHasIssues || (
+            project.issueList.errors.isNotEmpty() || project.issueList.warnings.isNotEmpty()
+        )
 }
 
 /**
  * Adds issue to the issues list depending on Level information;
  * return true for Warnings and Errors
  */
-internal fun addIssue(oscakeIssue: OSCakeIssue, issueList: IssueList, issuesLevel: Int, no: MutableMap<String, Int>,
-                      suffix: String = ""): Boolean {
+internal fun addIssue(
+    oscakeIssue: OSCakeIssue,
+    issueList: IssueList,
+    issuesLevel: Int,
+    no: MutableMap<String, Int>,
+    suffix: String = ""
+): Boolean {
 
     val prePrefix = if (oscakeIssue.phase == ProcessingPhase.CURATION) "Cur_" else ""
 
@@ -262,12 +290,16 @@ internal fun addIssue(oscakeIssue: OSCakeIssue, issueList: IssueList, issuesLeve
             if (issuesLevel > 1) issueList.infos.add(Issue(getNextNo('I', no, prePrefix, suffix), oscakeIssue.msg))
             false
         }
-        Level.WARN -> { if (issuesLevel > 0) issueList.warnings.add(Issue(getNextNo('W', no, prePrefix, suffix),
-            oscakeIssue.msg))
+        Level.WARN -> {
+            if (issuesLevel > 0) issueList.warnings.add(
+                Issue(getNextNo('W', no, prePrefix, suffix), oscakeIssue.msg)
+            )
             true
         }
-        Level.ERROR -> { if (issuesLevel > -1) issueList.errors.add(Issue(getNextNo('E', no, prePrefix, suffix),
-            oscakeIssue.msg))
+        Level.ERROR -> {
+            if (issuesLevel > -1) issueList.errors.add(
+                Issue(getNextNo('E', no, prePrefix, suffix), oscakeIssue.msg)
+            )
             true
         }
         else -> false
@@ -368,36 +400,47 @@ fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLog
     // consistency check: direction from pack to archive
     val missingFiles = mutableListOf<String>()
     project.packs.forEach { pack ->
-        pack.defaultLicensings.filter { it.licenseTextInArchive != null &&
-                !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() &&
-                it.licenseTextInArchive != FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach {
+        pack.defaultLicensings.filter {
+            it.licenseTextInArchive != null && !File(archiveDir.path + "/" + it.licenseTextInArchive).exists()
+                    && it.licenseTextInArchive != FOUND_IN_FILE_SCOPE_CONFIGURED
+        }.forEach {
             missingFiles.add(it.licenseTextInArchive.toString())
         }
-        pack.reuseLicensings.filter { it.licenseTextInArchive != null &&
-                !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() }.forEach {
+        pack.reuseLicensings.filter {
+            it.licenseTextInArchive != null && !File(archiveDir.path + "/" + it.licenseTextInArchive).exists()
+        }.forEach {
             missingFiles.add(it.licenseTextInArchive.toString())
         }
         pack.dirLicensings.forEach { dirLicensing ->
-            dirLicensing.licenses.filter { it.licenseTextInArchive != null &&
+            dirLicensing.licenses.filter {
+                it.licenseTextInArchive != null &&
                     !File(archiveDir.path + "/" + it.licenseTextInArchive).exists() &&
-                    it.licenseTextInArchive != FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach {
+                    it.licenseTextInArchive != FOUND_IN_FILE_SCOPE_CONFIGURED
+            }.forEach {
                 missingFiles.add(it.licenseTextInArchive.toString())
             }
         }
         pack.fileLicensings.forEach { fileLicensing ->
-            if (fileLicensing.fileContentInArchive != null && !File(archiveDir.path + "/" +
-                        fileLicensing.fileContentInArchive).exists()) {
+            if (fileLicensing.fileContentInArchive != null && !File(
+                    archiveDir.path + "/" + fileLicensing.fileContentInArchive
+                ).exists()
+            ) {
                 missingFiles.add(fileLicensing.fileContentInArchive!!)
             }
-            fileLicensing.licenses.filter { it.licenseTextInArchive != null && !File(archiveDir.path +
-                    "/" + it.licenseTextInArchive).exists() }.forEach {
+            fileLicensing.licenses.filter {
+                it.licenseTextInArchive != null && !File(
+                    archiveDir.path + "/" + it.licenseTextInArchive
+                ).exists()
+            }.forEach {
                 missingFiles.add(it.licenseTextInArchive.toString())
             }
         }
     }
     missingFiles.forEach {
-        logger.log("File: \"${it}\" not found in archive! --> Inconsistency",
-            Level.ERROR, phase = processingPhase
+        logger.log(
+            "File: \"${it}\" not found in archive! --> Inconsistency",
+            Level.ERROR,
+            phase = processingPhase
         )
     }
     if (missingFiles.isNotEmpty()) return true
@@ -427,16 +470,23 @@ fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLog
         if (!found) missingFiles.add(fileName)
     }
     missingFiles.forEach {
-        logger.log("Archived file: \"${it}\": no reference found in oscc-file! Inconsistency",
-            Level.ERROR, phase = processingPhase
+        logger.log(
+            "Archived file: \"${it}\": no reference found in oscc-file! Inconsistency",
+            Level.ERROR,
+            phase = processingPhase
         )
     }
     if (missingFiles.isNotEmpty()) return true
     return false
 }
 
-fun zipAndCleanUp(outputDir: File, tmpDirectory: File, zipFileName: String, logger: OSCakeLogger,
-                  processingPhase: ProcessingPhase): Boolean {
+fun zipAndCleanUp(
+    outputDir: File,
+    tmpDirectory: File,
+    zipFileName: String,
+    logger: OSCakeLogger,
+    processingPhase: ProcessingPhase
+): Boolean {
     val targetFile = File(outputDir.path + "/" + zipFileName)
     if (targetFile.exists()) targetFile.delete()
     try {
@@ -462,5 +512,7 @@ fun stripRelativePathIndicators(name: String): String {
     return name
 }
 
-fun isLikeNOASSERTION(license: String?): Boolean = if (license != null) (license == "NOASSERTION" ||
-        (license.startsWith("LicenseRef-scancode") && license.contains("unknown"))) else false
+fun isLikeNOASSERTION(license: String?): Boolean = if (license != null) (
+        license == "NOASSERTION" ||
+        (license.startsWith("LicenseRef-scancode") && license.contains("unknown"))
+    ) else false

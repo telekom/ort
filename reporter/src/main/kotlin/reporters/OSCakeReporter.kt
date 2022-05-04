@@ -66,12 +66,18 @@ class OSCakeReporter : Reporter {
 
         // relay issues from ORT
         input.ortResult.analyzer?.result?.let {
-            if (it.hasIssues)logger.log("Issue in ORT-ANALYZER - please check ORT-logfile or console output " +
-                    "or scan_result.yml", Level.WARN, phase = ProcessingPhase.ORIGINAL)
+            if (it.hasIssues) logger.log(
+                "Issue in ORT-ANALYZER - please check ORT-logfile or console output or scan_result.yml",
+                Level.WARN,
+                phase = ProcessingPhase.ORIGINAL
+            )
         }
         input.ortResult.scanner?.results?.let {
-            if (it.hasIssues) logger.log("Issue in ORT-SCANNER - please check ORT-logfile or console output " +
-                    "or scan-result.yml", Level.WARN, phase = ProcessingPhase.ORIGINAL)
+            if (it.hasIssues) logger.log(
+                "Issue in ORT-SCANNER - please check ORT-logfile or console output or scan-result.yml",
+                Level.WARN,
+                phase = ProcessingPhase.ORIGINAL
+            )
         }
 
         // start processing
@@ -82,8 +88,13 @@ class OSCakeReporter : Reporter {
         val project = ingestAnalyzerOutput(input, scanDict, outputDir)
 
         OSCakeConfigParams.forceIncludePackages.filter { !it.value }.forEach {
-            logger.log("Package \"${it.key}\" is configured to be present due to \"forceIncludePackages-List\", " +
-                    "but was not found!", Level.WARN, it.key, phase = ProcessingPhase.POST)
+            logger.log(
+                "Package \"${it.key}\" is configured to be present due to \"forceIncludePackages-List\", " +
+                    "but was not found!",
+                Level.WARN,
+                it.key,
+                phase = ProcessingPhase.POST
+            )
         }
 
         if (OSCakeLoggerManager.hasLogger(REPORTER_LOGGER)) {
@@ -119,28 +130,37 @@ class OSCakeReporter : Reporter {
         val scanDataExists = ortScanResultsDir.exists() && ortScanResultsDir.listFiles()!!.isNotEmpty()
 
         require(!(!rawDataExists && !scanDataExists)) {
-                "No native-scan-results found! Check folder $rawDir or re-run the scanner once again!" }
+                "No native-scan-results found! Check folder $rawDir or re-run the scanner once again!"
+        }
 
         if (rawDataExists) {
             // copy raw data to native-scan-results
             if (!ortScanResultsDir.exists()) ortScanResultsDir.mkdir()
             File(rawDir).listFiles()?.forEach {
                 var fileName = getOriginalFolderName(it)
-                require(fileName != null) { "Cannot identify file name in \"${it.name}\" in \"$rawDir\"! " +
-                        "Clean up the folders \"$rawDir\" and ${ortScanResultsDir.name} and re-run the scanner first!" }
+                require(fileName != null) {
+                    "Cannot identify file name in \"${it.name}\" in \"$rawDir\"! " +
+                        "Clean up the folders \"$rawDir\" and ${ortScanResultsDir.name} and re-run the scanner first!"
+                }
 
                 fileName += "scan-results_ScanCode.json"
-                if (ortScanResultsDir.resolve(fileName).exists()) logger.log("File $fileName (${it.name}) " +
-                    "already exists and will be overwritten in ${OSCakeConfigParams.ortScanResultsDir}!", Level.INFO,
-                    phase = ProcessingPhase.PRE)
+                if (ortScanResultsDir.resolve(fileName).exists()) logger.log(
+                    "File $fileName (${it.name}) " +
+                    "already exists and will be overwritten in ${OSCakeConfigParams.ortScanResultsDir}!",
+                    Level.INFO,
+                    phase = ProcessingPhase.PRE
+                )
 
                 it.copyTo(ortScanResultsDir.resolve(fileName), true)
             }
             // delete rawData
             File(rawDir).deleteRecursively()
             File(rawDir).mkdir()
-            logger.log("ScanCode raw data files were copied from $rawDir to ${OSCakeConfigParams.ortScanResultsDir}",
-                Level.INFO, phase = ProcessingPhase.PRE)
+            logger.log(
+                "ScanCode raw data files were copied from $rawDir to ${OSCakeConfigParams.ortScanResultsDir}",
+                Level.INFO,
+                phase = ProcessingPhase.PRE
+            )
         }
     }
 
@@ -176,9 +196,11 @@ class OSCakeReporter : Reporter {
             fibMap.forEach { (_, fib) ->
                 fib.licenseTextEntries.filter { it.score <= OSCakeConfigParams.licenseScoreThreshold }
                     .forEach {
-                        logger.log("Score <${it.score}> of license: ${it.license} in file \"${fib.path}\" is " +
-                               "lower than the configured threshold of " +
-                                "<${OSCakeConfigParams.licenseScoreThreshold}>!", Level.WARN, pkg,
+                        logger.log(
+                            "Score <${it.score}> of license: ${it.license} in file \"${fib.path}\" is " +
+                               "lower than the configured threshold of <${OSCakeConfigParams.licenseScoreThreshold}>!",
+                            Level.WARN,
+                            pkg,
                             phase = ProcessingPhase.PRE
                     )
                 }
@@ -189,8 +211,11 @@ class OSCakeReporter : Reporter {
      * If a file contains more than one license text entry for a specific license and the difference of the
      * scores of the licenses is greater than 1, then the entry is removed - the one with the highest score remains.
      */
-    private fun removeScoreBasedMultipleLicensesPerFile(scanDict: MutableMap<Identifier,
-            MutableMap<String, FileInfoBlock>>) {
+    private fun removeScoreBasedMultipleLicensesPerFile(
+        scanDict: MutableMap<Identifier,
+        MutableMap<String,
+        FileInfoBlock>>
+    ) {
 
         scanDict.forEach { (pkg, fibMap) ->
             fibMap.filter { it.value.licenseTextEntries.size > 1 }
@@ -237,9 +262,13 @@ class OSCakeReporter : Reporter {
 
         // prepare projects and packages
         input.ortResult.analyzer?.result?.projects?.
-            filter { OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
-                    (OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
-                            OSCakeConfigParams.onlyIncludePackages.contains(it.toPackage().id)) }?.
+            filter {
+                OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
+                    (
+                        OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
+                        OSCakeConfigParams.onlyIncludePackages.contains(it.toPackage().id)
+                    )
+            }?.
         forEach {
             val pkg = it.toPackage()
             pkgMap[pkg.id] = it.toPackage()
@@ -254,14 +283,23 @@ class OSCakeReporter : Reporter {
         var cntLevelExcluded = 0
         input.ortResult.analyzer?.result?.packages?.
             filter { !input.ortResult.isExcluded(it.pkg.id) }?.
-            filter { OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
-                        (OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
-                        OSCakeConfigParams.onlyIncludePackages.contains(it.pkg.id)) }?.
+            filter {
+                OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
+                        (
+                                OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
+                                OSCakeConfigParams.onlyIncludePackages.contains(it.pkg.id)
+                        )
+            }?.
         forEach {
             if (OSCakeConfigParams.dependencyGranularity < Int.MAX_VALUE &&
-                OSCakeConfigParams.onlyIncludePackages.isEmpty()) {
-                if (!treeLevelIncluded(evaluatedModel.dependencyTrees, OSCakeConfigParams.dependencyGranularity,
-                        it.pkg.id)) {
+                OSCakeConfigParams.onlyIncludePackages.isEmpty()
+            ) {
+                if (!treeLevelIncluded(
+                        evaluatedModel.dependencyTrees,
+                        OSCakeConfigParams.dependencyGranularity,
+                        it.pkg.id
+                    )
+                ) {
                     cntLevelExcluded++
                     return@forEach
                 }
@@ -275,9 +313,13 @@ class OSCakeReporter : Reporter {
                     reuseCompliant = isREUSECompliant(this, scanDict)
                 }
         }
-        if (cntLevelExcluded > 0) logger.log("Attention: 'dependency-granularity' is restricted to level:" +
+        if (cntLevelExcluded > 0) logger.log(
+            "Attention: 'dependency-granularity' is restricted to level:" +
                 " ${OSCakeConfigParams.dependencyGranularity} via option! $cntLevelExcluded package(s) were" +
-                " excluded!", Level.INFO, phase = ProcessingPhase.PROCESS)
+                " excluded!",
+            Level.INFO,
+            phase = ProcessingPhase.PROCESS
+        )
 
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
@@ -290,9 +332,13 @@ class OSCakeReporter : Reporter {
                     // first is taken
                     input.ortResult.scanner?.results?.scanResults?.get(pkgMap[pack.id]!!.id)?.let {
                         if (it.size > 1) {
-                            logger.log("Package has more than one provenance! " +
-                                    "Only the first one is taken into/from the sourcecode folder!", Level.WARN, pack.id,
-                                phase = ProcessingPhase.PROCESS)
+                            logger.log(
+                                "Package has more than one provenance! " +
+                                    "Only the first one is taken into/from the sourcecode folder!",
+                                Level.WARN,
+                                pack.id,
+                                phase = ProcessingPhase.PROCESS
+                            )
                         }
                     }
                     val provenance = input.ortResult.scanner?.results?.scanResults!![pack.id]!!.first().provenance
@@ -314,12 +360,21 @@ class OSCakeReporter : Reporter {
         project.containsHiddenSections = OSCakeConfigParams.hideSections.isNotEmpty() &&
                 project.hideSections(OSCakeConfigParams.hideSections, tmpDirectory)
 
-        zipAndCleanUp(outputDir, tmpDirectory, project.complianceArtifactCollection.archivePath,
-            logger, ProcessingPhase.POST)
+        zipAndCleanUp(
+            outputDir,
+            tmpDirectory,
+            project.complianceArtifactCollection.archivePath,
+            logger,
+            ProcessingPhase.POST
+        )
 
         OSCakeConfigParams.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
-            logger.log("packageRestrictions are enabled, but the package [$identifier] was not found",
-                Level.WARN, identifier, phase = ProcessingPhase.PROCESS)
+            logger.log(
+                "packageRestrictions are enabled, but the package [$identifier] was not found",
+                Level.WARN,
+                identifier,
+                phase = ProcessingPhase.PROCESS
+            )
         }
         return project
     }
@@ -343,12 +398,20 @@ class OSCakeReporter : Reporter {
 
         input.ortResult.scanner?.results?.scanResults?.
             filter { !input.ortResult.isExcluded(it.key) }?.
-            filter { OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
-                    (OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
-                            OSCakeConfigParams.onlyIncludePackages.contains(it.key)) }?.
+            filter {
+                OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
+                    (
+                            OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
+                            OSCakeConfigParams.onlyIncludePackages.contains(it.key)
+                    )
+            }?.
             forEach { (key, pp) ->
-            if (pp.size > 1) logger.log("Package has more than one provenance! " +
-                            "Only the first one is taken!", Level.WARN, key, phase = ProcessingPhase.SCANRESULT)
+            if (pp.size > 1) logger.log(
+                "Package has more than one provenance! Only the first one is taken!",
+                Level.WARN,
+                key,
+                phase = ProcessingPhase.SCANRESULT
+            )
             if (OSCakeConfigParams.onlyIncludePackages.isNotEmpty()) OSCakeConfigParams.onlyIncludePackages[key] = true
             pp.first().also { scanResult ->
                 try {
@@ -360,11 +423,18 @@ class OSCakeReporter : Reporter {
 
                     scanResult.summary.licenseFindings
                         .filter { !(it.license.toString() == "NOASSERTION" && OSCakeConfigParams.ignoreNOASSERTION) }
-                        .filter { !(it.license.toString().startsWith("LicenseRef") &&
-                                OSCakeConfigParams.ignoreLicenseRef) }
-                        .filter { !(it.license.toString().startsWith("LicenseRef-scancode") &&
+                        .filter {
+                            !(
+                            it.license.toString().startsWith("LicenseRef") && OSCakeConfigParams.ignoreLicenseRef
+                            )
+                        }
+                        .filter {
+                            !(
+                                it.license.toString().startsWith("LicenseRef-scancode") &&
                                 it.license.toString().contains("unknown") &&
-                                OSCakeConfigParams.ignoreLicenseRefScancodeUnknown) }
+                                OSCakeConfigParams.ignoreLicenseRefScancodeUnknown
+                            )
+                        }
                         .forEach {
                         val fileInfoBlock =
                             fileInfoBlockDict.getOrPut(it.location.path) { FileInfoBlock(it.location.path) }
@@ -383,9 +453,12 @@ class OSCakeReporter : Reporter {
                             }
                             fileInfoBlock.licenseTextEntries.add(this)
                             license?.let { lic ->
-                                if (lic.startsWith("LicenseRef")) logger.log("LicenseReference found:" +
-                                        " \"$lic\" in File: \"${fileInfoBlock.path}\"", Level.WARN, key,
-                                    phase = ProcessingPhase.PRE)
+                                if (lic.startsWith("LicenseRef")) logger.log(
+                                    "LicenseReference found: \"$lic\" in File: \"${fileInfoBlock.path}\"",
+                                    Level.WARN,
+                                    key,
+                                    phase = ProcessingPhase.PRE
+                                )
                             }
                         }
                     }
@@ -404,8 +477,12 @@ class OSCakeReporter : Reporter {
                     scanDict[key] = fileInfoBlockDict
                 } catch (fileNotFound: FileNotFoundException) {
                     // if native scan results are not found for one package, we continue, but log an error
-                    logger.log("Native scan result was not found: ${fileNotFound.message}",
-                        Level.ERROR, key, phase = ProcessingPhase.SCANRESULT)
+                    logger.log(
+                        "Native scan result was not found: ${fileNotFound.message}",
+                        Level.ERROR,
+                        key,
+                        phase = ProcessingPhase.SCANRESULT
+                    )
                 }
             }
         }
@@ -426,7 +503,8 @@ class OSCakeReporter : Reporter {
         if (!scanFile.exists()) {
             throw FileNotFoundException(
                 "Cannot find native scan result \"${scanFile.absolutePath}\". Check configuration settings for " +
-                        " 'ortScanResultsDir' ")
+                        " 'ortScanResultsDir' "
+            )
         }
         var node: JsonNode = EMPTY_JSON_NODE
         if (scanFile.isFile && scanFile.length() > 0L) {
@@ -450,7 +528,8 @@ class OSCakeReporter : Reporter {
                 for (license in file["licenses"]) {
                     if (licenseTextEntry.startLine == license["start_line"].intValue() &&
                             licenseTextEntry.endLine == license["end_line"].intValue() &&
-                            licenseTextEntry.license == license["spdx_license_key"].toString().replace("\"", "")) {
+                            licenseTextEntry.license == license["spdx_license_key"].toString().replace("\"", "")
+                    ) {
                         licenseTextEntry.isLicenseText = license["matched_rule"]["is_license_text"].asBoolean()
                         licenseTextEntry.isLicenseNotice = !licenseTextEntry.isLicenseText
                         return

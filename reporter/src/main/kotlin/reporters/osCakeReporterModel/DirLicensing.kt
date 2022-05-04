@@ -30,7 +30,8 @@ data class DirLicensing(
     /**
      * [scope] contains the name of the folder to which the licenses belong.
      */
-    @get:JsonProperty("dirScope") val scope: String) {
+    @get:JsonProperty("dirScope") val scope: String
+) {
     /**
      * [licenses] contains a list of [DirLicense]s.
      */

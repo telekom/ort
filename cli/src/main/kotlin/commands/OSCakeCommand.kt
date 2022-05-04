@@ -141,8 +141,10 @@ class MetaDataManagerOptions : OscakeConfig("Options for oscake application: met
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
         .required()
-    val ignoreFromChecks by option("--ignoreFromChecks", help = "Ignore the semantic checks " +
-            "for \"from\"-tag").flag()
+    val ignoreFromChecks by option(
+        "--ignoreFromChecks",
+        help = "Ignore the semantic checks for \"from\"-tag"
+    ).flag()
 }
 
 /**
@@ -174,9 +176,12 @@ class CuratorOptions : OscakeConfig("Options for oscake application: curator") {
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class MergerOptions : OscakeConfig("Options for oscake application: merger") {
-    internal val inputDir by option("--merInp-Dir", "-mI", help = "The path to a folder containing oscc " +
-            "files and their corresponding archives. May also consist of subdirectories.")
-        .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
+    internal val inputDir by option(
+        "--merInp-Dir",
+        "-mI",
+        help = "The path to a folder containing oscc files and their corresponding archives. May also " +
+                "consist of subdirectories."
+    ).file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
         .convert { it.absoluteFile.normalize() }
         .required()
 
@@ -187,26 +192,32 @@ class MergerOptions : OscakeConfig("Options for oscake application: merger") {
     internal val cid by option("--cid", help = "Id of the Compliance Artifact Collection - IVY format preferred.")
         .required()
 
-    internal val outputFileArg by option("--merOut-File", "-mF", help = "Name of the output file. When -mO is " +
-            "also specified, the path to the outputFile is stripped to its name.")
-        .file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
+    internal val outputFileArg by option(
+        "--merOut-File",
+        "-mF",
+        help = "Name of the output file. When -mO is also specified, the path to the outputFile is stripped " +
+                "to its name."
+    ).file(mustExist = false, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
 
     internal lateinit var outputFile: File
 
     internal fun resolveArgs() {
-        require(!(outputDirArg == null && outputFileArg == null)) { "Either <outputDirectory> and/or <outputFile> " +
-                "must be specified!" }
+        require(!(outputDirArg == null && outputFileArg == null)) {
+            "Either <outputDirectory> and/or <outputFile> must be specified!"
+        }
 
         outputFile = if (outputFileArg == null) {
             val fileName = cid.replace(":", ".")
-            require(isValidFilePathName(fileName)) { "$fileName - output file name not valid - it may contain + " +
-                    "special characters!" }
+            require(isValidFilePathName(fileName)) {
+                "$fileName - output file name not valid - it may contain + special characters!"
+            }
 
             File("$fileName.oscc")
         } else {
-            require(isValidFilePathName(outputFileArg!!.name)) { "$outputFileArg - output file name not " +
-                    "valid - it may contain special characters!" }
+            require(isValidFilePathName(outputFileArg!!.name)) {
+                "$outputFileArg - output file name not valid - it may contain special characters!"
+            }
             outputFileArg as File
         }
 
@@ -315,7 +326,8 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
         val commandLineParams = mutableMapOf<String, String>()
         T::class.memberProperties.filter { !fieldsList.contains(it.name) }.forEach { member ->
             commandLineParams[member.name] = if (member.get(clazz) is File) {
-                getRelativeFileName(member.get(clazz) as File) } else member.get(clazz).toString()
+                getRelativeFileName(member.get(clazz) as File)
+            } else member.get(clazz).toString()
         }
         return commandLineParams
     }
