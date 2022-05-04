@@ -276,7 +276,7 @@ data class Pack(
         }
 
         // manage Copyrights
-        fileLicensings.forEach { fileLicensing ->
+        fileLicensings.filter { it.copyrights.isNotEmpty() }.forEach { fileLicensing ->
             val scopeLevel = getScopeLevel4Copyrights(fileLicensing.scope, packageRoot, treatMetaInfAsDefault)
             if (scopeLevel == ScopeLevel.DEFAULT) {
                 fileLicensing.copyrights.forEach {
