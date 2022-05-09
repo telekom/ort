@@ -70,10 +70,11 @@ internal data class SelectorPackage(
         pack.fileLicensings.forEach { fileLicensing ->
             if (fileLicensing.licenses.map { it.license }.any { CompoundOrLicense(it).isCompound })
                 logger.log("There are still unselected compound licenses in file ${fileLicensing.scope}!",
-                    Level.INFO, phase = ProcessingPhase.SELECTION)
+                    Level.INFO, pack.id, phase = ProcessingPhase.SELECTION)
         }
 
-       if (!hasChanged && pack.fileLicensings.isNotEmpty()) return
+       if (!hasChanged && pack.fileLicensings.isNotEmpty() &&
+           pack.defaultLicensings.none { it.path == FOUND_IN_FILE_SCOPE_DECLARED } ) return
 
        with(pack) {
            if (hasChanged) {
@@ -87,9 +88,13 @@ internal data class SelectorPackage(
            createConsolidatedScopes(logger, ProcessingPhase.SELECTION, archiveDir, true)
 
            // post operations for default licensings
-           defaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED }.forEach { defaultLicense ->
+           defaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED ||
+                   it.path == FOUND_IN_FILE_SCOPE_DECLARED
+           }.forEach { defaultLicense ->
                selectorBlocks.filter { CompoundOrLicense(it.specified) == CompoundOrLicense(defaultLicense.license) }
                    .forEach {
+                       if (defaultLicense.path == FOUND_IN_FILE_SCOPE_DECLARED)
+                           defaultLicense.path = FOUND_IN_FILE_SCOPE_CONFIGURED
                        defaultLicense.originalLicenses = defaultLicense.license
                        defaultLicense.license = it.selected
                    }

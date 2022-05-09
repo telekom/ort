@@ -103,7 +103,7 @@ abstract class ActionProvider internal constructor(
                     " package: $pkgId - don't know which one to take!", Level.ERROR, pkgId,
                 phase = phase
             )
-            // only needed for selector-application with id [GLOBAL]
+            // only needed for selector-applications (selector, metadatamanager) with id [GLOBAL]
             if (globalAllowed && size == 0 && actions.any { it.id.type == GLOBAL_INDICATOR })
                 return actions.first { it.id.type == GLOBAL_INDICATOR }
             if (size != 1) return null
