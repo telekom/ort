@@ -35,8 +35,12 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
  * ComplianceArtifactCollection. The referenced license files are copied from the origin to the new zip-file.
  * In order to create unique file references the path to the files gets a hash code as a prefix
  */
-class OSCakeMerger(private val cid: String, private val inputDir: File, private val outputFile: File,
-                   private val commandLineParams: Map<String, String>) {
+class OSCakeMerger(
+    private val cid: String,
+    private val inputDir: File,
+    private val outputFile: File,
+    private val commandLineParams: Map<String, String>
+    ) {
 
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(MERGER_LOGGER) }
     private val identifier = Identifier(cid)
@@ -53,8 +57,13 @@ class OSCakeMerger(private val cid: String, private val inputDir: File, private 
 
         // merge all packages into new project
 
-        val cac = ComplianceArtifactCollection(cid, MERGER_AUTHOR, MERGER_VERSION, LocalDateTime.now().toString(),
-            archivePath = archiveFileRelativeName)
+        val cac = ComplianceArtifactCollection(
+            cid,
+            MERGER_AUTHOR,
+            MERGER_VERSION,
+            LocalDateTime.now().toString(),
+            archivePath = archiveFileRelativeName
+        )
         val mergedProject = Project.initialize(cac, archiveFile, logger)
 
         inputDir.walkTopDown().filter { it.isFile && it.extension == "oscc" }.forEach { file ->
@@ -81,7 +90,10 @@ class OSCakeMerger(private val cid: String, private val inputDir: File, private 
             it.write(objectMapper.writeValueAsString(mergedProject))
         }
 
-        logger.log("Number of processed oscc-input files: $inputFileCounter", Level.INFO,
-            phase = ProcessingPhase.MERGING)
+        logger.log(
+            "Number of processed oscc-input files: $inputFileCounter",
+            Level.INFO,
+            phase = ProcessingPhase.MERGING
+        )
     }
 }

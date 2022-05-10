@@ -30,19 +30,26 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
     The [PackDeduplicator] deduplicates file licenses and copyrights on all scopes for a specific [pack]age. The
     [tmpDirectory] holds a reference to the directory where the license files are stored (unzipped archive).
  */
-class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
-                       private val config: OSCakeConfiguration) {
-
+class PackDeduplicator(
+    private val pack: Pack,
+    private val tmpDirectory: File,
+    private val config: OSCakeConfiguration
+) {
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(DEDUPLICATION_LOGGER) }
 
     fun deduplicate() {
         if (pack.defaultLicensings.any { it.license?.contains(" OR ") == true } ||
-            pack.fileLicensings.any { fileLicensing -> fileLicensing.licenses.any {
-                it.license?.contains(" OR ") == true } }) {
-
-            logger.log("The package \"${pack.id.toCoordinates()}\" contains compound licenses combined with" +
-                    " \"OR\"! Use resolver/selector applications first!", Level.WARN, pack.id,
-                phase = ProcessingPhase.DEDUPLICATION)
+            pack.fileLicensings.any { fileLicensing ->
+                fileLicensing.licenses.any { it.license?.contains(" OR ") == true }
+            }
+        ) {
+            logger.log(
+                "The package \"${pack.id.toCoordinates()}\" contains compound licenses combined with" +
+                    " \"OR\"! Use resolver/selector applications first!",
+                Level.WARN,
+                pack.id,
+                phase = ProcessingPhase.DEDUPLICATION
+            )
             return
         }
 
@@ -61,7 +68,8 @@ class PackDeduplicator(private val pack: Pack, private val tmpDirectory: File,
         val fileLicensings2Remove = mutableListOf<FileLicensing>()
         pack.fileLicensings.forEach { fileLicensing ->
             if (fileLicensing.licenses.isEmpty() && fileLicensing.copyrights.isEmpty() &&
-                fileLicensing.fileContentInArchive == null) fileLicensings2Remove.add(fileLicensing)
+                fileLicensing.fileContentInArchive == null
+            ) fileLicensings2Remove.add(fileLicensing)
         }
         pack.fileLicensings.removeAll(fileLicensings2Remove)
         pack.dirLicensings.removeAll(pack.dirLicensings.filter { it.licenses.isEmpty() && it.copyrights.isEmpty() })

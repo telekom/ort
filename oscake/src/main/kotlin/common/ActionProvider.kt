@@ -41,8 +41,12 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPha
  * [ActionPackage]s.
  */
 abstract class ActionProvider internal constructor(
-    directory: File, fileStore: File?, loggerName: String,
-    clazz: Any, processingPhase: ProcessingPhase) {
+    directory: File,
+    fileStore: File?,
+    loggerName: String,
+    clazz: Any,
+    processingPhase: ProcessingPhase
+) {
 
     internal val actions = mutableListOf<ActionPackage>()
     /**
@@ -79,8 +83,10 @@ abstract class ActionProvider internal constructor(
                         if (checkSemantics(it, file.name, fileStore)) actions.add(it)
                     }
                 } catch (e: IOException) {
-                    logger.log("Error while processing file: ${file.absoluteFile}! - Action not applied! ${e.message}",
-                        Level.ERROR, phase = phase
+                    logger.log(
+                        "Error while processing file: ${file.absoluteFile}! - Action not applied! ${e.message}",
+                        Level.ERROR,
+                        phase = phase
                     )
                     errors = true
                 }
@@ -99,8 +105,11 @@ abstract class ActionProvider internal constructor(
      */
     internal fun getActionFor(pkgId: Identifier, globalAllowed: Boolean = false): ActionPackage? {
         actions.filter { it.isApplicable(pkgId) }.apply {
-            if (size > 1) logger.log("Error: more than one action was found for" +
-                    " package: $pkgId - don't know which one to take!", Level.ERROR, pkgId,
+            if (size > 1) logger.log(
+                "Error: more than one action was found for" +
+                    " package: $pkgId - don't know which one to take!",
+                Level.ERROR,
+                pkgId,
                 phase = phase
             )
             // only needed for selector-applications (selector, metadatamanager) with id [GLOBAL]

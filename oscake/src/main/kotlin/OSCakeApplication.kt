@@ -71,7 +71,8 @@ const val METADATAMANAGER_ACTOR = "MetaDataManager"
  * Important: the sequence of items in the sets defines also the sequence of curations
  * e.g.: for packageModifier: "update" the sequence of curations is "delete-all", than "delete" and finally "insert"
  */
-val packageModifierMap = hashMapOf("delete" to listOf(setOf(), setOf()),
+val packageModifierMap = hashMapOf(
+    "delete" to listOf(setOf(), setOf()),
     "insert" to listOf(setOf("insert"), setOf("insert")),
     "update" to listOf(setOf("delete", "insert", "update"), setOf("delete-all", "delete", "insert"))
 )
@@ -79,14 +80,16 @@ val packageModifierMap = hashMapOf("delete" to listOf(setOf(), setOf()),
 /**
  * [orderLicenseByModifier] defines the sort order of curations for licenses.
  */
-val orderLicenseByModifier = packageModifierMap.map { it.key to packageModifierMap[it.key]?.get(0)?.
-withIndex()?.associate { a -> a.value to a.index } }.toMap()
+val orderLicenseByModifier = packageModifierMap.map {
+    it.key to packageModifierMap[it.key]?.get(0)?.withIndex()?.associate { a -> a.value to a.index }
+}.toMap()
 
 /**
  * [orderCopyrightByModifier] defines the sort order of curations for copyrights.
  */
-val orderCopyrightByModifier = packageModifierMap.map { it.key to packageModifierMap[it.key]?.get(1)?.
-withIndex()?.associate { a -> a.value to a.index } }.toMap()
+val orderCopyrightByModifier = packageModifierMap.map {
+    it.key to packageModifierMap[it.key]?.get(1)?.withIndex()?.associate { a -> a.value to a.index }
+}.toMap()
 
 /**
  * checks if the value of the optionName in map is a valid file
@@ -95,8 +98,9 @@ fun isValidDirectory(dirName: String?): Boolean =
     if (dirName != null) File(dirName).exists() && File(dirName).isDirectory else false
 
 object OSCakeApplication {
-   val ALL by lazy { listOf("curator", "merger", "deduplicator", "validator", "resolver", "selector",
-       "metadata-manager") }
+   val ALL by lazy {
+       listOf("curator", "merger", "deduplicator", "validator", "resolver", "selector", "metadata-manager")
+   }
 }
 
 /**
@@ -116,8 +120,11 @@ fun isValidFilePathName(path: String): Boolean =
  * transferred to output format. If some parameters are added to the config, the entries will be automatically
  * transferred
  */
-fun addParamsToConfig(config: OSCakeConfiguration, commandLineParams: Map<String, String>,
-                      clazz: Any): ConfigBlockInfo? {
+fun addParamsToConfig(
+    config: OSCakeConfiguration,
+    commandLineParams: Map<String, String>,
+    clazz: Any
+): ConfigBlockInfo? {
     OSCakeConfiguration::class.memberProperties.forEach { member ->
         val paramMap = mutableMapOf<String, String>()
         config.prettyPrint?.let {

@@ -50,7 +50,9 @@ class SelectorProvider(val directory: File) :
             if (!CompoundOrLicense(it.specified).isCompound) {
                 logger.log(
                     "$errorPrefix specified license: \"${it.specified}\" is not a valid Compound-License! " +
-                            errorSuffix, Level.WARN, phase = phase
+                            errorSuffix,
+                    Level.WARN,
+                    phase = phase
                 )
                 return false
             }
@@ -59,7 +61,9 @@ class SelectorProvider(val directory: File) :
             if (it.specified.contains(" AND ")) {
                 logger.log(
                     "$errorPrefix specified license: \"${it.specified}\" contains \"AND\" - this is not a " +
-                            "valid Compound-License, yet! " + errorSuffix, Level.WARN, phase = phase
+                            "valid Compound-License, yet! " + errorSuffix,
+                    Level.WARN,
+                    phase = phase
                 )
                 return false
             }
@@ -69,7 +73,9 @@ class SelectorProvider(val directory: File) :
             if (!cl.licenseList.contains(it.selected)) {
                 logger.log(
                     "$errorPrefix specified license: \"${it.selected}\" is not a valid selection " +
-                            "of \"${it.specified}\"! $errorSuffix", Level.WARN, phase = phase
+                            "of \"${it.specified}\"! $errorSuffix",
+                    Level.WARN,
+                    phase = phase
                 )
                 return false
             }

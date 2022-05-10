@@ -44,7 +44,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPha
 /**
  * [ActionInfo] wraps information about different actions like "curate", etc.
  */
-class ActionInfo private constructor (
+class ActionInfo private constructor(
         val loggerName: String,
         val phase: ProcessingPhase,
         val author: String,

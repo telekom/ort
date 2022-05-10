@@ -66,9 +66,13 @@ internal class ResolverManager(
      */
     override val commandLineParams: Map<String, String>
 
-) : ActionManager(project, outputDir, reportFilename, config,
-    ActionInfo.resolver(config.resolver?.issueLevel ?: -1), commandLineParams) {
-
+) : ActionManager(
+    project,
+    outputDir,
+    reportFilename,
+    config,
+    ActionInfo.resolver(config.resolver?.issueLevel ?: -1), commandLineParams
+) {
     /**
      * The [resolverProvider] contains a list of [ResolverPackage]s to be applied.
      */
@@ -94,8 +98,11 @@ internal class ResolverManager(
             resolverProvider.getActionFor(it.id)?.process(it, archiveDir, logger)
         }
         // 3. report [OSCakeIssue]s
-        if (OSCakeLoggerManager.hasLogger(RESOLVER_LOGGER)) handleOSCakeIssues(project, logger,
-            config.resolver?.issueLevel ?: -1)
+        if (OSCakeLoggerManager.hasLogger(RESOLVER_LOGGER)) handleOSCakeIssues(
+            project,
+            logger,
+            config.resolver?.issueLevel ?: -1
+        )
         // 4. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
         // 5. generate .zip and .oscc files
@@ -111,27 +118,49 @@ internal class ResolverManager(
         if (pack.defaultLicensings.any { it.path == FOUND_IN_FILE_SCOPE_DECLARED })
             analyzedPackageLicenses[pack.id]?.let { analyzerLicenses ->
                 if (analyzerLicenses.mappedLicenses.toList().any { it?.contains(" AND ") == true })
-                    logger.log("DECLARED License expression contains the operator \"AND\" and cannot be processed!",
-                        Level.WARN, phase = ProcessingPhase.RESOLVING)
+                    logger.log(
+                        "DECLARED License expression contains the operator \"AND\" and cannot be processed!",
+                        Level.WARN,
+                        phase = ProcessingPhase.RESOLVING
+                    )
                 else
-                    resolverProvider.actions.add(ResolverPackage(pack.id, listOf(ResolverBlock(
-                        analyzerLicenses.mappedLicenses.toList(), analyzerLicenses.declaredLicensesProcessed,
-                        mutableListOf("")))))
+                    resolverProvider.actions.add(
+                        ResolverPackage(
+                            pack.id,
+                            listOf(
+                                ResolverBlock(
+                                  analyzerLicenses.mappedLicenses.toList(), analyzerLicenses.declaredLicensesProcessed,
+                                  mutableListOf("")
+                                )
+                            )
+                        )
+                    )
             }
         // handle all others if default licenses and declaredLicenses are equivalent
         else {
             if (pack.defaultLicensings.size < 2) return // not dual licensed
             analyzedPackageLicenses[pack.id]?.let { analyzerLicenses ->
-                if (isEqual(analyzerLicenses.mappedLicenses.toSet(),
-                        pack.defaultLicensings.mapNotNull { it.license }.toSet())) {
+                if (isEqual(
+                        analyzerLicenses.mappedLicenses.toSet(),
+                        pack.defaultLicensings.mapNotNull { it.license }.toSet()
+                    )
+                ) {
                     if (analyzerLicenses.declaredLicensesProcessed.split(" ").contains("AND"))
-                        logger.log("License expression contains the operator \"AND\" and cannot be processed!",
-                            Level.WARN, phase = ProcessingPhase.RESOLVING)
+                        logger.log(
+                            "License expression contains the operator \"AND\" and cannot be processed!",
+                            Level.WARN,
+                            phase = ProcessingPhase.RESOLVING
+                        )
                     else
                         resolverProvider.actions.add(
                             ResolverPackage(
-                                pack.id, listOf(ResolverBlock(analyzerLicenses.mappedLicenses.toList(),
-                                analyzerLicenses.declaredLicensesProcessed, mutableListOf("")))
+                                pack.id,
+                                listOf(
+                                    ResolverBlock(
+                                        analyzerLicenses.mappedLicenses.toList(),
+                                        analyzerLicenses.declaredLicensesProcessed, mutableListOf("")
+                                    )
+                                )
                             )
                     )
                 }
@@ -165,17 +194,27 @@ internal class ResolverManager(
             ortResult?.analyzer?.result?.packages?.filter { !ortResult.isExcluded(it.pkg.id) }?.forEach { it ->
                 if (it.pkg.declaredLicenses.size > 1) {
                     if (isValidLicense(it.pkg.declaredLicensesProcessed.spdxExpression.toString()))
-                        licMap[it.pkg.id] = AnalyzerLicenses(it.pkg.declaredLicenses,
+                        licMap[it.pkg.id] = AnalyzerLicenses(
+                            it.pkg.declaredLicenses,
                             it.pkg.declaredLicensesProcessed.spdxExpression.toString(),
-                            it.pkg.declaredLicensesProcessed.mapped)
+                            it.pkg.declaredLicensesProcessed.mapped
+                        )
                     else
-                        logger.log("The package contains a compound license with \"AND\" - this is not supported " +
-                                "by OSCake, yet!", Level.WARN, it.pkg.id, phase = ProcessingPhase.RESOLVING)
+                        logger.log(
+                            "The package contains a compound license with \"AND\" - this is not supported " +
+                                "by OSCake, yet!",
+                            Level.WARN,
+                            it.pkg.id,
+                            phase = ProcessingPhase.RESOLVING
+                        )
                 }
             }
         } else
-            logger.log("Results from ORT-Analyzer not found or not provided!", Level.WARN,
-                phase = ProcessingPhase.RESOLVING)
+            logger.log(
+                "Results from ORT-Analyzer not found or not provided!",
+                Level.WARN,
+                phase = ProcessingPhase.RESOLVING
+            )
         return licMap
     }
 

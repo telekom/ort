@@ -63,9 +63,13 @@ internal class CurationManager(
      * Map of used commandline parameters
      */
     override val commandLineParams: Map<String, String>,
-    ) : ActionManager(project, outputDir, reportFilename, config,
-        ActionInfo.curator(config.curator?.issueLevel ?: -1), commandLineParams) {
-
+    ) : ActionManager(
+        project,
+        outputDir,
+        reportFilename,
+        config,
+        ActionInfo.curator(config.curator?.issueLevel ?: -1), commandLineParams
+) {
     /**
      * [ignoreRootWarnings] is set via the commandline parameters and determines if the project is processed despite
      * warnings
@@ -74,8 +78,10 @@ internal class CurationManager(
     /**
      * The [curationProvider] contains a list of [CurationPackage]s to be applied.
      */
-    private var curationProvider = CurationProvider(File(config.curator?.directory!!),
-        File(config.curator?.fileStore!!))
+    private var curationProvider = CurationProvider(
+        File(config.curator?.directory!!),
+        File(config.curator?.fileStore!!)
+    )
 
     /**
      * The method takes the reporter's output, checks and updates the reported "hasIssues", prioritizes the
@@ -99,8 +105,10 @@ internal class CurationManager(
                             reuseCompliant = checkReuseCompliance(this, packageCuration)
                         }
                     } else {
-                        logger.log("Package: \"${packageCuration.id}\" already exists - no duplication!",
-                            Level.INFO, phase = ProcessingPhase.CURATION
+                        logger.log(
+                            "Package: \"${packageCuration.id}\" already exists - no duplication!",
+                            Level.INFO,
+                            phase = ProcessingPhase.CURATION
                         )
                     }
                 "delete" -> {
@@ -118,8 +126,11 @@ internal class CurationManager(
         }
 
         // 3. report [OSCakeIssue]s
-        if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(project, logger,
-            config.curator?.issueLevel ?: -1)
+        if (OSCakeLoggerManager.hasLogger(CURATION_LOGGER)) handleOSCakeIssues(
+            project,
+            logger,
+            config.curator?.issueLevel ?: -1
+        )
 
         // 4. eliminate root level warnings (only warnings from reporter) when option is set
         if (ignoreRootWarnings) eliminateRootWarnings()

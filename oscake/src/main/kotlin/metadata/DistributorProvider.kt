@@ -34,9 +34,13 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPha
  */
 @Suppress("DuplicatedCode")
 class DistributorProvider(val directory: File) :
-    ActionProvider(directory, null, METADATAMANAGER_LOGGER, DistributorPackage::class,
-        ProcessingPhase.METADATAMANAGER) {
-
+    ActionProvider(
+        directory,
+        null,
+        METADATAMANAGER_LOGGER,
+        DistributorPackage::class,
+        ProcessingPhase.METADATAMANAGER
+) {
     override fun checkSemantics(item: ActionPackage, fileName: String, fileStore: File?): Boolean {
         item as DistributorPackage
         val errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "

@@ -56,9 +56,13 @@ internal class MetaDataManager(
      * Map of passed commandline parameters
      */
     override val commandLineParams: Map<String, String>
-) : ActionManager(project, outputDir, reportFilename, config,
-    ActionInfo.metadatamanager(config.metadatamanager?.issueLevel ?: -1), commandLineParams) {
-
+) : ActionManager(
+        project,
+        outputDir,
+        reportFilename,
+        config,
+        ActionInfo.metadatamanager(config.metadatamanager?.issueLevel ?: -1), commandLineParams
+) {
     /**
      * The [distributorProvider] contains a list of [DistributorPackage]s to be applied.
      */
@@ -85,8 +89,11 @@ internal class MetaDataManager(
                 packageTypeProvider.getActionFor(it.id, true)?.process(it, archiveDir, logger)
             }
         // 3. report [OSCakeIssue]s
-        if (OSCakeLoggerManager.hasLogger(METADATAMANAGER_LOGGER)) handleOSCakeIssues(project, logger,
-            config.metadatamanager?.issueLevel ?: -1)
+        if (OSCakeLoggerManager.hasLogger(METADATAMANAGER_LOGGER)) handleOSCakeIssues(
+            project,
+            logger,
+            config.metadatamanager?.issueLevel ?: -1
+        )
         // 4. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
         // 5. generate .zip and .oscc files

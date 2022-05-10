@@ -56,7 +56,9 @@ internal data class PackageTypePackage(
        } else {
            logger.log(
                "The kind of packageType \"${packageTypeBlock.from}\" is different to the PackageType \"from\"" +
-                       " definition found in file: \"$belongsToFile\"!", Level.WARN, pack.id,
+                       " definition found in file: \"$belongsToFile\"!",
+               Level.WARN,
+               pack.id,
                phase = ProcessingPhase.METADATAMANAGER
            )
        }

@@ -91,8 +91,10 @@ class OSCakeValidator(private val oscc1: File, private val oscc2: File) {
 
     private fun compareFileLicensingDetail(fL1: FileLicensing, fL2: FileLicensing): Boolean {
         if (fL1.fileContentInArchive != fL2.fileContentInArchive) {
-            println("Filescope: ${fL1.scope} fileContentInArchive are different: [${fL1.fileContentInArchive}] " +
-                    "<--> [${fL2.fileContentInArchive}]")
+            println(
+                "Filescope: ${fL1.scope} fileContentInArchive are different: [${fL1.fileContentInArchive}] " +
+                    "<--> [${fL2.fileContentInArchive}]"
+            )
             return false
         }
         if (fL1.licenses.size != fL2.licenses.size)

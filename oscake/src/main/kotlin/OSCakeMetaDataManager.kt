@@ -28,10 +28,11 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 /**
  * The [OSCakeMetaDataManager] provides a mechanism to change the type of distribution in an *.oscc file.
  */
-class OSCakeMetaDataManager(private val config: OSCakeConfiguration,
-                            private val commandLineParams: Map<String, String>) {
+class OSCakeMetaDataManager(
+    private val config: OSCakeConfiguration,
+    private val commandLineParams: Map<String, String>
+) {
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(SELECTOR_LOGGER) }
-
     /**
     * Checks valid commandline parameters and starts the resolving algorithm
     */

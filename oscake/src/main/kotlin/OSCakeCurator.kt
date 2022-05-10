@@ -32,9 +32,10 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
  * The [OSCakeCurator] provides a mechanism to curate issues (WARNINGS & ERRORS) in an *.oscc file. Additionally,
  * ComplianceArtifactPackages can be added and/or deleted.
  */
-class OSCakeCurator(private val config: OSCakeConfiguration,
-                             private val commandLineParams: Map<String, String>) {
-
+class OSCakeCurator(
+    private val config: OSCakeConfiguration,
+    private val commandLineParams: Map<String, String>
+) {
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(CURATION_LOGGER) }
 
     /**
@@ -46,8 +47,11 @@ class OSCakeCurator(private val config: OSCakeConfiguration,
         val outputDir = File(commandLineParams["outputDir"]!!)
         val project = Project.osccToModel(osccFile, logger, ProcessingPhase.CURATION)
 
-        project.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR,
-            RESOLVER_AUTHOR))
+        project.isProcessingAllowed(
+            logger,
+            osccFile,
+            listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR, RESOLVER_AUTHOR)
+        )
 
         project.config?.let { configInfo ->
             addParamsToConfig(config, commandLineParams, this)?.let {

@@ -43,8 +43,11 @@ class OSCakeResolver(private val config: OSCakeConfiguration, private val comman
         val outputDir = File(commandLineParams["outputDir"]!!)
         val project = Project.osccToModel(osccFile, logger, ProcessingPhase.RESOLVING)
 
-        project.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, RESOLVER_AUTHOR, MERGER_AUTHOR,
-            SELECTOR_AUTHOR))
+        project.isProcessingAllowed(
+            logger,
+            osccFile,
+            listOf(DEDUPLICATION_AUTHOR, RESOLVER_AUTHOR, MERGER_AUTHOR, SELECTOR_AUTHOR)
+        )
 
         project.config?.let { configInfo ->
             addParamsToConfig(config, commandLineParams, this)?.let {

@@ -67,29 +67,37 @@ internal class CurationProvider(
 
         // 1. check Package-ID
         if (!packageIdIsValid(item.id)) {
-            logger.log("$errorPrefix package <id> is not valid! $errorSuffix", Level.WARN,
+            logger.log(
+                "$errorPrefix package <id> is not valid! $errorSuffix",
+                Level.WARN,
                 phase = ProcessingPhase.CURATION
             )
             return false
         }
         // 2. check packageModifier
         if (!packageModifierMap.containsKey(item.packageModifier)) {
-            logger.log("$errorPrefix package_modifier <${item.packageModifier}> not valid! " +
-                    errorSuffix, Level.WARN, phase = ProcessingPhase.CURATION
+            logger.log(
+                "$errorPrefix package_modifier <${item.packageModifier}> not valid! " + errorSuffix,
+                Level.WARN,
+                phase = ProcessingPhase.CURATION
             )
             return false
         }
         // 3. no curations allowed for packageModifier: delete
         if (item.packageModifier == "delete" && !item.curations.isNullOrEmpty()) {
-            logger.log("$errorPrefix if package_modifier = \"delete\" no curations are allowed! $errorSuffix",
-                Level.WARN, phase = ProcessingPhase.CURATION
+            logger.log(
+                "$errorPrefix if package_modifier = \"delete\" no curations are allowed! $errorSuffix",
+                Level.WARN,
+                phase = ProcessingPhase.CURATION
             )
             return false
         }
         // 4. repository must be defined for packageModifier: insert
         if (item.packageModifier == "insert" && item.repository == null) {
-            logger.log("$errorPrefix if package_modifier = \"insert\" repository must be defined! $errorSuffix",
-                Level.WARN, phase = ProcessingPhase.CURATION
+            logger.log(
+                "$errorPrefix if package_modifier = \"insert\" repository must be defined! $errorSuffix",
+                Level.WARN,
+                phase = ProcessingPhase.CURATION
             )
             return false
         }
@@ -98,17 +106,25 @@ internal class CurationProvider(
         item.curations?.forEach { curationFileItem ->
             // 5.1 check file_licenses
             if (curationFileItem.fileLicenses?.filter { modifiers.elementAt(0).contains(it.modifier) }?.size !=
-                curationFileItem.fileLicenses?.size) {
-                logger.log("$errorPrefix prohibited package_modifier/modifier combination found in " +
-                        "file_licenses! $errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
+                curationFileItem.fileLicenses?.size
+            ) {
+                logger.log(
+                    "$errorPrefix prohibited package_modifier/modifier combination found in " +
+                        "file_licenses! $errorSuffix",
+                    Level.WARN,
+                    phase = ProcessingPhase.CURATION
                 )
                 return false
             }
             // 5.2 check copyright_licenses
             if (curationFileItem.fileCopyrights?.filter { modifiers.elementAt(1).contains(it.modifier) }?.size !=
-                curationFileItem.fileCopyrights?.size) {
-                logger.log("$errorPrefix prohibited package_modifier/modifier combination found in " +
-                        "copyright_licenses! $errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
+                curationFileItem.fileCopyrights?.size
+            ) {
+                logger.log(
+                    "$errorPrefix prohibited package_modifier/modifier combination found in " +
+                        "copyright_licenses! $errorSuffix",
+                    Level.WARN,
+                    phase = ProcessingPhase.CURATION
                 )
                 return false
             }
@@ -116,7 +132,9 @@ internal class CurationProvider(
         // 6. file_scope: must not be empty string
         item.curations?.forEach { curationFileItem ->
             if (curationFileItem.fileScope == "") {
-                logger.log("$errorPrefix file_scope must be non-empty $errorSuffix", Level.WARN,
+                logger.log(
+                    "$errorPrefix file_scope must be non-empty $errorSuffix",
+                    Level.WARN,
                     phase = ProcessingPhase.CURATION
                 )
                 return false
@@ -127,16 +145,22 @@ internal class CurationProvider(
             if (containsGlobPatternSymbol(curationFileItem.fileScope)) {
                 curationFileItem.fileLicenses?.forEach {
                     if (it.modifier == "insert") {
-                        logger.log("$errorPrefix file_scope contains a glob-pattern-symbol! Not allowed when " +
-                                "modifier is insert $errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
+                        logger.log(
+                            "$errorPrefix file_scope contains a glob-pattern-symbol! Not allowed when " +
+                                "modifier is insert $errorSuffix",
+                            Level.WARN,
+                            phase = ProcessingPhase.CURATION
                         )
                         return false
                     }
                 }
                 curationFileItem.fileCopyrights?.forEach {
                     if (it.modifier == "insert") {
-                        logger.log("$errorPrefix file_scope contains a glob-pattern-symbol! Not allowed when " +
-                                "modifier is insert $errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
+                        logger.log(
+                            "$errorPrefix file_scope contains a glob-pattern-symbol! Not allowed when " +
+                                "modifier is insert $errorSuffix",
+                            Level.WARN,
+                            phase = ProcessingPhase.CURATION
                         )
                         return false
                     }
@@ -147,31 +171,40 @@ internal class CurationProvider(
         item.curations?.forEach { curationFileItem ->
             curationFileItem.fileLicenses?.forEach {
                 if (it.modifier == "insert" && it.license == null) {
-                    logger.log("$errorPrefix modifier(insert)/license = null is not allowed in " +
-                            "file_scope: <${curationFileItem.fileScope}>  not valid! $errorSuffix", Level.WARN,
+                    logger.log(
+                        "$errorPrefix modifier(insert)/license = null is not allowed in " +
+                            "file_scope: <${curationFileItem.fileScope}>  not valid! $errorSuffix",
+                        Level.WARN,
                         phase = ProcessingPhase.CURATION
                     )
                     return false
                 }
                 if (it.modifier == "insert" && it.license == "*") {
-                    logger.log("$errorPrefix modifier(insert)/license combination in file_licensings of " +
-                        "file_scope: <${curationFileItem.fileScope}>  not valid! $errorSuffix", Level.WARN,
+                    logger.log(
+                        "$errorPrefix modifier(insert)/license combination in file_licensings of " +
+                        "file_scope: <${curationFileItem.fileScope}>  not valid! $errorSuffix",
+                        Level.WARN,
                         phase = ProcessingPhase.CURATION
                     )
                     return false
                 }
                 if (it.modifier == "insert" && it.licenseTextInArchive == "*") {
-                    logger.log("$errorPrefix modifier(insert)/license_text_in_archive=\"*\" combination in " +
+                    logger.log(
+                        "$errorPrefix modifier(insert)/license_text_in_archive=\"*\" combination in " +
                             "file_licensings of file_scope: <${curationFileItem.fileScope}>  not valid! $errorSuffix",
-                        Level.WARN, phase = ProcessingPhase.CURATION
+                        Level.WARN,
+                        phase = ProcessingPhase.CURATION
                     )
                     return false
                 }
                 if (it.modifier != "delete" && it.licenseTextInArchive != null && it.licenseTextInArchive != "*") {
                     if (!File(fileStore!!.path + "/" + it.licenseTextInArchive).exists()) {
-                        logger.log("$errorPrefix file <${it.licenseTextInArchive}> does not exist in " +
+                        logger.log(
+                            "$errorPrefix file <${it.licenseTextInArchive}> does not exist in " +
                                 "configured file store found in file_scope: <${curationFileItem.fileScope}>! " +
-                                errorSuffix, Level.WARN, phase = ProcessingPhase.CURATION
+                                errorSuffix,
+                            Level.WARN,
+                            phase = ProcessingPhase.CURATION
                         )
                         return false
                     }
@@ -185,7 +218,8 @@ internal class CurationProvider(
                     "insert" -> if (it.copyright == null || it.copyright == "") {
                         logger.log(
                             "$errorPrefix Copyrights modifier: insert: neither null nor empty string" +
-                                    " is allowed!: <${curationFileItem.fileScope}>! $errorSuffix", Level.WARN,
+                                    " is allowed!: <${curationFileItem.fileScope}>! $errorSuffix",
+                            Level.WARN,
                              phase = ProcessingPhase.CURATION
                         )
                         return false
@@ -194,7 +228,8 @@ internal class CurationProvider(
                         if (it.copyright == null || it.copyright == "") {
                             logger.log(
                                 "$errorPrefix Copyrights modifier: delete: only string or string pattern" +
-                                        " are allowed!: <${curationFileItem.fileScope}>! $errorSuffix", Level.WARN,
+                                        " are allowed!: <${curationFileItem.fileScope}>! $errorSuffix",
+                                Level.WARN,
                                 phase = ProcessingPhase.CURATION
                             )
                             return false
@@ -202,7 +237,8 @@ internal class CurationProvider(
                         if (it.copyright.contains("**")) {
                             logger.log(
                                 "$errorPrefix Copyrights modifier: delete: string pattern <**> is not allowed!:" +
-                                        " <${curationFileItem.fileScope}>! $errorSuffix", Level.WARN,
+                                        " <${curationFileItem.fileScope}>! $errorSuffix",
+                                Level.WARN,
                                 phase = ProcessingPhase.CURATION
                             )
                             return false
@@ -211,7 +247,8 @@ internal class CurationProvider(
                     "delete-all" -> if (it.copyright != null) {
                         logger.log(
                             "$errorPrefix Copyrights modifier: delete-all: only null is allowed: " +
-                                    " <${curationFileItem.fileScope}>! $errorSuffix", Level.WARN,
+                                    " <${curationFileItem.fileScope}>! $errorSuffix",
+                            Level.WARN,
                             phase = ProcessingPhase.CURATION
                         )
                         return false
@@ -228,42 +265,54 @@ internal class CurationProvider(
                     it.fileLicenses?.let { it1 -> curationFileLicenseItems.addAll(it1) }
                 }
                 if (curationFileLicenseItems.size > 1) {
-                    logger.log("$errorPrefix if package_modifier = \"insert\" for REUSE package: more than one " +
-                            "license per file in LICENSES folder is not allowed! $errorSuffix", Level.WARN,
+                    logger.log(
+                        "$errorPrefix if package_modifier = \"insert\" for REUSE package: more than one " +
+                            "license per file in LICENSES folder is not allowed! $errorSuffix",
+                        Level.WARN,
                         phase = ProcessingPhase.CURATION
                     )
                     return false
                 }
             }
             // 10.2 licenseTextInArchive must be NOT null for files in LICENSES folder
-            item.curations?.filter { it.fileScope.startsWith(getLicensesFolderPrefix(""))
+            item.curations?.filter {
+                    it.fileScope.startsWith(getLicensesFolderPrefix(""))
                 }?.forEach { curationFileItem1 ->
                 if (curationFileItem1.fileLicenses?.any { it.licenseTextInArchive == null } == true) {
-                    logger.log("$errorPrefix if package_modifier = \"insert\" for REUSE package: " +
+                    logger.log(
+                        "$errorPrefix if package_modifier = \"insert\" for REUSE package: " +
                             "licenseTextInArchive = null is not allowed for files in LICENSES folder! $errorSuffix",
-                        Level.WARN, phase = ProcessingPhase.CURATION
+                        Level.WARN,
+                        phase = ProcessingPhase.CURATION
                     )
                     return false
                 }
             }
             // 10.3 licenseTextInArchive must be null for files outside the LICENSES folder
-            item.curations?.filter { !it.fileScope.startsWith(getLicensesFolderPrefix(""))
-                }?.forEach { curationFileItem1 ->
+            item.curations?.filter {
+                !it.fileScope.startsWith(getLicensesFolderPrefix(""))
+            }?.forEach { curationFileItem1 ->
                 if (curationFileItem1.fileLicenses?.any { it.licenseTextInArchive != null } == true) {
-                    logger.log("$errorPrefix if package_modifier = \"insert\" for REUSE package: licenseText" +
+                    logger.log(
+                        "$errorPrefix if package_modifier = \"insert\" for REUSE package: licenseText" +
                             "InArchive must be null for files outside of the LICENSES folder! $errorSuffix",
-                        Level.WARN, phase = ProcessingPhase.CURATION
+                        Level.WARN,
+                        phase = ProcessingPhase.CURATION
                     )
                     return false
                 }
             }
         }
         // 11. check "resolvedIssues"
-        if ((item.packageModifier == "insert" || item.packageModifier == "delete") &&
-                    !item.resolvedIssues.isNullOrEmpty()) {
+        if (
+            (item.packageModifier == "insert" || item.packageModifier == "delete") &&
+            !item.resolvedIssues.isNullOrEmpty()
+        ) {
             logger.log(
                 "$errorPrefix When package_modifier == insert or delete, the resolved_issues " +
-                        "list must be null or empty! $errorSuffix", Level.WARN, phase = ProcessingPhase.CURATION
+                        "list must be null or empty! $errorSuffix",
+                Level.WARN,
+                phase = ProcessingPhase.CURATION
             )
             return false
         }
@@ -291,8 +340,10 @@ internal class CurationProvider(
         } ?: false
 
     private fun containsGlobPatternSymbol(path: String): Boolean =
-        (path.contains('*') || path.contains('?') || path.contains('[') || path.contains(']') ||
-                path.contains('{') || path.contains('}') || path.contains('!'))
+        (
+            path.contains('*') || path.contains('?') || path.contains('[') || path.contains(']') ||
+            path.contains('{') || path.contains('}') || path.contains('!')
+        )
 
     /**
      * The method checks if a given [id] is valid: [id] must consist of type, namespace and name - version

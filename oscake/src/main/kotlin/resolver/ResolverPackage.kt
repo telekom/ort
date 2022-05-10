@@ -81,7 +81,10 @@ internal data class ResolverPackage(
                removePackageIssues().takeIf { it.isNotEmpty() }?.also {
                    logger.log(
                        "The original issues (ERRORS/WARNINGS) were removed due to Resolver actions: " +
-                               it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.RESOLVING
+                               it.joinToString(", "),
+                       Level.WARN,
+                       this.id,
+                       phase = ProcessingPhase.RESOLVING
                    )
                } // because the content has changed
            }
@@ -98,7 +101,8 @@ internal data class ResolverPackage(
        // e.g. for fileScope is complete filename
        scopeLicenses.forEach { pair ->
            if (fileScope == pair.first &&
-               fileLicensing.coversAllLicenses(pair.second.licenses.mapNotNull { it }.toSortedSet()))
+               fileLicensing.coversAllLicenses(pair.second.licenses.mapNotNull { it }.toSortedSet())
+           )
                return pair.second
        }
 
@@ -106,7 +110,8 @@ internal data class ResolverPackage(
        if (fileLicensing.scope.isNotEmpty()) {
            scopeLicenses.forEach { pair ->
                if (dirScope.startsWith(pair.first) &&
-                   fileLicensing.coversAllLicenses(pair.second.licenses.mapNotNull { it }.toSortedSet()))
+                   fileLicensing.coversAllLicenses(pair.second.licenses.mapNotNull { it }.toSortedSet())
+               )
                    dirList.add(Pair(pair.first, dirScope.replaceFirst(pair.first, "").length))
            }
            if (dirList.isNotEmpty()) {

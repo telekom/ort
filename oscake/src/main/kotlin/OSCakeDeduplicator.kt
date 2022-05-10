@@ -35,9 +35,11 @@ import org.ossreviewtoolkit.utils.common.unpackZip
 /**
  * The [OSCakeDeduplicator] deduplicates licenses and copyrights in all scopes
  */
-class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val osccFile: File,
-                         private val commandLineParams: Map<String, String>) {
-
+class OSCakeDeduplicator(
+    private val config: OSCakeConfiguration,
+    private val osccFile: File,
+    private val commandLineParams: Map<String, String>
+) {
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(DEDUPLICATION_LOGGER) }
 
     /**
@@ -66,18 +68,30 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
         project.packs.forEach {
             var process = true
             if (config.deduplicator?.processPackagesWithIssues == true) {
-                if (it.hasIssues) logger.log("Package will be deduplicated, although \"hasIssues=true\"",
-                        Level.INFO, it.id, phase = ProcessingPhase.DEDUPLICATION)
+                if (it.hasIssues) logger.log(
+                    "Package will be deduplicated, although \"hasIssues=true\"",
+                    Level.INFO,
+                    it.id,
+                    phase = ProcessingPhase.DEDUPLICATION
+                )
             } else {
                 if (it.hasIssues) {
-                    logger.log("Package is not deduplicated, because \"hasIssues=true\"",
-                        Level.INFO, it.id, phase = ProcessingPhase.DEDUPLICATION)
+                    logger.log(
+                        "Package is not deduplicated, because \"hasIssues=true\"",
+                        Level.INFO,
+                        it.id,
+                        phase = ProcessingPhase.DEDUPLICATION
+                    )
                     process = false
                 }
             }
             if (it.reuseCompliant) {
-                logger.log("Package is REUSE compliant and is not deduplicated!",
-                    Level.INFO, it.id, phase = ProcessingPhase.DEDUPLICATION)
+                logger.log(
+                    "Package is REUSE compliant and is not deduplicated!",
+                    Level.INFO,
+                    it.id,
+                    phase = ProcessingPhase.DEDUPLICATION
+                )
                 process = false
             }
             if (process) PackDeduplicator(it, archiveDir, config).deduplicate()
@@ -103,8 +117,13 @@ class OSCakeDeduplicator(private val config: OSCakeConfiguration, private val os
 
         var rc = compareLTIAwithArchive(project, archiveDir, logger, ProcessingPhase.DEDUPLICATION)
         rc = rc || project.modelToOscc(reportFile, logger, ProcessingPhase.DEDUPLICATION, config.prettyPrint ?: false)
-        rc = rc || zipAndCleanUp(File(osccFile.parent), archiveDir,
-            project.complianceArtifactCollection.archivePath, logger, ProcessingPhase.DEDUPLICATION)
+        rc = rc || zipAndCleanUp(
+            File(osccFile.parent),
+            archiveDir,
+            project.complianceArtifactCollection.archivePath,
+            logger,
+            ProcessingPhase.DEDUPLICATION
+        )
         if (rc) {
             logger.log("Deduplicator terminated with errors!", Level.ERROR, phase = ProcessingPhase.DEDUPLICATION)
             exitProcess(3)

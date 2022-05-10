@@ -41,8 +41,11 @@ class OSCakeSelector(private val config: OSCakeConfiguration, private val comman
         val outputDir = File(commandLineParams["outputDir"]!!)
         val project = Project.osccToModel(osccFile, logger, ProcessingPhase.SELECTION)
 
-        project.isProcessingAllowed(logger, osccFile, listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR,
-            SELECTOR_AUTHOR))
+        project.isProcessingAllowed(
+            logger,
+            osccFile,
+            listOf(DEDUPLICATION_AUTHOR, CURATION_AUTHOR, MERGER_AUTHOR, SELECTOR_AUTHOR)
+        )
 
         project.config?.let { configInfo ->
             addParamsToConfig(config, commandLineParams, this)?.let {

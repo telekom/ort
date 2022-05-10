@@ -58,8 +58,9 @@ internal data class SelectorPackage(
         var hasChanged = false
         selectorBlocks.forEach { block ->
             pack.fileLicensings.forEach { fileLicensing ->
-                fileLicensing.licenses.filter { it.license != null &&
-                        CompoundOrLicense(it.license) == CompoundOrLicense(block.specified) }.forEach {
+                fileLicensing.licenses.filter {
+                    it.license != null && CompoundOrLicense(it.license) == CompoundOrLicense(block.specified)
+                }.forEach {
                     it.originalLicenses = CompoundOrLicense(it.license!!).toString()
                     it.license = block.selected
                     hasChanged = true
@@ -69,27 +70,35 @@ internal data class SelectorPackage(
         // log when compound license still exists --> no action was defined for this case
         pack.fileLicensings.forEach { fileLicensing ->
             if (fileLicensing.licenses.map { it.license }.any { CompoundOrLicense(it).isCompound })
-                logger.log("There are still unselected compound licenses in file ${fileLicensing.scope}!",
-                    Level.INFO, pack.id, phase = ProcessingPhase.SELECTION)
+                logger.log(
+                    "There are still unselected compound licenses in file ${fileLicensing.scope}!",
+                    Level.INFO,
+                    pack.id,
+                    phase = ProcessingPhase.SELECTION
+                )
         }
 
        if (!hasChanged && pack.fileLicensings.isNotEmpty() &&
-           pack.defaultLicensings.none { it.path == FOUND_IN_FILE_SCOPE_DECLARED } ) return
+           pack.defaultLicensings.none { it.path == FOUND_IN_FILE_SCOPE_DECLARED }
+       ) return
 
        with(pack) {
            if (hasChanged) {
                removePackageIssues().takeIf { it.isNotEmpty() }?.also {
                    logger.log(
                        "The original issues (ERRORS/WARNINGS) were removed due to Selector actions: " +
-                               it.joinToString(", "), Level.WARN, this.id, phase = ProcessingPhase.SELECTION
+                               it.joinToString(", "),
+                       Level.WARN,
+                       this.id,
+                       phase = ProcessingPhase.SELECTION
                    )
                } // because the content has changed
            }
            createConsolidatedScopes(logger, ProcessingPhase.SELECTION, archiveDir, true)
 
            // post operations for default licensings
-           defaultLicensings.filter { it.path == FOUND_IN_FILE_SCOPE_CONFIGURED ||
-                   it.path == FOUND_IN_FILE_SCOPE_DECLARED
+           defaultLicensings.filter {
+               it.path == FOUND_IN_FILE_SCOPE_CONFIGURED || it.path == FOUND_IN_FILE_SCOPE_DECLARED
            }.forEach { defaultLicense ->
                selectorBlocks.filter { CompoundOrLicense(it.specified) == CompoundOrLicense(defaultLicense.license) }
                    .forEach {

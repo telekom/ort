@@ -61,9 +61,14 @@ internal class SelectorManager(
      */
     override val commandLineParams: Map<String, String>
 
-) : ActionManager(project, outputDir, reportFilename, config,
-    ActionInfo.selector(config.selector?.issueLevel ?: -1), commandLineParams) {
-
+) : ActionManager(
+    project,
+    outputDir,
+    reportFilename,
+    config,
+    ActionInfo.selector(config.selector?.issueLevel ?: -1),
+    commandLineParams
+) {
     /**
      * The [selectorProvider] contains a list of [SelectorPackage]s to be applied.
      */
@@ -84,14 +89,21 @@ internal class SelectorManager(
             pack.fileLicensings.forEach { fileLicensing ->
                 fileLicensing.licenses.forEach {
                     if (CompoundOrLicense(it.license).isCompound && it.originalLicenses == null)
-                        logger.log("Compound license \"${it.license}\": no selector was found for this license!",
-                            Level.WARN, pack.id, phase = ProcessingPhase.SELECTION)
+                        logger.log(
+                            "Compound license \"${it.license}\": no selector was found for this license!",
+                            Level.WARN,
+                            pack.id,
+                            phase = ProcessingPhase.SELECTION
+                        )
                 }
             }
         }
         // 3. report [OSCakeIssue]s
-        if (OSCakeLoggerManager.hasLogger(SELECTOR_LOGGER)) handleOSCakeIssues(project, logger,
-            config.selector?.issueLevel ?: -1)
+        if (OSCakeLoggerManager.hasLogger(SELECTOR_LOGGER)) handleOSCakeIssues(
+            project,
+            logger,
+            config.selector?.issueLevel ?: -1
+        )
         // 4. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
         // 5. generate .zip and .oscc files

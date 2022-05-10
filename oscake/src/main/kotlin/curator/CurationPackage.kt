@@ -90,22 +90,37 @@ internal data class CurationPackage(
         curations?.filter { it.fileScope != CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
             val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
             // manage licenses
-            curationFileItem.fileLicenses?.sortedBy { orderLicenseByModifier[packageModifier]?.get(it.modifier)
-                }?.forEach { curationFileLicenseItem ->
+            curationFileItem.fileLicenses?.sortedBy {
+                orderLicenseByModifier[packageModifier]?.get(it.modifier)
+            }?.forEach { curationFileLicenseItem ->
                 when (curationFileLicenseItem.modifier) {
-                    "insert" -> curateLicenseInsert(curationFileItem, curationFileLicenseItem, pack, archiveDir,
-                        fileStore!!)
-                    "delete" -> curateLicenseDelete(curationFileItem, curationFileLicenseItem, pack, archiveDir)
+                    "insert" -> curateLicenseInsert(
+                        curationFileItem,
+                        curationFileLicenseItem,
+                        pack,
+                        archiveDir,
+                        fileStore!!
+                    )
+                    "delete" -> curateLicenseDelete(
+                        curationFileItem,
+                        curationFileLicenseItem,
+                        pack,
+                        archiveDir
+                    )
                     "update" -> curateLicenseUpdate(
-                        curationFileItem, curationFileLicenseItem, pack, archiveDir,
+                        curationFileItem,
+                        curationFileLicenseItem,
+                        pack,
+                        archiveDir,
                         fileStore!!
                     )
                 }
                 pack.resetTreatMetaInfAsDefault()
             }
             // manage copyrights
-            curationFileItem.fileCopyrights?.sortedBy { orderCopyrightByModifier[packageModifier]?.get(it.modifier)
-                }?.forEach { curationFileCopyrightItem ->
+            curationFileItem.fileCopyrights?.sortedBy {
+                orderCopyrightByModifier[packageModifier]?.get(it.modifier)
+            }?.forEach { curationFileCopyrightItem ->
                 when (curationFileCopyrightItem.modifier) {
                     "insert" -> curateCopyrightInsert(fileScope, curationFileCopyrightItem, pack)
                     "delete" -> curateCopyrightDelete(fileScope, pack, curationFileCopyrightItem.copyright!!)
@@ -116,29 +131,45 @@ internal data class CurationPackage(
         // handle curations for specific fileScope == CURATION_DEFAULT_LICENSING
         curations?.filter { it.fileScope == CURATION_DEFAULT_LICENSING }?.forEach { curationFileItem ->
             // no need for Copyright handling due to CURATION_DEFAULT_LICENSING
-            curationFileItem.fileLicenses?.sortedBy { orderLicenseByModifier[packageModifier]?.get(it.modifier)
-                }?.forEach { curationFileLicenseItem ->
+            curationFileItem.fileLicenses?.sortedBy {
+                orderLicenseByModifier[packageModifier]?.get(it.modifier)
+            }?.forEach { curationFileLicenseItem ->
                 when (curationFileLicenseItem.modifier) {
                     "insert" -> if (pack.defaultLicensings.isEmpty())
-                        pack.defaultLicensings.add(DefaultLicense(curationFileLicenseItem.license,
-                            FOUND_IN_FILE_SCOPE_DECLARED, insertLTIA(
-                                curationFileLicenseItem.licenseTextInArchive,
-                                archiveDir, curationFileLicenseItem.license!!, fileStore!!, pack
-                            ), true)
-                        ) else logger.log("Insert of a default license is not allowed because one already exists! " +
-                            "Delete it beforehand!", Level.WARN, pack.id, phase = ProcessingPhase.CURATION)
+                        pack.defaultLicensings.add(
+                            DefaultLicense(
+                                curationFileLicenseItem.license,
+                                FOUND_IN_FILE_SCOPE_DECLARED,
+                                insertLTIA(
+                                    curationFileLicenseItem.licenseTextInArchive,
+                                    archiveDir,
+                                    curationFileLicenseItem.license!!,
+                                    fileStore!!,
+                                    pack
+                                ),
+                                true
+                            )
+                        ) else logger.log(
+                        "Insert of a default license is not allowed because one already exists! " +
+                            "Delete it beforehand!",
+                        Level.WARN,
+                        pack.id,
+                        phase = ProcessingPhase.CURATION
+                    )
                     "delete" -> pack.defaultLicensings.filter {
-                        it.declared && (it.license == curationFileLicenseItem.license ||
-                                curationFileLicenseItem.license == "*") &&
-                                (it.licenseTextInArchive == curationFileLicenseItem.licenseTextInArchive ||
-                                        curationFileLicenseItem.licenseTextInArchive == "*")
+                        it.declared && (
+                                it.license == curationFileLicenseItem.license || curationFileLicenseItem.license == "*"
+                                ) && (
+                                    it.licenseTextInArchive == curationFileLicenseItem.licenseTextInArchive ||
+                                    curationFileLicenseItem.licenseTextInArchive == "*"
+                                )
                     }.onEach { deleteFromArchive(it.licenseTextInArchive, archiveDir) }.also {
                         pack.defaultLicensings.removeAll(it)
                     }
                     "update" -> pack.defaultLicensings.filter {
-                        it.declared && (it.license == curationFileLicenseItem.license ||
-                                curationFileLicenseItem.license == "*") &&
-                                it.licenseTextInArchive != curationFileLicenseItem.licenseTextInArchive
+                        it.declared && (
+                                it.license == curationFileLicenseItem.license || curationFileLicenseItem.license == "*"
+                            ) && it.licenseTextInArchive != curationFileLicenseItem.licenseTextInArchive
                     }.forEach {
                         deleteFromArchive(it.licenseTextInArchive, archiveDir)
                         it.licenseTextInArchive = curationFileLicenseItem.licenseTextInArchive
@@ -167,20 +198,21 @@ internal data class CurationPackage(
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileSystem = FileSystems.getDefault()
 
-        pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
-            File(it.scope).toPath()
-        ) }.forEach { fileLicensing ->
+        pack.fileLicensings.filter {
+            fileSystem.getPathMatcher("glob:$fileScope").matches(File(it.scope).toPath())
+        }.forEach { fileLicensing ->
             fileLicensing.licenses.filter {
                 curationFileLicenseItem.license == "*" || curationFileLicenseItem.license == it.license
                 }.forEach { fileLicense ->
                     if (fileLicense.licenseTextInArchive != null &&
-                        curationFileLicenseItem.licenseTextInArchive == null) {
+                        curationFileLicenseItem.licenseTextInArchive == null
+                    ) {
                         deleteFromArchive(fileLicense.licenseTextInArchive, archiveDir)
                         fileLicense.licenseTextInArchive = null
                     }
                     if (curationFileLicenseItem.licenseTextInArchive != "*" &&
-                        curationFileLicenseItem.licenseTextInArchive != null) {
-
+                        curationFileLicenseItem.licenseTextInArchive != null
+                    ) {
                         if (fileLicense.licenseTextInArchive != null &&
                             fileLicense.licenseTextInArchive != curationFileLicenseItem.licenseTextInArchive
                         ) {
@@ -217,9 +249,9 @@ internal data class CurationPackage(
         val fileScope = getPathWithoutPackageRoot(pack, curationFileItem.fileScope)
         val fileSystem = FileSystems.getDefault()
 
-        pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
-            File(it.scope).toPath()
-        ) }.forEach { fileLicensing ->
+        pack.fileLicensings.filter {
+            fileSystem.getPathMatcher("glob:$fileScope").matches(File(it.scope).toPath())
+        }.forEach { fileLicensing ->
 
             val itemsClone = mutableListOf<FileLicense>().apply { addAll(fileLicensing.licenses) }
             fileLicensing.licenses.clear()
@@ -227,11 +259,15 @@ internal data class CurationPackage(
                 var copyCandidate = true
                 if (curationFileLicenseItem.license == "*") {
                     if (curationFileLicenseItem.licenseTextInArchive == licenseEntry.licenseTextInArchive ||
-                        curationFileLicenseItem.licenseTextInArchive == "*") copyCandidate = false
+                        curationFileLicenseItem.licenseTextInArchive == "*"
+                    ) copyCandidate = false
                 } else {
                     if (curationFileLicenseItem.license == licenseEntry.license &&
-                        (curationFileLicenseItem.licenseTextInArchive == licenseEntry.licenseTextInArchive ||
-                                curationFileLicenseItem.licenseTextInArchive == "*")) copyCandidate = false
+                        (
+                                curationFileLicenseItem.licenseTextInArchive == licenseEntry.licenseTextInArchive ||
+                                curationFileLicenseItem.licenseTextInArchive == "*"
+                        )
+                    ) copyCandidate = false
                 }
                 if (copyCandidate)
                     fileLicensing.licenses.add(licenseEntry)
@@ -254,9 +290,13 @@ internal data class CurationPackage(
         pack: Pack
     ) {
         val copyrightStatement = curFileCopyrightItem.copyright!!.replace("\\?", "?").replace("\\*", "*")
-        (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: (FileLicensing(fileScope).apply {
-            pack.fileLicensings.add(this)
-        })).apply {
+        (
+            pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: (
+            FileLicensing(fileScope).apply {
+                pack.fileLicensings.add(this)
+                }
+            )
+        ).apply {
             // prevent duplicate entries
             if (copyrights.none { it.copyright == copyrightStatement }) {
                 copyrights.add(FileCopyright(copyrightStatement))
@@ -268,9 +308,9 @@ internal data class CurationPackage(
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
         val fileSystem = FileSystems.getDefault()
 
-        pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
-            File(it.scope).toPath()
-        ) }.forEach { fileLicensing ->
+        pack.fileLicensings.filter {
+            fileSystem.getPathMatcher("glob:$fileScope").matches(File(it.scope).toPath())
+        }.forEach { fileLicensing ->
                 fileLicensing.copyrights.clear()
                 if (fileLicensing.licenses.isEmpty() && fileLicensing.copyrights.isEmpty()) {
                     fileLicensingsToDelete.add(fileLicensing)
@@ -287,9 +327,9 @@ internal data class CurationPackage(
         val fileLicensingsToDelete = mutableListOf<FileLicensing>()
         val fileSystem = FileSystems.getDefault()
 
-        pack.fileLicensings.filter { fileSystem.getPathMatcher("glob:$fileScope").matches(
-            File(it.scope).toPath()
-        ) }.forEach { fileLicensing ->
+        pack.fileLicensings.filter {
+            fileSystem.getPathMatcher("glob:$fileScope").matches(File(it.scope).toPath())
+        }.forEach { fileLicensing ->
             val copyrightsToDelete = mutableListOf<FileCopyright>()
             fileLicensing.copyrights.filter { matchExt(copyrightMatch, it.copyright) }.forEach {
                 copyrightsToDelete.add(it)
@@ -305,8 +345,10 @@ internal data class CurationPackage(
     // simple pattern matching
     // replace escaped characters with arbitrary character
     private fun matchExt(copyrightMatch: String, compareString: String): Boolean {
-        return match(copyrightMatch.replace("\\*", "Ä").replace("\\?", "Ö"),
-            compareString.replace("*", "Ä").replace("?", "Ö"))
+        return match(
+            copyrightMatch.replace("\\*", "Ä").replace("\\?", "Ö"),
+            compareString.replace("*", "Ä").replace("?", "Ö")
+        )
     }
 
     private fun match(wildCardString: String, compareString: String): Boolean {
@@ -325,8 +367,13 @@ internal data class CurationPackage(
             compareString.substring(1)
         )
 
-        return if (wildCardString.isNotEmpty() && wildCardString[0] == '*') match(wildCardString.substring(1),
-            compareString) || match(wildCardString, compareString.substring(1)) else false
+        return if (wildCardString.isNotEmpty() && wildCardString[0] == '*') match(
+                wildCardString.substring(1),
+                compareString
+            ) || match(
+                wildCardString,
+                compareString.substring(1)
+        ) else false
     }
 
     private fun curateLicenseInsert(
@@ -340,9 +387,13 @@ internal data class CurationPackage(
         val fileLicense: FileLicense
         (pack.fileLicensings.firstOrNull { it.scope == fileScope } ?: FileLicensing(fileScope)).apply {
             if (pack.reuseCompliant && licenses.isNotEmpty()) {
-                logger.log("In REUSE compliant projects only one license per file is allowed --> curation " +
-                        "insert ignored!", Level.WARN, pack.id, curationFileItem.fileScope,
-                    phase = ProcessingPhase.CURATION)
+                logger.log(
+                    "In REUSE compliant projects only one license per file is allowed --> curation insert ignored!",
+                    Level.WARN,
+                    pack.id,
+                    curationFileItem.fileScope,
+                    phase = ProcessingPhase.CURATION
+                )
                 return
             }
             fileLicense = FileLicense(
@@ -372,8 +423,12 @@ internal data class CurationPackage(
         File(fileStore.path + "/" + newPath).apply {
             if (exists()) copyTo(targetFileDeDup)
             else {
-                logger.log("File '$name' in file store not found --> set to null", Level.ERROR, pack.id,
-                    phase = ProcessingPhase.CURATION)
+                logger.log(
+                    "File '$name' in file store not found --> set to null",
+                    Level.ERROR,
+                    pack.id,
+                    phase = ProcessingPhase.CURATION
+                )
                 return null
             }
         }
@@ -408,11 +463,19 @@ internal data class CurationPackage(
         val issueList2resolveClone = issueList2resolve.toList()
         val remedyListClone = remedyList.toList()
         issueList2resolve.removeAll(remedyList)
-        if (issueList2resolve.isNotEmpty()) logger.log("Not every issue is resolved from package, the following" +
-                " issues still remain: $issueList2resolve", Level.WARN, pack.id, phase = ProcessingPhase.CURATION)
+        if (issueList2resolve.isNotEmpty()) logger.log(
+            "Not every issue is resolved from package, the following issues still remain: $issueList2resolve",
+            Level.WARN,
+            pack.id,
+            phase = ProcessingPhase.CURATION
+        )
         remedyList.removeAll(issueList2resolveClone)
-        if (remedyList.isNotEmpty()) logger.log("Curation treats more issues, than the package really has: " +
-                    " $remedyList", Level.WARN, pack.id, phase = ProcessingPhase.CURATION)
+        if (remedyList.isNotEmpty()) logger.log(
+            "Curation treats more issues, than the package really has: $remedyList",
+            Level.WARN,
+            pack.id,
+            phase = ProcessingPhase.CURATION
+        )
 
         // remove curated issues
         pack.issueList.infos.removeAll { remedyListClone.contains(it.id) }

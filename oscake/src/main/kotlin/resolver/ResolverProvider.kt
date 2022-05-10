@@ -97,7 +97,9 @@ class ResolverProvider(val directory: File) :
                 if (listOfLicenseLists.size != listOfLicenseLists.distinct().size) {
                     logger.log(
                         "$errorPrefix found multiple blocks for scope \"$key\" with equal licenses --> " +
-                                "not allowed! $errorSuffix", Level.WARN, phase = phase
+                                "not allowed! $errorSuffix",
+                        Level.WARN,
+                        phase = phase
                     )
                     return false
                 }

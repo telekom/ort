@@ -87,8 +87,9 @@ open class ActionManager(
      */
     fun createResultingFiles(archiveDir: File) {
         val reportFile = File(File(reportFilename).parent).resolve(
-            extendFilename(File(reportFilename),
-            actionInfo.suffix
+            extendFilename(
+                File(reportFilename),
+                actionInfo.suffix
             )
         )
         val sourceZipFileName = File(stripRelativePathIndicators(project.complianceArtifactCollection.archivePath))
@@ -112,10 +113,17 @@ open class ActionManager(
 
         rc = rc || ActionProvider.errors
         if (!rc) {
-            logger.log("${actionInfo.actor} terminated successfully! Result is written to: ${reportFile.name}",
-                Level.INFO, phase = actionInfo.phase)
+            logger.log(
+                "${actionInfo.actor} terminated successfully! Result is written to: ${reportFile.name}",
+                Level.INFO,
+                phase = actionInfo.phase
+            )
         } else {
-            logger.log("${actionInfo.actor} terminated with errors!", Level.ERROR, phase = actionInfo.phase)
+            logger.log(
+                "${actionInfo.actor} terminated with errors!",
+                Level.ERROR,
+                phase = actionInfo.phase
+            )
             exitProcess(4)
         }
     }

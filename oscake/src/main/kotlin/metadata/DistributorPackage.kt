@@ -56,7 +56,9 @@ internal data class DistributorPackage(
        } else {
            logger.log(
                "The kind of distribution \"${distributionBlock.from}\" is different to the Distributor \"from\"" +
-                       " definition found in file: \"$belongsToFile\"!", Level.WARN, pack.id,
+                       " definition found in file: \"$belongsToFile\"!",
+               Level.WARN,
+               pack.id,
                phase = ProcessingPhase.METADATAMANAGER
            )
        }
