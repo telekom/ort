@@ -20,7 +20,8 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 /**
- * The class [FileCopyright] consists only of the copyright text
+ * The class [FileCopyright] consists only of the copyright text and the [equals] method, which may be extended in
+ * future releases.
  */
 data class FileCopyright(
     /**

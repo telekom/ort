@@ -19,14 +19,13 @@
 
 package org.ossreviewtoolkit.oscake
 
-import com.fasterxml.jackson.databind.ObjectMapper
-
 import java.io.File
 import java.time.LocalDateTime
 
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.merger.ProjectProvider
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
 
@@ -36,12 +35,12 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
  * In order to create unique file references the path to the files gets a hash code as a prefix
  */
 class OSCakeMerger(
+    private val config: OSCakeConfiguration,
     private val cid: String,
     private val inputDir: File,
     private val outputFile: File,
     private val commandLineParams: Map<String, String>
-    ) {
-
+) {
     private val logger: OSCakeLogger by lazy { OSCakeLoggerManager.logger(MERGER_LOGGER) }
     private val identifier = Identifier(cid)
 
@@ -50,13 +49,11 @@ class OSCakeMerger(
      * into the merged file.
      */
     fun execute() {
-
         val archiveFileRelativeName = "./${identifier.name}.zip"
         val archiveFile = outputFile.parentFile.resolve(archiveFileRelativeName)
         var inputFileCounter = 0
 
         // merge all packages into new project
-
         val cac = ComplianceArtifactCollection(
             cid,
             MERGER_AUTHOR,
@@ -81,19 +78,23 @@ class OSCakeMerger(
         }
         Project.terminateArchiveHandling()
 
-        val c = ConfigInfo(null)
-        c.merger = ConfigBlockInfo(commandLineParams, emptyMap())
-        mergedProject.config = c
-
-        val objectMapper = ObjectMapper()
-        outputFile.bufferedWriter().use {
-            it.write(objectMapper.writeValueAsString(mergedProject))
+        ConfigInfo().also {
+            it.merger = ConfigBlockInfo(commandLineParams, mapOf("prettyPrint" to "${config.prettyPrint ?: false}"))
+            mergedProject.config = it
         }
 
-        logger.log(
-            "Number of processed oscc-input files: $inputFileCounter",
-            Level.INFO,
-            phase = ProcessingPhase.MERGING
-        )
+        val rc = mergedProject.modelToOscc(outputFile, logger, ProcessingPhase.MERGING, config.prettyPrint ?: false)
+
+        if (rc) logger.log(
+                    "Writing of output file does not succeed!",
+                    Level.ERROR,
+                    phase = ProcessingPhase.MERGING
+                )
+        else logger.log(
+                "Number of processed oscc-input files: $inputFileCounter - successfully merged " +
+                        "into: \"${outputFile.name}\"",
+                    Level.INFO,
+                    phase = ProcessingPhase.MERGING
+                )
     }
 }

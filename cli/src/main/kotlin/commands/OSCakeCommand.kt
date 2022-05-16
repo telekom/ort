@@ -287,7 +287,13 @@ class OSCakeCommand : CliktCommand(name = "oscake", help = "Initiate oscake appl
             }
             is MergerOptions -> {
                 it.resolveArgs()
-                OSCakeMerger(it.cid, it.inputDir, it.outputFile, getCommandLineParams(it, fieldsList)).execute()
+                OSCakeMerger(
+                    config.oscake,
+                    it.cid,
+                    it.inputDir,
+                    it.outputFile,
+                    getCommandLineParams(it, fieldsList)
+                ).execute()
             }
             is ValidatorOptions -> {
                 OSCakeValidator(it.oscc1, it.oscc2).execute()
