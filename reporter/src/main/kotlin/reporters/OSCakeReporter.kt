@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.EMPTY_JSON_NODE
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.config.ScannerOptions
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.reporter.Reporter
@@ -265,22 +266,55 @@ class OSCakeReporter : Reporter {
         scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
         outputDir: File,
     ): Project {
-        val pkgMap = mutableMapOf<Identifier, org.ossreviewtoolkit.model.Package>()
+        val pkgMap = mutableMapOf<Identifier, Package>()
         val project = Project()
-        project.complianceArtifactCollection.cid = input.ortResult.getProjects().first().id.toCoordinates()
-        // evaluated model contains a dependency tree of packages with its corresponding levels (=depth in the tree)
-        val evaluatedModel = EvaluatedModel.create(input)
+        val evaluatedModel = EvaluatedModel.create(input)   // evaluated model contains a dependency tree of packages
+                                                            // with its corresponding levels (=depth in the tree)
+        val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
-        // prepare projects and packages
-        input.ortResult.analyzer?.result?.projects?.
-            filter {
-                OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
+        prepareProjects(project, input, scanDict, pkgMap)
+        preparePackages(project, input, scanDict, pkgMap, evaluatedModel)
+        processPackages(project, tmpDirectory, scanDict, input, pkgMap)
+
+        project.complianceArtifactCollection.cid = input.ortResult.getProjects().first().id.toCoordinates()
+        project.setDistributionType(evaluatedModel)
+        project.setPackageType()
+        project.complianceArtifactCollection.archivePath = "./" +
+                input.ortResult.getProjects().first().id.name + ".zip"
+        project.config = ConfigInfo(OSCakeConfigParams.osCakeConfigInformation)
+        project.containsHiddenSections = OSCakeConfigParams.hideSections.isNotEmpty() &&
+                project.hideSections(OSCakeConfigParams.hideSections, tmpDirectory)
+        zipAndCleanUp(
+            outputDir,
+            tmpDirectory,
+            project.complianceArtifactCollection.archivePath,
+            logger,
+            ProcessingPhase.POST
+        )
+        OSCakeConfigParams.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
+            logger.log(
+                "packageRestrictions are enabled, but the package [$identifier] was not found",
+                Level.WARN,
+                identifier,
+                phase = ProcessingPhase.PROCESS
+            )
+        }
+        return project
+    }
+
+    private fun prepareProjects(
+        project: Project,
+        input: ReporterInput,
+        scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
+        pkgMap: MutableMap<Identifier, Package>
+    ) {
+        input.ortResult.analyzer?.result?.projects?.filter {
+            OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
                     (
-                        OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
-                        OSCakeConfigParams.onlyIncludePackages.contains(it.toPackage().id)
-                    )
-            }?.
-        forEach {
+                            OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
+                                    OSCakeConfigParams.onlyIncludePackages.contains(it.toPackage().id)
+                            )
+        }?.forEach {
             val pkg = it.toPackage()
             pkgMap[pkg.id] = it.toPackage()
             Pack(it.id, it.vcsProcessed.url, input.ortResult.repository.vcs.path)
@@ -290,21 +324,24 @@ class OSCakeReporter : Reporter {
                     reuseCompliant = isREUSECompliant(this, scanDict)
                 }
         }
+    }
 
+    private fun preparePackages(project: Project,
+                                input: ReporterInput,
+                                scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
+                                pkgMap: MutableMap<Identifier, Package>,
+                                evaluatedModel: EvaluatedModel)
+    {
         var cntLevelExcluded = 0
-        input.ortResult.analyzer?.result?.packages?.
-            filter { !input.ortResult.isExcluded(it.pkg.id) }?.
-            filter {
-                OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
-                        (
-                                OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
-                                OSCakeConfigParams.onlyIncludePackages.contains(it.pkg.id)
-                        )
-            }?.
-        forEach {
-            if (OSCakeConfigParams.dependencyGranularity < Int.MAX_VALUE &&
-                OSCakeConfigParams.onlyIncludePackages.isEmpty()
-            ) {
+        input.ortResult.analyzer?.result?.packages?.filter { !input.ortResult.isExcluded(it.pkg.id) }?.filter {
+            OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
+                    (
+                            OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
+                                    OSCakeConfigParams.onlyIncludePackages.contains(it.pkg.id)
+                            )
+        }?.filter { OSCakeConfigParams.dependencyGranularity < Int.MAX_VALUE &&
+                OSCakeConfigParams.onlyIncludePackages.isEmpty() }
+            ?.forEach {
                 if (!treeLevelIncluded(
                         evaluatedModel.dependencyTrees,
                         OSCakeConfigParams.dependencyGranularity,
@@ -314,26 +351,29 @@ class OSCakeReporter : Reporter {
                     cntLevelExcluded++
                     return@forEach
                 }
+                val pkg = it.pkg
+                pkgMap[pkg.id] = it.pkg
+                Pack(it.pkg.id, it.pkg.vcsProcessed.url, "")
+                    .apply {
+                        declaredLicenses.add(it.pkg.declaredLicensesProcessed.spdxExpression.toString())
+                        project.packs.add(this)
+                        reuseCompliant = isREUSECompliant(this, scanDict)
+                    }
             }
-            val pkg = it.pkg
-            pkgMap[pkg.id] = it.pkg
-            Pack(it.pkg.id, it.pkg.vcsProcessed.url, "")
-                .apply {
-                    declaredLicenses.add(it.pkg.declaredLicensesProcessed.spdxExpression.toString())
-                    project.packs.add(this)
-                    reuseCompliant = isREUSECompliant(this, scanDict)
-                }
-        }
         if (cntLevelExcluded > 0) logger.log(
             "Attention: 'dependency-granularity' is restricted to level:" +
-                " ${OSCakeConfigParams.dependencyGranularity} via option! $cntLevelExcluded package(s) were" +
-                " excluded!",
+            " ${OSCakeConfigParams.dependencyGranularity} via option! $cntLevelExcluded package(s) were excluded!",
             Level.INFO,
             phase = ProcessingPhase.PROCESS
         )
+    }
 
-        val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
-
+    private fun processPackages(project: Project,
+                                tmpDirectory: File,
+                                scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
+                                input: ReporterInput,
+                                pkgMap: MutableMap<Identifier, Package>
+    ) =
         project.packs.filter { scanDict.containsKey(it.id) }.forEach { pack ->
             // makes sure that the "pack" is also in the scanResults-file and not only in the
             // "native-scan-results" (=scanDict)
@@ -345,7 +385,7 @@ class OSCakeReporter : Reporter {
                         if (it.size > 1) {
                             logger.log(
                                 "Package has more than one provenance! " +
-                                    "Only the first one is taken into/from the sourcecode folder!",
+                                        "Only the first one is taken into/from the sourcecode folder!",
                                 Level.WARN,
                                 pack.id,
                                 phase = ProcessingPhase.PROCESS
@@ -359,36 +399,6 @@ class OSCakeReporter : Reporter {
                 }
             }
         }
-
-        project.setDistributionType(evaluatedModel)
-        project.setPackageType()
-
-        project.complianceArtifactCollection.archivePath = "./" +
-                input.ortResult.getProjects().first().id.name + ".zip"
-
-        project.config = ConfigInfo(OSCakeConfigParams.osCakeConfigInformation)
-
-        project.containsHiddenSections = OSCakeConfigParams.hideSections.isNotEmpty() &&
-                project.hideSections(OSCakeConfigParams.hideSections, tmpDirectory)
-
-        zipAndCleanUp(
-            outputDir,
-            tmpDirectory,
-            project.complianceArtifactCollection.archivePath,
-            logger,
-            ProcessingPhase.POST
-        )
-
-        OSCakeConfigParams.onlyIncludePackages.filter { !it.value }.forEach { (identifier, _) ->
-            logger.log(
-                "packageRestrictions are enabled, but the package [$identifier] was not found",
-                Level.WARN,
-                identifier,
-                phase = ProcessingPhase.PROCESS
-            )
-        }
-        return project
-    }
 
     /**
      * [isREUSECompliant] returns true as soon as a license entry is found in a folder

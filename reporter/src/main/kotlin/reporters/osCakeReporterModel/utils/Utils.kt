@@ -507,3 +507,19 @@ fun isLikeNOASSERTION(license: String?): Boolean = if (license != null) (
         license == "NOASSERTION" ||
         (license.startsWith("LicenseRef-scancode") && license.contains("unknown"))
     ) else false
+
+
+/**
+ * If a file with [path] already exists, a suffix is prepared for uniqueness and the adapted path is returned.
+ */
+fun deduplicateFileName(path: String): String {
+    var ret = path
+    if (File(path).exists()) {
+        var counter = 2
+        while (File(path + "_" + counter).exists()) {
+            counter++
+        }
+        ret = path + "_" + counter
+    }
+    return ret
+}
