@@ -24,7 +24,11 @@ import com.fasterxml.jackson.annotation.JsonInclude
 /**
  * The base configuration model of the oscake applications.
  */
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
+/**
+ * holds the configuration sections for different oscake applications
+ */
 data class OSCakeConfiguration(
     val curator: OSCakeCurator? = null,
     val deduplicator: OSCakeDeduplicator? = null,
@@ -35,11 +39,29 @@ data class OSCakeConfiguration(
 )
 
 data class OSCakeDeduplicator(
+    /**
+     * keep scopes which are empty
+     */
     val keepEmptyScopes: Boolean? = false,
+    /**
+     * collect copyrights and put them into a single section
+     */
     val createUnifiedCopyrights: Boolean? = false,
+    /**
+     * jeep file scopes although they are deduplicated
+     */
     val preserveFileScopes: Boolean? = true,
+    /**
+     * multiple occurrences of licenses are ignored when set to true
+     */
     val compareOnlyDistinctLicensesCopyrights: Boolean? = false,
+    /**
+     * process the given packages although they show issues from pre-processing-steps
+     */
     val processPackagesWithIssues: Boolean? = true,
+    /**
+     * remove given sections from oscc output
+     */
     val hideSections: List<String>? = emptyList()
 )
 
