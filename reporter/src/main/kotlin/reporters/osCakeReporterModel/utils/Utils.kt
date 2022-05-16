@@ -508,7 +508,6 @@ fun isLikeNOASSERTION(license: String?): Boolean = if (license != null) (
         (license.startsWith("LicenseRef-scancode") && license.contains("unknown"))
     ) else false
 
-
 /**
  * If a file with [path] already exists, a suffix is prepared for uniqueness and the adapted path is returned.
  */

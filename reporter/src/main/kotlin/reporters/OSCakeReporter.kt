@@ -268,8 +268,8 @@ class OSCakeReporter : Reporter {
     ): Project {
         val pkgMap = mutableMapOf<Identifier, Package>()
         val project = Project()
-        val evaluatedModel = EvaluatedModel.create(input)   // evaluated model contains a dependency tree of packages
-                                                            // with its corresponding levels (=depth in the tree)
+        // evaluated model contains a dependency tree of packages  with its corresponding levels (=depth in the tree)
+        val evaluatedModel = EvaluatedModel.create(input)
         val tmpDirectory = kotlin.io.path.createTempDirectory(prefix = "oscake_").toFile()
 
         prepareProjects(project, input, scanDict, pkgMap)
@@ -326,12 +326,13 @@ class OSCakeReporter : Reporter {
         }
     }
 
-    private fun preparePackages(project: Project,
-                                input: ReporterInput,
-                                scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
-                                pkgMap: MutableMap<Identifier, Package>,
-                                evaluatedModel: EvaluatedModel)
-    {
+    private fun preparePackages(
+        project: Project,
+        input: ReporterInput,
+        scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
+        pkgMap: MutableMap<Identifier, Package>,
+        evaluatedModel: EvaluatedModel
+    ) {
         var cntLevelExcluded = 0
         input.ortResult.analyzer?.result?.packages?.filter { !input.ortResult.isExcluded(it.pkg.id) }?.filter {
             OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
@@ -339,8 +340,9 @@ class OSCakeReporter : Reporter {
                             OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
                                     OSCakeConfigParams.onlyIncludePackages.contains(it.pkg.id)
                             )
-        }?.filter { OSCakeConfigParams.dependencyGranularity < Int.MAX_VALUE &&
-                OSCakeConfigParams.onlyIncludePackages.isEmpty() }
+        }?.filter {
+            OSCakeConfigParams.dependencyGranularity < Int.MAX_VALUE && OSCakeConfigParams.onlyIncludePackages.isEmpty()
+            }
             ?.forEach {
                 if (!treeLevelIncluded(
                         evaluatedModel.dependencyTrees,
@@ -368,11 +370,12 @@ class OSCakeReporter : Reporter {
         )
     }
 
-    private fun processPackages(project: Project,
-                                tmpDirectory: File,
-                                scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
-                                input: ReporterInput,
-                                pkgMap: MutableMap<Identifier, Package>
+    private fun processPackages(
+        project: Project,
+        tmpDirectory: File,
+        scanDict: MutableMap<Identifier, MutableMap<String, FileInfoBlock>>,
+        input: ReporterInput,
+        pkgMap: MutableMap<Identifier, Package>
     ) =
         project.packs.filter { scanDict.containsKey(it.id) }.forEach { pack ->
             // makes sure that the "pack" is also in the scanResults-file and not only in the
