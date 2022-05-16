@@ -42,7 +42,7 @@ data class ComplianceArtifactCollection(
     /**
      * Represents the release number of the OSCakeReporter which was used when creating the file.
      */
-    var release: String = Release.NUMBER,
+    var release: String = "0.1",
     /**
      * [date] keeps the creation timestamp of the report.
      */
