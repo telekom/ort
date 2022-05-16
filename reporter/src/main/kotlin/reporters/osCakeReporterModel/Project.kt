@@ -172,7 +172,7 @@ data class Project(
         }
     }
 
-    // shows that this project is the target project
+    // shows that this project is the target project when merging
     private var isInitialProject = false
 
     /**
@@ -443,8 +443,14 @@ data class Project(
         return error
     }
 
+    /**
+     * checks if a package with the given ID already exists
+     */
     private fun containsID(id: Identifier): Boolean = this.packs.any { it.id == id }
 
+    /**
+     * remove the given sections and all the assigned files from the archive
+     */
     fun hideSections(sectionList: List<String>, tmpDirectory: File): Boolean {
         var haveHidden = false
         sectionList.forEach {
@@ -492,6 +498,9 @@ data class Project(
         }
     }
 
+    /**
+     * the method checks if processing is allowed: e.g. if already deduplicated it cannot be curated anymore
+     */
     fun isProcessingAllowed(logger: OSCakeLogger, osccFile: File, authorList: List<String>): Boolean {
         if (authorList.contains(this.complianceArtifactCollection.author)) {
             logger.log(
