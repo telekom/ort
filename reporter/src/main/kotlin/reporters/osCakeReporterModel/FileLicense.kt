@@ -28,7 +28,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
  * information [licenseTextInArchive]. An instance with null values may exist if the file was archived by the scanner
  * and not treated by other logic branches
  */
-@JsonPropertyOrder("license", "originalLicenses", "licenseTextInArchive", "startLine")
+@JsonPropertyOrder("license", "originalLicenses", "licenseTextInArchive")
 data class FileLicense(
     /**
      * [license] contains the name of the license.

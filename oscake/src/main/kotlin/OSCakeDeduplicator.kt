@@ -72,37 +72,7 @@ class OSCakeDeduplicator(
             }
         }
 
-        project.packs.forEach {
-            var process = true
-            if (config.deduplicator?.processPackagesWithIssues == true) {
-                if (it.hasIssues) logger.log(
-                    "Package will be deduplicated, although \"hasIssues=true\"",
-                    Level.INFO,
-                    it.id,
-                    phase = ProcessingPhase.DEDUPLICATION
-                )
-            } else {
-                if (it.hasIssues) {
-                    logger.log(
-                        "Package is not deduplicated, because \"hasIssues=true\"",
-                        Level.INFO,
-                        it.id,
-                        phase = ProcessingPhase.DEDUPLICATION
-                    )
-                    process = false
-                }
-            }
-            if (it.reuseCompliant) {
-                logger.log(
-                    "Package is REUSE compliant and is not deduplicated!",
-                    Level.INFO,
-                    it.id,
-                    phase = ProcessingPhase.DEDUPLICATION
-                )
-                process = false
-            }
-            if (process) PackDeduplicator(it, archiveDir, config).deduplicate()
-        }
+        deduplicatePackages(project, archiveDir)
 
         val sourceZipFileName = File(stripRelativePathIndicators(project.complianceArtifactCollection.archivePath))
         val newZipFileName = extendFilename(sourceZipFileName, DEDUPLICATION_FILE_SUFFIX)
@@ -139,6 +109,40 @@ class OSCakeDeduplicator(
                 "Deduplicator terminated successfully! Result is written to: $reportFile", Level.INFO,
                 phase = ProcessingPhase.DEDUPLICATION
             )
+        }
+    }
+
+    private fun deduplicatePackages(project: Project, archiveDir: File) {
+        project.packs.forEach {
+            var process = true
+            if (config.deduplicator?.processPackagesWithIssues == true) {
+                if (it.hasIssues) logger.log(
+                    "Package will be deduplicated, although \"hasIssues=true\"",
+                    Level.INFO,
+                    it.id,
+                    phase = ProcessingPhase.DEDUPLICATION
+                )
+            } else {
+                if (it.hasIssues) {
+                    logger.log(
+                        "Package is not deduplicated, because \"hasIssues=true\"",
+                        Level.INFO,
+                        it.id,
+                        phase = ProcessingPhase.DEDUPLICATION
+                    )
+                    process = false
+                }
+            }
+            if (it.reuseCompliant) {
+                logger.log(
+                    "Package is REUSE compliant and is not deduplicated!",
+                    Level.INFO,
+                    it.id,
+                    phase = ProcessingPhase.DEDUPLICATION
+                )
+                process = false
+            }
+            if (process) PackDeduplicator(it, archiveDir, config).deduplicate()
         }
     }
 }

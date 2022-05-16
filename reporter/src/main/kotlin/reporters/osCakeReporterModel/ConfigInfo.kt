@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigInfo
 
 /**
- * This block contains the input of [commandLineParams] and [configFile]
+ * This block contains the passed [commandLineParams] and the configuration key/value pairs in [configFile]
  */
 data class ConfigBlockInfo(
     var commandLineParams: Map<String, String>,

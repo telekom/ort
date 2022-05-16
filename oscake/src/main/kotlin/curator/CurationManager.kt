@@ -68,7 +68,8 @@ internal class CurationManager(
         outputDir,
         reportFilename,
         config,
-        ActionInfo.curator(config.curator?.issueLevel ?: -1), commandLineParams
+        ActionInfo.curator(config.curator?.issueLevel ?: -1),
+        commandLineParams
 ) {
     /**
      * [ignoreRootWarnings] is set via the commandline parameters and determines if the project is processed despite

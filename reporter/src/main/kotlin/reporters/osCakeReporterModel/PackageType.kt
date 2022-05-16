@@ -19,4 +19,7 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+/**
+ * Defines if the package is an executable or a library
+ */
 enum class PackageType { EXECUTABLE, LIBRARY }

@@ -216,8 +216,6 @@ data class Pack(
         tmpDirectory: File,
         foundInFileScopeConfigured: Boolean
     ) {
-
-        // reset "treatMetaInfAsDefault"
         resetTreatMetaInfAsDefault()
         // Copy the content, for the case that a [DECLARED] license exists in default licensing.
         // A [DECLARED] license has no associated file license and therefore, cannot be regenerated
@@ -226,99 +224,33 @@ data class Pack(
         removeDirDefaultScopes()
 
         fileLicensings.forEach { fileLicensing ->
-            val scopeLevel = getScopeLevel(fileLicensing.scope, packageRoot, treatMetaInfAsDefault)
-            // handle the "Default-Scope"
-            if (scopeLevel == ScopeLevel.DEFAULT) {
-                fileLicensing.licenses.forEach { fileLicense ->
-                    var fileLicensingScope = fileLicensing.scope
-                    // "foundInFileScopeConfigured" is true if the method is called from the OSCake-Application
-                    // "Resolver" or "Selector"
-                    if (foundInFileScopeConfigured &&
-                        (
-                            CompoundOrLicense(fileLicense.originalLicenses).isCompound ||
-                            CompoundOrLicense(fileLicense.license).isCompound
-                        )
-                    ) {
-                        fileLicensingScope = FOUND_IN_FILE_SCOPE_CONFIGURED
-                    }
-                    if (defaultLicensings.none { it.license == fileLicense.license && it.path == fileLicensingScope })
-                        defaultLicensings.add(
-                            DefaultLicense(
-                                fileLicense.license,
-                                fileLicensingScope,
-                                fileLicense.licenseTextInArchive,
-                                false,
-                                originalLicenses = fileLicense.originalLicenses
-                            )
-                        )
-                    else {
-                        val ll = if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG
-                        logger.log(
-                            "DefaultScope: multiple equal licenses <${fileLicense.license}> in the same " +
-                                "file found - ignored!",
-                            ll,
-                            id,
-                            phase = phase
-                        )
-                    }
-                }
-            }
-            // handle the "Dir-Scope"
-            if (scopeLevel == ScopeLevel.DIR) {
-                val dirScope = getDirScopePath(this, fileLicensing.scope)
-                var fibPathWithoutPackage = getPathWithoutPackageRoot(this, fileLicensing.scope)
-                val dirLicensing = dirLicensings.firstOrNull { it.scope == dirScope } ?: DirLicensing(dirScope)
-                    .apply { dirLicensings.add(this) }
-                fileLicensing.licenses.forEach { fileLicense ->
-                    if (foundInFileScopeConfigured && (
-                            CompoundOrLicense(fileLicense.originalLicenses).isCompound ||
-                            CompoundOrLicense(fileLicense.license).isCompound
-                            )
-                    ) fibPathWithoutPackage = FOUND_IN_FILE_SCOPE_CONFIGURED
-                    if (dirLicensing.licenses.none {
-                            it.license == fileLicense.license && it.path == fibPathWithoutPackage
-                        }
-                    ) dirLicensing.licenses.add(
-                        DirLicense(
-                            fileLicense.license!!,
-                            fileLicense.licenseTextInArchive,
-                            fibPathWithoutPackage,
-                            originalLicenses = fileLicense.originalLicenses
-                        )
-                    )
-                    else {
-                        val ll = if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG
-                        logger.log(
-                            "DirScope: : multiple equal licenses <${fileLicense.license}> in the same " +
-                                "file found - ignored!",
-                            ll,
-                            id,
-                            phase = phase
-                        )
-                    }
-                }
+            when (getScopeLevel(fileLicensing.scope, packageRoot, treatMetaInfAsDefault)) {
+                ScopeLevel.DEFAULT -> handleDefaultScope(
+                    fileLicensing,
+                    foundInFileScopeConfigured,
+                    logger,
+                    phase
+                )
+                ScopeLevel.DIR -> handleDirScope(
+                    fileLicensing,
+                    foundInFileScopeConfigured,
+                    logger,
+                    phase
+                )
+                else -> { }
             }
         }
-
         // may happen when a [DECLARED] license is substituted by a file license and the default license has a
         // file associated by a licenseTextInArchive entry
-        if (
-            defaultLicensings.isNotEmpty() &&
-            saveDefaultLicensings.any {
+        if (defaultLicensings.isNotEmpty() && saveDefaultLicensings.any {
                 it.path == FOUND_IN_FILE_SCOPE_DECLARED || it.path == FOUND_IN_FILE_SCOPE_CONFIGURED
             }
-        ) {
-            saveDefaultLicensings.forEach {
-                dedupRemoveFile(tmpDirectory, it.licenseTextInArchive)
-            }
-        }
+        ) saveDefaultLicensings.forEach { dedupRemoveFile(tmpDirectory, it.licenseTextInArchive) }
 
         // if defaultLicensings is empty, then it is possible that an item is found in the saveDefaultLicensings list
         // with "foundInFileScope": "[DECLARED]" or "foundInFileScope": "[CONFIGURED]"; technically
         // these items cannot have Copyrights
-        if (
-            defaultLicensings.isEmpty() &&
-            saveDefaultLicensings.any {
+        if (defaultLicensings.isEmpty() && saveDefaultLicensings.any {
                 it.path == FOUND_IN_FILE_SCOPE_DECLARED || it.path == FOUND_IN_FILE_SCOPE_CONFIGURED
             }
         ) {
@@ -329,27 +261,98 @@ data class Pack(
                 }
             defaultLicensings.addAll(saveDefaultLicensings)
         }
+        manageCopyrights()
+    }
 
-        // manage Copyrights
-        fileLicensings.filter { it.copyrights.isNotEmpty() }.forEach { fileLicensing ->
-            val scopeLevel = getScopeLevel4Copyrights(fileLicensing.scope, packageRoot, treatMetaInfAsDefault)
-            if (scopeLevel == ScopeLevel.DEFAULT) {
-                fileLicensing.copyrights.forEach {
-                    defaultCopyrights.add(DefaultDirCopyright(fileLicensing.scope, it.copyright))
+    private fun handleDefaultScope(
+        fileLicensing: FileLicensing,
+        foundInFileScopeConfigured: Boolean,
+        logger: OSCakeLogger,
+        phase: ProcessingPhase
+    ) {
+        fileLicensing.licenses.forEach { fileLicense ->
+            var fileLicensingScope = fileLicensing.scope
+            // "foundInFileScopeConfigured" is true if the method is called from the OSCake-Application
+            // "Resolver" or "Selector"
+            if (foundInFileScopeConfigured && (
+                    CompoundOrLicense(fileLicense.originalLicenses).isCompound ||
+                    CompoundOrLicense(fileLicense.license).isCompound
+                    )
+            ) fileLicensingScope = FOUND_IN_FILE_SCOPE_CONFIGURED
+
+            if (defaultLicensings.none { it.license == fileLicense.license && it.path == fileLicensingScope })
+                defaultLicensings.add(
+                    DefaultLicense(
+                        fileLicense.license,
+                        fileLicensingScope,
+                        fileLicense.licenseTextInArchive,
+                        false,
+                        originalLicenses = fileLicense.originalLicenses
+                    )
+                )
+            else logger.log(
+                    "DefaultScope: multiple equal licenses <${fileLicense.license}> in the same " +
+                            "file found - ignored!",
+                    if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG,
+                    id,
+                    phase = phase
+                )
+        }
+    }
+
+    private fun handleDirScope(
+        fileLicensing: FileLicensing,
+        foundInFileScopeConfigured: Boolean,
+        logger: OSCakeLogger,
+        phase: ProcessingPhase
+    ) {
+        val dirScope = getDirScopePath(this, fileLicensing.scope)
+        var fibPathWithoutPackage = getPathWithoutPackageRoot(this, fileLicensing.scope)
+        val dirLicensing = dirLicensings.firstOrNull { it.scope == dirScope } ?: DirLicensing(dirScope)
+            .apply { dirLicensings.add(this) }
+        fileLicensing.licenses.forEach { fileLicense ->
+            if (foundInFileScopeConfigured && (
+                        CompoundOrLicense(fileLicense.originalLicenses).isCompound ||
+                                CompoundOrLicense(fileLicense.license).isCompound
+                        )
+            ) fibPathWithoutPackage = FOUND_IN_FILE_SCOPE_CONFIGURED
+            if (dirLicensing.licenses.none {
+                    it.license == fileLicense.license && it.path == fibPathWithoutPackage
                 }
-            }
-            if (scopeLevel == ScopeLevel.DIR) {
-                (
-                        dirLicensings.firstOrNull {
-                            it.scope == getDirScopePath(this, fileLicensing.scope)
-                        } ?: DirLicensing(
-                            getDirScopePath(this, fileLicensing.scope)
-                        ).apply { dirLicensings.add(this) }
-                    ).apply {
-                        fileLicensing.copyrights.forEach {
-                            copyrights.add(DefaultDirCopyright(fileLicensing.scope, it.copyright))
-                        }
+            ) dirLicensing.licenses.add(
+                DirLicense(
+                    fileLicense.license!!,
+                    fileLicense.licenseTextInArchive,
+                    fibPathWithoutPackage,
+                    originalLicenses = fileLicense.originalLicenses
+                )
+            )
+            else logger.log(
+                    "DirScope: : multiple equal licenses <${fileLicense.license}> in the same " +
+                            "file found - ignored!",
+                    if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG,
+                    id,
+                    phase = phase
+                )
+        }
+    }
+
+    private fun manageCopyrights() {
+        fileLicensings.filter { it.copyrights.isNotEmpty() }.forEach { fileLicensing ->
+            when (getScopeLevel4Copyrights(fileLicensing.scope, packageRoot, treatMetaInfAsDefault)) {
+                ScopeLevel.DEFAULT -> fileLicensing.copyrights.forEach {
+                        defaultCopyrights.add(DefaultDirCopyright(fileLicensing.scope, it.copyright))
                     }
+                ScopeLevel.DIR -> (
+                    dirLicensings.firstOrNull {
+                        it.scope == getDirScopePath(this, fileLicensing.scope)
+                    } ?: DirLicensing(getDirScopePath(this, fileLicensing.scope)).apply { dirLicensings.add(this) }
+                  ).apply {
+                    fileLicensing.copyrights.forEach {
+                        copyrights.add(DefaultDirCopyright(fileLicensing.scope, it.copyright))
+                    }
+                  }
+                else -> { }
             }
         }
     }
@@ -360,9 +363,11 @@ data class Pack(
         cfgPresFileScopes: Boolean = false, cfgCompOnlyDist: Boolean = true
     ) {
         fileLicensingsList.forEach { fileLicensing ->
-            if (
-                licensesContainedInScope(
-                    getDirScopePath(this, fileLicensing.scope), fileLicensing, cfgPresFileScopes, cfgCompOnlyDist
+            if (licensesContainedInScope(
+                    getDirScopePath(this, fileLicensing.scope),
+                    fileLicensing,
+                    cfgPresFileScopes,
+                    cfgCompOnlyDist
                 )
             ) {
                 // remove files from archive

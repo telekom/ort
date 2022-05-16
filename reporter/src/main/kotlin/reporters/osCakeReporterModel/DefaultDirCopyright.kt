@@ -22,6 +22,9 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
+/**
+ * [DefaultDirCopyright] combines the copyright info with the file in which it was found
+ */
 @JsonPropertyOrder("foundInFileScope", "copyright")
 class DefaultDirCopyright(
     /**

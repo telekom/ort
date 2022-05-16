@@ -19,6 +19,10 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
+/**
+ * [DistributionType] contains a list of possible distribution types; as the type depends on other distribution
+ * types, the plus operator is overloaded
+ */
 enum class DistributionType { DISTRIBUTED, PREINSTALLED, DEV }
 
 // implements the priority rules, if the type is already set

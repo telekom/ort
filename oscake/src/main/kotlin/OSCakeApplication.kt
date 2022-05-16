@@ -116,7 +116,7 @@ fun isValidFilePathName(path: String): Boolean =
     }
 
 /**
- * Creates config information for oscc-config-section (deduplicator, curator); every entry in config file is
+ * Creates config information for oscc-config-section (deduplicator, curator, etc.); every entry in config file is
  * transferred to output format. If some parameters are added to the config, the entries will be automatically
  * transferred
  */

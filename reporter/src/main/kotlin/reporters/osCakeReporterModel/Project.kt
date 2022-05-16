@@ -334,24 +334,18 @@ data class Project(
         prefix: String,
         filesToArchive: MutableList<String>
     ) {
-        complianceArtifactPackage.defaultLicensings.forEach {
-            if (it.licenseTextInArchive != null) {
-                filesToArchive.add(it.licenseTextInArchive!!)
-                it.licenseTextInArchive = "$prefix${it.licenseTextInArchive}"
-            }
+        complianceArtifactPackage.defaultLicensings.filter { it.licenseTextInArchive != null }.forEach {
+            filesToArchive.add(it.licenseTextInArchive!!)
+            it.licenseTextInArchive = "$prefix${it.licenseTextInArchive}"
         }
-        complianceArtifactPackage.reuseLicensings.forEach {
-            if (it.licenseTextInArchive != null) {
-                filesToArchive.add(it.licenseTextInArchive!!)
-                it.licenseTextInArchive = "$prefix${it.licenseTextInArchive}"
-            }
+        complianceArtifactPackage.reuseLicensings.filter { it.licenseTextInArchive != null }.forEach {
+            filesToArchive.add(it.licenseTextInArchive!!)
+            it.licenseTextInArchive = "$prefix${it.licenseTextInArchive}"
         }
         complianceArtifactPackage.dirLicensings.forEach { dirLicensing ->
-            dirLicensing.licenses.forEach {
-                if (it.licenseTextInArchive != null) {
-                    filesToArchive.add(it.licenseTextInArchive!!)
-                    it.licenseTextInArchive = "$prefix${it.licenseTextInArchive}"
-                }
+            dirLicensing.licenses.filter { it.licenseTextInArchive != null }.forEach {
+                filesToArchive.add(it.licenseTextInArchive!!)
+                it.licenseTextInArchive = "$prefix${it.licenseTextInArchive}"
             }
         }
         complianceArtifactPackage.fileLicensings.forEach { fileLicensing ->
@@ -379,7 +373,7 @@ data class Project(
     }
 
     /**
-     * Packages with the same ID may only be different concerning the file references.
+     * Packages with the same ID may only be different concerning the file references when merged.
      */
     @Suppress("ComplexMethod")
     private fun inspectPackage(cap: Pack): Boolean {

@@ -25,8 +25,8 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import java.time.LocalDateTime
 
 /**
- * The class [ComplianceArtifactCollection] contains meta information about the run of the OSCakeReporter. Currently,
- * only zip archives are supported.
+ * The class [ComplianceArtifactCollection] contains meta information about the collection of Packages in an oscc file.
+ * Currently, only zip archives are supported.
  */
 @JsonPropertyOrder("cid", "author", "release", "date", "archivePath", "archiveType", "mergedIds")
 @JsonInclude(value = JsonInclude.Include.NON_EMPTY)

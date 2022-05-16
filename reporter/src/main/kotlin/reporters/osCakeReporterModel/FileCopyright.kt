@@ -23,16 +23,6 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
  * The class [FileCopyright] consists only of the copyright text and the [equals] method, which may be extended in
  * future releases.
  */
-data class FileCopyright(
-    /**
-     * Copyright statement.
-     */
-    val copyright: String
-) {
+data class FileCopyright(val copyright: String) {
     override fun equals(other: Any?) = (other is FileCopyright) && copyright.trim() == other.copyright.trim()
-
-    // automatically generated because custom implementation of "equals"
-    override fun hashCode(): Int {
-        return copyright.hashCode()
-    }
 }
