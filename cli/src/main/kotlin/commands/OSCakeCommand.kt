@@ -70,6 +70,7 @@ class ValidatorOptions : OscakeConfig("Options for oscake application: validator
         .convert { it.absoluteFile.normalize() }
         .required()
 }
+
 /**
  * Contains the options for the resolver application
  */
@@ -100,7 +101,7 @@ class ResolverOptions : OscakeConfig("Options for oscake application: resolver")
 }
 
 /**
- * Contains the options for the resolver application
+ * Contains the options for the selector application
  */
 @Suppress("unused")
 class SelectorOptions : OscakeConfig("Options for oscake application: selector") {
