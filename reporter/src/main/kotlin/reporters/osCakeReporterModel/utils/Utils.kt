@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 @file:Suppress("TooManyFunctions")
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
 import java.io.File
 import java.io.IOException
@@ -34,6 +34,12 @@ import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.reporter.ReporterInput
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DefaultLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DirLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
 import org.ossreviewtoolkit.utils.common.encodeHex
 import org.ossreviewtoolkit.utils.common.packZip
 

@@ -28,6 +28,9 @@ import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.merger.ProjectProvider
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 
 /**
  * The [OSCakeMerger] combines different *.oscc files (only with hasIssues = false) into a new

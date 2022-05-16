@@ -37,13 +37,24 @@ import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.DependencyTreeNode
 import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.EvaluatedModel
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ConfigInfo
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.LicenseTextEntry
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ModeSelector
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.REPORTER_LOGGER
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.isInstancedLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfiguration
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.modes.ModeSelector
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.REPORTER_LOGGER
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ScopeLevel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getLicensesFolderPrefix
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.handleOSCakeIssues
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.isInstancedLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.zipAndCleanUp
 
 /**
  * A Reporter that creates the output for the Tdosca/OSCake projects

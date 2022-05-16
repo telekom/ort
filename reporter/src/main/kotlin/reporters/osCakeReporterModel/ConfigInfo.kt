@@ -21,6 +21,8 @@ package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
 
 import com.fasterxml.jackson.annotation.JsonInclude
 
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigInfo
+
 /**
  * This block contains the input of [commandLineParams] and [configFile]
  */

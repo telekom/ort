@@ -12,7 +12,7 @@
     </File>
   </Appenders>
   <Loggers>
-    <Logger name="org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager" level="info" additivity="false">
+    <Logger name="org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager" level="info" additivity="false">
       <AppenderRef ref="Console2"/>
       <AppenderRef ref="LogFile"/>
     </Logger>

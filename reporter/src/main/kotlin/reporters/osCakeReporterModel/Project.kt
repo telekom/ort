@@ -46,6 +46,12 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.EvaluatedModel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.FOUND_IN_FILE_SCOPE_CONFIGURED
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.FOUND_IN_FILE_SCOPE_DECLARED
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.IssueList
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.IssuesFilterCustom
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 
 /**
  * The class [Project] wraps the meta information ([complianceArtifactCollection]) of the OSCakeReporter as well

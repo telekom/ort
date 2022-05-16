@@ -26,8 +26,8 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CompoundOrLicense
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.CompoundOrLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 
 /**
  * The [SelectorProvider] gets the locations where to find the yml-files containing actions (their semantics

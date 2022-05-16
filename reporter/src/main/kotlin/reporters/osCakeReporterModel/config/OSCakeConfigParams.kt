@@ -17,11 +17,17 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config
 
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DistributionType
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.REPORTER_LOGGER
 
 /**
  * [OSCakeConfigParams] class - holds processed data from [OSCakeConfiguration]. The description of the properties

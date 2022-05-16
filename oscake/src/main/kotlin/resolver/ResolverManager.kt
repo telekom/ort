@@ -31,13 +31,13 @@ import org.ossreviewtoolkit.oscake.RESOLVER_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionInfo
 import org.ossreviewtoolkit.oscake.common.ActionManager
 import org.ossreviewtoolkit.oscake.curator.CurationManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FOUND_IN_FILE_SCOPE_DECLARED
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.FOUND_IN_FILE_SCOPE_DECLARED
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.handleOSCakeIssues
 
 /**
  * The [ResolverManager] handles the entire resolver process: reads and analyzes the resolver files,

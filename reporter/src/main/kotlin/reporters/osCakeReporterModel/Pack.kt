@@ -32,6 +32,21 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.reporter.reporters.evaluatedmodel.EvaluatedModel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.CompoundOrLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.FOUND_IN_FILE_SCOPE_CONFIGURED
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.FOUND_IN_FILE_SCOPE_DECLARED
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.IssueList
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.IssuesFilterCustom
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.REUSE_LICENSES_FOLDER
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ScopeLevel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getDirScopePath
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getPathWithoutPackageRoot
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getScopeLevel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getScopeLevel4Copyrights
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.isLikeNOASSERTION
 
 /**
  * The class [Pack] holds license information found in license files. The [Identifier] stores the unique name of the

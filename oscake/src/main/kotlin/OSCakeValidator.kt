@@ -22,6 +22,9 @@ package org.ossreviewtoolkit.oscake
 import java.io.File
 
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 
 /**
  * The [OSCakeValidator] provides a mechanism to curate issues (WARNINGS & ERRORS) in an *.oscc file. Additionally,

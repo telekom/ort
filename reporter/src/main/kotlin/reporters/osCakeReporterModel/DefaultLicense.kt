@@ -24,6 +24,9 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.IssueList
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.IssuesFilterCustom
+
 /**
  * The class DefaultLicense represents [license]-information and where to find the corresponding file
  * - stored in [licenseTextInArchive]. [declared] is set to false as soon as a valid license info is found in a file

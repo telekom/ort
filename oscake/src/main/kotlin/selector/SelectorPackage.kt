@@ -28,6 +28,11 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.CompoundOrLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.FOUND_IN_FILE_SCOPE_CONFIGURED
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.FOUND_IN_FILE_SCOPE_DECLARED
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 
 /**
  * A [SelectorPackage] contains a selector-action for a specific package, identified by an [id]. The instances

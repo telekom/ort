@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.oscake.METADATAMANAGER_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 
 /**
  * The [PackageTypeProvider] gets the locations where to find the yml-files containing actions (their semantics

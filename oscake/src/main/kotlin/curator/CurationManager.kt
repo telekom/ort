@@ -28,14 +28,14 @@ import org.ossreviewtoolkit.oscake.CURATION_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionInfo
 import org.ossreviewtoolkit.oscake.common.ActionManager
 import org.ossreviewtoolkit.oscake.packageModifierMap
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeConfigParams
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.deleteFromArchive
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.getLicensesFolderPrefix
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.handleOSCakeIssues
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.deleteFromArchive
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getLicensesFolderPrefix
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.handleOSCakeIssues
 
 /**
  * The [CurationManager] handles the entire curation process: reads and analyzes the curation files,

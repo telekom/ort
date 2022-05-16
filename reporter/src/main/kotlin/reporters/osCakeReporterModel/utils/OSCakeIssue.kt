@@ -17,11 +17,13 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DefaultLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DirLicense
 
 /**
  * [OSCakeIssue] represents a class containing information about problems which occurred during processing data of the

@@ -23,6 +23,9 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.IssueList
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.IssuesFilterCustom
+
 /**
  * The DirLicense class wraps the information about the [license] the name of the file containing the license
  * information [licenseTextInArchive] and the corresponding [path]

@@ -17,16 +17,12 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
-
-import com.fasterxml.jackson.annotation.JsonInclude
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
 /**
- * keeps lists for issues of type: ERROR, WARN and INFO
- */
-@JsonInclude(JsonInclude.Include.NON_EMPTY)
-data class IssueList(
-    val errors: MutableList<Issue> = mutableListOf(),
-    val warnings: MutableList<Issue> = mutableListOf(),
-    val infos: MutableList<Issue> = mutableListOf()
-)
+ * License information may be valid for different scope levels [ProcessingPhase].
+*/
+enum class ProcessingPhase {
+    ORIGINAL, CONFIG, PRE, SCANRESULT, DOWNLOAD, PROCESS, POST, CURATION,
+    MERGING, DEDUPLICATION, VALIDATING, RESOLVING, SELECTION, METADATAMANAGER
+}

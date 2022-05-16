@@ -17,12 +17,13 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
 import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.Logger
 
 import org.ossreviewtoolkit.model.Identifier
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
 
 /**
  * The [OSCakeLogger] manages a list of reported [OSCakeIssue]s and a [logger] for a specific [source]

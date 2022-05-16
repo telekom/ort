@@ -32,9 +32,9 @@ import org.ossreviewtoolkit.oscake.metadata.DistributorPackage
 import org.ossreviewtoolkit.oscake.metadata.PackageTypePackage
 import org.ossreviewtoolkit.oscake.resolver.ResolverPackage
 import org.ossreviewtoolkit.oscake.selector.SelectorPackage
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 
 /**
  * The [ActionProvider] walks through the given "directory" and collects the identified

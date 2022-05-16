@@ -17,9 +17,22 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
-/**
- * License information may be valid for different scope levels [ScopeLevel].
-*/
-enum class ScopeLevel { DEFAULT, DIR, FILE }
+@Suppress("EqualsWithHashCodeExist")
+class IssuesFilterCustom {
+    override fun equals(other: Any?): Boolean {
+        // do not serialize when the lists are empty
+        if (other is IssueList) {
+            if (other.errors.isEmpty() && other.infos.isEmpty() && other.warnings.isEmpty()) return true
+        }
+        if (other == null) return true
+
+        return false
+    }
+
+    // automatically generated because of custom implementation of the "equals" method
+    override fun hashCode(): Int {
+        return javaClass.hashCode()
+    }
+}

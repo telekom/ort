@@ -17,13 +17,15 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config
 
 import com.sksamuel.hoplite.ConfigLoaderBuilder
 import com.sksamuel.hoplite.PropertySource
 import com.sksamuel.hoplite.fp.getOrElse
 
 import java.io.File
+
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeWrapper
 
 /**
  * Part of the [OSCakeConfiguration]

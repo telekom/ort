@@ -31,7 +31,8 @@ import org.ossreviewtoolkit.oscake.CURATION_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.common.ActionProvider
 import org.ossreviewtoolkit.oscake.packageModifierMap
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getLicensesFolderPrefix
 
 /**
  * The [CurationProvider] gets the locations where to find

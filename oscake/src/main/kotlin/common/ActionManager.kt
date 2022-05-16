@@ -28,15 +28,15 @@ import kotlin.system.exitProcess
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.IssueList
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.compareLTIAwithArchive
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.extendFilename
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.propagateHasIssues
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.stripRelativePathIndicators
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.zipAndCleanUp
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.IssueList
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.compareLTIAwithArchive
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.extendFilename
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.propagateHasIssues
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.stripRelativePathIndicators
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.zipAndCleanUp
 import org.ossreviewtoolkit.utils.common.unpackZip
 
 /**

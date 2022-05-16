@@ -17,15 +17,9 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
-/**
-    Wrapper class for the [OSCakeConfiguration] class - reads the file passed by option "OSCake=configFile=…:"
- */
-@Suppress("ConstructorParameterNaming")
-internal data class OSCakeWrapper(
-    /**
-     * Contains the properties of the configuration file passed at the command line.
-     */
-    val OSCake: OSCakeConfiguration
-)
+data class Issue(
+    val id: String,
+    val message: String
+    )

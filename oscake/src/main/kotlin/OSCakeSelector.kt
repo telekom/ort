@@ -25,6 +25,9 @@ import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.model.config.OSCakeSelector
 import org.ossreviewtoolkit.oscake.selector.SelectorManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 
 /**
  * The [OSCakeSelector] provides a mechanism to select a specific license from dual licenses in an *.oscc file.

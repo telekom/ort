@@ -17,12 +17,9 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config
 
 /**
- * License information may be valid for different scope levels [ProcessingPhase].
-*/
-enum class ProcessingPhase {
-    ORIGINAL, CONFIG, PRE, SCANRESULT, DOWNLOAD, PROCESS, POST, CURATION,
-    MERGING, DEDUPLICATION, VALIDATING, RESOLVING, SELECTION, METADATAMANAGER
-}
+ * The class [OSCakeConfigInfo] wraps the config information for the reporter in oscc file
+ */
+data class OSCakeConfigInfo(val commandLineParams: Map<String, String>, val configFile: OSCakeConfiguration)

@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 @file:Suppress("TooManyFunctions")
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.modes
 
 import java.io.File
 import java.io.FileNotFoundException
@@ -28,6 +28,26 @@ import org.apache.logging.log4j.Level
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.reporter.ReporterInput
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.CopyrightTextEntry
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DefaultLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileCopyright
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileInfoBlock
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileLicense
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.FileLicensing
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.LicenseTextEntry
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.TextEntry
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.FOUND_IN_FILE_SCOPE_DECLARED
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ScopeLevel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.createPathFlat
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.deduplicateFileName
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getHash
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getPathName
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getRidOfCommentSymbols
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getScopeLevel
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.isInstancedLicense
 
 /**
  * The class handles non-REUSE-compliant packages, gets a specific package [pack] and a map [scanDict],

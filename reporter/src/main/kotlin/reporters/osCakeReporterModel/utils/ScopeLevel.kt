@@ -17,9 +17,9 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel
+package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
-data class Issue(
-    val id: String,
-    val message: String
-    )
+/**
+ * License information may be valid for different scope levels [ScopeLevel].
+*/
+enum class ScopeLevel { DEFAULT, DIR, FILE }

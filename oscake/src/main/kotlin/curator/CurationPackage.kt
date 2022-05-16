@@ -33,6 +33,14 @@ import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.orderCopyrightByModifier
 import org.ossreviewtoolkit.oscake.orderLicenseByModifier
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.*
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.FOUND_IN_FILE_SCOPE_DECLARED
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.createPathFlat
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.deduplicateFileName
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.deleteFromArchive
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getPathWithoutPackageRoot
 
 /**
  * A [CurationPackage] contains a curation for a specific package, identified by an [id]. The instances are created

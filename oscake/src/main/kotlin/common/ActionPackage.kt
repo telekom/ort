@@ -25,8 +25,8 @@ import com.vdurmont.semver4j.SemverException
 import java.io.File
 
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
 
 /**
  * Builds the base class for OSCake-Packages.

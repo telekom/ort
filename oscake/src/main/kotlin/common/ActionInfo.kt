@@ -39,19 +39,19 @@ import org.ossreviewtoolkit.oscake.SELECTOR_AUTHOR
 import org.ossreviewtoolkit.oscake.SELECTOR_FILE_SUFFIX
 import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
 import org.ossreviewtoolkit.oscake.SELECTOR_VERSION
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ProcessingPhase
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 
 /**
  * [ActionInfo] wraps information about different actions like "curate", etc.
  */
 class ActionInfo private constructor(
-        val loggerName: String,
-        val phase: ProcessingPhase,
-        val author: String,
-        val release: String,
-        val actor: String,
-        val suffix: String,
-        val issueLevel: Int
+    val loggerName: String,
+    val phase: ProcessingPhase,
+    val author: String,
+    val release: String,
+    val actor: String,
+    val suffix: String,
+    val issueLevel: Int
 ) {
     companion object {
         internal fun curator(issueLevel: Int) = ActionInfo(

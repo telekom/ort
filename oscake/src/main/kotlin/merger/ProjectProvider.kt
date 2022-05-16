@@ -28,9 +28,9 @@ import java.io.IOException
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.oscake.MERGER_LOGGER
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLogger
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.OSCakeLoggerManager
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
 
 /**
  * [ProjectProvider] returns a [Project]-instance - deserialized from the provided source file
