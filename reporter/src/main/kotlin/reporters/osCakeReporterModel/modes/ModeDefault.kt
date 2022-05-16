@@ -42,7 +42,6 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.FOUND_I
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ScopeLevel
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.createPathFlat
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.deduplicateFileName
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getHash
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getPathName
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getRidOfCommentSymbols
@@ -430,4 +429,20 @@ internal class ModeDefault(
             }
         }
     }
+
+    /**
+     * If a file with [path] already exists, a suffix is prepared for uniqueness and the adapted path is returned.
+     */
+    private fun deduplicateFileName(path: String): String {
+        var ret = path
+        if (File(path).exists()) {
+            var counter = 2
+            while (File(path + "_" + counter).exists()) {
+                counter++
+            }
+            ret = path + "_" + counter
+        }
+        return ret
+    }
+
 }

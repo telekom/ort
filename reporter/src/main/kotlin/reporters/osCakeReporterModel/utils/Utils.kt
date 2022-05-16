@@ -64,21 +64,6 @@ internal fun isInstancedLicense(input: ReporterInput, license: String): Boolean 
         setOf()
     ).map { it.simpleLicense() }.contains(license)
 
-/**
- * If a file with [path] already exists, a suffix is prepared for uniqueness and the adapted path is returned.
- */
-fun deduplicateFileName(path: String): String {
-    var ret = path
-    if (File(path).exists()) {
-        var counter = 2
-        while (File(path + "_" + counter).exists()) {
-            counter++
-        }
-        ret = path + "_" + counter
-    }
-    return ret
-}
-
 fun getLicensesFolderPrefix(packageRoot: String) = packageRoot +
         (if (packageRoot != "") "/" else "") + REUSE_LICENSES_FOLDER
 
