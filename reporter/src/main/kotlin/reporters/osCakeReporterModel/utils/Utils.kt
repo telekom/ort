@@ -19,6 +19,7 @@
 @file:Suppress("TooManyFunctions")
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
+import com.fasterxml.jackson.databind.JsonNode
 import java.io.File
 import java.io.IOException
 import java.lang.StringBuilder
@@ -28,11 +29,13 @@ import java.security.MessageDigest
 import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.ArtifactProvenance
+import org.ossreviewtoolkit.model.EMPTY_JSON_NODE
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.UnknownProvenance
 import org.ossreviewtoolkit.model.VcsType
+import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DefaultLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.DirLicense
@@ -42,6 +45,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
 import org.ossreviewtoolkit.utils.common.encodeHex
 import org.ossreviewtoolkit.utils.common.packZip
+import java.io.FileNotFoundException
 
 const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
 const val FOUND_IN_FILE_SCOPE_CONFIGURED = "[CONFIGURED]"
@@ -521,4 +525,29 @@ fun deduplicateFileName(path: String): String {
         ret = path + "_" + counter
     }
     return ret
+}
+
+/**
+ * returns the json for the requested package [id]
+ */
+fun getNativeScanResultJson(
+    id: Identifier,
+    nativeScanResultsDir: String?
+): JsonNode {
+    val subfolder = id.toPath()
+    val filePath = "$nativeScanResultsDir/$subfolder/scan-results_ScanCode.json"
+
+    val scanFile = File(filePath)
+    if (!scanFile.exists()) {
+        throw FileNotFoundException(
+            "Cannot find native scan result \"${scanFile.absolutePath}\". Check configuration settings for " +
+                    " 'ortScanResultsDir' or commandline parameter "
+        )
+    }
+    var node: JsonNode = EMPTY_JSON_NODE
+    if (scanFile.isFile && scanFile.length() > 0L) {
+        node = jsonMapper.readTree(scanFile)
+    }
+
+    return node
 }

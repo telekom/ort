@@ -98,6 +98,13 @@ class ResolverOptions : OscakeConfig("Options for oscake application: resolver")
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = true, canBeDir = false, mustBeWritable = false, mustBeReadable = true)
         .convert { it.absoluteFile.normalize() }
+
+    val nativeScanResultsDir by option(
+        "--scanResultsDir", "-rS",
+        help = "A directory to the native scan results of the scanner"
+    ).convert { it.expandTilde() }
+        .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
+        .convert { it.absoluteFile.normalize() }
 }
 
 /**

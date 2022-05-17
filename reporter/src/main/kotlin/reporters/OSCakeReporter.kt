@@ -29,7 +29,6 @@ import kotlin.collections.HashMap
 
 import org.apache.logging.log4j.Level
 
-import org.ossreviewtoolkit.model.EMPTY_JSON_NODE
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.config.ScannerOptions
@@ -53,6 +52,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.Process
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.REPORTER_LOGGER
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ScopeLevel
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getLicensesFolderPrefix
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getNativeScanResultJson
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.handleOSCakeIssues
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.isInstancedLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.zipAndCleanUp
@@ -511,31 +511,6 @@ class OSCakeReporter : Reporter {
             }
         }
         return scanDict
-    }
-
-    /**
-     * returns the json for the requested package [id]
-     */
-    private fun getNativeScanResultJson(
-        id: Identifier,
-        nativeScanResultsDir: String?
-    ): JsonNode {
-        val subfolder = id.toPath()
-        val filePath = "$nativeScanResultsDir/$subfolder/scan-results_ScanCode.json"
-
-        val scanFile = File(filePath)
-        if (!scanFile.exists()) {
-            throw FileNotFoundException(
-                "Cannot find native scan result \"${scanFile.absolutePath}\". Check configuration settings for " +
-                        " 'ortScanResultsDir' "
-            )
-        }
-        var node: JsonNode = EMPTY_JSON_NODE
-        if (scanFile.isFile && scanFile.length() > 0L) {
-            node = jsonMapper.readTree(scanFile)
-        }
-
-        return node
     }
 
     /**
