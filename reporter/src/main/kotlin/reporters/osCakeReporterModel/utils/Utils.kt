@@ -20,7 +20,9 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
 import com.fasterxml.jackson.databind.JsonNode
+
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.IOException
 import java.lang.StringBuilder
 import java.nio.file.FileSystems
@@ -45,7 +47,6 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
 import org.ossreviewtoolkit.utils.common.encodeHex
 import org.ossreviewtoolkit.utils.common.packZip
-import java.io.FileNotFoundException
 
 const val FOUND_IN_FILE_SCOPE_DECLARED = "[DECLARED]"
 const val FOUND_IN_FILE_SCOPE_CONFIGURED = "[CONFIGURED]"
@@ -541,7 +542,7 @@ fun getNativeScanResultJson(
     if (!scanFile.exists()) {
         throw FileNotFoundException(
             "Cannot find native scan result \"${scanFile.absolutePath}\". Check configuration settings for " +
-                    " 'ortScanResultsDir' or commandline parameter "
+                    "'ortScanResultsDir' or 'commandline parameter' "
         )
     }
     var node: JsonNode = EMPTY_JSON_NODE

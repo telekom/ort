@@ -20,6 +20,7 @@
 package org.ossreviewtoolkit.oscake.resolver
 
 import java.io.File
+import java.io.FileNotFoundException
 
 import org.apache.logging.log4j.Level
 
@@ -39,7 +40,6 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeL
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.getNativeScanResultJson
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.handleOSCakeIssues
-import java.io.FileNotFoundException
 
 /**
  * The [ResolverManager] handles the entire resolver process: reads and analyzes the resolver files,
@@ -190,7 +190,7 @@ internal class ResolverManager(
                         ResolverBlock(
                             v.second.split(" OR ", " AND "),
                             v.second,
-                            mutableListOf(v.first.replace("\"",""))
+                            mutableListOf(v.first.replace("\"", ""))
                         )
                     )
                 )
@@ -209,10 +209,13 @@ internal class ResolverManager(
      * replaced by the SPDX expression. The method returns a map with the package-id as key and a pair of
      * file-paths and its assigned license expression.
      */
+    @Suppress("SwallowedException", "TooGenericExceptionCaught")
     private fun fetchPackageLicensesFromScanner(): Map<Identifier, Pair<String, String>> {
         val licMap: MutableMap<Identifier, Pair<String, String>> = mutableMapOf()
 
-        if (!commandLineParams.containsKey("nativeScanResultsDir") || !File(commandLineParams["nativeScanResultsDir"]!!).exists()) {
+        if (!commandLineParams.containsKey("nativeScanResultsDir") ||
+            !File(commandLineParams["nativeScanResultsDir"]!!).exists()
+        ) {
             logger.log(
                 "Native scan results from ORT-Scanner not found or not provided!",
                 Level.WARN,
@@ -222,30 +225,27 @@ internal class ResolverManager(
         }
 
         val nativeScanResultsDir = commandLineParams["nativeScanResultsDir"]
-        project.packs.forEach {
+        project.packs.filter { it.fileLicensings.isNotEmpty() }.forEach {
             var lastFile: String? = null
             try {
                 val nsr = getNativeScanResultJson(it.id, nativeScanResultsDir)
                 for (file in nsr["files"]) {
                     lastFile = file["path"].asText()
                     val licList = mutableListOf<String>()
-                    for (licExpr in file["license_expressions"]) {
-                        licList.add(licExpr.asText())
-                    }
+                    for (licExpr in file["license_expressions"]) licList.add(licExpr.asText())
                     if (checkLicenseExpression(licList)) {
                         val mapping = mutableListOf<Pair<String, String>>()
                         for (license in file["licenses"]) {
-                            if (license["matched_rule"]["license_expression"].asText() == licList.first()) {
+                            if (license["matched_rule"]["license_expression"].asText() == licList.first())
                                 mapping.add(Pair(license["key"].asText(), license["spdx_license_key"].asText()))
-                            }
                         }
                         licMap[it.id] = Pair(file["path"].asText(), mapKeyToSpdx(licList.first(), mapping))
                     }
                 }
             } catch (fileNotFound: FileNotFoundException) {
-                // if native scan results are not found for one package, we continue, but log an error
+                // if native scan results are not found for one package, let's continue, but log an error
                 logger.log(
-                    "Native scan result was not found: ${fileNotFound.message}",
+                    "Native scan result was not found (maybe the scanner found no license!): ${fileNotFound.message}",
                     Level.INFO,
                     it.id,
                     phase = ProcessingPhase.RESOLVING
@@ -268,10 +268,11 @@ internal class ResolverManager(
      */
     private fun mapKeyToSpdx(licenseExpression: String, mapping: List<Pair<String, String>>): String {
         var matchString = licenseExpression
-        licenseExpression.split(" OR ", " AND ").forEach {  license ->
-            mapping.first { it.first == license }.let {
-                matchString = matchString.replace(license, it.second)
-            }
+        licenseExpression.split(" OR ", " AND ", " WITH ").forEach { license ->
+            if (mapping.any { it.first == license })
+                mapping.first { it.first == license }.let {
+                    matchString = matchString.replace(license, it.second)
+                }
         }
         return matchString
     }

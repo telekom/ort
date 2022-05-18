@@ -76,7 +76,8 @@ internal data class SelectorPackage(
         pack.fileLicensings.forEach { fileLicensing ->
             if (fileLicensing.licenses.map { it.license }.any { CompoundOrLicense(it).isCompound })
                 logger.log(
-                    "There are still unselected compound licenses in file ${fileLicensing.scope}!",
+                    "There are still unselected compound licenses in file ${fileLicensing.scope} --> " +
+                            "${fileLicensing.licenses}!",
                     Level.INFO,
                     pack.id,
                     phase = ProcessingPhase.SELECTION
