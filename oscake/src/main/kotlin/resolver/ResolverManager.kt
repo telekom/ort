@@ -19,8 +19,12 @@
 
 package org.ossreviewtoolkit.oscake.resolver
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.IOException
 
 import org.apache.logging.log4j.Level
 
@@ -107,16 +111,71 @@ internal class ResolverManager(
         project.packs.forEach {
             resolverProvider.getActionFor(it.id)?.process(it, archiveDir, logger)
         }
-        // 4. report [OSCakeIssue]s
+
+        // 4. generate a resolver template for unresolved multiple licenses
+        if (commandLineParams.containsKey("generateTemplate")) generateResolverTemplate()
+
+        // 5. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(RESOLVER_LOGGER)) handleOSCakeIssues(
             project,
             logger,
             config.resolver?.issueLevel ?: -1
         )
-        // 5. take care of issue level settings to create the correct output format
+        // 6. take care of issue level settings to create the correct output format
         takeCareOfIssueLevel()
-        // 6. generate .zip and .oscc files
+        // 7. generate .zip and .oscc files
         createResultingFiles(archiveDir)
+    }
+
+    /**
+     * If a fileLicensing in a package contains more than one license entry then it could be a compound license which
+     * was not treated by the resolver packages yet. Therefore, a template - structured as a resolving action -
+     * is generated as a yml file for all missing/open items. This file called "template.yml.tmp" can be found in the
+     * directory where the resolver actions are stored. This template can be used to manually add resolver blocks -
+     * by copy/paste.
+     */
+    private fun generateResolverTemplate() {
+        val resList = mutableListOf<ResolverPackage>()
+        project.packs.forEach { pack ->
+            pack.fileLicensings
+                .filter { fileLicensing -> fileLicensing.licenses.map { it.license }.toSet().size > 1 }
+                .forEach { fileLicensing ->
+                    val licenses = fileLicensing.licenses.map { it.license }.toSet()
+                    val resolverPackage = resList.firstOrNull { it.id == pack.id } ?:
+                        (ResolverPackage(pack.id).also { resList.add(it) })
+                    val resolverBlock = resolverPackage.resolverBlocks.firstOrNull { it.licenses.toSet() == licenses }
+                    if (resolverBlock == null)
+                        resolverPackage.resolverBlocks.add(
+                            ResolverBlock(
+                                licenses.toList(),
+                                licenses.toList().joinToString(" OR "),
+                                arrayListOf(fileLicensing.scope)
+                            )
+                        )
+                    else {
+                        if (!resolverBlock.scopes.contains(fileLicensing.scope)) {
+                            resolverBlock.scopes.add(fileLicensing.scope)
+                        }
+                    }
+                }
+        }
+        writeTemplate(resList)
+    }
+
+    private fun writeTemplate(resList: MutableList<ResolverPackage>) {
+        val outputFile = File(config.resolver?.directory!!).resolve("template.yml.tmp")
+        val objectMapper = ObjectMapper(YAMLFactory())
+        try {
+            outputFile.bufferedWriter().use {
+                it.write(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(resList))
+            }
+        } catch (e: IOException) {
+            logger.log(
+                "Error when writing json file: \"$outputFile\".\n ${e.message} ",
+                Level.ERROR,
+                phase = ProcessingPhase.RESOLVING
+            )
+        }
     }
 
     /**
@@ -137,10 +196,10 @@ internal class ResolverManager(
                     resolverProvider.actions.add(
                         ResolverPackage(
                             pack.id,
-                            listOf(
+                            mutableListOf(
                                 ResolverBlock(
                                   analyzerLicenses.mappedLicenses.toList(), analyzerLicenses.declaredLicensesProcessed,
-                                  mutableListOf("")
+                                  arrayListOf("")
                                 )
                             )
                         )
@@ -165,10 +224,10 @@ internal class ResolverManager(
                         resolverProvider.actions.add(
                             ResolverPackage(
                                 pack.id,
-                                listOf(
+                                mutableListOf(
                                     ResolverBlock(
                                         analyzerLicenses.mappedLicenses.toList(),
-                                        analyzerLicenses.declaredLicensesProcessed, mutableListOf("")
+                                        analyzerLicenses.declaredLicensesProcessed, arrayListOf("")
                                     )
                                 )
                             )
@@ -186,11 +245,11 @@ internal class ResolverManager(
             resolverProvider.actions.add(
                 ResolverPackage(
                     pack.id,
-                    listOf(
+                    mutableListOf(
                         ResolverBlock(
                             v.second.split(" OR ", " AND "),
                             v.second,
-                            mutableListOf(v.first.replace("\"", ""))
+                            arrayListOf(v.first.replace("\"", ""))
                         )
                     )
                 )

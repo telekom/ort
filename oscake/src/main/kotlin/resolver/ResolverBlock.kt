@@ -19,6 +19,8 @@
 
 package org.ossreviewtoolkit.oscake.resolver
 
+import java.util.ArrayList
+
 /**
  * A [ResolverBlock] contains one resolver-action for a specific package
  */
@@ -34,5 +36,5 @@ internal data class ResolverBlock(
     /**
      *   list of Scopes (directory, file) - "" means the complete root directory
      */
-    val scopes: MutableList<String> = mutableListOf()
+    val scopes: ArrayList<String> = emptyList<String>() as ArrayList<String>
 )

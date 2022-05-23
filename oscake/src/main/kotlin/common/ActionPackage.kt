@@ -19,6 +19,8 @@
 
 package org.ossreviewtoolkit.oscake.common
 
+import com.fasterxml.jackson.annotation.JsonIgnore
+
 import com.vdurmont.semver4j.Semver
 import com.vdurmont.semver4j.SemverException
 
@@ -32,6 +34,7 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeL
  * Builds the base class for OSCake-Packages.
  */
 internal abstract class ActionPackage(open val id: Identifier) {
+    @JsonIgnore
     var belongsToFile: File? = null
     /**
      * Returns true if this [ActionPackage] is applicable to the package with the given [pkgId],

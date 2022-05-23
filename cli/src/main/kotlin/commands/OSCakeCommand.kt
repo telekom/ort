@@ -105,6 +105,11 @@ class ResolverOptions : OscakeConfig("Options for oscake application: resolver")
     ).convert { it.expandTilde() }
         .file(mustExist = true, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = true)
         .convert { it.absoluteFile.normalize() }
+
+    val generateTemplate by option(
+        "--generateTemplate",
+        help = "Generate a resolver template containing all unresolved multiple licenses"
+    ).flag()
 }
 
 /**

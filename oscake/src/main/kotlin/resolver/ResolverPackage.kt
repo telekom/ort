@@ -45,7 +45,7 @@ internal data class ResolverPackage(
     /**
     * [resolverBlocks] contains a list of [ResolverBlock]s
     */
-    @get:JsonProperty("resolve") val resolverBlocks: List<ResolverBlock> = mutableListOf(),
+    @get:JsonProperty("resolve") val resolverBlocks: MutableList<ResolverBlock> = mutableListOf(),
 ) : ActionPackage(id) {
 
     /**
