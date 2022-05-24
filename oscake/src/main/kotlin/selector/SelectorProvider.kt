@@ -36,50 +36,38 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.Process
 class SelectorProvider(val directory: File) :
     ActionProvider(directory, null, SELECTOR_LOGGER, SelectorPackage::class, ProcessingPhase.SELECTION) {
 
+    private var errorPrefix = ""
+    private val errorSuffix = " --> selector action ignored"
+
     override fun checkSemantics(item: ActionPackage, fileName: String, fileStore: File?): Boolean {
         item as SelectorPackage
-        val errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "
-        val errorSuffix = " --> selector action ignored"
-        val phase = ProcessingPhase.SELECTION
 
-        if (item.selectorBlocks.isEmpty()) {
-            logger.log("$errorPrefix no resolve block found! $errorSuffix", Level.WARN, phase = phase)
-            return false
-        }
-        item.selectorBlocks.forEach {
-            if (!CompoundOrLicense(it.specified).isCompound) {
-                logger.log(
-                    "$errorPrefix specified license: \"${it.specified}\" is not a valid Compound-License! " +
-                            errorSuffix,
-                    Level.WARN,
-                    phase = phase
-                )
-                return false
-            }
+        errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "
+
+        if (item.selectorBlocks.isEmpty()) return loggerWarn("no selector block found!")
+
+        item.selectorBlocks.filter { !CompoundOrLicense(it.specified).isCompound }.forEach {
+            return loggerWarn("specified license: \"${it.specified}\" is not a valid Compound-License! ")
         }
         item.selectorBlocks.forEach {
             if (it.specified.contains(" AND ")) {
-                logger.log(
-                    "$errorPrefix specified license: \"${it.specified}\" contains \"AND\" - this is not a " +
-                            "valid Compound-License, yet! " + errorSuffix,
-                    Level.WARN,
-                    phase = phase
+                return loggerWarn(
+                "specified license: \"${it.specified}\" contains \"AND\" - this is not a valid Compound-License, yet!"
                 )
-                return false
             }
         }
         item.selectorBlocks.filter { CompoundOrLicense(it.specified).isCompound }.forEach {
-            val cl = CompoundOrLicense(it.specified)
-            if (!cl.licenseList.contains(it.selected)) {
-                logger.log(
-                    "$errorPrefix specified license: \"${it.selected}\" is not a valid selection " +
-                            "of \"${it.specified}\"! $errorSuffix",
-                    Level.WARN,
-                    phase = phase
+            if (!CompoundOrLicense(it.specified).licenseList.contains(it.selected)) {
+                return loggerWarn(
+                    "specified license: \"${it.selected}\" is not a valid selection of \"${it.specified}\"!"
                 )
-                return false
             }
         }
         return true
+    }
+
+    private fun loggerWarn(msg: String): Boolean {
+        logger.log("$errorPrefix $msg $errorSuffix", Level.WARN, phase = ProcessingPhase.SELECTION)
+        return false
     }
 }

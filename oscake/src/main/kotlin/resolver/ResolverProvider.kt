@@ -36,45 +36,31 @@ import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.Process
 class ResolverProvider(val directory: File) :
     ActionProvider(directory, null, RESOLVER_LOGGER, ResolverPackage::class, ProcessingPhase.RESOLVING) {
 
+    private var errorPrefix = ""
+    private val errorSuffix = " --> resolver action ignored"
+
     /**
      * Checks if the action statements are logically correct and consistent
      */
     override fun checkSemantics(item: ActionPackage, fileName: String, fileStore: File?): Boolean {
         item as ResolverPackage
-        val errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "
-        val errorSuffix = " --> resolver action ignored"
-        val phase = ProcessingPhase.RESOLVING
+        errorPrefix = "[Semantics] - File: $fileName [${item.id.toCoordinates()}]: "
 
-        if (item.resolverBlocks.isEmpty()) {
-            logger.log("$errorPrefix no resolve block found! $errorSuffix", Level.WARN, phase = phase)
-            return false
-        }
+        if (item.resolverBlocks.isEmpty()) return loggerWarn("no resolve block found!")
+
         item.resolverBlocks.forEach { resolverBlock ->
             // 1. licenses must contain at least one license
-            if (resolverBlock.licenses.isEmpty()) {
-                logger.log("$errorPrefix license list is empty! $errorSuffix", Level.WARN, phase = phase)
-                return false
-            }
-            if (resolverBlock.licenses.any { it == null }) {
-                logger.log("$errorPrefix license list contains null-values! $errorSuffix", Level.WARN, phase = phase)
-                return false
-            }
+            if (resolverBlock.licenses.isEmpty()) return loggerWarn("license list is empty!")
+            if (resolverBlock.licenses.any { it == null }) return loggerWarn("license list contains null-values!")
+
             // 2. result must consist of a compound license - linked with "OR"
-            if (!resolverBlock.result.split(" ").contains("OR")) {
-                logger.log(
-                    "$errorPrefix \"result\" contains a license expression without \"OR\"! $errorSuffix",
-                    Level.WARN, phase = phase
-                )
-                return false
-            }
+            if (!resolverBlock.result.split(" ").contains("OR"))
+                return loggerWarn("\"result\" contains a license expression without \"OR\"!")
+
             // 3. result must not contain "AND"
-            if (resolverBlock.result.split(" ").contains("AND")) {
-                logger.log(
-                    "$errorPrefix \"result\" contains a license expression with \"AND\" --> not allowed! $errorSuffix",
-                    Level.WARN, phase = phase
-                )
-                return false
-            }
+            if (resolverBlock.result.split(" ").contains("AND"))
+                return loggerWarn("\"result\" contains a license expression with \"AND\" --> not allowed!")
+
             // 4. scopes must contain at least one item - if not, an entry with an empty string is created
             if (resolverBlock.scopes.isEmpty()) resolverBlock.scopes.add("")
         }
@@ -94,17 +80,15 @@ class ResolverProvider(val directory: File) :
                 list.forEach { pair ->
                     listOfLicenseLists.add(pair.second.licenses.toSortedSet(compareBy { it }))
                 }
-                if (listOfLicenseLists.size != listOfLicenseLists.distinct().size) {
-                    logger.log(
-                        "$errorPrefix found multiple blocks for scope \"$key\" with equal licenses --> " +
-                                "not allowed! $errorSuffix",
-                        Level.WARN,
-                        phase = phase
-                    )
-                    return false
-                }
+                if (listOfLicenseLists.size != listOfLicenseLists.distinct().size)
+                    return loggerWarn("found multiple blocks for scope \"$key\" with equal licenses --> not allowed!")
             }
         }
         return true
+    }
+
+    private fun loggerWarn(msg: String): Boolean {
+        logger.log("$errorPrefix $msg $errorSuffix", Level.WARN, phase = ProcessingPhase.RESOLVING)
+        return false
     }
 }
