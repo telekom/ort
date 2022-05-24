@@ -19,12 +19,8 @@
 
 package org.ossreviewtoolkit.oscake.resolver
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
-
 import java.io.File
 import java.io.FileNotFoundException
-import java.io.IOException
 
 import org.apache.logging.log4j.Level
 
@@ -35,7 +31,9 @@ import org.ossreviewtoolkit.model.readValueOrNull
 import org.ossreviewtoolkit.oscake.RESOLVER_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionInfo
 import org.ossreviewtoolkit.oscake.common.ActionManager
+import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.oscake.curator.CurationManager
+import org.ossreviewtoolkit.oscake.writeTemplate
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Pack
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
@@ -113,7 +111,7 @@ internal class ResolverManager(
         }
 
         // 4. generate a resolver template for unresolved multiple licenses
-        if (commandLineParams.containsKey("generateTemplate")) generateResolverTemplate()
+        if (commandLineParams["generateTemplate"].toBoolean()) generateResolverTemplate()
 
         // 5. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(RESOLVER_LOGGER)) handleOSCakeIssues(
@@ -159,23 +157,12 @@ internal class ResolverManager(
                     }
                 }
         }
-        writeTemplate(resList)
-    }
-
-    private fun writeTemplate(resList: MutableList<ResolverPackage>) {
-        val outputFile = File(config.resolver?.directory!!).resolve("template.yml.tmp")
-        val objectMapper = ObjectMapper(YAMLFactory())
-        try {
-            outputFile.bufferedWriter().use {
-                it.write(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(resList))
-            }
-        } catch (e: IOException) {
-            logger.log(
-                "Error when writing json file: \"$outputFile\".\n ${e.message} ",
-                Level.ERROR,
-                phase = ProcessingPhase.RESOLVING
-            )
-        }
+        @Suppress("UNCHECKED_CAST")
+        if (resList.isNotEmpty()) writeTemplate(
+            resList as MutableList<ActionPackage>,
+            config.resolver?.directory!!,
+            logger
+        )
     }
 
     /**

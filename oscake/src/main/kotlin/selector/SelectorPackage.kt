@@ -48,7 +48,7 @@ internal data class SelectorPackage(
     /**
     * [selectorBlocks] contains a list of [SelectorBlock]s
     */
-    @get:JsonProperty("choices") val selectorBlocks: List<SelectorBlock> = mutableListOf(),
+    @get:JsonProperty("choices") val selectorBlocks: MutableList<SelectorBlock> = mutableListOf(),
 ) : ActionPackage(id) {
 
     /**

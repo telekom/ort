@@ -132,6 +132,11 @@ class SelectorOptions : OscakeConfig("Options for oscake application: selector")
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
         .required()
+
+    val generateSelectorTemplate by option(
+        "--generateSelectorTemplate",
+        help = "Generate a selector template containing all unselected compound licenses"
+    ).flag()
 }
 
 /**

@@ -19,13 +19,21 @@
 
 package org.ossreviewtoolkit.oscake
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+
 import java.io.File
 import java.io.IOException
 
 import kotlin.reflect.full.memberProperties
 
+import org.apache.logging.log4j.Level
+
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
+import org.ossreviewtoolkit.oscake.common.ActionPackage
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.ConfigBlockInfo
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger
+import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 
 const val CURATION_DEFAULT_LICENSING = "<DEFAULT_LICENSING>"
 const val CURATION_LOGGER = "OSCakeCurator"
@@ -174,4 +182,20 @@ fun addParamsToConfig(
         }
     }
     return null
+}
+
+internal fun writeTemplate(resList: MutableList<ActionPackage>, directory: String, logger: OSCakeLogger) {
+    val outputFile = File(directory).resolve("template.yml.tmp")
+    val objectMapper = ObjectMapper(YAMLFactory())
+    try {
+        outputFile.bufferedWriter().use {
+            it.write(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(resList))
+        }
+    } catch (e: IOException) {
+        logger.log(
+            "Error when writing json file: \"$outputFile\".\n ${e.message} ",
+            Level.ERROR,
+            phase = ProcessingPhase.RESOLVING
+        )
+    }
 }

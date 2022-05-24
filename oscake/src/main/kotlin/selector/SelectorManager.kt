@@ -21,17 +21,16 @@ package org.ossreviewtoolkit.oscake.selector
 
 import java.io.File
 
-import org.apache.logging.log4j.Level
-
 import org.ossreviewtoolkit.model.config.OSCakeConfiguration
 import org.ossreviewtoolkit.oscake.SELECTOR_LOGGER
 import org.ossreviewtoolkit.oscake.common.ActionInfo
 import org.ossreviewtoolkit.oscake.common.ActionManager
+import org.ossreviewtoolkit.oscake.common.ActionPackage
+import org.ossreviewtoolkit.oscake.writeTemplate
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.Project
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.CompoundOrLicense
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager
-import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.ProcessingPhase
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.handleOSCakeIssues
 
 /**
@@ -85,19 +84,8 @@ internal class SelectorManager(
             selectorProvider.getActionFor(it.id, true)?.process(it, archiveDir, logger)
         }
         // 2. Check if compound license and no originalLicense is set --> no resolver package exists
-        project.packs.filter { !it.reuseCompliant }.forEach { pack ->
-            pack.fileLicensings.forEach { fileLicensing ->
-                fileLicensing.licenses.forEach {
-                    if (CompoundOrLicense(it.license).isCompound && it.originalLicenses == null)
-                        logger.log(
-                            "Compound license \"${it.license}\": no selector was found for this license!",
-                            Level.WARN,
-                            pack.id,
-                            phase = ProcessingPhase.SELECTION
-                        )
-                }
-            }
-        }
+        if (commandLineParams["generateSelectorTemplate"].toBoolean()) generateSelectorTemplate()
+
         // 3. report [OSCakeIssue]s
         if (OSCakeLoggerManager.hasLogger(SELECTOR_LOGGER)) handleOSCakeIssues(
             project,
@@ -108,5 +96,42 @@ internal class SelectorManager(
         takeCareOfIssueLevel()
         // 5. generate .zip and .oscc files
         createResultingFiles(archiveDir)
+    }
+
+    private fun generateSelectorTemplate() {
+        val resList = mutableListOf<SelectorPackage>()
+        project.packs.filter { !it.reuseCompliant }.forEach { pack ->
+            pack.fileLicensings.forEach { fileLicensing ->
+                fileLicensing.licenses
+                    .filter { CompoundOrLicense(it.license).isCompound && it.originalLicenses == null }
+                    .forEach { fileLicense ->
+                        val actions = selectorProvider.getActionFor(pack.id, false) as SelectorPackage?
+                        if (actions == null || actions.selectorBlocks.none {
+                            CompoundOrLicense(it.specified) == CompoundOrLicense(fileLicense.license)
+                            }
+                        ) {
+                            val selectorPackage = resList.firstOrNull { it.id == pack.id }
+                                ?: (SelectorPackage(pack.id).also { resList.add(it) })
+                            if (selectorPackage.selectorBlocks.none {
+                                    CompoundOrLicense(it.specified) == CompoundOrLicense(fileLicense.license)
+                                }
+                            )
+                                selectorPackage.selectorBlocks.add(
+                                    SelectorBlock(
+                                        fileLicense.license!!,
+                                        fileLicense.license!!.split(" OR ")
+                                            .joinToString(" | ", prefix = "<", postfix = ">"),
+                                    )
+                                )
+                        }
+                    }
+            }
+        }
+        @Suppress("UNCHECKED_CAST")
+        if (resList.isNotEmpty()) writeTemplate(
+            resList as MutableList<ActionPackage>,
+            config.selector?.directory!!,
+            logger
+        )
     }
 }
