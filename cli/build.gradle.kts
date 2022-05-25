@@ -35,6 +35,7 @@ val postgresVersion: String by project
 val reflectionsVersion: String by project
 val sw360ClientVersion: String by project
 val greenMailVersion: String by project
+val commonsCsvVersion: String by project
 
 plugins {
     // Apply core plugins.
@@ -176,6 +177,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion")
     implementation("org.postgresql:postgresql:$postgresVersion")
     implementation("org.reflections:reflections:$reflectionsVersion")
+
+    implementation("org.apache.commons:commons-csv:$commonsCsvVersion")
 
     testImplementation(project(":utils:test-utils"))
 

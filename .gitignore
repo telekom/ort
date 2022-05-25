@@ -13,3 +13,4 @@ out/
 # Mac
 .DS_Store
 /OSCake.log
+/OSCake.csv

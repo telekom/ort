@@ -19,8 +19,12 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
+import java.time.LocalDateTime
+
 import org.apache.logging.log4j.Level
+import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
+import org.apache.logging.log4j.message.ObjectArrayMessage
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.config.OSCakeConfigParams
@@ -38,6 +42,7 @@ class OSCakeLogger(
      */
     private val logger: Logger
 ) {
+    private val csvLogger = LogManager.getLogger()
     /**
      * List of reported [OSCakeIssue]s.
      */
@@ -71,6 +76,17 @@ class OSCakeLogger(
             if (OSCakeConfigParams.includeJsonPathInLogfile4ErrorsAndWarnings &&
                     (level == Level.ERROR || level == Level.WARN)
                 ) jsonPath = it.generateJSONPath()
+            val msgArr = ObjectArrayMessage(
+                LocalDateTime.now().toString(), it.level, source, it.phase,
+                it.id?.toCoordinates(), it.scope, it.fileScope, msg, jsonPath
+            )
+            when (level) {
+                Level.DEBUG -> csvLogger.debug(msgArr)
+                Level.INFO -> csvLogger.info(msgArr)
+                Level.WARN -> csvLogger.warn(msgArr)
+                Level.ERROR -> csvLogger.error(msgArr)
+                else -> csvLogger.log(Level.INFO, msgArr.parameters.joinToString("|"))
+            }
         }
 
         var prefix = ""

@@ -10,11 +10,18 @@
     <File name="LogFile" fileName="OSCake.log" append="false">
       <PatternLayout pattern="%d{HH:mm:ss.SSS} %-5level %msg%n"/>
     </File>
+    <File name="csv_appender" fileName="OSCake.csv" append="false">
+      <CsvParameterLayout format="Excel" delimiter="|" header="TimeStamp|Level|Source|Phase|Package|Scope(Def/Dir/File)|FilePath|Message|Json-Path\n"/>
+    </File>
   </Appenders>
   <Loggers>
     <Logger name="org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLoggerManager" level="info" additivity="false">
       <AppenderRef ref="Console2"/>
       <AppenderRef ref="LogFile"/>
+    </Logger>
+    <Logger name="org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils.OSCakeLogger"
+            level="info" additivity="false">
+      <AppenderRef ref="csv_appender"/>
     </Logger>
     <Root level="warn">
       <AppenderRef ref="Console"/>

@@ -351,12 +351,11 @@ internal class ModeDefault(
      */
     override fun postActivities(tmpDirectory: File) {
         if (pack.defaultLicensings.size == 0) prepareEntryForScopeDefault(pack, reporterInput)
-        val def = pack.defaultLicensings.mapNotNull { it.license }.distinct()
-        if (def.size > 1) {
-            var s = ""
-            def.forEach { s += "\n--> $it" }
+
+        pack.defaultLicensings.mapNotNull { it.license }.distinct().takeIf { it.size > 1 }?.let {
             logger.log(
-                "DefaultScope: more than one license found: $s \ndual licensed or multiple licenses",
+                "DefaultScope: more than one license found: ${it.joinToString(" & ")} dual licensed " +
+                        "or multiple licenses",
                 Level.WARN,
                 pack.id,
                 phase = ProcessingPhase.POST
@@ -364,13 +363,10 @@ internal class ModeDefault(
         }
         // check dirScope
         pack.dirLicensings.forEach { dirLicensing ->
-            val dir = dirLicensing.licenses.map { it.license }.distinct()
-            if (dir.size > 1) {
-                var s = ""
-                dir.forEach { s += "\n--> $it" }
+            dirLicensing.licenses.map { it.license }.distinct().takeIf { it.size > 1 }?.let {
                 logger.log(
-                    "DirScope <${dirLicensing.scope}>: more than one license found: $s " +
-                        "\ndual licensed or multiple licenses",
+                    "DirScope <${dirLicensing.scope}>: more than one license found: " +
+                            "${it.joinToString(" & ")}  dual licensed or multiple licenses",
                     Level.WARN,
                     pack.id,
                     phase = ProcessingPhase.POST

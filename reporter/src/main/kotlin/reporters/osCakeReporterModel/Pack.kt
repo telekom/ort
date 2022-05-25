@@ -328,7 +328,7 @@ data class Pack(
                 )
             )
             else logger.log(
-                    "DirScope: : multiple equal licenses <${fileLicense.license}> in the same " +
+                    "DirScope: multiple equal licenses <${fileLicense.license}> in the same " +
                             "file found - ignored!",
                     if (isLikeNOASSERTION(fileLicense.license)) Level.INFO else Level.DEBUG,
                     id,
