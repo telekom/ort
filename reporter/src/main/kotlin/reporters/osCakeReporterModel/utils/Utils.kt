@@ -53,11 +53,14 @@ const val FOUND_IN_FILE_SCOPE_CONFIGURED = "[CONFIGURED]"
 const val REUSE_LICENSES_FOLDER = "LICENSES/"
 internal const val REPORTER_LOGGER = "OSCakeReporter"
 
-val commentPrefixRegexList = listOf(
+/**
+ * Patterns for recognizing comments
+ */
+internal val commentPrefixRegexList = listOf(
     """\*""", """/\*+""", "//", "#", "<#", """\.\.\.""", "REM", "<!--", "!", "'", "--", ";", """\(\*""", """\{"""
 ).generatePrefixRegex()
 
-val commentSuffixRegexList = listOf("""\*+/""", "-->", "#>", """\*\)""", """\}""").generateSuffixRegex()
+internal val commentSuffixRegexList = listOf("""\*+/""", "-->", "#>", """\*\)""", """\}""").generateSuffixRegex()
 
 /**
  * Checks if a license is categorized as "instanced" license - as defined in file
@@ -69,9 +72,15 @@ internal fun isInstancedLicense(input: ReporterInput, license: String): Boolean 
         setOf()
     ).map { it.simpleLicense() }.contains(license)
 
+/**
+ * Get the Prefix for directory containing licenses - for REUSE licensings only
+ */
 fun getLicensesFolderPrefix(packageRoot: String) = packageRoot +
         (if (packageRoot != "") "/" else "") + REUSE_LICENSES_FOLDER
 
+/**
+ * Generates a "flat" path based on id, path and file extension
+ */
 fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null): String =
     id.toPath("%") + "%" + path.replace('/', '%').replace(
         '\\', '%'
@@ -81,13 +90,16 @@ fun createPathFlat(id: Identifier, path: String, fileExtension: String? = null):
  * Depending on the [path] of the file and the name of the file (contained in list scopePatterns) the
  * [ScopeLevel] is identified.
  */
-fun getScopeLevel(path: String, packageRoot: String, treatMetaInfAsDefault: Boolean) =
+internal fun getScopeLevel(path: String, packageRoot: String, treatMetaInfAsDefault: Boolean) =
     getScopeLevel4All(
         path, packageRoot, OSCakeConfigParams.scopePatterns, OSCakeConfigParams.scopeIgnorePatterns,
         OSCakeConfigParams.lowerCaseComparisonOfScopePatterns, treatMetaInfAsDefault
     )
 
-fun getScopeLevel4Copyrights(
+/**
+ * Get the scope level of files where copyright are found
+ */
+internal fun getScopeLevel4Copyrights(
     path: String,
     packageRoot: String,
     treatMetaInfAsDefault: Boolean
@@ -100,7 +112,10 @@ fun getScopeLevel4Copyrights(
     treatMetaInfAsDefault
 )
 
-fun getScopeLevel4All(
+/**
+ * General method (licenses + copyrights) to get the scope
+ */
+internal fun getScopeLevel4All(
     path: String, packageRoot: String, scopePatterns: List<String>, scopeIgnorePatterns: List<String>,
                       lowerCaseComparisonOfScopePatterns: Boolean, treatMetaInfAsDefault: Boolean
 ): ScopeLevel {
@@ -130,7 +145,10 @@ fun getScopeLevel4All(
     return scopeLevel
 }
 
-fun getDirScopePath(pack: Pack, fileScope: String): String {
+/**
+ * Get the well-formed path of a directory scope
+ */
+internal fun getDirScopePath(pack: Pack, fileScope: String): String {
     val p = if (fileScope.startsWith(pack.packageRoot) && pack.packageRoot != "") {
         fileScope.replaceFirst(pack.packageRoot, "")
     } else {
@@ -142,6 +160,9 @@ fun getDirScopePath(pack: Pack, fileScope: String): String {
     return if (lastIndex >= start) p.substring(start, lastIndex) else ""
 }
 
+/**
+ * Projects may be found in a subdirectory of a repository. Therefore, it is necessary to eliminate the root directory
+ */
 fun getPathWithoutPackageRoot(pack: Pack, fileScope: String): String {
     val pathWithoutPackage = if (fileScope.startsWith(pack.packageRoot) && pack.packageRoot != "") {
         fileScope.replaceFirst(pack.packageRoot, "")
@@ -152,6 +173,9 @@ fun getPathWithoutPackageRoot(pack: Pack, fileScope: String): String {
     return pathWithoutPackage
 }
 
+/**
+ * Returns the path name without the root directory
+ */
 internal fun getPathName(pack: Pack, fib: FileInfoBlock): String {
     var rc = fib.path
     if (pack.packageRoot != "") rc = fib.path.replaceFirst(pack.packageRoot, "")
@@ -236,9 +260,12 @@ fun handleOSCakeIssues(project: Project, logger: OSCakeLogger, issuesLevel: Int)
     propagateHasIssues(project)
 }
 
-    private fun getNextNo(iwe: MutableList<Issue>) = (
-            iwe.filter { !it.id.contains("_") }.maxOfOrNull { it.id.substring(1).toInt() } ?: 0
-            ) + 1
+/**
+ * Identifies the next number for enumerating infos, warnings, and errors
+ */
+private fun getNextNo(iwe: MutableList<Issue>) = (
+        iwe.filter { !it.id.contains("_") }.maxOfOrNull { it.id.substring(1).toInt() } ?: 0
+        ) + 1
 
 /**
  *  sets and propagates hasIssue from the different levels: DefaultLicensing, DirLicensing, Package to Project
@@ -337,6 +364,9 @@ private fun getNextNo(prefix: Char, no: MutableMap<String, Int>, prePrefix: Stri
         else -> "No no found!"
     }
 
+/**
+ * Removes a file from an archive
+ */
 fun deleteFromArchive(oldPath: String?, archiveDir: File) =
     oldPath?.let { File(archiveDir, oldPath).apply { if (exists()) delete() } }
 
@@ -349,6 +379,9 @@ internal fun List<String>.generatePrefixRegex(): String =
         sb.append(")")
     }.toString()
 
+/**
+ * Generates regex expressions in order to eliminate comment symbols
+ */
 internal fun List<String>.generateSuffixRegex(): String =
     StringBuilder().also { sb ->
         this.forEachIndexed { index, element ->
@@ -358,6 +391,9 @@ internal fun List<String>.generateSuffixRegex(): String =
         sb.append("$")
     }.toString()
 
+/**
+ * Eliminates comment symbols from the given string
+ */
 internal fun String.getRidOfCommentSymbols(): String {
     val withoutPrefix = Regex(commentPrefixRegexList).replaceFirst(this, "")
     return if (withoutPrefix != this) Regex(commentSuffixRegexList).replace(withoutPrefix, "") else withoutPrefix
@@ -476,6 +512,9 @@ fun compareLTIAwithArchive(project: Project, archiveDir: File, logger: OSCakeLog
     return false
 }
 
+/**
+ * Closes the archive and generates a zip-file of it
+ */
 fun zipAndCleanUp(
     outputDir: File,
     tmpDirectory: File,
@@ -508,7 +547,10 @@ fun stripRelativePathIndicators(name: String): String {
     return name
 }
 
-fun isLikeNOASSERTION(license: String?): Boolean = if (license != null) (
+/**
+ * Handle license info like "NOASSERTION"
+ */
+internal fun isLikeNOASSERTION(license: String?): Boolean = if (license != null) (
         license == "NOASSERTION" ||
         (license.startsWith("LicenseRef-scancode") && license.contains("unknown"))
     ) else false
