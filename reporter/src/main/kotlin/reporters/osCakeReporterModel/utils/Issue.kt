@@ -19,6 +19,9 @@
 
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
+/**
+ * The class [Issue] wraps an [id] and the assigned [message]
+ */
 data class Issue(
     val id: String,
     val message: String

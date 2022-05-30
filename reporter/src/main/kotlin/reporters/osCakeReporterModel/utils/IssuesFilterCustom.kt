@@ -20,6 +20,9 @@
 package org.ossreviewtoolkit.reporter.reporters.osCakeReporterModel.utils
 
 @Suppress("EqualsWithHashCodeExist")
+/**
+ * Custom filter for writing issues into the output file (for jackson)
+ */
 class IssuesFilterCustom {
     override fun equals(other: Any?): Boolean {
         // do not serialize when the lists are empty
@@ -29,10 +32,5 @@ class IssuesFilterCustom {
         if (other == null) return true
 
         return false
-    }
-
-    // automatically generated because of custom implementation of the "equals" method
-    override fun hashCode(): Int {
-        return javaClass.hashCode()
     }
 }
