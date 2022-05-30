@@ -139,12 +139,15 @@ data class Project(
                 }
             }
         }
+
+        /**
+         * Reads the oscc file and creates the model
+         */
         fun osccToModel(osccFile: File, logger: OSCakeLogger, processingPhase: ProcessingPhase): Project {
             val mapper = jacksonObjectMapper()
             var project: Project? = null
             try {
-                val json = osccFile.readText()
-                project = mapper.readValue<Project>(json)
+                project = mapper.readValue<Project>(osccFile.readText())
             } catch (e: IOException) {
                 logger.log(
                     "EXIT: Invalid json format found in file: \"$osccFile\".\n ${e.message} ",
@@ -545,13 +548,8 @@ data class Project(
     /**
      * Set th packageType depending on the package (project vs. package)
      */
-    fun setPackageType() {
-        packs.forEach {
-            if (it.id == Identifier(complianceArtifactCollection.cid)) {
-                it.packageType = PackageType.EXECUTABLE
-            } else {
-                it.packageType = PackageType.LIBRARY
-            }
-        }
+    fun setPackageType() = packs.forEach {
+        it.packageType = if (it.id == Identifier(complianceArtifactCollection.cid)) PackageType.EXECUTABLE
+            else PackageType.LIBRARY
     }
 }

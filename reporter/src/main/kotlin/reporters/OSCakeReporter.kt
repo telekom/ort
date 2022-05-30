@@ -77,20 +77,18 @@ class OSCakeReporter : Reporter {
         OSCakeConfiguration.setConfigParams(options)
 
         // relay issues from ORT
-        input.ortResult.analyzer?.result?.let {
-            if (it.hasIssues) logger.log(
-                "Issue in ORT-ANALYZER - please check ORT-logfile or console output or scan_result.yml",
+        if (input.ortResult.analyzer?.result?.hasIssues == true)
+            logger.log(
+                "Issue in ORT-ANALYZER - please check ORT-logfile or console output or analyzer-result.yml",
                 Level.WARN,
                 phase = ProcessingPhase.ORIGINAL
             )
-        }
-        input.ortResult.scanner?.results?.let {
-            if (it.hasIssues) logger.log(
+        if (input.ortResult.scanner?.results?.hasIssues == true)
+            logger.log(
                 "Issue in ORT-SCANNER - please check ORT-logfile or console output or scan-result.yml",
                 Level.WARN,
                 phase = ProcessingPhase.ORIGINAL
             )
-        }
 
         // start processing
         prepareNativeScanResults(input.ortResult.scanner?.config?.options)
@@ -227,9 +225,7 @@ class OSCakeReporter : Reporter {
         scanDict: MutableMap<Identifier,
         MutableMap<String,
         FileInfoBlock>>
-    ) {
-
-        scanDict.forEach { (pkg, fibMap) ->
+    ) = scanDict.forEach { (pkg, fibMap) ->
             fibMap.filter { it.value.licenseTextEntries.size > 1 }
                 .forEach { (_, fib) ->
                 val lteToRemove = mutableListOf<LicenseTextEntry>()
@@ -252,7 +248,6 @@ class OSCakeReporter : Reporter {
                 if (lteToRemove.isNotEmpty()) fib.licenseTextEntries.removeAll(lteToRemove)
             }
         }
-    }
 
     /**
      * Ingest analyzer output:
@@ -425,8 +420,8 @@ class OSCakeReporter : Reporter {
             filter {
                 OSCakeConfigParams.onlyIncludePackages.isEmpty() ||
                     (
-                            OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
-                            OSCakeConfigParams.onlyIncludePackages.contains(it.key)
+                        OSCakeConfigParams.onlyIncludePackages.isNotEmpty() &&
+                        OSCakeConfigParams.onlyIncludePackages.contains(it.key)
                     )
             }?.
             forEach { (key, pp) ->
