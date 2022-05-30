@@ -78,7 +78,7 @@ class OSCakeLogger(
                 ) jsonPath = it.generateJSONPath()
             val msgArr = ObjectArrayMessage(
                 LocalDateTime.now().toString(), it.level, source, it.phase,
-                it.id?.toCoordinates(), it.scope, it.fileScope, msg, jsonPath
+                it.id?.toCoordinates(), it.scope, it.fileScope, msg.replace("\n", "  -->"), jsonPath
             )
             when (level) {
                 Level.DEBUG -> csvLogger.debug(msgArr)
