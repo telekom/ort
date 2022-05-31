@@ -83,11 +83,10 @@ internal abstract class ModeSelector {
         scannerPackageProvenance: Provenance
     ) {
         if (!needsSourceCode(scanDict, pack)) return
-        val pkg = pkgMap[pack.id]!!
 
+        val pkg = pkgMap[pack.id]!!
         val downloadDir = File(OSCakeConfigParams.sourceCodesDir!!)
         val downloaderConfig = DownloaderConfiguration()
-
         val provenanceHash = getHash(scannerPackageProvenance)
 
         @Suppress("SwallowedException")

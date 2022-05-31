@@ -146,7 +146,10 @@ internal class ModeDefault(
         }
     }
 
-    private fun phaseII(tmpDirectory: File) {
+    /**
+     * Add file from scanner archive if no license file already is assigned
+     */
+    private fun phaseII(tmpDirectory: File) =
         reporterInput.licenseInfoResolver.resolveLicenseFiles(pack.id).files.forEach {
             var path = it.path.replace("\\", "/")
             if (it.path.startsWith(pack.packageRoot) && pack.packageRoot != "") path = path.replaceFirst(
@@ -167,8 +170,10 @@ internal class ModeDefault(
                 }
             }
         }
-    }
 
+    /**
+     * Add copyright entries to FileLicensing(s)
+     */
     private fun phaseIII() {
         scanDict[pack.id]?.filter { (_, fib) -> fib.copyrightTextEntries.size > 0 }?.forEach { (_, fib) ->
             (
