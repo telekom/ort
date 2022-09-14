@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Bosch.IO GmbH
+ * Copyright (C) 2020-2022 Bosch.IO GmbH
  * Copyright (C) 2021 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,10 +22,11 @@ package org.ossreviewtoolkit.scanner.storages
 
 import java.io.IOException
 import java.lang.IllegalArgumentException
-import java.time.Instant
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+
+import org.apache.logging.log4j.kotlin.Logging
 
 import org.ossreviewtoolkit.clients.clearlydefined.ClearlyDefinedService
 import org.ossreviewtoolkit.clients.clearlydefined.ComponentType
@@ -51,10 +52,10 @@ import org.ossreviewtoolkit.scanner.ScannerCriteria
 import org.ossreviewtoolkit.scanner.experimental.ScanStorageException
 import org.ossreviewtoolkit.scanner.scanners.scancode.generateScannerDetails
 import org.ossreviewtoolkit.scanner.scanners.scancode.generateSummary
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
-import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.common.collectMessages
+import org.ossreviewtoolkit.utils.ort.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.ort.showStackTrace
+import org.ossreviewtoolkit.utils.spdx.SpdxConstants
 
 import retrofit2.HttpException
 
@@ -105,6 +106,8 @@ class ClearlyDefinedStorage(
     /** The configuration for this storage implementation. */
     val configuration: ClearlyDefinedStorageConfiguration
 ) : ScanResultsStorage() {
+    companion object : Logging
+
     /** The service for interacting with ClearlyDefined. */
     private val service by lazy {
         ClearlyDefinedService.create(configuration.serverUrl, OkHttpClientHelper.buildClient())
@@ -134,7 +137,7 @@ class ClearlyDefinedStorage(
         } catch (e: IllegalArgumentException) {
             e.showStackTrace()
 
-            log.warn { "Could not obtain ClearlyDefined coordinates for package '${id.toCoordinates()}'." }
+            logger.warn { "Could not obtain ClearlyDefined coordinates for package '${id.toCoordinates()}'." }
 
             EMPTY_RESULT
         }
@@ -145,8 +148,7 @@ class ClearlyDefinedStorage(
      * identifier, as we try to lookup source code results if a GitHub repository is known.
      */
     private suspend fun readFromClearlyDefined(id: Identifier, coordinates: Coordinates): Result<List<ScanResult>> {
-        val startTime = Instant.now()
-        log.info { "Looking up results for '${id.toCoordinates()}'." }
+        logger.info { "Looking up results for '${id.toCoordinates()}'." }
 
         return try {
             val tools = service.harvestTools(
@@ -158,11 +160,11 @@ class ClearlyDefinedStorage(
             )
 
             findScanCodeVersion(tools, coordinates)?.let { version ->
-                loadScanCodeResults(coordinates, version, startTime)
+                loadScanCodeResults(coordinates, version)
             } ?: EMPTY_RESULT
         } catch (e: HttpException) {
             e.response()?.errorBody()?.string()?.let {
-                log.error { "Error response from ClearlyDefined is: $it" }
+                logger.error { "Error response from ClearlyDefined is: $it" }
             }
 
             handleException(id, e)
@@ -179,22 +181,18 @@ class ClearlyDefinedStorage(
         e.showStackTrace()
 
         val message = "Error when reading results for package '${id.toCoordinates()}' from ClearlyDefined: " +
-                e.collectMessagesAsString()
+                e.collectMessages()
 
-        log.error { message }
+        logger.error { message }
 
         return Result.failure(ScanStorageException(message))
     }
 
     /**
      * Load the ScanCode results file for the package with the given [coordinates] from ClearlyDefined.
-     * The results have been produced by ScanCode in the given [version]; use the [startTime] for metadata.
+     * The results have been produced by ScanCode in the given [version].
      */
-    private suspend fun loadScanCodeResults(
-        coordinates: Coordinates,
-        version: String,
-        startTime: Instant
-    ): Result<List<ScanResult>> {
+    private suspend fun loadScanCodeResults(coordinates: Coordinates, version: String): Result<List<ScanResult>> {
         val toolResponse = service.harvestToolData(
             coordinates.type, coordinates.provider, coordinates.namespace.orEmpty(), coordinates.name,
             coordinates.revision.orEmpty(), TOOL_SCAN_CODE, version
@@ -231,7 +229,7 @@ class ClearlyDefinedStorage(
                     }
                 }
 
-                val summary = generateSummary(startTime, Instant.now(), "", result)
+                val summary = generateSummary(SpdxConstants.NONE, result)
                 val details = generateScannerDetails(result)
 
                 Result.success(listOf(ScanResult(provenance, details, summary)))

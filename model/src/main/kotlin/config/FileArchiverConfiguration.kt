@@ -19,29 +19,27 @@
 
 package org.ossreviewtoolkit.model.config
 
-import com.fasterxml.jackson.annotation.JsonAlias
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-
-import com.sksamuel.hoplite.ConfigAlias
+import org.apache.logging.log4j.kotlin.Logging
 
 import org.ossreviewtoolkit.model.utils.DatabaseUtils
 import org.ossreviewtoolkit.model.utils.FileArchiver
 import org.ossreviewtoolkit.model.utils.FileArchiverFileStorage
 import org.ossreviewtoolkit.model.utils.PostgresFileArchiverStorage
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.storage.FileStorage
-import org.ossreviewtoolkit.utils.core.storage.LocalFileStorage
+import org.ossreviewtoolkit.utils.ort.storage.FileStorage
+import org.ossreviewtoolkit.utils.ort.storage.LocalFileStorage
 
 /**
  * The configuration model for a [FileArchiver].
  */
-@JsonIgnoreProperties(value = ["patterns"])
 data class FileArchiverConfiguration(
+    /**
+     * Toggle to enable or disable the file archiver functionality altogether.
+     */
+    val enabled: Boolean = true,
+
     /**
      * Configuration of the [FileStorage] used for archiving the files.
      */
-    @ConfigAlias("storage")
-    @JsonAlias("storage")
     val fileStorage: FileStorageConfiguration? = null,
 
     /**
@@ -49,9 +47,11 @@ data class FileArchiverConfiguration(
      */
     val postgresStorage: PostgresStorageConfiguration? = null
 ) {
+    companion object : Logging
+
     init {
         if (fileStorage != null && postgresStorage != null) {
-            log.warn {
+            logger.warn {
                 "'fileStorage' and 'postgresStorage' are both configured but only one storage can be used. Using " +
                         "'fileStorage'."
             }
@@ -62,13 +62,15 @@ data class FileArchiverConfiguration(
 /**
  * Create a [FileArchiver] based on this configuration.
  */
-fun FileArchiverConfiguration?.createFileArchiver(): FileArchiver {
+fun FileArchiverConfiguration?.createFileArchiver(): FileArchiver? {
+    if (this?.enabled == false) return null
+
     val storage = when {
         this?.fileStorage != null -> FileArchiverFileStorage(fileStorage.createFileStorage())
 
         this?.postgresStorage != null -> {
             val dataSource = DatabaseUtils.createHikariDataSource(
-                config = postgresStorage,
+                config = postgresStorage.connection,
                 applicationNameSuffix = "file-archiver"
             )
 

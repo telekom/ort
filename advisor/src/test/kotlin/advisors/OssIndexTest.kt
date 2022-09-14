@@ -28,10 +28,12 @@ import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 
 import io.kotest.core.spec.style.WordSpec
+import io.kotest.matchers.collections.beEmpty
+import io.kotest.matchers.collections.containExactly
 import io.kotest.matchers.collections.containExactlyInAnyOrder
 import io.kotest.matchers.collections.haveSize
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.maps.beEmpty
+import io.kotest.matchers.maps.beEmpty as beEmptyMap
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNot
@@ -76,7 +78,7 @@ class OssIndexTest : WordSpec({
 
             val result = ossIndex.retrievePackageFindings(packages).mapKeys { it.key.id }
 
-            result shouldNot beEmpty()
+            result shouldNot beEmptyMap()
             result.keys should containExactlyInAnyOrder(ID_JUNIT)
             result[ID_JUNIT] shouldNotBeNull {
                 this should haveSize(1)
@@ -85,6 +87,8 @@ class OssIndexTest : WordSpec({
                     vulnerabilities should containExactlyInAnyOrder(
                         Vulnerability(
                             id = "CVE-2020-15250",
+                            summary = "[CVE-2020-15250] In JUnit4 from version 4.7 and before 4.13.1,...",
+                            description = "In JUnit4 from version 4.7 and before 4.13.1, the test...",
                             references = listOf(
                                 VulnerabilityReference(
                                     url = URI(
@@ -121,14 +125,14 @@ class OssIndexTest : WordSpec({
             val result = ossIndex.retrievePackageFindings(packages).mapKeys { it.key.id }
 
             result shouldNotBeNull {
-                keys should io.kotest.matchers.collections.containExactly(COMPONENTS_REQUEST_IDS)
+                keys should containExactly(COMPONENTS_REQUEST_IDS)
 
                 COMPONENTS_REQUEST_IDS.forEach { pkg ->
                     val pkgResults = getValue(pkg)
                     pkgResults shouldHaveSize 1
                     val pkgResult = pkgResults[0]
                     pkgResult.advisor shouldBe ossIndex.details
-                    pkgResult.vulnerabilities should io.kotest.matchers.collections.beEmpty()
+                    pkgResult.vulnerabilities should beEmpty()
                     pkgResult.summary.issues shouldHaveSize 1
                     val issue = pkgResult.summary.issues[0]
                     issue.severity shouldBe Severity.ERROR

@@ -24,8 +24,8 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import java.util.SortedSet
 
 import org.ossreviewtoolkit.model.utils.toPurl
-import org.ossreviewtoolkit.utils.core.DeclaredLicenseProcessor
-import org.ossreviewtoolkit.utils.core.ProcessedDeclaredLicense
+import org.ossreviewtoolkit.utils.ort.DeclaredLicenseProcessor
+import org.ossreviewtoolkit.utils.ort.ProcessedDeclaredLicense
 import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 import org.ossreviewtoolkit.utils.spdx.SpdxOperator
 
@@ -57,14 +57,14 @@ data class Package(
     val cpe: String? = null,
 
     /**
-     * The list of authors declared for this package.
+     * The set of authors declared for this package.
      */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     val authors: SortedSet<String> = sortedSetOf(),
 
     /**
-     * The list of licenses the authors have declared for this package. This does not necessarily correspond to the
-     * licenses as detected by a scanner. Both need to be taken into account for any conclusions.
+     * The set of licenses declared for this package. This does not necessarily correspond to the licenses as detected
+     * by a scanner. Both need to be taken into account for any conclusions.
      */
     val declaredLicenses: SortedSet<String>,
 
@@ -75,8 +75,8 @@ data class Package(
     val declaredLicensesProcessed: ProcessedDeclaredLicense = DeclaredLicenseProcessor.process(declaredLicenses),
 
     /**
-     * The concluded license as an [SpdxExpression]. It can be used to correct the license of a package in case the
-     * [declaredLicenses] found in the packages metadata or the licenses detected by a scanner do not match reality.
+     * The concluded license as an [SpdxExpression]. It can be used to override the [declared][declaredLicenses] /
+     * [detected][LicenseFinding.license] licenses of a package.
      *
      * ORT itself does not set this field, it needs to be set by the user using a [PackageCuration].
      */
@@ -104,26 +104,26 @@ data class Package(
     val sourceArtifact: RemoteArtifact,
 
     /**
-     * Original VCS-related information as defined in the [Package]'s metadata.
+     * Original VCS-related information as defined in the package's metadata.
      */
     val vcs: VcsInfo,
 
     /**
-     * Processed VCS-related information about the [Package] in normalized form. The information is either derived from
+     * Processed VCS-related information about the package in normalized form. The information is either derived from
      * [vcs], guessed from additional data as a fallback, or empty. On top of that [PackageCuration]s may have been
      * applied.
      */
     val vcsProcessed: VcsInfo = vcs.normalize(),
 
     /**
-     * Indicates whether this [Package] is just metadata, like e.g. Maven BOM artifacts which only define constraints
+     * Indicates whether the package is just metadata, like e.g. Maven BOM artifacts which only define constraints
      * for dependency versions.
      */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     val isMetaDataOnly: Boolean = false,
 
     /**
-     * Indicates whether the source code of this [Package] has been modified compared to the original source code,
+     * Indicates whether the source code of the package has been modified compared to the original source code,
      * e.g., in case of a fork of an upstream Open Source project.
      */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
@@ -172,7 +172,8 @@ data class Package(
             binaryArtifact = binaryArtifact.takeIf { it != other.binaryArtifact },
             sourceArtifact = sourceArtifact.takeIf { it != other.sourceArtifact },
             vcs = vcsProcessed.takeIf { it != other.vcsProcessed }?.toCuration(),
-            isMetaDataOnly = isMetaDataOnly.takeIf { it != other.isMetaDataOnly }
+            isMetaDataOnly = isMetaDataOnly.takeIf { it != other.isMetaDataOnly },
+            isModified = isModified.takeIf { it != other.isModified }
         )
     }
 

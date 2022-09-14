@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2021 HERE Europe B.V.
- * Copyright (C) 2021 Bosch.IO GmbH
+ * Copyright (C) 2021-2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,11 +58,12 @@ import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
+import org.ossreviewtoolkit.model.config.FileArchiverConfiguration
+import org.ossreviewtoolkit.model.config.Options
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
-import org.ossreviewtoolkit.model.config.ScannerOptions
 import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.scanner.ScannerCriteria
-import org.ossreviewtoolkit.utils.core.createOrtTempDir
+import org.ossreviewtoolkit.utils.ort.createOrtTempDir
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class ExperimentalScannerTest : WordSpec({
@@ -629,9 +630,9 @@ class ExperimentalScannerTest : WordSpec({
                 provenanceWithoutVcsPath,
                 scannerWrapper.details,
                 sortedSetOf(
-                    // Add a license finding outside of the subdirectory that is matched by a license file pattern.
+                    // Add a license finding outside the subdirectory that is matched by a license file pattern.
                     LicenseFinding("Apache-2.0", TextLocation("LICENSE", 1, 1)),
-                    // Add a license finding outside of the subdirectory that is not matched by a license file pattern.
+                    // Add a license finding outside the subdirectory that is not matched by a license file pattern.
                     LicenseFinding("Apache-2.0", TextLocation("other", 1, 1)),
                     // Add a license finding inside the subdirectory.
                     LicenseFinding("Apache-2.0", TextLocation("subdirectory/file", 1, 1))
@@ -651,7 +652,7 @@ class ExperimentalScannerTest : WordSpec({
                 provenanceWithVcsPath,
                 scannerWrapper.details,
                 sortedSetOf(
-                    // Add a license finding outside of the subdirectory that is matched by a license file pattern.
+                    // Add a license finding outside the subdirectory that is matched by a license file pattern.
                     LicenseFinding("Apache-2.0", TextLocation("LICENSE", 1, 1)),
                     // Add a license finding inside the subdirectory.
                     LicenseFinding("Apache-2.0", TextLocation("subdirectory/file", 1, 1))
@@ -795,7 +796,7 @@ private class FakePackageScannerWrapper(
     override fun scanPackage(pkg: Package, context: ScanContext): ScanResult =
         createScanResult(packageProvenanceResolver.resolveProvenance(pkg, sourceCodeOriginPriority), details)
 
-    override fun filterSecretOptions(options: ScannerOptions) = options
+    override fun filterSecretOptions(options: Options) = options
 }
 
 /**
@@ -809,7 +810,7 @@ private class FakeProvenanceScannerWrapper : ProvenanceScannerWrapper {
     override fun scanProvenance(provenance: KnownProvenance, context: ScanContext): ScanResult =
         createScanResult(provenance, details)
 
-    override fun filterSecretOptions(options: ScannerOptions) = options
+    override fun filterSecretOptions(options: Options) = options
 }
 
 /**
@@ -828,7 +829,7 @@ private class FakePathScannerWrapper : PathScannerWrapper {
         return createScanSummary(licenseFindings = licenseFindings)
     }
 
-    override fun filterSecretOptions(options: ScannerOptions) = options
+    override fun filterSecretOptions(options: Options) = options
 }
 
 /**
@@ -837,7 +838,6 @@ private class FakePathScannerWrapper : PathScannerWrapper {
  */
 private class FakeProvenanceDownloader(val filename: String = "fake.txt") : ProvenanceDownloader {
     override fun download(provenance: KnownProvenance): File {
-        // TODO: Should downloadDir be created if it does not exist?
         val file = createOrtTempDir().resolve(filename)
         file.writeText(yamlMapper.writeValueAsString(provenance))
         return file.parentFile
@@ -921,10 +921,7 @@ private fun createContext(
     type: PackageType = PackageType.PACKAGE
 ) = ScanContext(labels, type)
 
-@Suppress("LongParameterList")
 private fun createScanner(
-    scannerConfig: ScannerConfiguration = ScannerConfiguration(),
-    downloaderConfig: DownloaderConfiguration = DownloaderConfiguration(),
     provenanceDownloader: ProvenanceDownloader = FakeProvenanceDownloader(),
     storageReaders: List<ScanStorageReader> = emptyList(),
     storageWriters: List<ScanStorageWriter> = emptyList(),
@@ -934,8 +931,8 @@ private fun createScanner(
     projectScannerWrappers: List<ScannerWrapper> = emptyList()
 ) =
     ExperimentalScanner(
-        scannerConfig,
-        downloaderConfig,
+        ScannerConfiguration(archive = FileArchiverConfiguration(enabled = false)),
+        DownloaderConfiguration(),
         provenanceDownloader,
         storageReaders,
         storageWriters,

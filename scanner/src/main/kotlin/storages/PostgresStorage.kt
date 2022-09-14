@@ -30,6 +30,8 @@ import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.DatabaseConfig
 import org.jetbrains.exposed.sql.SchemaUtils.createMissingTablesAndColumns
@@ -47,15 +49,13 @@ import org.ossreviewtoolkit.model.utils.DatabaseUtils.transactionAsync
 import org.ossreviewtoolkit.model.utils.arrayParam
 import org.ossreviewtoolkit.model.utils.rawParam
 import org.ossreviewtoolkit.model.utils.tilde
-import org.ossreviewtoolkit.scanner.PathScanner
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
 import org.ossreviewtoolkit.scanner.ScannerCriteria
 import org.ossreviewtoolkit.scanner.experimental.ScanStorageException
 import org.ossreviewtoolkit.scanner.storages.utils.ScanResultDao
 import org.ossreviewtoolkit.scanner.storages.utils.ScanResults
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.common.collectMessages
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 private val TABLE_NAME = ScanResults.tableName
 
@@ -66,9 +66,14 @@ class PostgresStorage(
     /**
      * The JDBC data source to obtain database connections.
      */
-    private val dataSource: Lazy<DataSource>
+    private val dataSource: Lazy<DataSource>,
+
+    /**
+     * The number of parallel storage transactions.
+     */
+    private val parallelTransactions: Int
 ) : ScanResultsStorage() {
-    companion object {
+    companion object : Logging {
         /** Expression to reference the scanner version as an array. */
         private const val VERSION_ARRAY =
             "string_to_array(regexp_replace(scan_result->'scanner'->>'version', '[^0-9.]', '', 'g'), '.')"
@@ -136,9 +141,9 @@ class PostgresStorage(
                 it.showStackTrace()
 
                 val message = "Could not read scan results for ${id.toCoordinates()} from database: " +
-                        it.collectMessagesAsString()
+                        it.collectMessages()
 
-                log.info { message }
+                logger.info { message }
 
                 return Result.failure(ScanStorageException(message))
             }
@@ -168,9 +173,9 @@ class PostgresStorage(
                 it.showStackTrace()
 
                 val message = "Could not read scan results for ${pkg.id.toCoordinates()} with " +
-                        "$scannerCriteria from database: ${it.collectMessagesAsString()}"
+                        "$scannerCriteria from database: ${it.collectMessages()}"
 
-                log.info { message }
+                logger.info { message }
 
                 return Result.failure(ScanStorageException(message))
             }
@@ -188,7 +193,7 @@ class PostgresStorage(
 
         return runCatching {
             runBlocking(Dispatchers.IO) {
-                packages.chunked(max(packages.size / PathScanner.NUM_STORAGE_THREADS, 1)).map { chunk ->
+                packages.chunked(max(packages.size / parallelTransactions, 1)).map { chunk ->
                     database.transactionAsync {
                         @Suppress("MaxLineLength")
                         ScanResultDao.find {
@@ -218,9 +223,9 @@ class PostgresStorage(
                 it.showStackTrace()
 
                 val message = "Could not read scan results with $scannerCriteria from database: " +
-                        it.collectMessagesAsString()
+                        it.collectMessages()
 
-                log.info { message }
+                logger.info { message }
 
                 return Result.failure(ScanStorageException(message))
             }
@@ -228,7 +233,7 @@ class PostgresStorage(
     }
 
     override fun addInternal(id: Identifier, scanResult: ScanResult): Result<Unit> {
-        log.info { "Storing scan result for ${id.toCoordinates()} in storage." }
+        logger.info { "Storing scan result for ${id.toCoordinates()} in storage." }
 
         // TODO: Check if there is already a matching entry for this provenance and scanner details.
 
@@ -242,9 +247,9 @@ class PostgresStorage(
         }.recoverCatching {
             it.showStackTrace()
 
-            val message = "Could not store scan result for '${id.toCoordinates()}': ${it.collectMessagesAsString()}"
+            val message = "Could not store scan result for '${id.toCoordinates()}': ${it.collectMessages()}"
 
-            log.warn { message }
+            logger.warn { message }
 
             throw ScanStorageException(message)
         }.map { /* Unit */ }

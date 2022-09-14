@@ -25,18 +25,21 @@ import java.io.ByteArrayInputStream
 import java.io.FileNotFoundException
 import java.io.IOException
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.KnownProvenance
 import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.yamlMapper
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.fileSystemEncode
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
-import org.ossreviewtoolkit.utils.core.storage.FileStorage
+import org.ossreviewtoolkit.utils.ort.showStackTrace
+import org.ossreviewtoolkit.utils.ort.storage.FileStorage
 
 class ProvenanceBasedFileStorage(private val backend: FileStorage) : ProvenanceBasedScanStorage {
+    companion object : Logging
+
     override fun read(provenance: KnownProvenance): List<ScanResult> {
         requireEmptyVcsPath(provenance)
 
@@ -57,9 +60,9 @@ class ProvenanceBasedFileStorage(private val backend: FileStorage) : ProvenanceB
                     emptyList()
                 }
                 else -> {
-                    log.info {
+                    logger.info {
                         "Could not read scan results for '$provenance' from path '$path': " +
-                                it.collectMessagesAsString()
+                                it.collectMessages()
                     }
 
                     // TODO: Propagate error.
@@ -94,14 +97,14 @@ class ProvenanceBasedFileStorage(private val backend: FileStorage) : ProvenanceB
 
         runCatching {
             backend.write(path, input)
-            log.debug { "Stored scan result for '$provenance' at path '$path'." }
+            logger.debug { "Stored scan result for '$provenance' at path '$path'." }
         }.onFailure {
             when (it) {
                 is IllegalArgumentException, is IOException -> {
                     it.showStackTrace()
 
-                    log.warn {
-                        "Could not store scan result for '$provenance' at path '$path': ${it.collectMessagesAsString()}"
+                    logger.warn {
+                        "Could not store scan result for '$provenance' at path '$path': ${it.collectMessages()}"
                     }
                 }
                 else -> throw it

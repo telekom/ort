@@ -19,7 +19,6 @@
 
 package org.ossreviewtoolkit.model
 
-import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonInclude
 
 import java.util.Deque
@@ -54,15 +53,14 @@ data class PackageReference(
     override val linkage: PackageLinkage = PackageLinkage.DYNAMIC,
 
     /**
-     * The list of references to packages this package depends on. Note that this list depends on the scope in
-     * which this package reference is used.
+     * The set of [references to packages][PackageReference] this package depends on. Note that this list depends on the
+     * [scope][Scope] in which this package is referenced.
      */
     val dependencies: SortedSet<PackageReference> = sortedSetOf(),
 
     /**
      * A list of [OrtIssue]s that occurred handling this [PackageReference].
      */
-    @JsonAlias("errors")
     override val issues: List<OrtIssue> = emptyList()
 ) : Comparable<PackageReference>, DependencyNode {
     /**

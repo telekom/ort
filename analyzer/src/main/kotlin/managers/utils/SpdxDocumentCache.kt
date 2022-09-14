@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Bosch.IO GmbH
+ * Copyright (C) 2021-2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,9 @@ package org.ossreviewtoolkit.analyzer.managers.utils
 
 import java.io.File
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.analyzer.managers.SpdxDocumentFile
-import org.ossreviewtoolkit.utils.core.log
 import org.ossreviewtoolkit.utils.spdx.SpdxModelMapper
 import org.ossreviewtoolkit.utils.spdx.model.SpdxDocument
 
@@ -36,17 +37,19 @@ import org.ossreviewtoolkit.utils.spdx.model.SpdxDocument
  * Implementation note: This implementation is not thread-safe.
  */
 internal class SpdxDocumentCache {
+    companion object : Logging
+
     /** A cache for the documents that have already been loaded. */
-    private val documentCache = mutableMapOf<File, SpdxDocument>()
+    private val documentCache = mutableMapOf<File, Result<SpdxDocument>>()
 
     /**
      * Load the given [file] and parse it to an [SpdxDocument]. Cache the resulting document in case the file is
      * queried again.
      */
-    fun load(file: File): SpdxDocument =
+    fun load(file: File): Result<SpdxDocument> =
         documentCache.getOrPut(file) {
-            log.info { "Loading SpdxDocument from '$file'." }
+            logger.info { "Loading SpdxDocument from '$file'." }
 
-            SpdxModelMapper.read(file)
+            runCatching { SpdxModelMapper.read(file) }
         }
 }

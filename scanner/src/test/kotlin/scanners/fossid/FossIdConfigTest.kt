@@ -32,6 +32,7 @@ import io.kotest.matchers.shouldBe
 
 import kotlin.IllegalArgumentException
 
+import org.ossreviewtoolkit.clients.fossid.FossIdRestService
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 
 class FossIdConfigTest : WordSpec({
@@ -45,15 +46,16 @@ class FossIdConfigTest : WordSpec({
         "read all properties from the scanner configuration" {
             val options = mapOf(
                 "serverUrl" to SERVER_URL,
-                "apiKey" to API_KEY,
                 "user" to USER,
-                "packageNamespaceFilter" to NAMESPACE_FILTER,
-                "packageAuthorsFilter" to AUTHOR_FILTER,
+                "apiKey" to API_KEY,
                 "waitForResult" to "false",
+                "addAuthenticationToUrl" to "false",
+                "keepFailedScans" to "true",
                 "deltaScans" to "true",
                 "deltaScanLimit" to "42",
-                "timeout" to "300",
-                "addAuthenticationToUrl" to "false"
+                "detectLicenseDeclarations" to "true",
+                "detectCopyrightStatements" to "true",
+                "timeout" to "300"
             )
             val scannerConfig = options.toScannerConfig()
 
@@ -61,14 +63,15 @@ class FossIdConfigTest : WordSpec({
 
             fossIdConfig shouldBe FossIdConfig(
                 serverUrl = SERVER_URL,
-                apiKey = API_KEY,
                 user = USER,
-                packageAuthorsFilter = AUTHOR_FILTER,
-                packageNamespaceFilter = NAMESPACE_FILTER,
+                apiKey = API_KEY,
                 waitForResult = false,
+                addAuthenticationToUrl = false,
+                keepFailedScans = true,
                 deltaScans = true,
                 deltaScanLimit = 42,
-                addAuthenticationToUrl = false,
+                detectLicenseDeclarations = true,
+                detectCopyrightStatements = true,
                 timeout = 300,
                 options = options
             )
@@ -77,8 +80,8 @@ class FossIdConfigTest : WordSpec({
         "set default values for optional properties" {
             val options = mapOf(
                 "serverUrl" to SERVER_URL,
-                "apiKey" to API_KEY,
-                "user" to USER
+                "user" to USER,
+                "apiKey" to API_KEY
             )
             val scannerConfig = options.toScannerConfig()
 
@@ -86,14 +89,15 @@ class FossIdConfigTest : WordSpec({
 
             fossIdConfig shouldBe FossIdConfig(
                 serverUrl = SERVER_URL,
-                apiKey = API_KEY,
                 user = USER,
-                packageAuthorsFilter = "",
-                packageNamespaceFilter = "",
+                apiKey = API_KEY,
                 waitForResult = true,
+                addAuthenticationToUrl = false,
+                keepFailedScans = false,
                 deltaScans = false,
                 deltaScanLimit = Int.MAX_VALUE,
-                addAuthenticationToUrl = false,
+                detectLicenseDeclarations = false,
+                detectCopyrightStatements = false,
                 timeout = 60,
                 options = options
             )
@@ -101,8 +105,8 @@ class FossIdConfigTest : WordSpec({
 
         "throw if the server URL is missing" {
             val scannerConfig = mapOf(
-                "apiKey" to API_KEY,
-                "user" to USER
+                "user" to USER,
+                "apiKey" to API_KEY
             ).toScannerConfig()
 
             shouldThrow<IllegalArgumentException> { FossIdConfig.create(scannerConfig) }
@@ -129,8 +133,8 @@ class FossIdConfigTest : WordSpec({
         "throw if the deltaScanLimit is invalid" {
             val scannerConfig = mapOf(
                 "serverUrl" to SERVER_URL,
-                "apiKey" to API_KEY,
                 "user" to USER,
+                "apiKey" to API_KEY,
                 "deltaScanLimit" to "0"
             ).toScannerConfig()
 
@@ -142,8 +146,8 @@ class FossIdConfigTest : WordSpec({
         "create a naming provider with a correct project naming convention" {
             val scannerConfig = mapOf(
                 "serverUrl" to SERVER_URL,
-                "apiKey" to API_KEY,
                 "user" to USER,
+                "apiKey" to API_KEY,
                 "namingProjectPattern" to "#projectName_\$Org_\$Unit",
                 "namingVariableOrg" to "TestOrganization",
                 "namingVariableUnit" to "TestUnit"
@@ -160,8 +164,8 @@ class FossIdConfigTest : WordSpec({
         "create a naming provider with a correct scan naming convention" {
             val scannerConfig = mapOf(
                 "serverUrl" to SERVER_URL,
-                "apiKey" to API_KEY,
                 "user" to USER,
+                "apiKey" to API_KEY,
                 "namingScanPattern" to "#projectName_\$Org_\$Unit_#deltaTag",
                 "namingVariableOrg" to "TestOrganization",
                 "namingVariableUnit" to "TestUnit"
@@ -187,8 +191,8 @@ class FossIdConfigTest : WordSpec({
                 val serverUrl = "http://localhost:${server.port()}"
                 val scannerConfig = mapOf(
                     "serverUrl" to serverUrl,
-                    "apiKey" to API_KEY,
-                    "user" to USER
+                    "user" to USER,
+                    "apiKey" to API_KEY
                 ).toScannerConfig()
 
                 server.stubFor(
@@ -201,7 +205,7 @@ class FossIdConfigTest : WordSpec({
                 )
 
                 val fossIdConfig = FossIdConfig.create(scannerConfig)
-                val service = fossIdConfig.createService()
+                val service = FossIdRestService.createService(fossIdConfig.serverUrl)
 
                 service.getLoginPage().string() shouldBe loginPage
             } finally {
@@ -212,10 +216,8 @@ class FossIdConfigTest : WordSpec({
 })
 
 private const val SERVER_URL = "https://www.example.org/fossid"
-private const val API_KEY = "test_api_key"
 private const val USER = "fossIdTestUser"
-private const val NAMESPACE_FILTER = "testFilterForNamespace"
-private const val AUTHOR_FILTER = "testFilterForAuthors"
+private const val API_KEY = "test_api_key"
 
 /**
  * Return a [ScannerConfiguration] with this map as options for the FossID scanner.

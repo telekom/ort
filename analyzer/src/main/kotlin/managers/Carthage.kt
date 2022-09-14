@@ -41,7 +41,8 @@ import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.model.orEmpty
-import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.common.unquote
+import org.ossreviewtoolkit.utils.ort.normalizeVcsUrl
 
 /**
  * The [Carthage](https://github.com/Carthage/Carthage) package manager for Objective-C / Swift.
@@ -130,12 +131,12 @@ class Carthage(
         }
 
         val type = DependencyType.valueOf(split[0].uppercase())
-        val id = split[1].removeSurrounding("\"")
-        val revision = split[2].removeSurrounding("\"")
+        val id = split[1].unquote()
+        val revision = split[2].unquote()
 
         return when (type) {
             DependencyType.GITHUB -> {
-                // ID consists of github username/project or a github enterprise URL.
+                // ID consists of GitHub username/project or a GitHub enterprise URL.
                 val projectUrl = if (id.split('/').size == 2) {
                     val (username, project) = id.split("/", limit = 2)
                     "https://github.com/$username/$project"
@@ -158,7 +159,7 @@ class Carthage(
             }
 
             DependencyType.BINARY -> {
-                // ID is an URL or a path to a file that contains a Carthage binary project specification.
+                // ID is a URL or a path to a file that contains a Carthage binary project specification.
                 val binarySpecString = if (isFilePath(workingDir, id)) {
                     val filePath = id.removePrefix("file://")
                     val binarySpecFile = when {

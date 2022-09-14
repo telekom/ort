@@ -46,6 +46,7 @@ import org.ossreviewtoolkit.cli.GlobalOptions
 import org.ossreviewtoolkit.cli.utils.OPTION_GROUP_INPUT
 import org.ossreviewtoolkit.cli.utils.SeverityStats
 import org.ossreviewtoolkit.cli.utils.configurationGroup
+import org.ossreviewtoolkit.cli.utils.logger
 import org.ossreviewtoolkit.cli.utils.outputGroup
 import org.ossreviewtoolkit.cli.utils.readOrtResult
 import org.ossreviewtoolkit.cli.utils.writeOrtResult
@@ -93,15 +94,15 @@ import org.ossreviewtoolkit.scanner.storages.SCAN_RESULTS_FILE_NAME
 import org.ossreviewtoolkit.scanner.storages.Sw360Storage
 import org.ossreviewtoolkit.utils.common.expandTilde
 import org.ossreviewtoolkit.utils.common.safeMkdirs
-import org.ossreviewtoolkit.utils.core.ORT_RESOLUTIONS_FILENAME
-import org.ossreviewtoolkit.utils.core.ortConfigDirectory
-import org.ossreviewtoolkit.utils.core.ortDataDirectory
-import org.ossreviewtoolkit.utils.core.storage.LocalFileStorage
-import org.ossreviewtoolkit.utils.core.storage.XZCompressedLocalFileStorage
+import org.ossreviewtoolkit.utils.ort.ORT_RESOLUTIONS_FILENAME
+import org.ossreviewtoolkit.utils.ort.ortConfigDirectory
+import org.ossreviewtoolkit.utils.ort.ortDataDirectory
+import org.ossreviewtoolkit.utils.ort.storage.LocalFileStorage
+import org.ossreviewtoolkit.utils.ort.storage.XZCompressedLocalFileStorage
 
-sealed class ScannerOption {
-    data class Stable(val scannerFactory: ScannerFactory) : ScannerOption()
-    data class Experimental(val scannerWrapperFactories: List<ScannerWrapperFactory>) : ScannerOption()
+sealed interface ScannerOption {
+    data class Stable(val scannerFactory: ScannerFactory) : ScannerOption
+    data class Experimental(val scannerWrapperFactories: List<ScannerWrapperFactory>) : ScannerOption
 }
 
 private fun RawOption.convertToScanner() =
@@ -231,6 +232,12 @@ class ScannerCommand : CliktCommand(name = "scan", help = "Run external license 
         val ortResult = when (val scanner = scannerOption) {
             is ScannerOption.Stable -> {
                 val projectScannerFactory = (projectScannerOption as? ScannerOption.Stable)?.scannerFactory
+
+                logger.warn {
+                    "The scanner implementation will be replaced with the currently experimental scanner in the " +
+                            "middle of September 2022. Please see " +
+                            "https://github.com/oss-review-toolkit/ort#experimental-scanner for how to migrate."
+                }
 
                 run(scanner.scannerFactory, projectScannerFactory, config)
             }
@@ -394,10 +401,11 @@ private fun createFileBasedStorage(config: FileBasedStorageConfiguration) =
 private fun createPostgresStorage(config: PostgresStorageConfiguration) =
     when (config.type) {
         StorageType.PACKAGE_BASED -> PostgresStorage(
-            DatabaseUtils.createHikariDataSource(config = config, applicationNameSuffix = TOOL_NAME)
+            DatabaseUtils.createHikariDataSource(config = config.connection, applicationNameSuffix = TOOL_NAME),
+            config.connection.parallelTransactions
         )
         StorageType.PROVENANCE_BASED -> ProvenanceBasedPostgresStorage(
-            DatabaseUtils.createHikariDataSource(config = config, applicationNameSuffix = TOOL_NAME)
+            DatabaseUtils.createHikariDataSource(config = config.connection, applicationNameSuffix = TOOL_NAME)
         )
     }
 
@@ -411,7 +419,9 @@ private fun createPackageProvenanceStorage(config: ProvenanceStorageConfiguratio
     }
 
     config?.postgresStorage?.let { postgresStorageConfiguration ->
-        return PostgresPackageProvenanceStorage(DatabaseUtils.createHikariDataSource(postgresStorageConfiguration))
+        return PostgresPackageProvenanceStorage(
+            DatabaseUtils.createHikariDataSource(postgresStorageConfiguration.connection)
+        )
     }
 
     return FileBasedPackageProvenanceStorage(
@@ -425,7 +435,9 @@ private fun createNestedProvenanceStorage(config: ProvenanceStorageConfiguration
     }
 
     config?.postgresStorage?.let { postgresStorageConfiguration ->
-        return PostgresNestedProvenanceStorage(DatabaseUtils.createHikariDataSource(postgresStorageConfiguration))
+        return PostgresNestedProvenanceStorage(
+            DatabaseUtils.createHikariDataSource(postgresStorageConfiguration.connection)
+        )
     }
 
     return FileBasedNestedProvenanceStorage(

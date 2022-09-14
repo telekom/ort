@@ -23,6 +23,8 @@ import com.vdurmont.semver4j.Requirement
 
 import java.io.File
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.model.ProjectAnalyzerResult
@@ -30,7 +32,6 @@ import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.utils.common.CommandLineTool
 import org.ossreviewtoolkit.utils.common.ProcessCapture
-import org.ossreviewtoolkit.utils.core.log
 
 class Pipenv(
     name: String,
@@ -38,6 +39,8 @@ class Pipenv(
     analyzerConfig: AnalyzerConfiguration,
     repoConfig: RepositoryConfiguration
 ) : PackageManager(name, analysisRoot, analyzerConfig, repoConfig), CommandLineTool {
+    companion object : Logging
+
     class Factory : AbstractPackageManagerFactory<Pipenv>("Pipenv") {
         override val globsForDefinitionFiles = listOf("Pipfile.lock")
 
@@ -67,12 +70,10 @@ class Pipenv(
         val workingDir = definitionFile.parentFile
         val requirementsFile = workingDir.resolve("requirements-from-pipenv.txt")
 
-        log.info { "Generating '${requirementsFile.name}' file in '$workingDir' directory..." }
+        logger.info { "Generating '${requirementsFile.name}' file in '$workingDir' directory..." }
 
-        ProcessCapture(workingDir, command(), "lock", "--requirements")
-            .requireSuccess()
-            .stdoutFile
-            .copyTo(requirementsFile)
+        val requirements = ProcessCapture(workingDir, command(), "lock", "--requirements").requireSuccess().stdout
+        requirementsFile.writeText(requirements)
 
         return Pip(managerName, analysisRoot, analyzerConfig, repoConfig)
             .resolveDependencies(requirementsFile, labels)

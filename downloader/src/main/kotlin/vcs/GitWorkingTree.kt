@@ -22,6 +22,8 @@ package org.ossreviewtoolkit.downloader.vcs
 import java.io.File
 import java.io.IOException
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.eclipse.jgit.api.LsRemoteCommand
 import org.eclipse.jgit.lib.BranchConfig
 import org.eclipse.jgit.lib.Constants
@@ -32,7 +34,6 @@ import org.eclipse.jgit.submodule.SubmoduleWalk
 import org.ossreviewtoolkit.downloader.WorkingTree
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.utils.core.log
 
 private fun findGitOrSubmoduleDir(workingDirOrFile: File): Repository {
     val workingDir = (workingDirOrFile.takeIf { it.isDirectory } ?: workingDirOrFile.parentFile).absoluteFile
@@ -50,11 +51,14 @@ private fun findGitOrSubmoduleDir(workingDirOrFile: File): Repository {
 }
 
 open class GitWorkingTree(workingDir: File, vcsType: VcsType) : WorkingTree(workingDir, vcsType) {
-    private val repo = findGitOrSubmoduleDir(workingDir)
+    companion object : Logging
 
-    override fun isValid(): Boolean = repo.objectDatabase?.exists() == true
+    private val repo: Repository
+        get() = findGitOrSubmoduleDir(workingDir)
 
-    override fun isShallow(): Boolean = repo.directory?.resolve("shallow")?.isFile == true
+    override fun isValid(): Boolean = repo.use { it.objectDatabase?.exists() == true }
+
+    override fun isShallow(): Boolean = repo.use { it.directory?.resolve("shallow")?.isFile == true }
 
     private fun listSubmodulePaths(repo: Repository): List<String> {
         fun listSubmodules(parent: String, repo: Repository, paths: MutableList<String>) {
@@ -66,7 +70,10 @@ open class GitWorkingTree(workingDir: File, vcsType: VcsType) : WorkingTree(work
                     paths += path
 
                     if (walk.repository == null) {
-                        log.info { "Git submodule at '$path' not initialized. Cannot recursively list its submodules." }
+                        logger.info {
+                            "Git submodule at '$path' not initialized. Cannot recursively list its submodules."
+                        }
+
                         continue
                     }
 
@@ -83,41 +90,55 @@ open class GitWorkingTree(workingDir: File, vcsType: VcsType) : WorkingTree(work
     }
 
     override fun getNested(): Map<String, VcsInfo> =
-        listSubmodulePaths(repo).associateWith { GitWorkingTree(repo.workTree.resolve(it), vcsType).getInfo() }
-
-    override fun getRemoteUrl(): String =
-        runCatching {
-            val remotes = org.eclipse.jgit.api.Git(repo).remoteList().call()
-            val remoteForCurrentBranch = BranchConfig(repo.config, repo.branch).remote
-
-            val remote = if (remotes.size <= 1 || remoteForCurrentBranch == null) {
-                remotes.find { it.name == "origin" } ?: remotes.firstOrNull()
-            } else {
-                remotes.find { remote ->
-                    remote.name == remoteForCurrentBranch
-                }
+        repo.use {
+            listSubmodulePaths(it).associateWith { path ->
+                GitWorkingTree(it.workTree.resolve(path), vcsType).getInfo()
             }
-
-            remote?.urIs?.firstOrNull()?.toString().orEmpty()
-        }.getOrElse {
-            throw IOException("Unable to get the remote URL.", it)
         }
 
-    override fun getRevision(): String = repo.exactRef(Constants.HEAD)?.objectId?.name().orEmpty()
+    override fun getRemoteUrl(): String =
+        repo.use {
+            runCatching {
+                val remotes = org.eclipse.jgit.api.Git(it).use { it.remoteList().call() }
+                val remoteForCurrentBranch = BranchConfig(it.config, it.branch).remote
 
-    override fun getRootPath(): File = repo.workTree ?: workingDir
+                val remote = if (remotes.size <= 1 || remoteForCurrentBranch == null) {
+                    remotes.find { it.name == "origin" } ?: remotes.firstOrNull()
+                } else {
+                    remotes.find { remote ->
+                        remote.name == remoteForCurrentBranch
+                    }
+                }
+
+                remote?.urIs?.firstOrNull()?.toString().orEmpty()
+            }.getOrElse {
+                throw IOException("Unable to get the remote URL.", it)
+            }
+        }
+
+    override fun getRevision(): String = repo.use { it.exactRef(Constants.HEAD)?.objectId?.name().orEmpty() }
+
+    override fun getRootPath(): File = repo.use { it.workTree }
 
     override fun listRemoteBranches(): List<String> =
-        runCatching {
-            LsRemoteCommand(repo).setHeads(true).call().map { it.name.removePrefix("refs/heads/") }
-        }.getOrElse {
-            throw IOException("Unable to list the remote branches.", it)
+        repo.use {
+            runCatching {
+                LsRemoteCommand(it).setHeads(true).call().map { branch ->
+                    branch.name.removePrefix("refs/heads/")
+                }
+            }.getOrElse { e ->
+                throw IOException("Unable to list the remote branches.", e)
+            }
         }
 
     override fun listRemoteTags(): List<String> =
-        runCatching {
-            LsRemoteCommand(repo).setTags(true).call().map { it.name.removePrefix("refs/tags/") }
-        }.getOrElse {
-            throw IOException("Unable to list the remote tags.", it)
+        repo.use {
+            runCatching {
+                LsRemoteCommand(repo).setTags(true).call().map { tag ->
+                    tag.name.removePrefix("refs/tags/")
+                }
+            }.getOrElse { e ->
+                throw IOException("Unable to list the remote tags.", e)
+            }
         }
 }

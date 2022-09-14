@@ -109,8 +109,8 @@ interface OssIndexService {
         /** A UUID */
         val id: String,
 
-        /** A human-readable name; in case of a CVE the VCE name. */
-        val displayName: String,
+        /** A human-readable name; in case of a CVE the CVE name. */
+        val displayName: String? = null,
 
         /** A title for the vulnerability. */
         val title: String,

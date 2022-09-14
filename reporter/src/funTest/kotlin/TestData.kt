@@ -61,8 +61,10 @@ import org.ossreviewtoolkit.model.config.PathExclude
 import org.ossreviewtoolkit.model.config.PathExcludeReason
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
+import org.ossreviewtoolkit.model.config.ScopeExclude
+import org.ossreviewtoolkit.model.config.ScopeExcludeReason
 import org.ossreviewtoolkit.utils.common.enumSetOf
-import org.ossreviewtoolkit.utils.core.Environment
+import org.ossreviewtoolkit.utils.ort.Environment
 import org.ossreviewtoolkit.utils.spdx.toSpdx
 import org.ossreviewtoolkit.utils.test.DEFAULT_ANALYZER_CONFIGURATION
 
@@ -76,6 +78,12 @@ val ORT_RESULT = OrtResult(
                     PathExclude(
                         pattern = "excluded-project/**",
                         reason = PathExcludeReason.OTHER
+                    )
+                ),
+                scopes = listOf(
+                    ScopeExclude(
+                        pattern = "devDependencies",
+                        reason = ScopeExcludeReason.BUILD_DEPENDENCY_OF
                     )
                 )
             )
@@ -111,6 +119,14 @@ val ORT_RESULT = OrtResult(
                                 PackageReference(
                                     id = Identifier("NPM:@ort:declared-license:1.0")
                                 )
+                            )
+                        ),
+                        Scope(
+                            name = "devDependencies",
+                            dependencies = sortedSetOf(
+                                PackageReference(
+                                    id = Identifier("NPM:@ort:declared-license:1.0")
+                                ),
                             )
                         )
                     )
@@ -436,8 +452,8 @@ val ORT_RESULT = OrtResult(
 )
 
 val VULNERABILITY = Vulnerability(
-    "CVE-2021-1234",
-    listOf(
+    id = "CVE-2021-1234",
+    references = listOf(
         VulnerabilityReference(URI("https://cves.example.org/cve1"), "Cvss2", "MEDIUM")
     )
 )

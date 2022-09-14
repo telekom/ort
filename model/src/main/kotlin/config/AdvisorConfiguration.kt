@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2021 Bosch.IO GmbH
+ * Copyright (C) 2020-2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,19 +23,13 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 
 /**
- * Type alias for a map with configuration options for a single _AdviceProvider_. In addition to the concrete
- * configuration classes for the providers shipped with ORT, [AdvisorConfiguration] holds a map with generic options
- * that can be used to configure external plugins via the ORT configuration.
- */
-typealias AdviceProviderOptions = Map<String, String>
-
-/**
  * The base configuration model of the advisor.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class AdvisorConfiguration(
     val gitHubDefects: GitHubDefectsConfiguration? = null,
     val nexusIq: NexusIqConfiguration? = null,
+    val osv: OsvConfiguration? = null,
     val vulnerableCode: VulnerableCodeConfiguration? = null,
 
     /**
@@ -44,7 +38,7 @@ data class AdvisorConfiguration(
      * this map offers a way for external advisor plugins to query configuration information.
      */
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    val options: Map<String, AdviceProviderOptions>? = null
+    val options: Map<String, Options>? = null
 )
 
 /**
@@ -74,6 +68,16 @@ data class NexusIqConfiguration(
      */
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     val password: String?
+)
+
+/**
+ * The configuration for the Google OSV vulnerability provider.
+ */
+data class OsvConfiguration(
+    /**
+     * The base URL of the OSV REST API. If undefined, default is the production endpoint of the official OSV.dev API.
+     */
+    val serverUrl: String?
 )
 
 /**

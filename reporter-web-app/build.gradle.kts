@@ -51,8 +51,6 @@ tasks.addRule("Pattern: yarn<Command>") {
 
             // Prepend the directory of the bootstrapped Node.js to the PATH environment.
             environment = environment + mapOf("PATH" to "$nodeBinDir${File.pathSeparator}${environment["PATH"]}")
-
-            outputs.cacheIf { true }
         }
     }
 }
@@ -63,8 +61,7 @@ tasks.addRule("Pattern: yarn<Command>") {
 
 tasks {
     kotlinNodeJsSetup {
-        outputs.upToDateWhen { nodeExecutable.isFile }
-        outputs.cacheIf { true }
+        outputs.cacheIf { nodeExecutable.isFile }
 
         doFirst {
             logger.quiet("Setting up Node.js / NPM in '$nodeDir'...")
@@ -72,8 +69,7 @@ tasks {
     }
 
     kotlinYarnSetup {
-        outputs.upToDateWhen { yarnJs.isFile }
-        outputs.cacheIf { true }
+        outputs.cacheIf { yarnJs.isFile }
 
         doFirst {
             logger.quiet("Setting up Yarn in '$yarnDir'...")

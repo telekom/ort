@@ -19,23 +19,7 @@
  * License-Filename: LICENSE
  */
 
-val apachePoiVersion: String by project
-val asciidoctorjVersion: String by project
-val asciidoctorjPdfVersion: String by project
-val commonsCompressVersion: String by project
-val cyclonedxCoreJavaVersion: String by project
-val flexmarkVersion: String by project
-val freemarkerVersion: String by project
-val hamcrestCoreVersion: String by project
-val jacksonVersion: String by project
-val kotlinxCoroutinesVersion: String by project
-val kotlinxHtmlVersion: String by project
-val mockkVersion: String by project
-val retrofitVersion: String by project
-val saxonHeVersion: String by project
-val simpleExcelVersion: String by project
 val hopliteVersion: String by project
-
 plugins {
     // Apply core plugins.
     `java-library`
@@ -73,30 +57,30 @@ repositories {
 dependencies {
     api(project(":model"))
 
+    implementation(project(":clients:fossid-webapp"))
     implementation(project(":downloader"))
-    implementation(project(":utils:core-utils"))
+    implementation(project(":utils:ort-utils"))
     implementation(project(":utils:spdx-utils"))
 
-    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:$jacksonVersion")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
-    implementation("com.squareup.retrofit2:retrofit:$retrofitVersion")
-    implementation("com.vladsch.flexmark:flexmark:$flexmarkVersion")
-    implementation("org.apache.commons:commons-compress:$commonsCompressVersion")
-    implementation("org.apache.poi:poi-ooxml:$apachePoiVersion")
-    implementation("org.asciidoctor:asciidoctorj:$asciidoctorjVersion")
-    implementation("org.asciidoctor:asciidoctorj-pdf:$asciidoctorjPdfVersion")
-    implementation("org.cyclonedx:cyclonedx-core-java:$cyclonedxCoreJavaVersion")
-    implementation("org.freemarker:freemarker:$freemarkerVersion")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion")
-    implementation("org.jetbrains.kotlinx:kotlinx-html-jvm:$kotlinxHtmlVersion")
+    implementation(libs.asciidoctorj)
+    implementation(libs.asciidoctorjPdf)
+    implementation(libs.commonsCompress)
+    implementation(libs.cyclonedx)
+    implementation(libs.flexmark)
+    implementation(libs.freemarker)
+    implementation(libs.jacksonDatatypeJsr310)
+    implementation(libs.jacksonModuleKotlin)
+    implementation(libs.kotlinxCoroutines)
+    implementation(libs.kotlinxHtml)
+    implementation(libs.poiOoxml)
+    implementation(libs.retrofit)
 
-    // This is required to not depend on the version of Apache Xalan bundled with the JDK. Otherwise the formatting of
+    // This is required to not depend on the version of Apache Xalan bundled with the JDK. Otherwise, the formatting of
     // the HTML generated in StaticHtmlReporter is slightly different with different Java versions.
-    implementation("net.sf.saxon:Saxon-HE:$saxonHeVersion")
+    implementation(libs.saxonHe)
 
-    testImplementation("io.mockk:mockk:$mockkVersion")
-
+    testImplementation(libs.kotestAssertionsJson)
+    testImplementation(libs.mockk)
     // for OSCake-Reporter
     implementation("com.sksamuel.hoplite:hoplite-core:$hopliteVersion")
-    implementation("com.sksamuel.hoplite:hoplite-hocon:$hopliteVersion")
 }

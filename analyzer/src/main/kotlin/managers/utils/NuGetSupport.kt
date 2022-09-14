@@ -44,7 +44,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.CacheControl
 import okhttp3.Request
 
-import org.apache.logging.log4j.Level
+import org.apache.logging.log4j.kotlin.Logging
 
 import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.analyzer.PackageManager.Companion.processPackageVcs
@@ -66,12 +66,10 @@ import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.orEmpty
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.searchUpwardsForFile
-import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.core.await
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.logOnce
+import org.ossreviewtoolkit.utils.ort.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.ort.await
 
 internal const val OPTION_DIRECT_DEPENDENCIES_ONLY = "directDependenciesOnly"
 
@@ -82,7 +80,7 @@ private const val REGISTRATIONS_BASE_URL_TYPE = "RegistrationsBaseUrl/3.6.0"
 private val VERSION_RANGE_CHARS = charArrayOf('[', ']', '(', ')', ',')
 
 class NuGetSupport(serviceIndexUrls: List<String> = listOf(DEFAULT_SERVICE_INDEX_URL)) {
-    companion object {
+    companion object : Logging {
         val JSON_MAPPER = JsonMapper().registerKotlinModule()
 
         val XML_MAPPER = XmlMapper(
@@ -140,9 +138,9 @@ class NuGetSupport(serviceIndexUrls: List<String> = listOf(DEFAULT_SERVICE_INDEX
 
         val response = client.newCall(request).await()
         if (response.cacheResponse != null) {
-            log.debug { "Retrieved '$url' response from local cache." }
+            logger.debug { "Retrieved '$url' response from local cache." }
         } else {
-            log.debug { "Retrieved '$url' response from remote server." }
+            logger.debug { "Retrieved '$url' response from remote server." }
         }
 
         val body = response.body?.string()?.takeIf { response.isSuccessful }
@@ -155,7 +153,7 @@ class NuGetSupport(serviceIndexUrls: List<String> = listOf(DEFAULT_SERVICE_INDEX
         // Note: The package name in the URL is case-sensitive and must be lower-case!
         val lowerId = id.name.lowercase()
 
-        val data = registrationsBaseUrls.asSequence().firstNotNullOfOrNull { baseUrl ->
+        val data = registrationsBaseUrls.firstNotNullOfOrNull { baseUrl ->
             runCatching {
                 val dataUrl = "$baseUrl/$lowerId/${id.version}.json"
                 runBlocking { mapFromUrl<PackageData>(JSON_MAPPER, dataUrl) }
@@ -249,14 +247,14 @@ class NuGetSupport(serviceIndexUrls: List<String> = listOf(DEFAULT_SERVICE_INDEX
                         recursive = true
                     )
                 } else {
-                    logOnce(Level.DEBUG) {
+                    logger.debug {
                         "Truncating dependencies for '${id.toCoordinates()}' which were already determined."
                     }
                 }
             } catch (e: IOException) {
                 issues += createAndLogIssue(
                     source = "NuGet",
-                    message = "Failed to get package data for '${id.toCoordinates()}': ${e.collectMessagesAsString()}"
+                    message = "Failed to get package data for '${id.toCoordinates()}': ${e.collectMessages()}"
                 )
             }
         }
@@ -383,6 +381,8 @@ private fun PackageManager.getProject(
  * https://docs.microsoft.com/en-us/nuget/reference/nuget-config-file
  */
 class NuGetConfigFileReader {
+    companion object : Logging
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     @XmlRootElement(name = "configuration")
     private data class NuGetConfig(
@@ -398,7 +398,7 @@ class NuGetConfigFileReader {
 
         if (locals.isNotEmpty()) {
             // TODO: Handle local package sources.
-            log.warn { "Ignoring local NuGet package sources $locals." }
+            logger.warn { "Ignoring local NuGet package sources $locals." }
         }
 
         return remotes

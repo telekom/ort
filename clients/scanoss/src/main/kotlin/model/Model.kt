@@ -48,11 +48,11 @@ data class License(
 
     /** Are there patent hints for this license.*/
     @SerialName("patent_hints")
-    @Serializable(with = BooleanSerializer::class)
+    @Serializable(BooleanSerializer::class)
     val patentHints: Boolean? = null,
 
     /** Is this considered a copyleft license or not. */
-    @Serializable(with = BooleanSerializer::class)
+    @Serializable(BooleanSerializer::class)
     val copyleft: Boolean? = null,
 
     /** URL of the OSADL checklist for this license. */
@@ -153,7 +153,7 @@ data class Vulnerability(
  */
 @Serializable
 enum class VulnerabilitySource {
-    /** Github Advisories. */
+    /** GitHub Advisories. */
     @SerialName("github_advisories")
     GITHUB_ADVISORIES,
 

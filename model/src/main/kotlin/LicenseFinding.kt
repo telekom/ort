@@ -51,9 +51,44 @@ data class LicenseFinding(
 ) : Comparable<LicenseFinding> {
     companion object {
         private val COMPARATOR = compareBy<LicenseFinding>({ it.license.toString() }, { it.location })
+
+        /**
+         * Create a [LicenseFinding] with [detectedLicenseMapping]s applied.
+         */
+        fun createAndMap(
+            license: String,
+            location: TextLocation,
+            score: Float? = null,
+            detectedLicenseMapping: Map<String, String>
+        ): LicenseFinding = LicenseFinding(
+            license = if (detectedLicenseMapping.isEmpty()) {
+                license
+            } else {
+                license.applyDetectedLicenseMapping(detectedLicenseMapping)
+            }.toSpdx(),
+            location = location,
+            score = score
+        )
     }
 
     constructor(license: String, location: TextLocation, score: Float? = null) : this(license.toSpdx(), location, score)
 
     override fun compareTo(other: LicenseFinding) = COMPARATOR.compare(this, other)
+}
+
+/**
+ * Apply [detectedLicenseMapping] from the [org.ossreviewtoolkit.model.config.ScannerConfiguration] to any license
+ * String.
+ */
+private fun String.applyDetectedLicenseMapping(detectedLicenseMapping: Map<String, String>): String {
+    var result = this
+    detectedLicenseMapping.forEach { (from, to) ->
+        val regex = """(^| |\()(${Regex.escape(from)})($| |\))""".toRegex()
+
+        result = regex.replace(result) {
+            "${it.groupValues[1]}${to}${it.groupValues[3]}"
+        }
+    }
+
+    return result
 }

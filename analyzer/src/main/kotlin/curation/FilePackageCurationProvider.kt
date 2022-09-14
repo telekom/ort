@@ -21,13 +21,15 @@
 package org.ossreviewtoolkit.analyzer.curation
 
 import java.io.File
+import java.io.IOException
+
+import org.apache.logging.log4j.kotlin.Logging
 
 import org.ossreviewtoolkit.analyzer.PackageCurationProvider
 import org.ossreviewtoolkit.model.FileFormat
 import org.ossreviewtoolkit.model.PackageCuration
-import org.ossreviewtoolkit.model.readValueOrDefault
+import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.utils.common.getDuplicates
-import org.ossreviewtoolkit.utils.core.log
 
 /**
  * A [PackageCurationProvider] that loads [PackageCuration]s from all given curation files. Supports all file formats
@@ -38,7 +40,7 @@ class FilePackageCurationProvider(
 ) : SimplePackageCurationProvider(readCurationFiles(curationFiles)) {
     constructor(curationFile: File) : this(listOf(curationFile))
 
-    companion object {
+    companion object : Logging {
         fun from(file: File? = null, dir: File? = null): FilePackageCurationProvider {
             val curationFiles = mutableListOf<File>()
             file?.takeIf { it.isFile }?.let { curationFiles += it }
@@ -52,10 +54,10 @@ class FilePackageCurationProvider(
 
             curationFiles.map { curationFile ->
                 val curations = runCatching {
-                    curationFile.readValueOrDefault(emptyList<PackageCuration>())
-                }.onFailure {
-                    log.warn { "Failed parsing package curation from '${curationFile.absoluteFile}'." }
-                }.getOrThrow()
+                    curationFile.readValue<List<PackageCuration>>()
+                }.getOrElse {
+                    throw IOException("Failed parsing package curation from '${curationFile.absolutePath}'.", it)
+                }
 
                 curations.mapTo(allCurations) { it to curationFile }
             }

@@ -25,6 +25,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 
 import java.nio.file.Path
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.eclipse.sw360.clients.adapter.AttachmentUploadRequest
 import org.eclipse.sw360.clients.adapter.SW360Connection
 import org.eclipse.sw360.clients.adapter.SW360ConnectionFactory
@@ -43,10 +45,9 @@ import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
 import org.ossreviewtoolkit.scanner.experimental.ScanStorageException
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
-import org.ossreviewtoolkit.utils.core.createOrtTempDir
-import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.ort.createOrtTempDir
 
 /**
  * The SW360 storage back-end uses the SW360-client library in order to read/add attachments from the configured
@@ -55,11 +56,15 @@ import org.ossreviewtoolkit.utils.core.log
 class Sw360Storage(
     configuration: Sw360StorageConfiguration
 ) : ScanResultsStorage() {
-    companion object {
-        fun createConnection(config: Sw360StorageConfiguration, jsonMapper: ObjectMapper): SW360Connection {
+    companion object : Logging {
+        val JSON_MAPPER: ObjectMapper = jsonMapper.copy()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+
+        fun createConnection(config: Sw360StorageConfiguration): SW360Connection {
             val httpClientConfig = HttpClientConfig
                 .basicConfig()
-                .withObjectMapper(jsonMapper)
+                .withObjectMapper(JSON_MAPPER)
+
             val httpClient = HttpClientFactoryImpl().newHttpClient(httpClientConfig)
 
             val sw360ClientConfig = SW360ClientConfig.createConfig(
@@ -71,17 +76,14 @@ class Sw360Storage(
                 config.clientPassword,
                 config.token,
                 httpClient,
-                jsonMapper
+                JSON_MAPPER
             )
 
             return SW360ConnectionFactory().newConnection(sw360ClientConfig)
         }
     }
 
-    private val connectionFactory = createConnection(
-        configuration,
-        jsonMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-    )
+    private val connectionFactory = createConnection(configuration)
     private val releaseClient = connectionFactory.releaseAdapter
 
     override fun readInternal(id: Identifier): Result<List<ScanResult>> {
@@ -98,7 +100,7 @@ class Sw360Storage(
         }.recoverCatching {
             val message = "Could not read scan results for ${id.toCoordinates()} in SW360: ${it.message}"
 
-            log.info { message }
+            logger.info { message }
 
             throw ScanStorageException(message)
         }
@@ -121,15 +123,15 @@ class Sw360Storage(
                 .map { releaseClient.uploadAttachments(it) }
 
             if (uploadResult.isPresent && uploadResult.get().isSuccess) {
-                log.debug { "Stored scan result for '${id.toCoordinates()}' in SW360." }
+                logger.debug { "Stored scan result for '${id.toCoordinates()}' in SW360." }
             } else {
                 throw ScanStorageException("Failed to upload scan results for '${id.toCoordinates()}' to SW360.")
             }
         }.recoverCatching {
             val message = "Failed to add scan results for '${id.toCoordinates()}' to SW360: " +
-                    it.collectMessagesAsString()
+                    it.collectMessages()
 
-            log.info { message }
+            logger.info { message }
 
             throw ScanStorageException(message)
         }

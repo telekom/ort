@@ -24,6 +24,10 @@ Files: mlc_config.json
 Copyright: 2017-2020 HERE Europe B.V. <opensource@here.com>
 License: Apache-2.0
 
+Files: NOTICE
+Copyright: 2022 Bosch.IO GmbH <osm@bosch.com>
+License: Apache-2.0
+
 Files: */src/main/resources/*
 Copyright: 2017-2020 HERE Europe B.V. <opensource@here.com>
 License: Apache-2.0
@@ -46,6 +50,10 @@ License: Apache-2.0
 
 Files: clients/github-graphql/src/main/assets/*
 Copyright: 2021 Bosch.IO GmbH <osm@bosch.com>
+License: Apache-2.0
+
+Files: clients/osv/src/test/assets/vulnerability/examples/*
+Copyright: 2021-2022 OSV Schema Authors
 License: Apache-2.0
 
 Files: docs/*
@@ -92,6 +100,10 @@ License: Apache-2.0
 
 Files: clients/github-graphql/src/main/assets/schema.docs.graphql
 Copyright: 2017 Gregor Martynus
+License: MIT
+
+Files: reporter/src/main/resources/prismjs/*
+Copyright: 2012 Lea Verou
 License: MIT
 
 Files: reporter/src/funTest/assets/sample.fossinfo.json

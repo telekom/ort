@@ -17,22 +17,18 @@
  * License-Filename: LICENSE
  */
 
-val jacksonVersion: String by project
-val kotlinxCoroutinesVersion: String by project
-val retrofitVersion: String by project
-val wiremockVersion: String by project
-
 plugins {
     // Apply core plugins.
     `java-library`
 }
 
 dependencies {
-    api("com.squareup.retrofit2:retrofit:$retrofitVersion")
+    api(libs.log4jApiKotlin)
+    api(libs.retrofit)
 
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
-    implementation("com.squareup.retrofit2:converter-jackson:$retrofitVersion")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinxCoroutinesVersion")
+    implementation(libs.jacksonModuleKotlin)
+    implementation(libs.kotlinxCoroutines)
+    implementation(libs.retrofitConverterJackson)
 
-    testImplementation("com.github.tomakehurst:wiremock-jre8:$wiremockVersion")
+    testImplementation(libs.wiremock)
 }

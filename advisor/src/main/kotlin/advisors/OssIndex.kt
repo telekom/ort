@@ -23,6 +23,8 @@ import java.io.IOException
 import java.net.URI
 import java.time.Instant
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.advisor.AbstractAdviceProviderFactory
 import org.ossreviewtoolkit.advisor.AdviceProvider
 import org.ossreviewtoolkit.clients.ossindex.OssIndexService
@@ -36,8 +38,7 @@ import org.ossreviewtoolkit.model.VulnerabilityReference
 import org.ossreviewtoolkit.model.config.AdvisorConfiguration
 import org.ossreviewtoolkit.model.utils.toPurl
 import org.ossreviewtoolkit.utils.common.enumSetOf
-import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.ort.OkHttpClientHelper
 
 import retrofit2.HttpException
 
@@ -47,9 +48,11 @@ import retrofit2.HttpException
 private const val BULK_REQUEST_SIZE = 128
 
 /**
- * A wrapper for [Sonatype OSS Index](https://ossindex.sonatype.org/) security vulnerability data.
+ * A wrapper for Sonatype's [OSS Index](https://ossindex.sonatype.org/) security vulnerability data.
  */
 class OssIndex(name: String, serverUrl: String = OssIndexService.DEFAULT_BASE_URL) : AdviceProvider(name) {
+    companion object : Logging
+
     class Factory : AbstractAdviceProviderFactory<OssIndex>("OssIndex") {
         override fun create(config: AdvisorConfiguration) = OssIndex(providerName)
     }
@@ -110,7 +113,12 @@ class OssIndex(name: String, serverUrl: String = OssIndexService.DEFAULT_BASE_UR
 
         val references = mutableListOf(reference)
         externalReferences?.mapTo(references) { reference.copy(url = URI(it)) }
-        return Vulnerability(cve ?: displayName, references)
+        return Vulnerability(
+            id = cve ?: displayName ?: title,
+            summary = title,
+            description = description,
+            references = references
+        )
     }
 
     /**
@@ -122,7 +130,7 @@ class OssIndex(name: String, serverUrl: String = OssIndexService.DEFAULT_BASE_UR
         coordinates: List<String>
     ): List<OssIndexService.ComponentReport> =
         try {
-            log.debug { "Querying component report from ${OssIndexService.DEFAULT_BASE_URL}." }
+            logger.debug { "Querying component report from ${OssIndexService.DEFAULT_BASE_URL}." }
             service.getComponentReport(OssIndexService.ComponentReportRequest(coordinates))
         } catch (e: HttpException) {
             throw IOException(e)

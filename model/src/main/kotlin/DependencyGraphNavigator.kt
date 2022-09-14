@@ -23,12 +23,17 @@ package org.ossreviewtoolkit.model
  * A [DependencyNavigator] implementation based on the dependency graph format. It obtains the information about a
  * project's dependencies from the shared [DependencyGraph] stored in the [OrtResult].
  */
-class DependencyGraphNavigator(ortResult: OrtResult) : DependencyNavigator {
+class DependencyGraphNavigator(
     /** The map with shared dependency graphs from the associated result. */
-    private val graphs: Map<String, DependencyGraph> =
-        requireNotNull(ortResult.analyzer?.result?.dependencyGraphs?.takeIf { it.isNotEmpty() }) {
+    private val graphs: Map<String, DependencyGraph>
+) : DependencyNavigator {
+    constructor(ortResult: OrtResult) : this(ortResult.analyzer?.result?.dependencyGraphs.orEmpty())
+
+    init {
+        require(graphs.isNotEmpty()) {
             "No dependency graph available to initialize DependencyGraphNavigator."
         }
+    }
 
     /**
      * A data structure allowing fast access to a specific [DependencyReference] based on its index and fragment.
@@ -122,7 +127,7 @@ private class DependencyRefCursor(
     val graph: DependencyGraph,
 
     /** The [DependencyGraphNode]s to traverse. */
-    val nodes: Collection<DependencyGraphNode> = emptyList(),
+    nodes: Collection<DependencyGraphNode> = emptyList(),
 
     /**
      * An optional initial value for the current node. This is mainly used it this instance acts as an adapter
@@ -134,7 +139,7 @@ private class DependencyRefCursor(
     private val nodesIterator = nodes.iterator()
 
     /** Points to the current element of the traversal. */
-    private var current: DependencyGraphNode = initCurrent ?: nodesIterator.next()
+    var current = initCurrent ?: nodesIterator.next()
 
     override val id: Identifier
         get() = graph.packages[current.pkg]
@@ -149,6 +154,8 @@ private class DependencyRefCursor(
         block(dependenciesSequence(graph, graph.dependencies.getValue(current)))
 
     override fun getStableReference(): DependencyNode = DependencyRefCursor(graph, initCurrent = current)
+
+    override fun getInternalId(): Any = current
 
     /**
      * Return a sequence of [DependencyNode]s that is implemented based on this instance. This sequence allows access
@@ -197,12 +204,8 @@ private val Project.managerName: String
 private fun DependencyGraph.dependencyRefMapping(): Array<MutableList<DependencyGraphNode>> {
     val nodesArray = Array<MutableList<DependencyGraphNode>>(packages.size) { mutableListOf() }
 
-    fun addNode(node: DependencyGraphNode) {
-        nodesArray[node.pkg] += node
-        dependencies[node]?.forEach(::addNode)
-    }
+    dependencies.keys.forEach { node -> nodesArray[node.pkg] += node }
 
-    dependencies.keys.forEach(::addNode)
     return nodesArray
 }
 
@@ -226,13 +229,18 @@ private fun collectDependencies(
     nodes: Sequence<DependencyNode>,
     maxDepth: Int,
     matcher: DependencyMatcher,
-    ids: MutableSet<Identifier>
+    ids: MutableSet<Identifier>,
+    visited: MutableSet<DependencyGraphNode> = mutableSetOf()
 ) {
     if (maxDepth != 0) {
         nodes.forEach { node ->
-            if (matcher(node)) ids += node.id
+            val cursor = node as DependencyRefCursor
+            if (cursor.current !in visited) {
+                visited += cursor.current
+                if (matcher(node)) ids += node.id
 
-            node.visitDependencies { collectDependencies(it, maxDepth - 1, matcher, ids) }
+                node.visitDependencies { collectDependencies(it, maxDepth - 1, matcher, ids, visited) }
+            }
         }
     }
 }

@@ -35,7 +35,6 @@ import com.vdurmont.semver4j.Semver
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.collections.beEmpty
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.nulls.beNull
 import io.kotest.matchers.result.shouldBeFailure
 import io.kotest.matchers.result.shouldBeSuccess
@@ -46,9 +45,12 @@ import io.kotest.matchers.string.shouldContain
 
 import java.io.File
 import java.net.ServerSocket
-import java.time.Duration
-import java.time.Instant
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+
+import org.ossreviewtoolkit.clients.clearlydefined.ClearlyDefinedService
 import org.ossreviewtoolkit.clients.clearlydefined.ComponentType
 import org.ossreviewtoolkit.clients.clearlydefined.Coordinates
 import org.ossreviewtoolkit.clients.clearlydefined.Provider
@@ -60,7 +62,6 @@ import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.ClearlyDefinedStorageConfiguration
-import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.scanner.ScannerCriteria
 
 private const val PACKAGE_TYPE = "Maven"
@@ -75,9 +76,6 @@ private const val TEST_FILES_DIRECTORY = "clearly-defined"
 
 /** The name of the file with the test response from ClearlyDefined. */
 private const val RESPONSE_FILE = "scancode-$SCANCODE_VERSION.json"
-
-/** A delta for comparing timestamps against the current time. */
-private val MAX_TIME_DELTA = Duration.ofSeconds(30)
 
 /** The ClearlyDefined coordinates referencing the test package. */
 private val COORDINATES = Coordinates(ComponentType.MAVEN, Provider.MAVEN_CENTRAL, NAMESPACE, NAME, VERSION)
@@ -166,11 +164,11 @@ private fun stubHarvestToolResponse(server: WireMockServer, coordinates: Coordin
 }
 
 /**
- * Stub a request for the definitions endpoint for the given [coordinates] on the [server] server.
+ * Stub a request for the definition's endpoint for the given [coordinates] on the [server] server.
  */
 private fun stubDefinitions(server: WireMockServer, coordinates: Coordinates = COORDINATES) {
     val coordinatesList = listOf(coordinates)
-    val expectedBody = jsonMapper.writeValueAsString(coordinatesList)
+    val expectedBody = ClearlyDefinedService.JSON.encodeToString(coordinatesList)
     server.stubFor(
         post(urlPathEqualTo("/definitions"))
             .withRequestBody(equalToJson(expectedBody))
@@ -195,15 +193,6 @@ private fun Result<List<ScanResult>>.shouldBeValid(block: (ScanResult.() -> Unit
 
         if (block != null) scanResult.block()
     }
-}
-
-/**
- * Check whether this [Instant] is close to the current time. This is used to check whether correct timestamps are set.
- */
-private fun Instant.shouldBeCloseToCurrentTime(maxDelta: Duration = MAX_TIME_DELTA) {
-    val delta = Duration.between(this, Instant.now())
-    delta.isNegative shouldBe false
-    delta.compareTo(maxDelta) shouldBeLessThan 0
 }
 
 /**
@@ -288,8 +277,6 @@ class ClearlyDefinedStorageTest : WordSpec({
             storage.read(TEST_IDENTIFIER).shouldBeValid {
                 scanner.name shouldBe "ScanCode"
                 scanner.version shouldBe "3.0.2"
-                summary.startTime.shouldBeCloseToCurrentTime()
-                summary.endTime.shouldBeCloseToCurrentTime()
             }
         }
 
@@ -389,7 +376,7 @@ class ClearlyDefinedStorageTest : WordSpec({
             }
         }
 
-        "return a failure if a harvest tool request returns an unexpected result" {
+        "return an empty result if a harvest tool request returns an unexpected result" {
             server.stubFor(
                 get(anyUrl())
                     .willReturn(
@@ -397,13 +384,12 @@ class ClearlyDefinedStorageTest : WordSpec({
                             .withBody("This is not a JSON response")
                     )
             )
-
             val storage = ClearlyDefinedStorage(storageConfiguration(server))
 
             val result = storage.read(TEST_IDENTIFIER)
 
-            result.shouldBeFailure {
-                it.message shouldContain "JsonParseException"
+            result.shouldBeSuccess {
+                it should beEmpty()
             }
         }
 
@@ -417,17 +403,18 @@ class ClearlyDefinedStorageTest : WordSpec({
                             .withBody("{ \"unexpected\": true }")
                     )
             )
-
             val storage = ClearlyDefinedStorage(storageConfiguration(server))
 
-            storage.read(TEST_IDENTIFIER).shouldBeSuccess {
+            val result = storage.read(TEST_IDENTIFIER)
+
+            result.shouldBeSuccess {
                 it should beEmpty()
             }
         }
 
         "return a failure if the connection to the server fails" {
             // Find a port on which no service is running.
-            val port = ServerSocket(0).use { it.localPort }
+            val port = withContext(Dispatchers.IO) { ServerSocket(0).use { it.localPort } }
             val serverUrl = "http://localhost:$port"
 
             val storage = ClearlyDefinedStorage(ClearlyDefinedStorageConfiguration((serverUrl)))

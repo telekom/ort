@@ -28,7 +28,7 @@ import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.downloader.WorkingTree
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
-import org.ossreviewtoolkit.utils.core.createOrtTempDir
+import org.ossreviewtoolkit.utils.ort.createOrtTempDir
 
 /**
  * A cache for [VCS][VersionControlSystem] [WorkingTree]s that manages one working tree for each triple of
@@ -68,7 +68,7 @@ class DefaultWorkingTreeCache : WorkingTreeCache {
 
     private suspend fun getWorkingTreeMutex(vcsInfo: VcsInfo) =
         mutex.withLock {
-            if (terminated) throw IllegalStateException("The cache was already shut down.")
+            check(!terminated) { "The cache was already shut down." }
 
             workingTreeMutexes.getOrPut(getKey(vcsInfo)) { Mutex() }
         }

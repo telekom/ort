@@ -23,14 +23,15 @@ import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.KnownProvenance
 import org.ossreviewtoolkit.model.RepositoryProvenance
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.encodeHex
-import org.ossreviewtoolkit.utils.core.createOrtTempFile
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.storage.FileStorage
+import org.ossreviewtoolkit.utils.ort.createOrtTempFile
+import org.ossreviewtoolkit.utils.ort.storage.FileStorage
 
 /**
  * A [FileStorage] based storage for archive files.
@@ -41,6 +42,8 @@ class FileArchiverFileStorage(
      */
     private val storage: FileStorage
 ) : FileArchiverStorage {
+    companion object : Logging
+
     override fun hasArchive(provenance: KnownProvenance): Boolean {
         val archivePath = getArchivePath(provenance)
 
@@ -65,7 +68,7 @@ class FileArchiverFileStorage(
 
             zipFile
         } catch (e: IOException) {
-            log.error { "Could not unarchive from $archivePath: ${e.collectMessagesAsString()}" }
+            logger.error { "Could not unarchive from $archivePath: ${e.collectMessages()}" }
 
             null
         }

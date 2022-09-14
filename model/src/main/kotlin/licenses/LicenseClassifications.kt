@@ -19,7 +19,6 @@
 
 package org.ossreviewtoolkit.model.licenses
 
-import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonInclude
 
 import java.util.SortedSet
@@ -29,7 +28,7 @@ import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
 
 /**
- * Classifications for licenses which allow to assign metadata to licenses. This allows defining rather generic
+ * Classifications for licenses which allow assigning metadata to licenses. This allows defining rather generic
  * categories and assigning licenses to these. That way flexible classifications can be created based on
  * customizable categories. The available license categories need to be declared explicitly; when creating an
  * instance, it is checked that all the references from the [categorizations] point to existing [categories].
@@ -39,14 +38,12 @@ data class LicenseClassifications(
      * Defines metadata for the license categories.
      */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    @JsonAlias("license_sets")
     val categories: List<LicenseCategory> = emptyList(),
 
     /**
      * Defines metadata for licenses.
      */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    @JsonAlias("licenses")
     val categorizations: List<LicenseCategorization> = emptyList()
 ) {
     /** A property for fast look-ups of licenses for a given category. */

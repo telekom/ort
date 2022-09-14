@@ -16,15 +16,6 @@ project:
     path: "analyzer/src/funTest/assets/projects/synthetic/gradle-library/app"
   homepage_url: ""
   scopes:
-  - name: "compile"
-    dependencies:
-    - id: "Gradle:org.ossreviewtoolkit.gradle.example:lib:1.0.0"
-      linkage: "PROJECT_DYNAMIC"
-      dependencies:
-      - id: "Maven:org.apache.commons:commons-text:1.1"
-        dependencies:
-        - id: "Maven:org.apache.commons:commons-lang3:3.5"
-      - id: "Maven:org.apache.struts:struts2-assembly:2.5.14.1"
   - name: "compileClasspath"
     dependencies:
     - id: "Gradle:org.ossreviewtoolkit.gradle.example:lib:1.0.0"
@@ -42,25 +33,7 @@ project:
         dependencies:
         - id: "Maven:org.apache.commons:commons-lang3:3.5"
       - id: "Maven:org.apache.struts:struts2-assembly:2.5.14.1"
-  - name: "runtime"
-    dependencies:
-    - id: "Gradle:org.ossreviewtoolkit.gradle.example:lib:1.0.0"
-      linkage: "PROJECT_DYNAMIC"
-      dependencies:
-      - id: "Maven:org.apache.commons:commons-text:1.1"
-        dependencies:
-        - id: "Maven:org.apache.commons:commons-lang3:3.5"
-      - id: "Maven:org.apache.struts:struts2-assembly:2.5.14.1"
   - name: "runtimeClasspath"
-    dependencies:
-    - id: "Gradle:org.ossreviewtoolkit.gradle.example:lib:1.0.0"
-      linkage: "PROJECT_DYNAMIC"
-      dependencies:
-      - id: "Maven:org.apache.commons:commons-text:1.1"
-        dependencies:
-        - id: "Maven:org.apache.commons:commons-lang3:3.5"
-      - id: "Maven:org.apache.struts:struts2-assembly:2.5.14.1"
-  - name: "testCompile"
     dependencies:
     - id: "Gradle:org.ossreviewtoolkit.gradle.example:lib:1.0.0"
       linkage: "PROJECT_DYNAMIC"
@@ -77,15 +50,6 @@ project:
       - id: "Maven:org.apache.commons:commons-text:1.1"
         dependencies:
         - id: "Maven:org.apache.commons:commons-lang3:3.5"
-  - name: "testRuntime"
-    dependencies:
-    - id: "Gradle:org.ossreviewtoolkit.gradle.example:lib:1.0.0"
-      linkage: "PROJECT_DYNAMIC"
-      dependencies:
-      - id: "Maven:org.apache.commons:commons-text:1.1"
-        dependencies:
-        - id: "Maven:org.apache.commons:commons-lang3:3.5"
-      - id: "Maven:org.apache.struts:struts2-assembly:2.5.14.1"
   - name: "testRuntimeClasspath"
     dependencies:
     - id: "Gradle:org.ossreviewtoolkit.gradle.example:lib:1.0.0"
@@ -131,12 +95,12 @@ packages:
     url: "https://repo.maven.apache.org/maven2/org/apache/commons/commons-lang3/3.5/commons-lang3-3.5.jar"
     hash:
       value: "6c6c702c89bfff3cd9e80b04d668c5e190d588c6"
-      algorithm: "SHA1"
+      algorithm: "SHA-1"
   source_artifact:
     url: "https://repo.maven.apache.org/maven2/org/apache/commons/commons-lang3/3.5/commons-lang3-3.5-sources.jar"
     hash:
       value: "f7d878153e86a1cdddf6b37850e00a9f8bff726f"
-      algorithm: "SHA1"
+      algorithm: "SHA-1"
   vcs:
     type: "Git"
     url: "http://git-wip-us.apache.org/repos/asf/commons-lang.git"
@@ -168,12 +132,12 @@ packages:
     url: "https://repo.maven.apache.org/maven2/org/apache/commons/commons-text/1.1/commons-text-1.1.jar"
     hash:
       value: "c336bf600f44b88af356c8a85eef4af822b06a4d"
-      algorithm: "SHA1"
+      algorithm: "SHA-1"
   source_artifact:
     url: "https://repo.maven.apache.org/maven2/org/apache/commons/commons-text/1.1/commons-text-1.1-sources.jar"
     hash:
       value: "f0770f7f0472bf120ada47beecadce4056fbd20a"
-      algorithm: "SHA1"
+      algorithm: "SHA-1"
   vcs:
     type: "Git"
     url: "http://git-wip-us.apache.org/repos/asf/commons-text.git"
@@ -232,7 +196,7 @@ packages:
     url: "https://repo.maven.apache.org/maven2/org/apache/struts/struts2-assembly/2.5.14.1/struts2-assembly-2.5.14.1-min-lib.zip"
     hash:
       value: "8e75a38e3b8ceb01e007c5899d8d29e7a075cb7d"
-      algorithm: "SHA1"
+      algorithm: "SHA-1"
   source_artifact:
     url: ""
     hash:

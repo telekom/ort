@@ -24,6 +24,7 @@ import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.collections.beEmpty
 import io.kotest.matchers.collections.containExactly
 import io.kotest.matchers.collections.containExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
@@ -33,6 +34,7 @@ import io.kotest.matchers.string.shouldContain
 import java.util.SortedSet
 
 import org.ossreviewtoolkit.model.DependencyGraph
+import org.ossreviewtoolkit.model.DependencyGraphEdge
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.Package
@@ -204,6 +206,24 @@ class DependencyGraphBuilderTest : WordSpec({
             scopeDependencies(scopes, scope2) shouldBe setOf(depAcmeExclude)
         }
 
+        "deal with cycles in dependencies" {
+            val scope = "CyclicScope"
+            val depCyc1 = createDependency("org.cyclic", "cyclic", "77.7")
+            val depFoo = createDependency("org.foo", "foo", "1.2.0", dependencies = listOf(depCyc1))
+            val depCyc2 = createDependency("org.cyclic", "cyclic", "77.7", dependencies = listOf(depFoo))
+
+            val graph = createGraphBuilder()
+                .addDependency(scope, depCyc2)
+                .build()
+            val scopes = graph.createScopes()
+
+            scopeDependencies(scopes, scope) shouldContainExactly listOf(depCyc2)
+
+            graph.nodes.shouldNotBeNull {
+                this shouldHaveSize 3
+            }
+        }
+
         "check for illegal references when building the graph" {
             val depLang = createDependency("org.apache.commons", "commons-lang3", "3.11")
             val depNoPkg = createDependency(NO_PACKAGE_NAMESPACE, "invalid", "1.2")
@@ -301,13 +321,13 @@ class DependencyGraphBuilderTest : WordSpec({
                 2 to 3,
                 3 to 4,
                 1 to 4
-            )
+            ).map { DependencyGraphEdge(it.first, it.second) }
 
             breakCycles(edges) shouldContainExactlyInAnyOrder edges
         }
 
         "break a directed cycle with a single node" {
-            val edges = listOf(1 to 1)
+            val edges = listOf(DependencyGraphEdge(1, 1))
 
             breakCycles(edges) should beEmpty()
         }
@@ -318,7 +338,7 @@ class DependencyGraphBuilderTest : WordSpec({
                 2 to 3,
                 3 to 4,
                 4 to 1
-            )
+            ).map { DependencyGraphEdge(it.first, it.second) }
 
             val result = breakCycles(edges)
 

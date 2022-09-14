@@ -32,7 +32,7 @@ import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.utils.common.unpack
-import org.ossreviewtoolkit.utils.core.ortDataDirectory
+import org.ossreviewtoolkit.utils.ort.ortDataDirectory
 import org.ossreviewtoolkit.utils.test.createSpecTempDir
 
 class GitWorkingTreeFunTest : StringSpec({
@@ -79,14 +79,8 @@ class GitWorkingTreeFunTest : StringSpec({
         val workingTree = git.getWorkingTree(zipContentDir)
 
         workingTree.listRemoteBranches() should containExactlyInAnyOrder(
-            "debug-test-failures",
-            "drop-py2.6",
-            "fixing-test-setups",
-            "idiot-z-add_extra_require",
-            "master",
-            "release-0.10.1",
-            "reverse-mode",
-            "v2beta"
+            "main",
+            "pre-commit-ci-update-config"
         )
     }
 
@@ -112,7 +106,9 @@ class GitWorkingTreeFunTest : StringSpec({
             "2.0.0b1",
             "2.1.0",
             "2.2.0",
-            "2.2.1"
+            "2.2.1",
+            "2.3.0",
+            "2.3.1"
         )
     }
 

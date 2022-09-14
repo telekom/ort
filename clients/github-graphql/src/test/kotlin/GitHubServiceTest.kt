@@ -34,7 +34,7 @@ import io.kotest.matchers.collections.containExactly
 import io.kotest.matchers.collections.containExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.beNull
-import io.kotest.matchers.result.shouldBeFailureOfType
+import io.kotest.matchers.result.shouldBeFailure
 import io.kotest.matchers.result.shouldBeSuccess
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -47,6 +47,9 @@ import java.net.ConnectException
 import java.net.ServerSocket
 import java.net.URI
 import java.util.regex.Pattern
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 import org.ossreviewtoolkit.clients.github.issuesquery.Issue
 
@@ -80,19 +83,19 @@ class GitHubServiceTest : WordSpec({
 
             val issuesResult = service.repositoryIssues(REPO_OWNER, REPO_NAME)
 
-            issuesResult.shouldBeFailureOfType<ClientRequestException>()
+            issuesResult.shouldBeFailure<ClientRequestException>()
         }
 
         "handle a connection error" {
             // Find a port on which no service is running.
-            val port = ServerSocket(0).use { it.localPort }
+            val port = withContext(Dispatchers.IO) { ServerSocket(0).use { it.localPort } }
             val serverUrl = "http://localhost:$port"
 
             val service = GitHubService.create(TOKEN, URI(serverUrl))
 
             val issuesResult = service.repositoryIssues(REPO_OWNER, REPO_NAME)
 
-            issuesResult.shouldBeFailureOfType<ConnectException>()
+            issuesResult.shouldBeFailure<ConnectException>()
         }
 
         "detect errors in the GraphQL result" {
@@ -108,7 +111,7 @@ class GitHubServiceTest : WordSpec({
 
             val issuesResult = service.repositoryIssues(REPO_OWNER, REPO_NAME)
 
-            issuesResult.shouldBeFailureOfType<QueryException>()
+            issuesResult.shouldBeFailure<QueryException>()
             val exception = issuesResult.exceptionOrNull() as QueryException
             exception.message should contain("'IssuesQuery' contains errors")
             exception.errors shouldHaveSize 1

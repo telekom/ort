@@ -23,9 +23,19 @@ package org.ossreviewtoolkit.analyzer
 import java.io.File
 import java.time.Instant
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+
+import org.apache.logging.log4j.kotlin.Logging
 
 import org.ossreviewtoolkit.analyzer.managers.Unmanaged
 import org.ossreviewtoolkit.downloader.VersionControlSystem
@@ -36,14 +46,17 @@ import org.ossreviewtoolkit.model.Repository
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.orEmpty
+import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.utils.common.CommandLineTool
-import org.ossreviewtoolkit.utils.core.Environment
-import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.common.VCS_DIRECTORIES
+import org.ossreviewtoolkit.utils.ort.Environment
 
 /**
  * The class to run the analysis. The signatures of public functions in this class define the library API.
  */
 class Analyzer(private val config: AnalyzerConfiguration, private val labels: Map<String, String> = emptyMap()) {
+    companion object : Logging
+
     data class ManagedFileInfo(
         val absoluteProjectPath: File,
         val managedFiles: Map<PackageManager, List<File>>,
@@ -58,7 +71,9 @@ class Analyzer(private val config: AnalyzerConfiguration, private val labels: Ma
     ): ManagedFileInfo {
         require(absoluteProjectPath.isAbsolute)
 
-        log.debug { "Using the following configuration settings:\n$repositoryConfiguration" }
+        logger.debug {
+            "Using the following configuration settings:\n${yamlMapper.writeValueAsString(repositoryConfiguration)}"
+        }
 
         // Associate files by the package manager factory that manages them.
         val factoryFiles = if (packageManagers.size == 1 && absoluteProjectPath.isFile) {
@@ -77,15 +92,17 @@ class Analyzer(private val config: AnalyzerConfiguration, private val labels: Ma
             Pair(manager, mappedFiles).takeIf { mappedFiles.isNotEmpty() }
         }.toMap(mutableMapOf())
 
-        val hasDefinitionFileInRootDirectory = managedFiles.values.flatten().any {
-            it.parentFile.absoluteFile == absoluteProjectPath
+        // Check whether there are unmanaged files (because of deactivated, unsupported, or non-present package
+        // managers) which we need to attach to an artificial "unmanaged" project.
+        val managedDirs = managedFiles.values.flatten().mapNotNull { it.parentFile }
+        val hasOnlyManagedDirs = absoluteProjectPath in managedDirs || absoluteProjectPath.listFiles().orEmpty().all {
+            it in managedDirs || it.name in VCS_DIRECTORIES
         }
 
-        val unmanagedFactory = packageManagers.find { it is Unmanaged.Factory }
-        if (unmanagedFactory != null && (factoryFiles.isEmpty() || !hasDefinitionFileInRootDirectory)) {
-            unmanagedFactory.create(absoluteProjectPath, config, repositoryConfiguration).let {
-                managedFiles[it] = listOf(absoluteProjectPath)
-            }
+        if (!hasOnlyManagedDirs) {
+            packageManagers.find { it is Unmanaged.Factory }
+                ?.create(absoluteProjectPath, config, repositoryConfiguration)
+                ?.run { managedFiles[this] = listOf(absoluteProjectPath) }
         }
 
         return ManagedFileInfo(absoluteProjectPath, managedFiles, repositoryConfiguration)
@@ -128,41 +145,185 @@ class Analyzer(private val config: AnalyzerConfiguration, private val labels: Ma
         managedFiles: Map<PackageManager, List<File>>,
         curationProvider: PackageCurationProvider
     ): AnalyzerResult {
-        val analyzerResultBuilder = AnalyzerResultBuilder(curationProvider)
+        val state = AnalyzerState(curationProvider)
 
-        runBlocking(Dispatchers.IO) {
-            managedFiles.map { (manager, files) ->
-                async {
-                    val results = manager.resolveDependencies(files, labels)
+        val packageManagerDependencies = determinePackageManagerDependencies(managedFiles)
 
-                    // By convention, project ids must be of the type of the respective package manager. An exception
-                    // for this is Pub with Flutter, which internally calls Gradle.
-                    results.projectResults.forEach { (_, result) ->
-                        val invalidProjects = result.filterNot {
-                            val projectType = it.project.id.type
+        runBlocking {
+            managedFiles.entries.map { (manager, files) ->
+                val mustRunAfter = config.getPackageManagerConfiguration(manager.managerName)?.mustRunAfter?.toSet()
+                    ?: packageManagerDependencies[manager]?.mapTo(mutableSetOf()) { it.managerName }.orEmpty()
 
-                            projectType == manager.managerName ||
-                                    (manager.managerName == "Pub" && projectType == "Gradle")
-                        }
+                PackageManagerRunner(
+                    manager = manager,
+                    definitionFiles = files,
+                    labels = labels,
+                    mustRunAfter = mustRunAfter,
+                    finishedPackageManagersState = state.finishedPackageManagersState,
+                    onResult = { result -> state.addResult(manager, result) }
+                )
+            }.forEach { launch { it.start() } }
 
-                        require(invalidProjects.isEmpty()) {
-                            val projectString = invalidProjects.joinToString { "'${it.project.id.toCoordinates()}'" }
-                            "Projects $projectString must be of type '${manager.managerName}'."
-                        }
+            state.finishedPackageManagersState.first { finishedPackageManagers ->
+                finishedPackageManagers.containsAll(managedFiles.keys.map { it.managerName })
+            }
+        }
+
+        return state.buildResult()
+    }
+
+    private fun determinePackageManagerDependencies(
+        managedFiles: Map<PackageManager, List<File>>
+    ): Map<PackageManager, Set<PackageManager>> {
+        val allPackageManagers =
+            managedFiles.keys.associateBy { it.managerName }.toSortedMap(String.CASE_INSENSITIVE_ORDER)
+
+        val result = mutableMapOf<PackageManager, MutableSet<PackageManager>>()
+
+        managedFiles.keys.forEach { packageManager ->
+            val dependencies = packageManager.findPackageManagerDependencies(managedFiles)
+            dependencies.mustRunAfter.forEach { name ->
+                val managerForName = allPackageManagers[name]
+
+                if (managerForName == null) {
+                    logger.debug {
+                        "Ignoring that ${packageManager.managerName} must run after $name, because there are no " +
+                                "definition files for $name."
                     }
-
-                    manager to results
+                } else {
+                    result.getOrPut(packageManager) { mutableSetOf() } += managerForName
                 }
-            }.forEach { deferredResult ->
-                val (manager, managerResult) = deferredResult.await()
-                managerResult.projectResults.values.flatten().forEach { analyzerResultBuilder.addResult(it) }
-                managerResult.dependencyGraph?.let {
-                    analyzerResultBuilder.addDependencyGraph(manager.managerName, it)
-                        .addPackages(managerResult.sharedPackages)
+            }
+
+            dependencies.mustRunBefore.forEach { name ->
+                val managerForName = allPackageManagers[name]
+
+                if (managerForName == null) {
+                    logger.debug {
+                        "Ignoring that ${packageManager.managerName} must run before $name, because there are no " +
+                                "definition files for $name."
+                    }
+                } else {
+                    result.getOrPut(managerForName) { mutableSetOf() } += packageManager
                 }
             }
         }
 
-        return analyzerResultBuilder.build()
+        return result
+    }
+}
+
+private class AnalyzerState(curationProvider: PackageCurationProvider) {
+    private val builder = AnalyzerResultBuilder(curationProvider)
+    private val scope = CoroutineScope(Dispatchers.Default)
+    private val addMutex = Mutex()
+
+    private val _finishedPackageManagersState = MutableStateFlow<Set<String>>(emptySet())
+    val finishedPackageManagersState = _finishedPackageManagersState.asStateFlow()
+
+    fun addResult(manager: PackageManager, result: PackageManagerResult) {
+        scope.launch {
+            // By convention, project ids must be of the type of the respective package manager. An exception
+            // for this is Pub with Flutter, which internally calls Gradle.
+            result.projectResults.forEach { (_, result) ->
+                val invalidProjects = result.filterNot {
+                    val projectType = it.project.id.type
+
+                    projectType == manager.managerName ||
+                            (manager.managerName == "Pub" && projectType == "Gradle")
+                }
+
+                require(invalidProjects.isEmpty()) {
+                    val projectString = invalidProjects.joinToString { "'${it.project.id.toCoordinates()}'" }
+                    "Projects $projectString must be of type '${manager.managerName}'."
+                }
+            }
+
+            addMutex.withLock {
+                result.projectResults.values.flatten().forEach { builder.addResult(it) }
+                result.dependencyGraph?.let {
+                    builder.addDependencyGraph(manager.managerName, it).addPackages(result.sharedPackages)
+                }
+                _finishedPackageManagersState.value = (_finishedPackageManagersState.value + manager.managerName)
+                    .toSortedSet(String.CASE_INSENSITIVE_ORDER)
+            }
+        }
+    }
+
+    fun buildResult() = builder.build()
+}
+
+/**
+ * A class to manage running a [PackageManager].
+ */
+private class PackageManagerRunner(
+    /**
+     * The [PackageManager] to run.
+     */
+    val manager: PackageManager,
+
+    /**
+     * The list of definition files to analyze.
+     */
+    val definitionFiles: List<File>,
+
+    /**
+     * The labels passed to ORT.
+     */
+    val labels: Map<String, String>,
+
+    /**
+     * A set of the names of package managers that this package manager must run after.
+     */
+    val mustRunAfter: Set<String>,
+
+    /**
+     * A [StateFlow] that updates with the set of already finished package managers.
+     */
+    val finishedPackageManagersState: StateFlow<Set<String>>,
+
+    /**
+     * A callback for this package manager to return its result.
+     */
+    val onResult: (PackageManagerResult) -> Unit
+) {
+    /**
+     * Start the runner. If [mustRunAfter] is not empty, it waits until [finishedPackageManagersState] contains all
+     * required package managers.
+     */
+    suspend fun start() {
+        if (mustRunAfter.isNotEmpty()) {
+            Analyzer.logger.info {
+                "${manager.managerName} is waiting for the following package managers to complete: " +
+                        mustRunAfter.joinToString(postfix = ".")
+            }
+
+            finishedPackageManagersState.first { finishedPackageManagers ->
+                val remaining = mustRunAfter - finishedPackageManagers
+
+                if (remaining.isNotEmpty()) {
+                    Analyzer.logger.info {
+                        "${manager.managerName} is still waiting for the following package managers to complete: " +
+                                remaining.joinToString(postfix = ".")
+                    }
+                }
+
+                remaining.isEmpty()
+            }
+        }
+
+        run()
+    }
+
+    private suspend fun run() {
+        Analyzer.logger.info { "Starting ${manager.managerName} analysis." }
+
+        withContext(Dispatchers.IO) {
+            val result = manager.resolveDependencies(definitionFiles, labels)
+
+            Analyzer.logger.info { "Finished ${manager.managerName} analysis." }
+
+            onResult(result)
+        }
     }
 }

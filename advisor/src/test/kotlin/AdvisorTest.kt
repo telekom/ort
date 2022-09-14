@@ -40,13 +40,13 @@ import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.config.AdvisorConfiguration
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
-import org.ossreviewtoolkit.utils.core.Environment
+import org.ossreviewtoolkit.utils.ort.Environment
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class AdvisorTest : WordSpec({
     "retrieveFindings" should {
         "return the same ORT result if there is no analyzer result" {
-            val provider = mockk<AdviceProvider>()
+            val provider = mockkAdviceProvider()
 
             val advisor = createAdvisor(listOf(provider))
 
@@ -58,7 +58,7 @@ class AdvisorTest : WordSpec({
         }
 
         "return an ORT result with an empty advisor run if there are no packages" {
-            val provider = mockk<AdviceProvider>()
+            val provider = mockkAdviceProvider()
             val originResult = createOrtResultWithPackages(emptyList())
 
             val advisor = createAdvisor(listOf(provider))
@@ -85,8 +85,8 @@ class AdvisorTest : WordSpec({
             val advisorResult3 = mockk<AdvisorResult>()
             val advisorResult4 = mockk<AdvisorResult>()
 
-            val provider1 = mockk<AdviceProvider>()
-            val provider2 = mockk<AdviceProvider>()
+            val provider1 = mockkAdviceProvider()
+            val provider2 = mockkAdviceProvider()
 
             coEvery { provider1.retrievePackageFindings(packages) } returns mapOf(
                 pkg1 to listOf(advisorResult1, advisorResult2),
@@ -147,3 +147,8 @@ private fun createOrtResultWithPackages(packages: List<Package>): OrtResult =
  */
 private fun createPackage(index: Int): Package =
     Package.EMPTY.copy(id = Identifier.EMPTY.copy(name = "test-package$index"))
+
+private fun mockkAdviceProvider(): AdviceProvider =
+    mockk<AdviceProvider>().apply {
+        every { providerName } returns "provider"
+    }

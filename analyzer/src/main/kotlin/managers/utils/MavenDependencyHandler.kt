@@ -19,19 +19,20 @@
 
 package org.ossreviewtoolkit.analyzer.managers.utils
 
+import org.apache.logging.log4j.kotlin.Logging
 import org.apache.maven.project.MavenProject
 
 import org.eclipse.aether.graph.DependencyNode
 
+import org.ossreviewtoolkit.analyzer.managers.Maven
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.PackageLinkage
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.utils.DependencyHandler
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.common.collectMessages
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 /**
  * A specialized [DependencyHandler] implementation for the dependency model of Maven.
@@ -47,13 +48,21 @@ class MavenDependencyHandler(
      * A map with information about the local projects in the current Maven build. Dependencies pointing to projects
      * sometimes need to be treated in a special way.
      */
-    private val localProjects: Map<String, MavenProject>,
+    localProjects: Map<String, MavenProject>,
 
     /**
      * A flag whether [SBT compatibility mode][Maven.enableSbtMode] is enabled.
      */
     private val sbtMode: Boolean
 ) : DependencyHandler<DependencyNode> {
+    companion object : Logging
+
+    /**
+     * A set of identifiers that are known to point to local projects. This is updated for packages that are resolved
+     * to projects.
+     */
+    private val localProjectIds = localProjects.keys.toMutableSet()
+
     override fun identifierFor(dependency: DependencyNode): Identifier =
         Identifier(
             type = if (isLocalProject(dependency.identifier())) managerName else "Maven",
@@ -68,7 +77,7 @@ class MavenDependencyHandler(
         }
 
         if (childrenWithoutToolDependencies.size < dependency.children.size) {
-            log.info { "Omitting the Java < 1.9 system dependency on 'tools.jar'." }
+            logger.info { "Omitting the Java < 1.9 system dependency on 'tools.jar'." }
         }
 
         return childrenWithoutToolDependencies
@@ -77,18 +86,33 @@ class MavenDependencyHandler(
     override fun linkageFor(dependency: DependencyNode): PackageLinkage =
         if (isLocalProject(dependency)) PackageLinkage.PROJECT_DYNAMIC else PackageLinkage.DYNAMIC
 
+    /**
+     * Create a [Package] representing a [dependency] if possible, recording any [issues]. Inter-project
+     * dependencies are skipped.
+     */
     override fun createPackage(dependency: DependencyNode, issues: MutableList<OrtIssue>): Package? {
         if (isLocalProject(dependency)) return null
 
         return runCatching {
-            support.parsePackage(dependency.artifact, dependency.repositories, localProjects, sbtMode)
+            support.parsePackage(dependency.artifact, dependency.repositories, sbtMode = sbtMode).let { pkg ->
+                // There is the corner case that a dependency references a project, but in a different version than
+                // the one used by the local build. Then, this dependency is actually a package, but Maven's
+                // resolution mechanism might prefer using the project. Therefore, the check whether the dependency
+                // is a project must be done after the package resolution again.
+                if (isLocalProject(pkg.id)) {
+                    localProjectIds += dependency.identifier()
+                    null
+                } else {
+                    pkg
+                }
+            }
         }.onFailure { e ->
             e.showStackTrace()
 
             issues += createAndLogIssue(
                 source = managerName,
                 message = "Could not get package information for dependency '" +
-                        "${dependency.artifact.identifier()}': ${e.collectMessagesAsString()}"
+                        "${dependency.artifact.identifier()}': ${e.collectMessages()}"
             )
         }.getOrNull()
     }
@@ -101,7 +125,12 @@ class MavenDependencyHandler(
     /**
      * Return a flag whether the given [id] references a project in the same multi-module build.
      */
-    private fun isLocalProject(id: String): Boolean = id in localProjects
+    private fun isLocalProject(id: Identifier): Boolean = isLocalProject("${id.namespace}:${id.name}:${id.version}")
+
+    /**
+     * Return a flag whether the given [id] references a project in the same multi-module build.
+     */
+    private fun isLocalProject(id: String): Boolean = id in localProjectIds
 }
 
 /**

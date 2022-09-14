@@ -26,6 +26,8 @@ import java.io.File
 import java.util.Properties
 import java.util.concurrent.TimeUnit
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.eclipse.aether.artifact.Artifact
 import org.eclipse.aether.repository.RemoteRepository
 import org.eclipse.aether.repository.WorkspaceReader
@@ -54,8 +56,7 @@ import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.utils.DependencyGraphBuilder
 import org.ossreviewtoolkit.utils.common.Os
 import org.ossreviewtoolkit.utils.common.temporaryProperties
-import org.ossreviewtoolkit.utils.core.createOrtTempFile
-import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.ort.createOrtTempFile
 
 private val GRADLE_USER_HOME = Os.env["GRADLE_USER_HOME"]?.let { File(it) } ?: Os.userHomeDirectory.resolve(".gradle")
 
@@ -75,6 +76,8 @@ class Gradle(
     repoConfig: RepositoryConfiguration,
     private val gradleVersion: String? = null
 ) : PackageManager(name, analysisRoot, analyzerConfig, repoConfig) {
+    companion object : Logging
+
     class Factory : AbstractPackageManagerFactory<Gradle>("Gradle") {
         // Gradle prefers Groovy ".gradle" files over Kotlin ".gradle.kts" files, but "build" files have to come before
         // "settings" files as we should consider "settings" files only if the same directory does not also contain a
@@ -110,13 +113,13 @@ class Gradle(
             val artifactCoordinate = "${artifact.identifier()}:${artifact.classifier}:${artifact.extension}"
 
             if (artifactFiles.size > 1) {
-                log.debug { "Multiple Gradle cache entries matching '$artifactCoordinate' found: $artifactFiles" }
+                logger.debug { "Multiple Gradle cache entries matching '$artifactCoordinate' found: $artifactFiles" }
             }
 
             // Return the most recent file, if any, as that is most likely the correct one, e.g. in case of a silent
             // update of an already published artifact.
             return artifactFiles.firstOrNull()?.also { artifactFile ->
-                log.debug { "Using Gradle cache entry at '$artifactFile' for artifact '$artifactCoordinate'." }
+                logger.debug { "Using Gradle cache entry at '$artifactFile' for artifact '$artifactCoordinate'." }
             }
         }
 
@@ -134,17 +137,6 @@ class Gradle(
 
     // The path to the root project. In a single-project, just points to the project path.
     private lateinit var rootProjectDir: File
-
-    override fun mapDefinitionFiles(definitionFiles: List<File>): List<File> {
-        // Filter Gradle projects that are managed via Flutter / Pub. These projects are analyzed from within Pub.
-        val pubDefinitionFiles = findManagedFiles(analysisRoot, setOf(Pub.Factory())).values.flatten()
-
-        return definitionFiles.filter { gradleDefinitionFile ->
-            pubDefinitionFiles.none { pubDefinitionFile ->
-                gradleDefinitionFile.parentFile.canonicalFile.startsWith(pubDefinitionFile.parentFile.canonicalFile)
-            }
-        }
-    }
 
     override fun createPackageManagerResult(projectResults: Map<File, List<ProjectAnalyzerResult>>) =
         PackageManagerResult(projectResults, graphBuilder.build(), graphBuilder.packages())
@@ -215,21 +207,21 @@ class Gradle(
                     .get()
 
                 if (stdout.size() > 0) {
-                    log.debug {
+                    logger.debug {
                         "Analyzing the project in '$projectDir' produced the following standard output:\n" +
                                 stdout.toString().prependIndent("\t")
                     }
                 }
 
                 if (stderr.size() > 0) {
-                    log.warn {
+                    logger.warn {
                         "Analyzing the project in '$projectDir' produced the following error output:\n" +
                                 stderr.toString().prependIndent("\t")
                     }
                 }
 
                 if (!initScriptFile.delete()) {
-                    log.warn { "Init script file '$initScriptFile' could not be deleted." }
+                    logger.warn { "Init script file '$initScriptFile' could not be deleted." }
                 }
 
                 val repositories = dependencyTreeModel.repositories.map {
@@ -239,7 +231,7 @@ class Gradle(
 
                 dependencyHandler.repositories = repositories
 
-                log.debug {
+                logger.debug {
                     val projectName = dependencyTreeModel.name
                     "The Gradle project '$projectName' uses the following Maven repositories: $repositories"
                 }

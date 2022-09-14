@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Bosch.IO GmbH
+ * Copyright (C) 2021-2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ class SpdxResolvedDocumentTest : WordSpec() {
         "load" should {
             "use the given loader to load a root document" {
                 val loader = SpdxDocumentCache()
-                val root = loader.load(BASE_DOCUMENT_FILE)
+                val root = loader.load(BASE_DOCUMENT_FILE).getOrThrow()
 
                 val resolvedDoc = SpdxResolvedDocument.load(loader, BASE_DOCUMENT_FILE, MANAGER_NAME)
 
@@ -539,7 +539,7 @@ class SpdxResolvedDocumentTest : WordSpec() {
         "ResolvedSpdxDocument" should {
             "return null for the definition file if it was resolved via an URI" {
                 val resolvedDocument = ResolvedSpdxDocument(
-                    SpdxDocumentCache().load(BASE_DOCUMENT_FILE),
+                    SpdxDocumentCache().load(BASE_DOCUMENT_FILE).getOrThrow(),
                     URI("https://www.example.org/spdx/package.spdx.yml")
                 )
 
@@ -548,7 +548,7 @@ class SpdxResolvedDocumentTest : WordSpec() {
 
             "return the definition file if available" {
                 val resolvedDocument = ResolvedSpdxDocument(
-                    SpdxDocumentCache().load(BASE_DOCUMENT_FILE),
+                    SpdxDocumentCache().load(BASE_DOCUMENT_FILE).getOrThrow(),
                     BASE_DOCUMENT_FILE.toURI()
                 )
 
@@ -557,8 +557,8 @@ class SpdxResolvedDocumentTest : WordSpec() {
 
             "return the definition file for a relative URI" {
                 val resolvedDocument = ResolvedSpdxDocument(
-                    SpdxDocumentCache().load(BASE_DOCUMENT_FILE),
-                    URI("src/funTest/assets/projects/synthetic/spdx/project-xyz-with-inline-packages.spdx.yml")
+                    SpdxDocumentCache().load(BASE_DOCUMENT_FILE).getOrThrow(),
+                    URI("src/funTest/assets/projects/synthetic/spdx/package-references/project-xyz.spdx.yml")
                 )
 
                 resolvedDocument.definitionFile() shouldBe BASE_DOCUMENT_FILE.absoluteFile
@@ -566,10 +566,9 @@ class SpdxResolvedDocumentTest : WordSpec() {
 
             "return a normalized definition file" {
                 val resolvedDocument = ResolvedSpdxDocument(
-                    SpdxDocumentCache().load(BASE_DOCUMENT_FILE),
+                    SpdxDocumentCache().load(BASE_DOCUMENT_FILE).getOrThrow(),
                     URI(
-                        "../analyzer/src/funTest/assets/projects/synthetic/spdx/" +
-                            "project-xyz-with-inline-packages.spdx.yml"
+                        "src/funTest/assets/projects/synthetic/spdx/package-references/project-xyz.spdx.yml"
                     )
                 )
 
@@ -579,7 +578,7 @@ class SpdxResolvedDocumentTest : WordSpec() {
             "return null if the file does not exist" {
                 val nonExistingFile = File("non/existing/file.spdx.yml")
                 val resolvedDocument = ResolvedSpdxDocument(
-                    SpdxDocumentCache().load(BASE_DOCUMENT_FILE),
+                    SpdxDocumentCache().load(BASE_DOCUMENT_FILE).getOrThrow(),
                     nonExistingFile.toURI()
                 )
 
@@ -616,7 +615,7 @@ private const val SPDX_REF = "SPDXRef-Package-Dummy"
 
 /** References the SPDX file used to define the base document. */
 private val BASE_DOCUMENT_FILE =
-    File("src/funTest/assets/projects/synthetic/spdx/project-xyz-with-inline-packages.spdx.yml")
+    File("src/funTest/assets/projects/synthetic/spdx/package-references/project-xyz.spdx.yml")
 
 /** The name of the package manager used by tests. */
 private const val MANAGER_NAME = "TestSpdxDocumentFile"

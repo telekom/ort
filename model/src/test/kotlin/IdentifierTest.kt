@@ -24,7 +24,6 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.inspectors.forAll
-import io.kotest.matchers.collections.containExactly
 import io.kotest.matchers.maps.containExactly
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -71,16 +70,19 @@ class IdentifierTest : WordSpec({
             }
         }
 
-        "be sorted as expected" {
-            val ids = listOf(
-                Identifier("Maven:org.springframework.boot:spring-boot-actuator"),
-                Identifier("Maven:org.springframework.boot:spring-boot")
-            )
-
-            ids.sorted() should containExactly(
+        "be sorted as expected".config(invocations = 5) {
+            val sorted = listOf(
+                Identifier("Maven:com.microsoft.sqlserver:mssql-jdbc:9.2.1.jre8"),
+                Identifier("Maven:com.microsoft.sqlserver:mssql-jdbc:9.2.1.jre11"),
+                Identifier("Maven:net.java.dev.jna:jna-platform:5.6.0"),
+                Identifier("Maven:net.java.dev.jna:jna-platform:5.11.0"),
+                Identifier("Maven:net.java.dev.jna:jna-platform:NOT_A_VERSION"),
                 Identifier("Maven:org.springframework.boot:spring-boot"),
                 Identifier("Maven:org.springframework.boot:spring-boot-actuator")
             )
+            val unsorted = sorted.shuffled()
+
+            unsorted.sorted() shouldBe sorted
         }
 
         "be serialized correctly" {

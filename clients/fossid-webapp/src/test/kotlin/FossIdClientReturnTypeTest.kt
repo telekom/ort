@@ -30,6 +30,7 @@ import io.kotest.matchers.types.shouldBeTypeOf
 
 import org.ossreviewtoolkit.clients.fossid.FossIdRestService
 import org.ossreviewtoolkit.clients.fossid.checkResponse
+import org.ossreviewtoolkit.clients.fossid.deleteScan
 import org.ossreviewtoolkit.clients.fossid.listIdentifiedFiles
 import org.ossreviewtoolkit.clients.fossid.listIgnoredFiles
 import org.ossreviewtoolkit.clients.fossid.listMarkedAsIdentifiedFiles
@@ -64,7 +65,7 @@ class FossIdClientReturnTypeTest : StringSpec({
 
     beforeSpec {
         server.start()
-        service = FossIdRestService.create("http://localhost:${server.port()}")
+        service = FossIdRestService.createService("http://localhost:${server.port()}")
     }
 
     afterSpec {
@@ -194,6 +195,12 @@ class FossIdClientReturnTypeTest : StringSpec({
                     it.shouldBeTypeOf<String>()
                 }
             }
+        }
+    }
+
+    "When the scan to delete does not exist, no exception is thrown" {
+        service.deleteScan("", "", SCAN_CODE_1).shouldNotBeNull().run {
+            error shouldBe "Classes.TableRepository.row_not_found"
         }
     }
 })

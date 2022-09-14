@@ -25,8 +25,11 @@ import java.io.File
 import java.io.IOException
 import java.net.URI
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
+import org.ossreviewtoolkit.analyzer.managers.utils.normalizeModuleVersion
 import org.ossreviewtoolkit.downloader.VcsHost
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.Identifier
@@ -45,14 +48,13 @@ import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.utils.common.CommandLineTool
 import org.ossreviewtoolkit.utils.common.ProcessCapture
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.realFile
 import org.ossreviewtoolkit.utils.common.safeCopyRecursively
 import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
 import org.ossreviewtoolkit.utils.common.toUri
-import org.ossreviewtoolkit.utils.core.createOrtTempDir
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.ort.createOrtTempDir
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 /**
  * A map of legacy package manager file names "dep" can import, and their respective lock file names, if any.
@@ -76,6 +78,8 @@ class GoDep(
     analyzerConfig: AnalyzerConfiguration,
     repoConfig: RepositoryConfiguration
 ) : PackageManager(name, analysisRoot, analyzerConfig, repoConfig), CommandLineTool {
+    companion object : Logging
+
     class Factory : AbstractPackageManagerFactory<GoDep>("GoDep") {
         override val globsForDefinitionFiles = listOf("Gopkg.toml", *GO_LEGACY_MANIFESTS.keys.toTypedArray())
 
@@ -100,7 +104,7 @@ class GoDep(
         val workingDir = setUpWorkspace(projectDir, projectVcs, gopath)
 
         GO_LEGACY_MANIFESTS[definitionFile.name]?.let { lockfileName ->
-            log.debug { "Importing legacy manifest file at '$definitionFile'." }
+            logger.debug { "Importing legacy manifest file at '$definitionFile'." }
             importLegacyManifest(lockfileName, workingDir, gopath)
         }
 
@@ -123,14 +127,14 @@ class GoDep(
 
                 issues += createAndLogIssue(
                     source = managerName,
-                    message = "Could not resolve VCS information for project '$name': ${e.collectMessagesAsString()}"
+                    message = "Could not resolve VCS information for project '$name': ${e.collectMessages()}"
                 )
 
                 VcsInfo.EMPTY
             }
 
             val pkg = Package(
-                id = Identifier(managerName, "", name, version),
+                id = Identifier("Go", "", name, normalizeModuleVersion(version)),
                 authors = sortedSetOf(),
                 declaredLicenses = sortedSetOf(),
                 description = "",
@@ -207,7 +211,7 @@ class GoDep(
     private fun setUpWorkspace(projectDir: File, vcs: VcsInfo, gopath: File): File {
         val destination = deduceImportPath(projectDir, vcs, gopath)
 
-        log.debug { "Copying $projectDir to temporary directory $destination" }
+        logger.debug { "Copying $projectDir to temporary directory $destination" }
 
         projectDir.safeCopyRecursively(destination)
 
@@ -228,14 +232,14 @@ class GoDep(
                 "No lockfile found in ${workingDir.invariantSeparatorsPath}, dependency versions are unstable."
             }
 
-            log.debug { "Running 'dep ensure' to generate missing lockfile in $workingDir" }
+            logger.debug { "Running 'dep ensure' to generate missing lockfile in $workingDir" }
 
             run("ensure", workingDir = workingDir, environment = mapOf("GOPATH" to gopath.path))
         }
 
         val entries = Toml().read(lockfile).toMap()["projects"]
         if (entries == null) {
-            log.warn { "${lockfile.name} is missing any [[projects]] entries" }
+            logger.warn { "${lockfile.name} is missing any [[projects]] entries" }
             return emptyList()
         }
 
@@ -247,7 +251,7 @@ class GoDep(
             val revision = project["revision"]
 
             if (name !is String || revision !is String) {
-                log.warn { "Invalid [[projects]] entry in $lockfile: $entry" }
+                logger.warn { "Invalid [[projects]] entry in $lockfile: $entry" }
                 continue
             }
 

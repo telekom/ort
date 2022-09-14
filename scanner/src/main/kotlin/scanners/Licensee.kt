@@ -23,12 +23,16 @@ package org.ossreviewtoolkit.scanner.scanners
 import java.io.File
 import java.time.Instant
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.LicenseFinding
+import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.ScanSummary
+import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
-import org.ossreviewtoolkit.model.readJsonFile
+import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.scanner.AbstractScannerFactory
 import org.ossreviewtoolkit.scanner.BuildConfig
 import org.ossreviewtoolkit.scanner.CommandLineScanner
@@ -38,7 +42,6 @@ import org.ossreviewtoolkit.scanner.experimental.PathScannerWrapper
 import org.ossreviewtoolkit.scanner.experimental.ScanContext
 import org.ossreviewtoolkit.utils.common.Os
 import org.ossreviewtoolkit.utils.common.ProcessCapture
-import org.ossreviewtoolkit.utils.core.log
 import org.ossreviewtoolkit.utils.spdx.calculatePackageVerificationCode
 
 class Licensee internal constructor(
@@ -46,6 +49,10 @@ class Licensee internal constructor(
     scannerConfig: ScannerConfiguration,
     downloaderConfig: DownloaderConfiguration
 ) : CommandLineScanner(name, scannerConfig, downloaderConfig), PathScannerWrapper {
+    companion object : Logging {
+        val CONFIGURATION_OPTIONS = listOf("--json")
+    }
+
     class LicenseeFactory : AbstractScannerWrapperFactory<Licensee>("Licensee") {
         override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
             Licensee(scannerName, scannerConfig, downloaderConfig)
@@ -54,10 +61,6 @@ class Licensee internal constructor(
     class Factory : AbstractScannerFactory<Licensee>("Licensee") {
         override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
             Licensee(scannerName, scannerConfig, downloaderConfig)
-    }
-
-    companion object {
-        val CONFIGURATION_OPTIONS = listOf("--json")
     }
 
     override val name = "Licensee"
@@ -94,29 +97,30 @@ class Licensee internal constructor(
         val endTime = Instant.now()
 
         return with(process) {
-            if (stderr.isNotBlank()) log.debug { stderr }
+            if (stderr.isNotBlank()) logger.debug { stderr }
             if (isError) throw ScanException(errorMessage)
 
-            generateSummary(startTime, endTime, path, stdoutFile)
+            generateSummary(startTime, endTime, path, stdout)
         }
     }
 
-    private fun generateSummary(startTime: Instant, endTime: Instant, scanPath: File, resultFile: File): ScanSummary {
+    private fun generateSummary(startTime: Instant, endTime: Instant, scanPath: File, result: String): ScanSummary {
         val licenseFindings = sortedSetOf<LicenseFinding>()
 
-        val result = readJsonFile(resultFile)
-        val matchedFiles = result["matched_files"]
+        val json = jsonMapper.readTree(result)
+        val matchedFiles = json["matched_files"]
 
         matchedFiles.mapTo(licenseFindings) {
             val filePath = File(it["filename"].textValue())
-            LicenseFinding(
+            LicenseFinding.createAndMap(
                 license = it["matched_license"].textValue(),
                 location = TextLocation(
                     // The path is already relative.
                     filePath.path,
                     TextLocation.UNKNOWN_LINE
                 ),
-                score = it["matcher"]["confidence"].floatValue()
+                score = it["matcher"]["confidence"].floatValue(),
+                detectedLicenseMapping = scannerConfig.detectedLicenseMapping
             )
         }
 
@@ -126,7 +130,13 @@ class Licensee internal constructor(
             packageVerificationCode = calculatePackageVerificationCode(scanPath),
             licenseFindings = licenseFindings,
             copyrightFindings = sortedSetOf(),
-            issues = mutableListOf()
+            issues = listOf(
+                OrtIssue(
+                    source = scannerName,
+                    message = "This scanner is not capable of detecting copyright statements.",
+                    severity = Severity.HINT
+                )
+            )
         )
     }
 

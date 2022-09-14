@@ -21,6 +21,7 @@ package org.ossreviewtoolkit.analyzer.managers.utils
 
 import Dependency
 
+import org.apache.logging.log4j.kotlin.Logging
 import org.apache.maven.project.ProjectBuildingException
 
 import org.eclipse.aether.RepositoryException
@@ -34,8 +35,8 @@ import org.ossreviewtoolkit.model.PackageLinkage
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.model.utils.DependencyHandler
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.common.collectMessages
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 /**
  * A specialized [DependencyHandler] implementation for Gradle's dependency model.
@@ -47,6 +48,8 @@ class GradleDependencyHandler(
     /** The helper object to resolve packages via Maven. */
     private val maven: MavenSupport
 ) : DependencyHandler<Dependency> {
+    companion object : Logging
+
     /**
      * A list with repositories to use when resolving packages. This list must be set before using this handler for
      * constructing the dependency graph of a project. As different projects may use different repositories, this
@@ -105,7 +108,7 @@ class GradleDependencyHandler(
                     issues += createAndLogIssue(
                         source = managerName,
                         message = "Could not get package information for dependency '${artifact.identifier()}': " +
-                                e.collectMessagesAsString()
+                                e.collectMessages()
                     )
 
                     null

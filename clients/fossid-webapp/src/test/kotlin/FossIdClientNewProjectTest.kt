@@ -66,7 +66,7 @@ class FossIdClientNewProjectTest : StringSpec({
 
     beforeSpec {
         server.start()
-        service = FossIdServiceWithVersion.instance(FossIdRestService.create("http://localhost:${server.port()}"))
+        service = FossIdRestService.createService("http://localhost:${server.port()}")
     }
 
     afterSpec {
@@ -136,7 +136,7 @@ class FossIdClientNewProjectTest : StringSpec({
         service.deleteScan("", "", SCAN_CODE).shouldNotBeNull().run {
             checkResponse("delete scan")
 
-            data shouldBe 2976
+            data?.value shouldBe 2976
             message shouldContain "has been deleted"
         }
     }

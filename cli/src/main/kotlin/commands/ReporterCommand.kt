@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
- * Copyright (C) 2021 Bosch.IO GmbH
+ * Copyright (C) 2021-2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ import org.ossreviewtoolkit.cli.utils.PackageConfigurationOption
 import org.ossreviewtoolkit.cli.utils.configurationGroup
 import org.ossreviewtoolkit.cli.utils.createProvider
 import org.ossreviewtoolkit.cli.utils.inputGroup
+import org.ossreviewtoolkit.cli.utils.logger
 import org.ossreviewtoolkit.cli.utils.outputGroup
 import org.ossreviewtoolkit.cli.utils.readOrtResult
 import org.ossreviewtoolkit.model.config.CopyrightGarbage
@@ -61,24 +62,24 @@ import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.licenses.orEmpty
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.readValueOrDefault
+import org.ossreviewtoolkit.model.utils.CompositePackageConfigurationProvider
 import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
 import org.ossreviewtoolkit.model.utils.SimplePackageConfigurationProvider
 import org.ossreviewtoolkit.reporter.DefaultLicenseTextProvider
 import org.ossreviewtoolkit.reporter.HowToFixTextProvider
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.expandTilde
 import org.ossreviewtoolkit.utils.common.safeMkdirs
-import org.ossreviewtoolkit.utils.core.ORT_COPYRIGHT_GARBAGE_FILENAME
-import org.ossreviewtoolkit.utils.core.ORT_CUSTOM_LICENSE_TEXTS_DIRNAME
-import org.ossreviewtoolkit.utils.core.ORT_HOW_TO_FIX_TEXT_PROVIDER_FILENAME
-import org.ossreviewtoolkit.utils.core.ORT_LICENSE_CLASSIFICATIONS_FILENAME
-import org.ossreviewtoolkit.utils.core.ORT_REPO_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.core.ORT_RESOLUTIONS_FILENAME
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.ortConfigDirectory
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.ort.ORT_COPYRIGHT_GARBAGE_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_CUSTOM_LICENSE_TEXTS_DIRNAME
+import org.ossreviewtoolkit.utils.ort.ORT_HOW_TO_FIX_TEXT_PROVIDER_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_LICENSE_CLASSIFICATIONS_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_REPO_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_RESOLUTIONS_FILENAME
+import org.ossreviewtoolkit.utils.ort.ortConfigDirectory
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 class ReporterCommand : CliktCommand(
     name = "report",
@@ -218,17 +219,19 @@ class ReporterCommand : CliktCommand(
 
         val config = globalOptionsForSubcommands.config
 
-        val packageConfigurations = packageConfigurationOption.createProvider().getPackageConfigurations()
-            .toMutableSet()
-        val repositoryPackageConfigurations = ortResult.repository.config.packageConfigurations
+        val packageConfigurationProvider = if (config.enableRepositoryPackageConfigurations) {
+            CompositePackageConfigurationProvider(
+                SimplePackageConfigurationProvider(ortResult.repository.config.packageConfigurations),
+                packageConfigurationOption.createProvider()
+            )
+        } else {
+            if (ortResult.repository.config.packageConfigurations.isNotEmpty()) {
+                logger.info { "Local package configurations were not applied because the feature is not enabled." }
+            }
 
-        if (config.enableRepositoryPackageConfigurations) {
-            packageConfigurations += repositoryPackageConfigurations
-        } else if (repositoryPackageConfigurations.isNotEmpty()) {
-            log.warn { "Local package configurations were not applied because the feature is not enabled." }
+            packageConfigurationOption.createProvider()
         }
 
-        val packageConfigurationProvider = SimplePackageConfigurationProvider(packageConfigurations)
         val copyrightGarbage = copyrightGarbageFile.takeIf { it.isFile }?.readValue<CopyrightGarbage>().orEmpty()
 
         val licenseInfoResolver = LicenseInfoResolver(
@@ -262,8 +265,13 @@ class ReporterCommand : CliktCommand(
 
         val reportOptionsMap = sortedMapOf<String, MutableMap<String, String>>(String.CASE_INSENSITIVE_ORDER)
 
-        reportOptions.forEach { (format, option) ->
-            val reportSpecificOptionsMap = reportOptionsMap.getOrPut(format) { mutableMapOf() }
+        config.reporter.options?.forEach { (reporterName, option) ->
+            val reportSpecificOptionsMap = reportOptionsMap.getOrPut(reporterName) { mutableMapOf() }
+            reportSpecificOptionsMap += option
+        }
+
+        reportOptions.forEach { (reporterName, option) ->
+            val reportSpecificOptionsMap = reportOptionsMap.getOrPut(reporterName) { mutableMapOf() }
             reportSpecificOptionsMap[option.first] = option.second
         }
 
@@ -294,8 +302,8 @@ class ReporterCommand : CliktCommand(
             }.onFailure { e ->
                 e.showStackTrace()
 
-                log.error {
-                    "Could not create '$name' report in ${timedValue.duration}: ${e.collectMessagesAsString()}"
+                logger.error {
+                    "Could not create '$name' report in ${timedValue.duration}: ${e.collectMessages()}"
                 }
 
                 ++failureCount

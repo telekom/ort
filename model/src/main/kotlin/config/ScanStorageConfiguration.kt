@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Provenance
-import org.ossreviewtoolkit.utils.core.storage.FileStorage
+import org.ossreviewtoolkit.utils.ort.storage.FileStorage
 
 /**
  * Root of a class hierarchy for configuration classes for scan storage implementations.
@@ -42,7 +42,7 @@ import org.ossreviewtoolkit.utils.core.storage.FileStorage
     Type(PostgresStorageConfiguration::class),
     Type(Sw360StorageConfiguration::class)
 )
-sealed class ScanStorageConfiguration
+sealed interface ScanStorageConfiguration
 
 /**
  * The configuration model of a storage based on ClearlyDefined.
@@ -52,7 +52,7 @@ data class ClearlyDefinedStorageConfiguration(
      * The URL of the ClearlyDefined server.
      */
     val serverUrl: String
-) : ScanStorageConfiguration()
+) : ScanStorageConfiguration
 
 /**
  * The configuration model of a file based storage.
@@ -67,67 +67,22 @@ data class FileBasedStorageConfiguration(
      * The way that scan results are stored, defaults to [StorageType.PACKAGE_BASED].
      */
     val type: StorageType = StorageType.PACKAGE_BASED
-) : ScanStorageConfiguration()
+) : ScanStorageConfiguration
 
 /**
  * A class to hold the configuration for using Postgres as a storage.
  */
 data class PostgresStorageConfiguration(
     /**
-     * The database URL in JDBC format.
+     * The configuration of the PostgreSQL database.
      */
-    val url: String,
-
-    /**
-     * The name of the database to use.
-     */
-    val schema: String = "public",
-
-    /**
-     * The username to use for authentication.
-     */
-    val username: String,
-
-    /**
-     * The password to use for authentication.
-     */
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    val password: String = "",
-
-    /**
-     * The SSL mode to use, one of "disable", "allow", "prefer", "require", "verify-ca" or "verify-full".
-     * See: https://jdbc.postgresql.org/documentation/head/ssl-client.html
-     */
-    val sslmode: String = "verify-full",
-
-    /**
-     * The full path of the certificate file.
-     * See: https://jdbc.postgresql.org/documentation/head/connect.html
-     */
-    val sslcert: String? = null,
-
-    /**
-     * The full path of the key file.
-     * See: https://jdbc.postgresql.org/documentation/head/connect.html
-     */
-    val sslkey: String? = null,
-
-    /**
-     * The full path of the root certificate file.
-     * See: https://jdbc.postgresql.org/documentation/head/connect.html
-     */
-    val sslrootcert: String? = null,
+    val connection: PostgresConnection,
 
     /**
      * The way that scan results are stored, defaults to [StorageType.PACKAGE_BASED].
      */
     val type: StorageType = StorageType.PACKAGE_BASED
-
-    /**
-     * TODO: Make additional parameters configurable, see:
-     *       https://jdbc.postgresql.org/documentation/head/connect.html
-     */
-) : ScanStorageConfiguration()
+) : ScanStorageConfiguration
 
 /**
  * A class to hold the configuration for SW360.
@@ -155,7 +110,7 @@ data class Sw360StorageConfiguration(
     val password: String = "",
 
     /**
-     * The client ID of the SW360 instance for the two step authentication.
+     * The client ID of the SW360 instance for the two-step authentication.
      */
     val clientId: String,
 
@@ -171,7 +126,7 @@ data class Sw360StorageConfiguration(
      */
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     val token: String = ""
-) : ScanStorageConfiguration()
+) : ScanStorageConfiguration
 
 /**
  * An enum to describe different types of storages.

@@ -87,7 +87,7 @@ The following package managers are activated:
         Bower, Bundler, Cargo, Composer, DotNet, GoDep, Gradle, Maven, NPM, NuGet, PIP, SBT, Stack, Yarn
 Analyzing project path:
         [mime-types-dir]
-ERROR - Resolving dependencies for 'package.json' failed with: No lockfile found in '[mime-types-dir]'. This potentially results in unstable versions of dependencies. To support this, enable the 'allowDynamicVersions' option in 'ort.conf'.
+ERROR - Resolving dependencies for 'package.json' failed with: No lockfile found in '[mime-types-dir]'. This potentially results in unstable versions of dependencies. To support this, enable the 'allowDynamicVersions' option in 'config.yml'.
 Writing analyzer result to '[analyzer-output-dir]/analyzer-result.yml'.
 ```
 
@@ -140,7 +140,7 @@ repository:
     url: "https://github.com/jshttp/mime-types.git"
     revision: "7c4ce23d7354fbf64c69d7b7be8413c4ba2add78"
     path: ""
-  # Will only be present if an '.ort.yml' configuration file with scope excludes was provided. Otherwise this is an empty object.
+  # Will only be present if an '.ort.yml' configuration file with scope excludes was provided. Otherwise, this is an empty object.
   config:
     excludes:
       scopes:
@@ -232,7 +232,7 @@ analyzer:
           path: ""
       curations: []
 # ...
-# Finally a list of project related issues that happened during dependency analysis. Fortunately empty in this case.
+# Finally, a list of project related issues that happened during dependency analysis. Fortunately empty in this case.
     issues: {}
 # A field to quickly check if the analyzer result contains any issues.
     has_issues: false

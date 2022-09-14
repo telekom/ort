@@ -21,15 +21,16 @@
 package org.ossreviewtoolkit.scanner.scanners.scancode
 
 import java.io.File
-import java.time.Instant
 
 import kotlin.math.max
+
+import org.apache.logging.log4j.kotlin.Logging
 
 import org.ossreviewtoolkit.model.ScanSummary
 import org.ossreviewtoolkit.model.ScannerDetails
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
-import org.ossreviewtoolkit.model.readJsonFile
+import org.ossreviewtoolkit.model.readTree
 import org.ossreviewtoolkit.scanner.AbstractScannerFactory
 import org.ossreviewtoolkit.scanner.BuildConfig
 import org.ossreviewtoolkit.scanner.CommandLineScanner
@@ -43,10 +44,10 @@ import org.ossreviewtoolkit.utils.common.isTrue
 import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
 import org.ossreviewtoolkit.utils.common.safeMkdirs
 import org.ossreviewtoolkit.utils.common.unpack
-import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.core.createOrtTempDir
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.ortToolsDirectory
+import org.ossreviewtoolkit.utils.common.withoutPrefix
+import org.ossreviewtoolkit.utils.ort.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.ort.createOrtTempDir
+import org.ossreviewtoolkit.utils.ort.ortToolsDirectory
 
 /**
  * A wrapper for [ScanCode](https://github.com/nexB/scancode-toolkit).
@@ -67,17 +68,7 @@ class ScanCode internal constructor(
     scannerConfig: ScannerConfiguration,
     downloaderConfig: DownloaderConfiguration
 ) : CommandLineScanner(name, scannerConfig, downloaderConfig), PathScannerWrapper {
-    class ScanCodeFactory : AbstractScannerWrapperFactory<ScanCode>(SCANNER_NAME) {
-        override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
-            ScanCode(scannerName, scannerConfig, downloaderConfig)
-    }
-
-    class Factory : AbstractScannerFactory<ScanCode>(SCANNER_NAME) {
-        override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
-            ScanCode(scannerName, scannerConfig, downloaderConfig)
-    }
-
-    companion object {
+    companion object : Logging {
         const val SCANNER_NAME = "ScanCode"
 
         private const val OUTPUT_FORMAT = "json-pp"
@@ -107,6 +98,16 @@ class ScanCode internal constructor(
         } else {
             "--output-$OUTPUT_FORMAT"
         }
+    }
+
+    class ScanCodeFactory : AbstractScannerWrapperFactory<ScanCode>(SCANNER_NAME) {
+        override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
+            ScanCode(scannerName, scannerConfig, downloaderConfig)
+    }
+
+    class Factory : AbstractScannerFactory<ScanCode>(SCANNER_NAME) {
+        override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
+            ScanCode(scannerName, scannerConfig, downloaderConfig)
     }
 
     override val name = SCANNER_NAME
@@ -141,8 +142,10 @@ class ScanCode internal constructor(
         // On first use, the output is prefixed by "Configuring ScanCode for first use...". The version string can be
         // something like:
         // ScanCode version 2.0.1.post1.fb67a181
-        val prefix = "ScanCode version "
-        return output.lineSequence().first { it.startsWith(prefix) }.substring(prefix.length)
+        // ScanCode version: 31.0.0b4
+        return output.lineSequence().firstNotNullOfOrNull { line ->
+            line.withoutPrefix("ScanCode version")?.removePrefix(":")?.trim()
+        }.orEmpty()
     }
 
     override fun bootstrap(): File {
@@ -151,7 +154,7 @@ class ScanCode internal constructor(
         val scannerDir = unpackDir.resolve("scancode-toolkit-$versionWithoutHyphen")
 
         if (scannerDir.resolve(command()).isFile) {
-            log.info { "Skipping to bootstrap $name as it was found in $unpackDir." }
+            logger.info { "Skipping to bootstrap $name as it was found in $unpackDir." }
             return scannerDir
         }
 
@@ -168,33 +171,34 @@ class ScanCode internal constructor(
 
         // Download ScanCode to a file instead of unpacking directly from the response body as doing so on the > 200 MiB
         // archive causes issues.
-        log.info { "Downloading $scannerName from $url... " }
+        logger.info { "Downloading $scannerName from $url... " }
         unpackDir.safeMkdirs()
         val scannerArchive = OkHttpClientHelper.downloadFile(url, unpackDir).getOrThrow()
 
-        log.info { "Unpacking '$scannerArchive' to '$unpackDir'... " }
+        logger.info { "Unpacking '$scannerArchive' to '$unpackDir'... " }
         scannerArchive.unpack(unpackDir)
 
         if (!scannerArchive.delete()) {
-            log.warn { "Unable to delete temporary file '$scannerArchive'." }
+            logger.warn { "Unable to delete temporary file '$scannerArchive'." }
         }
 
         return scannerDir
     }
 
     override fun scanPathInternal(path: File): ScanSummary {
-        val startTime = Instant.now()
-
         val resultFile = createOrtTempDir().resolve("result.json")
         val process = runScanCode(path, resultFile)
 
-        val endTime = Instant.now()
-
-        val result = readJsonFile(resultFile)
+        val result = resultFile.readTree()
         resultFile.parentFile.safeDeleteRecursively(force = true)
 
         val parseLicenseExpressions = scanCodeConfiguration["parseLicenseExpressions"].isTrue()
-        val summary = generateSummary(startTime, endTime, path, result, parseLicenseExpressions)
+        val summary = generateSummary(
+            path,
+            result,
+            scannerConfig.detectedLicenseMapping,
+            parseLicenseExpressions
+        )
 
         val issues = summary.issues.toMutableList()
 
@@ -202,7 +206,7 @@ class ScanCode internal constructor(
         mapTimeoutErrors(issues)
 
         return with(process) {
-            if (stderr.isNotBlank()) log.debug { stderr }
+            if (stderr.isNotBlank()) logger.debug { stderr }
 
             summary.copy(issues = issues)
         }

@@ -20,32 +20,6 @@
  * License-Filename: LICENSE
  */
 
-pluginManagement {
-    resolutionStrategy {
-        eachPlugin {
-            // Work around https://github.com/gradle/gradle/issues/1697.
-            if (requested.id.namespace != "org.gradle" && requested.version == null) {
-                val versionPropertyName = if (requested.id.id.startsWith("org.jetbrains.kotlin.")) {
-                    "kotlinPluginVersion"
-                } else {
-                    val pluginName = requested.id.name.split('-').joinToString("") { it.capitalize() }.decapitalize()
-                    "${pluginName}PluginVersion"
-                }
-
-                logger.info("Checking for plugin version property '$versionPropertyName'.")
-
-                gradle.rootProject.properties[versionPropertyName]?.let { version ->
-                    logger.info("Setting '${requested.id.id}' plugin version to $version.")
-                    useVersion(version.toString())
-                } ?: logger.warn(
-                    "No version specified for plugin '${requested.id.id}' and property '$versionPropertyName' does " +
-                            "not exist."
-                )
-            }
-        }
-    }
-}
-
 rootProject.name = "oss-review-toolkit"
 
 include(":advisor")
@@ -56,6 +30,7 @@ include(":clients:fossid-webapp")
 include(":clients:github-graphql")
 include(":clients:nexus-iq")
 include(":clients:oss-index")
+include(":clients:osv")
 include(":clients:scanoss")
 include(":clients:vulnerable-code")
 include(":detekt-rules")
@@ -70,14 +45,14 @@ include(":reporter")
 include(":reporter-web-app")
 include(":scanner")
 include(":utils:common")
-include(":utils:core")
+include(":utils:ort")
 include(":utils:scripting")
 include(":utils:spdx")
 include(":utils:test")
 include(":oscake")
 
 project(":utils:common").name = "common-utils"
-project(":utils:core").name = "core-utils"
+project(":utils:ort").name = "ort-utils"
 project(":utils:scripting").name = "scripting-utils"
 project(":utils:spdx").name = "spdx-utils"
 project(":utils:test").name = "test-utils"

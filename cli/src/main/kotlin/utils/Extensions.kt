@@ -27,13 +27,13 @@ import java.io.File
 import kotlin.time.measureTime
 import kotlin.time.measureTimedValue
 
+import org.apache.logging.log4j.kotlin.cachedLoggerOf
+
 import org.ossreviewtoolkit.model.HashAlgorithm
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.writeValue
 import org.ossreviewtoolkit.utils.common.formatSizeInMib
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.perf
 
 fun <T : GroupableOption> T.group(name: String): T = apply { groupName = name }
 
@@ -44,16 +44,20 @@ fun <T : GroupableOption> T.outputGroup(): T = group(OPTION_GROUP_OUTPUT)
 fun <T : GroupableOption> T.configurationGroup(): T = group(OPTION_GROUP_CONFIGURATION)
 
 /**
+ * An extension property for adding a logger property to any [CliktCommand].
+ */
+val CliktCommand.logger
+    inline get() = cachedLoggerOf(javaClass)
+
+/**
  * Read [ortFile] into an [OrtResult] and return it.
  */
 fun CliktCommand.readOrtResult(ortFile: File): OrtResult {
-    log.debug { "Input ORT result file has SHA-1 hash ${HashAlgorithm.SHA1.calculate(ortFile)}." }
+    logger.debug { "Input ORT result file has SHA-1 hash ${HashAlgorithm.SHA1.calculate(ortFile)}." }
 
     val (ortResult, duration) = measureTimedValue { ortFile.readValue<OrtResult>() }
 
-    log.perf {
-        "Read ORT result from '${ortFile.name}' (${ortFile.formatSizeInMib}) in $duration."
-    }
+    logger.info { "Read ORT result from '${ortFile.name}' (${ortFile.formatSizeInMib}) in $duration." }
 
     return ortResult
 }
@@ -66,10 +70,8 @@ fun CliktCommand.writeOrtResult(ortResult: OrtResult, outputFiles: Collection<Fi
         println("Writing $resultName result to '$file'.")
         val duration = measureTime { file.writeValue(ortResult) }
 
-        log.perf {
-            "Wrote ORT result to '${file.name}' (${file.formatSizeInMib}) in $duration."
-        }
+        logger.info { "Wrote ORT result to '${file.name}' (${file.formatSizeInMib}) in $duration." }
 
-        log.debug { "Output ORT result file has SHA-1 hash ${HashAlgorithm.SHA1.calculate(file)}." }
+        logger.debug { "Output ORT result file has SHA-1 hash ${HashAlgorithm.SHA1.calculate(file)}." }
     }
 }

@@ -20,6 +20,7 @@
 package org.ossreviewtoolkit.evaluator
 
 import org.ossreviewtoolkit.model.OrtResult
+import org.ossreviewtoolkit.model.Severity
 
 /**
  * A [Rule] to check an [OrtResult].
@@ -27,15 +28,25 @@ import org.ossreviewtoolkit.model.OrtResult
 open class OrtResultRule(
     ruleSet: RuleSet,
     name: String,
-
+) : Rule(ruleSet, name) {
     /**
      * The [OrtResult] to check.
      */
-    val ortResult: OrtResult,
-) : Rule(ruleSet, name) {
+    val ortResult = ruleSet.ortResult
+
     override val description = "Evaluating ORT result rule '$name'."
 
     override fun issueSource() = "$name - ORT result"
+
+    fun issue(severity: Severity, message: String, howToFix: String = ""): Unit =
+        issue(
+            severity = severity,
+            pkgId = null,
+            license = null,
+            licenseSource = null,
+            message = message,
+            howToFix = howToFix
+        )
 
     fun hint(message: String, howToFix: String = ""): Unit =
         hint(

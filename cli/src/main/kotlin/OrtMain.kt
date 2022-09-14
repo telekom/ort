@@ -20,6 +20,9 @@
 
 package org.ossreviewtoolkit.cli
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+
 import com.github.ajalt.clikt.completion.completionOption
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.context
@@ -39,31 +42,29 @@ import java.io.File
 
 import kotlin.system.exitProcess
 
-import org.apache.logging.log4j.Level
-import org.apache.logging.log4j.core.config.Configurator
-
 import org.ossreviewtoolkit.cli.commands.*
+import org.ossreviewtoolkit.cli.utils.logger
 import org.ossreviewtoolkit.model.config.LicenseFilenamePatterns
 import org.ossreviewtoolkit.model.config.OrtConfiguration
 import org.ossreviewtoolkit.utils.common.Os
 import org.ossreviewtoolkit.utils.common.expandTilde
-import org.ossreviewtoolkit.utils.core.Environment
-import org.ossreviewtoolkit.utils.core.ORT_CONFIG_DIR_ENV_NAME
-import org.ossreviewtoolkit.utils.core.ORT_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.core.ORT_DATA_DIR_ENV_NAME
-import org.ossreviewtoolkit.utils.core.ORT_NAME
-import org.ossreviewtoolkit.utils.core.PERFORMANCE
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.ortConfigDirectory
-import org.ossreviewtoolkit.utils.core.ortDataDirectory
-import org.ossreviewtoolkit.utils.core.printStackTrace
+import org.ossreviewtoolkit.utils.ort.Environment
+import org.ossreviewtoolkit.utils.ort.ORT_CONFIG_DIR_ENV_NAME
+import org.ossreviewtoolkit.utils.ort.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_DATA_DIR_ENV_NAME
+import org.ossreviewtoolkit.utils.ort.ORT_NAME
+import org.ossreviewtoolkit.utils.ort.ortConfigDirectory
+import org.ossreviewtoolkit.utils.ort.ortDataDirectory
+import org.ossreviewtoolkit.utils.ort.printStackTrace
+
+import org.slf4j.LoggerFactory
 
 /**
  * Helper class for mutually exclusive command line options of different types.
  */
-sealed class GroupTypes {
-    data class FileType(val file: File) : GroupTypes()
-    data class StringType(val string: String) : GroupTypes()
+sealed interface GroupTypes {
+    data class FileType(val file: File) : GroupTypes
+    data class StringType(val string: String) : GroupTypes
 }
 
 /**
@@ -91,7 +92,6 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
 
     private val logLevel by option(help = "Set the verbosity level of log output.").switch(
         "--info" to Level.INFO,
-        "--performance" to PERFORMANCE,
         "--debug" to Level.DEBUG
     ).default(Level.WARN)
 
@@ -174,9 +174,10 @@ class OrtMain : CliktCommand(name = ORT_NAME, invokeWithoutSubcommand = true) {
     }
 
     override fun run() {
-        Configurator.setRootLevel(logLevel)
+        val rootLogger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
+        rootLogger.level = logLevel
 
-        log.debug { "Used command line arguments: ${currentContext.originalArgv}" }
+        logger.debug { "Used command line arguments: ${currentContext.originalArgv}" }
 
         // Make the parameter globally available.
         printStackTrace = stacktrace

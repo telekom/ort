@@ -37,7 +37,7 @@ import org.ossreviewtoolkit.model.utils.FindingCurationMatcher
 import org.ossreviewtoolkit.model.utils.FindingsMatcher
 import org.ossreviewtoolkit.model.utils.RootLicenseMatcher
 import org.ossreviewtoolkit.model.utils.prependPath
-import org.ossreviewtoolkit.utils.core.createOrtTempDir
+import org.ossreviewtoolkit.utils.ort.createOrtTempDir
 import org.ossreviewtoolkit.utils.spdx.SpdxSingleLicenseExpression
 
 class LicenseInfoResolver(
@@ -57,13 +57,15 @@ class LicenseInfoResolver(
     /**
      * Get the [ResolvedLicenseInfo] for the project or package identified by [id].
      */
-    fun resolveLicenseInfo(id: Identifier) = resolvedLicenseInfo.getOrPut(id) { createLicenseInfo(id) }
+    fun resolveLicenseInfo(id: Identifier): ResolvedLicenseInfo =
+        resolvedLicenseInfo.getOrPut(id) { createLicenseInfo(id) }
 
     /**
      * Get the [ResolvedLicenseFileInfo] for the project or package identified by [id]. Requires an [archiver] to be
      * configured, otherwise always returns empty results.
      */
-    fun resolveLicenseFiles(id: Identifier) = resolvedLicenseFiles.getOrPut(id) { createLicenseFileInfo(id) }
+    fun resolveLicenseFiles(id: Identifier): ResolvedLicenseFileInfo =
+        resolvedLicenseFiles.getOrPut(id) { createLicenseFileInfo(id) }
 
     private fun createLicenseInfo(id: Identifier): ResolvedLicenseInfo {
         val licenseInfo = provider.get(id)
@@ -79,7 +81,7 @@ class LicenseInfoResolver(
         // Handle concluded licenses.
         concludedLicenses.forEach { license ->
             license.builder().apply {
-                licenseInfo.concludedLicenseInfo.concludedLicense?.let {
+                licenseInfo.concludedLicenseInfo.concludedLicense?.also {
                     originalExpressions += ResolvedOriginalExpression(expression = it, source = LicenseSource.CONCLUDED)
                 }
             }
@@ -88,33 +90,31 @@ class LicenseInfoResolver(
         // Handle declared licenses.
         declaredLicenses.forEach { license ->
             license.builder().apply {
-                licenseInfo.declaredLicenseInfo.processed.spdxExpression?.let {
+                licenseInfo.declaredLicenseInfo.processed.spdxExpression?.also {
                     originalExpressions += ResolvedOriginalExpression(expression = it, source = LicenseSource.DECLARED)
                 }
 
-                originalDeclaredLicenses.addAll(
-                    licenseInfo.declaredLicenseInfo.processed.mapped.filterValues { it == license }.keys
-                )
+                originalDeclaredLicenses += licenseInfo.declaredLicenseInfo.processed.mapped.filterValues {
+                    it == license
+                }.keys
 
-                if (addAuthorsToCopyrights && licenseInfo.declaredLicenseInfo.authors.isNotEmpty()) {
-                    locations.add(
-                        ResolvedLicenseLocation(
-                            provenance = UnknownProvenance,
-                            location = UNDEFINED_TEXT_LOCATION,
-                            appliedCuration = null,
-                            matchingPathExcludes = emptyList(),
-                            copyrights = licenseInfo.declaredLicenseInfo.authors.mapTo(mutableSetOf()) { author ->
-                                val statement = "Copyright (C) $author".takeUnless {
-                                    author.contains("Copyright", ignoreCase = true)
-                                } ?: author
+                licenseInfo.declaredLicenseInfo.authors.takeIf { it.isNotEmpty() && addAuthorsToCopyrights }?.also {
+                    locations += ResolvedLicenseLocation(
+                        provenance = UnknownProvenance,
+                        location = UNDEFINED_TEXT_LOCATION,
+                        appliedCuration = null,
+                        matchingPathExcludes = emptyList(),
+                        copyrights = it.mapTo(mutableSetOf()) { author ->
+                            val statement = "Copyright (C) $author".takeUnless {
+                                author.contains("Copyright", ignoreCase = true)
+                            } ?: author
 
-                                ResolvedCopyrightFinding(
-                                    statement = statement,
-                                    location = UNDEFINED_TEXT_LOCATION,
-                                    matchingPathExcludes = emptyList()
-                                )
-                            }
-                        )
+                            ResolvedCopyrightFinding(
+                                statement = statement,
+                                location = UNDEFINED_TEXT_LOCATION,
+                                matchingPathExcludes = emptyList()
+                            )
+                        }
                     )
                 }
             }
@@ -145,7 +145,7 @@ class LicenseInfoResolver(
 
         resolvedLocations.keys.forEach { license ->
             license.builder().apply {
-                resolvedLocations[license]?.let { locations.addAll(it) }
+                resolvedLocations[license]?.also { locations += it }
 
                 originalExpressions += detectedLicenses.entries.filter { (expression, _) ->
                     license in expression.decompose()

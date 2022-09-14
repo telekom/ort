@@ -19,9 +19,10 @@
 
 package org.ossreviewtoolkit.analyzer.curation
 
-import com.fasterxml.jackson.module.kotlin.readValue
-
 import java.io.File
+import java.io.IOException
+
+import org.apache.logging.log4j.kotlin.Logging
 
 import org.ossreviewtoolkit.analyzer.PackageCurationProvider
 import org.ossreviewtoolkit.downloader.vcs.Git
@@ -29,11 +30,10 @@ import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.PackageCuration
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
-import org.ossreviewtoolkit.model.yamlMapper
+import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.utils.common.encodeOr
 import org.ossreviewtoolkit.utils.common.safeMkdirs
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.ortDataDirectory
+import org.ossreviewtoolkit.utils.ort.ortDataDirectory
 
 private const val ORT_CONFIG_REPOSITORY_BRANCH = "main"
 private const val ORT_CONFIG_REPOSITORY_URL = "https://github.com/oss-review-toolkit/ort-config.git"
@@ -43,6 +43,8 @@ private const val ORT_CONFIG_REPOSITORY_URL = "https://github.com/oss-review-too
  * [ort-config repository](https://github.com/oss-review-toolkit/ort-config).
  */
 open class OrtConfigPackageCurationProvider : PackageCurationProvider {
+    companion object : Logging
+
     private val curationsDir by lazy {
         ortDataDirectory.resolve("ort-config").also {
             updateOrtConfig(it)
@@ -51,17 +53,17 @@ open class OrtConfigPackageCurationProvider : PackageCurationProvider {
 
     override fun getCurationsFor(pkgIds: Collection<Identifier>) =
         pkgIds.mapNotNull { pkgId ->
-            getCurationsFor(pkgId).takeIf { it.isNotEmpty() }?.let { pkgId to it }
+            getCurationsFor(pkgId).takeUnless { it.isEmpty() }?.let { pkgId to it }
         }.toMap()
 
     private fun getCurationsFor(pkgId: Identifier): List<PackageCuration> {
         val file = curationsDir.resolve("curations").resolve(pkgId.toCurationPath())
         return if (file.isFile) {
             runCatching {
-                yamlMapper.readValue<List<PackageCuration>>(file).filter { it.isApplicable(pkgId) }
-            }.onFailure {
-                log.warn { "Failed parsing package curation from '${file.absolutePath}'." }
-            }.getOrThrow()
+                file.readValue<List<PackageCuration>>().filter { it.isApplicable(pkgId) }
+            }.getOrElse {
+                throw IOException("Failed parsing package curation from '${file.absolutePath}'.", it)
+            }
         } else {
             emptyList()
         }
@@ -78,8 +80,10 @@ private fun Identifier.toCurationPath() =
 private fun updateOrtConfig(dir: File) {
     dir.safeMkdirs()
     Git().apply {
-        val workingTree =
-            initWorkingTree(dir, VcsInfo(VcsType.GIT, url = ORT_CONFIG_REPOSITORY_URL, ORT_CONFIG_REPOSITORY_BRANCH))
-        updateWorkingTree(workingTree, ORT_CONFIG_REPOSITORY_BRANCH)
+        val workingTree = initWorkingTree(dir, VcsInfo.EMPTY.copy(type = VcsType.GIT, url = ORT_CONFIG_REPOSITORY_URL))
+        val revision = updateWorkingTree(workingTree, ORT_CONFIG_REPOSITORY_BRANCH).getOrThrow()
+        OrtConfigPackageCurationProvider.logger.info {
+            "Successfully cloned $revision from $ORT_CONFIG_REPOSITORY_URL."
+        }
     }
 }

@@ -33,8 +33,7 @@ packages:
     spdx_expression: "BSD-3-Clause"
     mapped:
       BSD: "BSD-3-Clause"
-    unmapped:
-    - "BSD License"
+      BSD License: "BSD-3-Clause"
   description: "A high-level Python Web framework that encourages rapid development\
     \ and clean, pragmatic design."
   homepage_url: "https://www.djangoproject.com/"
@@ -54,8 +53,8 @@ packages:
     revision: ""
     path: ""
   vcs_processed:
-    type: ""
-    url: ""
+    type: "Git"
+    url: "https://github.com/django/django.git"
     revision: ""
     path: ""
 - id: "PyPI::pytz:2019.3"

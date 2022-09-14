@@ -34,14 +34,14 @@ import kotlin.time.measureTime
 
 import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream
 
-import org.ossreviewtoolkit.helper.common.ORTH_NAME
+import org.ossreviewtoolkit.helper.utils.ORTH_NAME
 import org.ossreviewtoolkit.model.HashAlgorithm
 import org.ossreviewtoolkit.model.config.OrtConfiguration
 import org.ossreviewtoolkit.model.config.PostgresStorageConfiguration
 import org.ossreviewtoolkit.model.utils.DatabaseUtils
 import org.ossreviewtoolkit.utils.common.expandTilde
-import org.ossreviewtoolkit.utils.core.ORT_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.core.ortConfigDirectory
+import org.ossreviewtoolkit.utils.ort.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.ort.ortConfigDirectory
 
 class DownloadResultsFromPostgresCommand : CliktCommand(
     name = "download-results-from-postgres",
@@ -114,8 +114,8 @@ class DownloadResultsFromPostgresCommand : CliktCommand(
     }
 
     private fun fetchOrtResult(connection: Connection, rowId: Int): String? {
-        // TODO: The transmission is relatively slow currently due to lack of compression. Check whether
-        // the gzip extension can help speed this up https://github.com/pramsey/pgsql-gzip.
+        // TODO: The transmission is relatively slow currently due to lack of compression. Check whether the gzip
+        //       extension can help speed this up https://github.com/pramsey/pgsql-gzip.
 
         val query = "SELECT t.$columnName::TEXT AS result FROM $tableName t WHERE id = ?;"
 
@@ -150,7 +150,7 @@ class DownloadResultsFromPostgresCommand : CliktCommand(
             ?: throw IllegalArgumentException("postgresStorage not configured.")
 
         val dataSource = DatabaseUtils.createHikariDataSource(
-            config = storageConfig,
+            config = storageConfig.connection,
             applicationNameSuffix = ORTH_NAME,
             maxPoolSize = 1
         )

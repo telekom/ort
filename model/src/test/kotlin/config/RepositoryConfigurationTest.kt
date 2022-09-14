@@ -33,6 +33,7 @@ import io.kotest.matchers.string.shouldNotContain
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.utils.spdx.toSpdx
+import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 class RepositoryConfigurationTest : WordSpec({
     "RepositoryConfiguration" should {
@@ -40,7 +41,7 @@ class RepositoryConfigurationTest : WordSpec({
             val configuration = """
                 excludes:
                   paths:
-                  - pattern: "android/**build.gradle"
+                  - pattern: "android/**/build.gradle"
                     reason: "BUILD_TOOL_OF"
                     comment: "project comment"
                 """.trimIndent()
@@ -68,13 +69,15 @@ class RepositoryConfigurationTest : WordSpec({
 
         "be deserializable" {
             val configuration = """
+                analyzer:
+                  allow_dynamic_versions: true
                 excludes:
                   paths:
                   - pattern: "project1/path"
                     reason: "BUILD_TOOL_OF"
                     comment: "project comment"
                   scopes:
-                  - name: "scope"
+                  - pattern: "scope"
                     reason: "TEST_DEPENDENCY_OF"
                     comment: "scope comment"
                 resolutions:
@@ -121,6 +124,10 @@ class RepositoryConfigurationTest : WordSpec({
                 """.trimIndent()
 
             val repositoryConfiguration = yamlMapper.readValue<RepositoryConfiguration>(configuration)
+
+            repositoryConfiguration.analyzer shouldNotBeNull {
+                allowDynamicVersions shouldBe true
+            }
 
             val paths = repositoryConfiguration.excludes.paths
             paths should haveSize(1)

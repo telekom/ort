@@ -26,6 +26,7 @@ import java.io.File
 import java.lang.reflect.Modifier
 
 import org.ossreviewtoolkit.analyzer.PackageManager
+import org.ossreviewtoolkit.cli.utils.logger
 import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
@@ -33,7 +34,6 @@ import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.scanner.Scanner
 import org.ossreviewtoolkit.utils.common.CommandLineTool
-import org.ossreviewtoolkit.utils.core.log
 import org.ossreviewtoolkit.utils.spdx.scanCodeLicenseTextDir
 
 import org.reflections.Reflections
@@ -54,13 +54,13 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
                 var category = "Other tool"
                 val instance = when {
                     kotlinObject != null -> {
-                        log.debug { "$it is a Kotlin object." }
+                        logger.debug { "$it is a Kotlin object." }
                         kotlinObject
                     }
 
                     PackageManager::class.java.isAssignableFrom(it) -> {
                         category = "PackageManager"
-                        log.debug { "$it is a $category." }
+                        logger.debug { "$it is a $category." }
                         it.getDeclaredConstructor(
                             String::class.java,
                             File::class.java,
@@ -76,7 +76,7 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
 
                     Scanner::class.java.isAssignableFrom(it) -> {
                         category = "Scanner"
-                        log.debug { "$it is a $category." }
+                        logger.debug { "$it is a $category." }
                         it.getDeclaredConstructor(
                             String::class.java,
                             ScannerConfiguration::class.java,
@@ -86,12 +86,12 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
 
                     VersionControlSystem::class.java.isAssignableFrom(it) -> {
                         category = "VersionControlSystem"
-                        log.debug { "$it is a $category." }
+                        logger.debug { "$it is a $category." }
                         it.getDeclaredConstructor().newInstance()
                     }
 
                     else -> {
-                        log.debug { "Trying to instantiate $it without any arguments." }
+                        logger.debug { "Trying to instantiate $it without any arguments." }
                         it.getDeclaredConstructor().newInstance()
                     }
                 }
@@ -100,7 +100,7 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
                     allTools.getOrPut(category) { mutableListOf() } += instance
                 }
             }.onFailure { e ->
-                log.error { "There was an error instantiating $it: $e." }
+                logger.error { "There was an error instantiating $it: $e." }
                 throw ProgramResult(1)
             }
         }
@@ -133,12 +133,18 @@ class RequirementsCommand : CliktCommand(help = "Check for the command line tool
                                 Pair("\t+ ", "Found version '$actualVersion'.")
                             }
                         }.getOrElse {
-                            statusCode = statusCode or 2
+                            if (tool.getVersionRequirement() != CommandLineTool.ANY_VERSION) {
+                                statusCode = statusCode or 2
+                            }
+
                             Pair("\t+ ", "Could not determine the version.")
                         }
                     } else {
                         // Tolerate scanners and Pub to be missing as they can be bootstrapped.
-                        if (category != "Scanner" && tool.javaClass.simpleName != "Pub") {
+                        // Tolerate Yarn2 because it is provided in code repositories that use it.
+                        if (category != "Scanner" && tool.javaClass.simpleName != "Pub"
+                            && tool.javaClass.simpleName != "Yarn2"
+                        ) {
                             statusCode = statusCode or 4
                         }
 

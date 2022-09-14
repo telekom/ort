@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Bosch.IO GmbH
+ * Copyright (C) 2021-2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ class SpdxDocumentCacheTest : WordSpec({
         "return a parsed document" {
             val loader = SpdxDocumentCache()
 
-            val document = loader.load(TEST_DOCUMENT)
+            val document = loader.load(TEST_DOCUMENT).getOrThrow()
 
             document.spdxId shouldBe "SPDXRef-DOCUMENT"
             document.name shouldBe "xyz-0.1.0"
@@ -40,8 +40,8 @@ class SpdxDocumentCacheTest : WordSpec({
         "return a document from the cache" {
             val loader = SpdxDocumentCache()
 
-            val document1 = loader.load(TEST_DOCUMENT)
-            val document2 = loader.load(TEST_DOCUMENT)
+            val document1 = loader.load(TEST_DOCUMENT).getOrThrow()
+            val document2 = loader.load(TEST_DOCUMENT).getOrThrow()
 
             document1 should beTheSameInstanceAs(document2)
         }
@@ -50,4 +50,4 @@ class SpdxDocumentCacheTest : WordSpec({
 
 /** A test document that is loaded by the test cases. */
 private val TEST_DOCUMENT =
-    File("src/funTest/assets/projects/synthetic/spdx/project-xyz-with-inline-packages.spdx.yml").absoluteFile
+    File("src/funTest/assets/projects/synthetic/spdx/package-references/project-xyz.spdx.yml").absoluteFile

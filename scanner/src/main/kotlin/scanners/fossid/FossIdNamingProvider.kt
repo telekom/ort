@@ -22,7 +22,7 @@ package org.ossreviewtoolkit.scanner.scanners.fossid
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-import org.ossreviewtoolkit.utils.core.log
+import org.apache.logging.log4j.kotlin.Logging
 
 /**
  * This class provides names for projects and scans when the FossID scanner creates them, following a given pattern.
@@ -35,7 +35,7 @@ import org.ossreviewtoolkit.utils.core.log
  * Available builtin variables:
  * * **projectName**: The name of the project (i.e. the part of the URL before .git).
  * * **currentTimestamp**: The current time.
- * * **deltaTag** (scan code only): If delta scans is enabled, this qualify the scan as an *origin* scan or a *delta*
+ * * **deltaTag** (scan code only): If delta scans is enabled, this qualifies the scan as an *origin* scan or a *delta*
  * scan.
  */
 internal class FossIdNamingProvider(
@@ -43,7 +43,7 @@ internal class FossIdNamingProvider(
     private val namingScanPattern: String?,
     private val namingConventionVariables: Map<String, String>
 ) {
-    companion object {
+    companion object : Logging {
         @JvmStatic
         val FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
     }
@@ -74,7 +74,7 @@ internal class FossIdNamingProvider(
     private fun replaceNamingConventionVariables(
         namingConventionPattern: String, builtins: Map<String, String>, namingConventionVariables: Map<String, String>
     ): String {
-        log.info { "Parameterizing the name with pattern '$namingConventionPattern'." }
+        logger.info { "Parameterizing the name with pattern '$namingConventionPattern'." }
         val currentTimestamp = FORMATTER.format(LocalDateTime.now())
 
         val allVariables =

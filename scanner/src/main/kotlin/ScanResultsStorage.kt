@@ -27,6 +27,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.AccessStatistics
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Package
@@ -45,12 +47,10 @@ import org.ossreviewtoolkit.scanner.experimental.PackageBasedScanStorage
 import org.ossreviewtoolkit.scanner.experimental.ScanStorageException
 import org.ossreviewtoolkit.scanner.experimental.toNestedProvenanceScanResult
 import org.ossreviewtoolkit.scanner.storages.*
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.ortDataDirectory
-import org.ossreviewtoolkit.utils.core.perf
-import org.ossreviewtoolkit.utils.core.storage.HttpFileStorage
-import org.ossreviewtoolkit.utils.core.storage.LocalFileStorage
-import org.ossreviewtoolkit.utils.core.storage.XZCompressedLocalFileStorage
+import org.ossreviewtoolkit.utils.ort.ortDataDirectory
+import org.ossreviewtoolkit.utils.ort.storage.HttpFileStorage
+import org.ossreviewtoolkit.utils.ort.storage.LocalFileStorage
+import org.ossreviewtoolkit.utils.ort.storage.XZCompressedLocalFileStorage
 
 /**
  * The abstract class that storage backends for scan results need to implement.
@@ -59,14 +59,14 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
     /**
      * A companion object that allow to configure the globally used storage backend.
      */
-    companion object {
+    companion object : Logging {
         /**
          * A successful [Result] with an empty list of [ScanResult]s.
          */
         val EMPTY_RESULT = Result.success<List<ScanResult>>(emptyList())
 
         /**
-         * The scan result storage in use. Needs to be set via the corresponding configure function.
+         * The scan result storage in use. Needs to be set via the corresponding [configure] function.
          */
         var storage: ScanResultsStorage = NoStorage()
 
@@ -84,7 +84,7 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
                 else -> createCompositeStorage(config)
             }
 
-            log.info { "ScanResultStorage has been configured to ${storage.name}." }
+            logger.info { "ScanResultStorage has been configured to ${storage.name}." }
 
             return storage
         }
@@ -111,7 +111,7 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
             val readers = config.storageReaders.orEmpty().map { resolve(it) }
             val writers = config.storageWriters.orEmpty().map { resolve(it) }
 
-            log.info {
+            logger.info {
                 "Using composite storage with readers ${readers.joinToString { it.name }} and writers " +
                         "${writers.joinToString { it.name }}."
             }
@@ -137,8 +137,8 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
             val backend = config.backend.createFileStorage()
 
             when (backend) {
-                is HttpFileStorage -> log.info { "Using file based storage with HTTP backend '${backend.url}'." }
-                is LocalFileStorage -> log.info {
+                is HttpFileStorage -> logger.info { "Using file based storage with HTTP backend '${backend.url}'." }
+                is LocalFileStorage -> logger.info {
                     "Using file based storage with local directory '${backend.directory.invariantSeparatorsPath}'."
                 }
             }
@@ -151,17 +151,17 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
          */
         private fun createPostgresStorage(config: PostgresStorageConfiguration): ScanResultsStorage {
             val dataSource = DatabaseUtils.createHikariDataSource(
-                config = config,
+                config = config.connection,
                 applicationNameSuffix = TOOL_NAME,
-                // Use a value slightly higher than the number of threads accessing the storage.
-                maxPoolSize = PathScanner.NUM_STORAGE_THREADS + 3
+                // Use a value slightly higher than the number of transactions accessing the storage.
+                maxPoolSize = config.connection.parallelTransactions + 3
             )
 
-            log.info {
-                "Using Postgres storage with URL '${config.url}' and schema '${config.schema}'."
+            logger.info {
+                "Using Postgres storage with URL '${config.connection.url}' and schema '${config.connection.schema}'."
             }
 
-            return PostgresStorage(dataSource)
+            return PostgresStorage(dataSource, config.connection.parallelTransactions)
         }
 
         /**
@@ -169,7 +169,7 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
          */
         private fun createClearlyDefinedStorage(config: ClearlyDefinedStorageConfiguration): ScanResultsStorage =
             ClearlyDefinedStorage(config).also {
-                log.info { "Using ClearlyDefined storage with URL '${config.serverUrl}'." }
+                logger.info { "Using ClearlyDefined storage with URL '${config.serverUrl}'." }
             }
 
         /**
@@ -177,7 +177,9 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
          */
         private fun createSw360Storage(config: Sw360StorageConfiguration): ScanResultsStorage =
             Sw360Storage(config).also {
-                log.info { "Using SW360 storage with auth URL '${config.authUrl}' and REST URL '${config.restUrl}'." }
+                logger.info {
+                    "Using SW360 storage with auth URL '${config.authUrl}' and REST URL '${config.restUrl}'."
+                }
             }
     }
 
@@ -192,8 +194,8 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
     val stats = AccessStatistics()
 
     /**
-     * Read all [ScanResult]s for a package with [id] from the storage. Return a list of [ScanResult]s wrapped in a
-     * [Result], which is a [Failure] if an unexpected error occurred and a [Success] otherwise.
+     * Return all [ScanResult]s contained in this [ScanResultsStorage] corresponding to the package denoted by the given
+     * [id] wrapped in a [Result].
      */
     fun read(id: Identifier): Result<List<ScanResult>> {
         val (result, duration) = measureTimedValue { readInternal(id) }
@@ -205,8 +207,8 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
                 stats.numHits.incrementAndGet()
             }
 
-            log.perf {
-                "Read ${results.size} scan results for '${id.toCoordinates()}' from ${javaClass.simpleName} in " +
+            logger.info {
+                "Read ${results.size} scan result(s) for '${id.toCoordinates()}' from ${javaClass.simpleName} in " +
                         "$duration."
             }
         }
@@ -215,13 +217,12 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
     }
 
     /**
-     * Read those [ScanResult]s for the given [package][pkg] from the storage that are
-     * [compatible][ScannerCriteria.matches] with the provided [scannerCriteria]. Also, [Package.sourceArtifact],
-     * [Package.vcs], and [Package.vcsProcessed] are used to check if the scan result matches the expected source code
-     * location. That check is important to find the correct results when different revisions of a package using the
-     * same version name are used (e.g. multiple scans of a "1.0-SNAPSHOT" version during development). Return a
-     * list of [ScanResult]s wrapped in a [Result], which is a [Failure] if an unexpected error occurred and a [Success]
-     * otherwise.
+     * Return all [ScanResult]s contained in this [ScanResultsStorage] corresponding to the given [package][pkg] that
+     * are [compatible][ScannerCriteria.matches] with the provided [scannerCriteria] wrapped in a [Result]. Also,
+     * [Package.sourceArtifact], [Package.vcs], and [Package.vcsProcessed] are used to check if the scan result matches
+     * the expected source code location. That check is important to find the correct results when different revisions
+     * of a package using the same version name are used (e.g. multiple scans of a "1.0-SNAPSHOT" version during
+     * development).
      */
     fun read(pkg: Package, scannerCriteria: ScannerCriteria): Result<List<ScanResult>> {
         val (result, duration) = measureTimedValue { readInternal(pkg, scannerCriteria) }
@@ -233,8 +234,8 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
                 stats.numHits.incrementAndGet()
             }
 
-            log.perf {
-                "Read ${results.size} scan results for '${pkg.id.toCoordinates()}' from ${javaClass.simpleName} in " +
+            logger.info {
+                "Read ${results.size} scan result(s) for '${pkg.id.toCoordinates()}' from ${javaClass.simpleName} in " +
                         "$duration."
             }
         }
@@ -243,13 +244,12 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
     }
 
     /**
-     * Read those [ScanResult]s for the given [packages] from the storage that are
-     * [compatible][ScannerCriteria.matches] with the provided [scannerCriteria]. Also, [Package.sourceArtifact],
-     * [Package.vcs], and [Package.vcsProcessed] are used to check if the scan result matches the expected source code
-     * location. That check is important to find the correct results when different revisions of a package using the
-     * same version name are used (e.g. multiple scans of a "1.0-SNAPSHOT" version during development). Return the list
-     * of [ScanResult]s mapped to the [Identifier]s of the [packages], wrapped in a [Result], which is a [Failure] if
-     * an unexpected error occurred and a [Success] otherwise.
+     * Return all [ScanResult]s contained in this [ScanResultsStorage] corresponding to the given [packages] that
+     * are [compatible][ScannerCriteria.matches] with the provided [scannerCriteria] wrapped in a [Result]. Also,
+     * [Package.sourceArtifact], [Package.vcs], and [Package.vcsProcessed] are used to check if the scan result matches
+     * the expected source code location. That check is important to find the correct results when different revisions
+     * of a package using the same version name are used (e.g. multiple scans of a "1.0-SNAPSHOT" version during
+     * development).
      */
     fun read(
         packages: Collection<Package>,
@@ -262,8 +262,8 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
         result.onSuccess { results ->
             stats.numHits.addAndGet(results.count { (_, results) -> results.isNotEmpty() })
 
-            log.perf {
-                "Read ${results.values.sumOf { it.size }} scan results from ${javaClass.simpleName} in $duration."
+            logger.info {
+                "Read ${results.values.sumOf { it.size }} scan result(s) from ${javaClass.simpleName} in $duration."
             }
         }
 
@@ -282,16 +282,14 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
         if (scanResult.provenance is UnknownProvenance) {
             val message =
                 "Not storing scan result for '${id.toCoordinates()}' because no provenance information is available."
-            log.info { message }
+            logger.info { message }
 
             return Result.failure(ScanStorageException(message))
         }
 
         val (result, duration) = measureTimedValue { addInternal(id, scanResult) }
 
-        log.perf {
-            "Added scan result for '${id.toCoordinates()}' to ${javaClass.simpleName} in $duration."
-        }
+        logger.info { "Added scan result for '${id.toCoordinates()}' to ${javaClass.simpleName} in $duration." }
 
         return result
     }
@@ -315,7 +313,7 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
                 // Only keep scan results whose provenance information matches the package information.
                 scanResults.retainAll { it.provenance.matches(pkg) }
                 if (scanResults.isEmpty()) {
-                    log.debug {
+                    logger.debug {
                         "No stored scan results found for $pkg. The following entries with non-matching provenance " +
                                 "have been ignored: ${scanResults.map { it.provenance }}"
                     }
@@ -323,7 +321,7 @@ abstract class ScanResultsStorage : PackageBasedScanStorage {
                     // Only keep scan results from compatible scanners.
                     scanResults.retainAll { scannerCriteria.matches(it.scanner) }
                     if (scanResults.isEmpty()) {
-                        log.debug {
+                        logger.debug {
                             "No stored scan results found for $scannerCriteria. The following entries with " +
                                     "incompatible scanners have been ignored: ${scanResults.map { it.scanner }}"
                         }

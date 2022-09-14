@@ -28,6 +28,8 @@ import freemarker.template.TemplateExceptionHandler
 import java.io.File
 import java.util.SortedMap
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.AdvisorCapability
 import org.ossreviewtoolkit.model.AdvisorRecord
 import org.ossreviewtoolkit.model.AdvisorResult
@@ -43,6 +45,7 @@ import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.Vulnerability
 import org.ossreviewtoolkit.model.VulnerabilityReference
+import org.ossreviewtoolkit.model.config.RuleViolationResolution
 import org.ossreviewtoolkit.model.config.VulnerabilityResolution
 import org.ossreviewtoolkit.model.licenses.DefaultLicenseInfoProvider
 import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
@@ -51,10 +54,10 @@ import org.ossreviewtoolkit.model.licenses.ResolvedLicense
 import org.ossreviewtoolkit.model.licenses.ResolvedLicenseFileInfo
 import org.ossreviewtoolkit.model.licenses.ResolvedLicenseInfo
 import org.ossreviewtoolkit.model.licenses.filterExcluded
+import org.ossreviewtoolkit.model.utils.getRepositoryPath
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.utils.common.expandTilde
-import org.ossreviewtoolkit.utils.core.log
 import org.ossreviewtoolkit.utils.spdx.SpdxConstants
 import org.ossreviewtoolkit.utils.spdx.model.SpdxLicenseChoice
 
@@ -69,7 +72,7 @@ class FreemarkerTemplateProcessor(
     private val fileExtension: String,
     private val templatesResourceDirectory: String
 ) {
-    companion object {
+    companion object : Logging {
         const val OPTION_TEMPLATE_ID = "template.id"
         const val OPTION_TEMPLATE_PATH = "template.path"
         const val OPTION_PROJECT_TYPES_AS_PACKAGES = "project-types-as-packages"
@@ -86,7 +89,7 @@ class FreemarkerTemplateProcessor(
         }
 
         if (projectTypesAsPackages.isNotEmpty()) {
-            log.info {
+            logger.info {
                 "Handling ${projectTypesAsPackages.size} projects of types $projectTypesAsPackages as packages."
             }
         }
@@ -159,7 +162,7 @@ class FreemarkerTemplateProcessor(
         templateIds.forEach { id ->
             val outputFile = outputDir.resolve("$filePrefix$id$fileExtensionWithDot")
 
-            log.info { "Generating output file '$outputFile' using template id '$id'." }
+            logger.info { "Generating output file '$outputFile' using template id '$id'." }
 
             val template = freemarkerConfig.getTemplate("$id.ftl")
             outputFile.writer().use { template.process(dataModel, it) }
@@ -170,7 +173,7 @@ class FreemarkerTemplateProcessor(
         templateFiles.forEach { file ->
             val outputFile = outputDir.resolve("$filePrefix${file.nameWithoutExtension}$fileExtensionWithDot")
 
-            log.info { "Generating output file '$outputFile' using template file '${file.absolutePath}'." }
+            logger.info { "Generating output file '$outputFile' using template file '${file.absolutePath}'." }
 
             val template = freemarkerConfig.run {
                 setDirectoryForTemplateLoading(file.parentFile)
@@ -347,7 +350,14 @@ class FreemarkerTemplateProcessor(
             } ?: false
 
         /**
-         * Return a list of [Vulnerability]s for which there is no [VulnerabilityResolution] is provided.
+         * Return a list of [RuleViolation]s for which no [RuleViolationResolution] is provided.
+         */
+        @Suppress("UNUSED") // This function is used in the templates.
+        fun filterForUnresolvedRuleViolations(ruleViolation: List<RuleViolation>): List<RuleViolation> =
+            ruleViolation.filterNot { input.resolutionProvider.isResolved(it) }
+
+        /**
+         * Return a list of [Vulnerability]s for which no [VulnerabilityResolution] is provided.
          */
         @Suppress("UNUSED") // This function is used in the templates.
         fun filterForUnresolvedVulnerabilities(vulnerabilities: List<Vulnerability>): List<Vulnerability> =
@@ -401,7 +411,7 @@ class FreemarkerTemplateProcessor(
          */
         fun getPackage(id: Identifier): Package =
             input.ortResult.getPackage(id)?.pkg
-                ?: Package.EMPTY.also { log.warn { "Could not resolve package '${id.toCoordinates()}'." } }
+                ?: Package.EMPTY.also { logger.warn { "Could not resolve package '${id.toCoordinates()}'." } }
     }
 }
 
@@ -473,22 +483,6 @@ internal fun OrtResult.deduplicateProjectScanResults(targetProjects: Set<Identif
     } ?: sortedMapOf()
 
     return replaceScanResults(scanResults)
-}
-
-/**
- * Return the path where the repository given by [provenance] is linked into the source tree.
- */
-private fun OrtResult.getRepositoryPath(provenance: RepositoryProvenance): String {
-    repository.nestedRepositories.forEach { (path, vcsInfo) ->
-        if (vcsInfo.type == provenance.vcsInfo.type
-            && vcsInfo.url == provenance.vcsInfo.url
-            && vcsInfo.revision == provenance.resolvedRevision
-        ) {
-            return "/$path/"
-        }
-    }
-
-    return "/"
 }
 
 /**

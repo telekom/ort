@@ -19,6 +19,9 @@
 
 package org.ossreviewtoolkit.advisor.advisors
 
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+
 import java.net.URI
 import java.time.Instant
 import java.util.concurrent.Executors
@@ -27,6 +30,8 @@ import java.util.regex.Pattern
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
+
+import org.apache.logging.log4j.kotlin.Logging
 
 import org.ossreviewtoolkit.advisor.AbstractAdviceProviderFactory
 import org.ossreviewtoolkit.advisor.AdviceProvider
@@ -48,11 +53,10 @@ import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.config.AdvisorConfiguration
 import org.ossreviewtoolkit.model.config.GitHubDefectsConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.enumSetOf
-import org.ossreviewtoolkit.utils.core.filterVersionNames
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.ort.filterVersionNames
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 /**
  * An [AdviceProvider] implementation that obtains information about open defects from GitHub.
@@ -77,17 +81,17 @@ import org.ossreviewtoolkit.utils.core.showStackTrace
  * suitable for production usage.
  */
 class GitHubDefects(name: String, gitHubConfiguration: GitHubDefectsConfiguration) : AdviceProvider(name) {
-    class Factory : AbstractAdviceProviderFactory<GitHubDefects>("GitHubDefects") {
-        override fun create(config: AdvisorConfiguration) =
-            GitHubDefects(providerName, config.forProvider { gitHubDefects })
-    }
-
-    companion object {
+    companion object : Logging {
         /**
          * The default number of parallel requests executed by this advisor implementation. This value is used if the
          * corresponding property in the configuration is unspecified. It is chosen rather arbitrarily.
          */
         const val DEFAULT_PARALLEL_REQUESTS = 4
+    }
+
+    class Factory : AbstractAdviceProviderFactory<GitHubDefects>("GitHubDefects") {
+        override fun create(config: AdvisorConfiguration) =
+            GitHubDefects(providerName, config.forProvider { gitHubDefects })
     }
 
     /**
@@ -109,7 +113,8 @@ class GitHubDefects(name: String, gitHubConfiguration: GitHubDefectsConfiguratio
     private val service by lazy {
         GitHubService.create(
             token = gitHubConfiguration.token.orEmpty(),
-            url = gitHubConfiguration.endpointUrl?.let { URI(it) } ?: GitHubService.ENDPOINT
+            url = gitHubConfiguration.endpointUrl?.let { URI(it) } ?: GitHubService.ENDPOINT,
+            client = HttpClient(OkHttp)
         )
     }
 
@@ -149,7 +154,7 @@ class GitHubDefects(name: String, gitHubConfiguration: GitHubDefectsConfiguratio
      * GitHub repository  for the necessary information.
      */
     private suspend fun findDefectsForGitHubPackage(pkg: GitHubPackage): List<AdvisorResult> {
-        log.info { "Finding defects for package '${pkg.pkg.id.toCoordinates()}'." }
+        logger.info { "Finding defects for package '${pkg.original.id.toCoordinates()}'." }
 
         val startTime = Instant.now()
         val ortIssues = mutableListOf<OrtIssue>()
@@ -160,8 +165,8 @@ class GitHubDefects(name: String, gitHubConfiguration: GitHubDefectsConfiguratio
 
                 ortIssues += createAndLogIssue(
                     providerName,
-                    "Failed to load information about $itemType for package '${pkg.pkg.id.toCoordinates()}': " +
-                            exception.collectMessagesAsString(),
+                    "Failed to load information about $itemType for package '${pkg.original.id.toCoordinates()}': " +
+                            exception.collectMessages(),
                     Severity.ERROR
                 )
             }.getOrNull().orEmpty()
@@ -171,18 +176,18 @@ class GitHubDefects(name: String, gitHubConfiguration: GitHubDefectsConfiguratio
             "releases"
         )
 
-        log.debug { "Found ${releases.size} releases for package '${pkg.pkg.id.toCoordinates()}'." }
+        logger.debug { "Found ${releases.size} releases for package '${pkg.original.id.toCoordinates()}'." }
 
         val issues = handleError(
             fetchAll(maxDefects) { service.repositoryIssues(pkg.repoOwner, pkg.repoName, it) },
             "issues"
         )
 
-        log.debug { "Found ${issues.size} issues for package '${pkg.pkg.id.toCoordinates()}'." }
+        logger.debug { "Found ${issues.size} issues for package '${pkg.original.id.toCoordinates()}'." }
 
         val defects = if (ortIssues.isEmpty()) {
             issuesForRelease(pkg, issues.applyLabelFilters(), releases, ortIssues).also {
-                log.debug { "Found ${it.size} defects for package '${pkg.pkg.id.toCoordinates()}'." }
+                logger.debug { "Found ${it.size} defects for package '${pkg.original.id.toCoordinates()}'." }
             }
         } else {
             emptyList()
@@ -209,16 +214,16 @@ class GitHubDefects(name: String, gitHubConfiguration: GitHubDefectsConfiguratio
         releases: List<Release>,
         ortIssues: MutableList<OrtIssue>
     ): List<Defect> {
-        val releaseDate = findReleaseFor(pkg.pkg, releases)?.publishedAt?.let(Instant::parse)
+        val releaseDate = findReleaseFor(pkg.original, releases)?.publishedAt?.let(Instant::parse)
             ?: Instant.now().also {
                 ortIssues += createAndLogIssue(
                     providerName,
-                    "Could not determine release date for package '${pkg.pkg.id.toCoordinates()}'.",
+                    "Could not determine release date for package '${pkg.original.id.toCoordinates()}'.",
                     Severity.HINT
                 )
             }
 
-        log.debug { "Assuming release date $releaseDate for package '${pkg.pkg.id.toCoordinates()}'." }
+        logger.debug { "Assuming release date $releaseDate for package '${pkg.original.id.toCoordinates()}'." }
         return issues.filter { it.closedAfter(releaseDate) }.map { it.toDefect(releases) }
     }
 
@@ -236,7 +241,7 @@ class GitHubDefects(name: String, gitHubConfiguration: GitHubDefectsConfiguratio
  */
 private data class GitHubPackage(
     /** The original package. */
-    val pkg: Package,
+    val original: Package,
 
     /** The owner of the repository. */
     val repoOwner: String,

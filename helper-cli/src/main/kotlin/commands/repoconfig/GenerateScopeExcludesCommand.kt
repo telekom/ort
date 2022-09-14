@@ -25,11 +25,11 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
-import org.ossreviewtoolkit.helper.common.minimize
-import org.ossreviewtoolkit.helper.common.readOrtResult
-import org.ossreviewtoolkit.helper.common.replaceScopeExcludes
-import org.ossreviewtoolkit.helper.common.sortScopeExcludes
-import org.ossreviewtoolkit.helper.common.write
+import org.ossreviewtoolkit.helper.utils.minimize
+import org.ossreviewtoolkit.helper.utils.readOrtResult
+import org.ossreviewtoolkit.helper.utils.replaceScopeExcludes
+import org.ossreviewtoolkit.helper.utils.sortScopeExcludes
+import org.ossreviewtoolkit.helper.utils.write
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.config.ScopeExclude
@@ -117,9 +117,9 @@ private fun getScopeExcludesForPackageManager(packageManagerName: String): List<
         )
         "GoMod" -> listOf(
             ScopeExclude(
-                pattern = "all",
-                reason = ScopeExcludeReason.BUILD_DEPENDENCY_OF,
-                comment = "Packages to build all targets including tests only."
+                pattern = "vendor",
+                reason = ScopeExcludeReason.DEV_DEPENDENCY_OF,
+                comment = "Packages to build and test the main module."
             )
         )
         "Gradle" -> listOf(

@@ -22,13 +22,15 @@ package org.ossreviewtoolkit.advisor
 
 import java.time.Instant
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.AdvisorDetails
 import org.ossreviewtoolkit.model.AdvisorResult
 import org.ossreviewtoolkit.model.AdvisorSummary
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.createAndLogIssue
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.common.collectMessages
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 /**
  * An abstract class that represents a service that can retrieve any kind of advice information
@@ -36,6 +38,8 @@ import org.ossreviewtoolkit.utils.core.showStackTrace
  * or code analysis results.
  */
 abstract class AdviceProvider(val providerName: String) {
+    companion object : Logging
+
     /**
      * For a given list of [Package]s, retrieve  findings and return a map that associates each package with a list
      * of [AdvisorResult]s. Needs to be implemented by child classes.
@@ -73,7 +77,7 @@ abstract class AdviceProvider(val providerName: String) {
                         createAndLogIssue(
                             source = providerName,
                             message = "Failed to retrieve findings from $providerName: " +
-                                    t.collectMessagesAsString()
+                                    t.collectMessages()
                         )
                     )
                 )

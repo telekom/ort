@@ -28,7 +28,10 @@ ARG CRT_FILES=""
 # Set this to the ScanCode version to use.
 ARG SCANCODE_VERSION="30.1.0"
 
-FROM eclipse-temurin:11-jdk-focal AS build
+# Set this to the Python Inspector version to use.
+ARG PYTHON_INSPECTOR_VERSION="0.6.5"
+
+FROM eclipse-temurin:11-jdk-jammy AS build
 
 COPY . /usr/local/src/ort
 
@@ -40,25 +43,25 @@ RUN --mount=type=cache,target=/tmp/.gradle/ \
     export GRADLE_USER_HOME=/tmp/.gradle/ && \
     scripts/import_proxy_certs.sh && \
     scripts/set_gradle_proxy.sh && \
-    sed -i -r 's,(^distributionUrl=)(.+)-all\.zip$,\1\2-bin.zip,' gradle/wrapper/gradle-wrapper.properties && \
-    sed -i -r '/distributionSha256Sum=[0-9a-f]{64}/d' gradle/wrapper/gradle-wrapper.properties && \
     ./gradlew --no-daemon --stacktrace -Pversion=$ORT_VERSION :cli:distTar :helper-cli:startScripts
 
-FROM eclipse-temurin:11-jdk-focal AS run
+FROM eclipse-temurin:11-jdk-jammy AS run
 
 ENV \
     # Package manager versions.
     BOWER_VERSION=1.8.12 \
-    CARGO_VERSION=0.58.0-0ubuntu1~20.04.1 \
+    CARGO_VERSION=0.60.0ubuntu1-0ubuntu1~22.04.1 \
     COCOAPODS_VERSION=1.11.2 \
-    COMPOSER_VERSION=1.10.1-1 \
-    CONAN_VERSION=1.45.0 \
+    COMPOSER_VERSION=2.2.6-2ubuntu4 \
+    CONAN_VERSION=1.52.0 \
     GO_DEP_VERSION=0.5.4 \
-    GO_VERSION=1.16.5 \
-    HASKELL_STACK_VERSION=2.1.3 \
+    GO_VERSION=1.18.3 \
+    HASKELL_STACK_VERSION=2.7.5 \
     NPM_VERSION=8.5.0 \
+    PNPM_VERSION=7.8.0 \
     PYTHON_PIPENV_VERSION=2018.11.26 \
-    PYTHON_VIRTUALENV_VERSION=15.1.0 \
+    PYTHON_POETRY_VERSION=1.1.13 \
+    PYTHON_VIRTUALENV_VERSION=20.0.26 \
     SBT_VERSION=1.6.1 \
     YARN_VERSION=1.22.10 \
     # SDK versions.
@@ -103,8 +106,9 @@ RUN --mount=type=cache,target=/var/cache/apt --mount=type=cache,target=/var/lib/
         cargo=$CARGO_VERSION \
         composer=$COMPOSER_VERSION \
         nodejs \
-        python-dev \
+        python-is-python3 \
         python-setuptools \
+        python2-dev \
         python3-dev \
         python3-pip \
         python3-setuptools \
@@ -127,9 +131,9 @@ RUN /opt/ort/bin/import_proxy_certs.sh && \
     curl -ksS https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo && \
     chmod a+x /usr/local/bin/repo && \
     # Install package managers (in versions known to work).
-    npm install --global npm@$NPM_VERSION bower@$BOWER_VERSION yarn@$YARN_VERSION && \
+    npm install --location=global npm@$NPM_VERSION bower@$BOWER_VERSION pnpm@$PNPM_VERSION yarn@$YARN_VERSION && \
     pip install --no-cache-dir wheel && \
-    pip install --no-cache-dir conan==$CONAN_VERSION pipenv==$PYTHON_PIPENV_VERSION virtualenv==$PYTHON_VIRTUALENV_VERSION && \
+    pip install --no-cache-dir conan==$CONAN_VERSION poetry==$PYTHON_POETRY_VERSION pipenv==$PYTHON_PIPENV_VERSION virtualenv==$PYTHON_VIRTUALENV_VERSION && \
     # Install golang in order to have `go mod` as package manager.
     curl -ksSO https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz && \
     tar -C /opt -xzf go$GO_VERSION.linux-amd64.tar.gz && \
@@ -153,17 +157,21 @@ RUN /opt/ort/bin/import_proxy_certs.sh && \
 
 # Add scanners (in versions known to work).
 ARG SCANCODE_VERSION
-RUN pip install --no-cache-dir scancode-toolkit==$SCANCODE_VERSION
+RUN curl -Os https://raw.githubusercontent.com/nexB/scancode-toolkit/v$SCANCODE_VERSION/requirements.txt && \
+    pip install --no-cache-dir --constraint requirements.txt scancode-toolkit==$SCANCODE_VERSION && \
+    rm requirements.txt
 
-FROM run
+ARG PYTHON_INSPECTOR_VERSION
+RUN pip install --no-cache-dir python-inspector==$PYTHON_INSPECTOR_VERSION
 
-COPY --from=build /usr/local/src/ort/cli/build/distributions/ort-*.tar /opt/ort.tar
+FROM run AS dist
 
-RUN tar xf /opt/ort.tar -C /opt/ort --exclude="*.bat" --strip-components 1 && \
-    rm /opt/ort.tar && \
+ARG ORT_VERSION
+RUN --mount=type=bind,from=build,source=/usr/local/src/ort/cli/build/distributions/ort-$ORT_VERSION.tar,target=/opt/ort.tar \
+    tar xf /opt/ort.tar -C /opt/ort --exclude="*.bat" --strip-components 1 && \
     /opt/ort/bin/ort requirements
 
 COPY --from=build /usr/local/src/ort/helper-cli/build/scripts/orth /opt/ort/bin/
-COPY --from=build /usr/local/src/ort/helper-cli/build/libs/helper-cli-*.jar /opt/ort/lib/
+COPY --from=build /usr/local/src/ort/helper-cli/build/libs/helper-cli-$ORT_VERSION.jar /opt/ort/lib/
 
 ENTRYPOINT ["/opt/ort/bin/ort"]

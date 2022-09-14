@@ -26,8 +26,11 @@ import java.nio.file.Paths
 
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
+import org.ossreviewtoolkit.utils.common.getQueryParameters
+import org.ossreviewtoolkit.utils.common.nextOrNull
 import org.ossreviewtoolkit.utils.common.toUri
-import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.common.withoutPrefix
+import org.ossreviewtoolkit.utils.ort.normalizeVcsUrl
 
 /**
  * An enum to handle VCS-host-specific information.
@@ -44,6 +47,62 @@ enum class VcsHost(
      */
     vararg supportedTypes: VcsType
 ) {
+    AZURE_DEVOPS("dev.azure.com", VcsType.GIT) {
+        private val gitCommitPrefix = "GC"
+
+        override fun getUserOrOrgInternal(projectUrl: URI) = projectUrlToUserOrOrgAndProject(projectUrl)?.first
+
+        override fun getProjectInternal(projectUrl: URI) = projectUrl.path.substringAfterLast("/")
+
+        override fun toVcsInfoInternal(projectUrl: URI): VcsInfo {
+            val uri = with(projectUrl) { URI(scheme, authority, path, null, fragment) }
+            val revision = projectUrl.getQueryParameters()["version"]?.firstOrNull()
+                .withoutPrefix(gitCommitPrefix).orEmpty()
+            val path = projectUrl.getQueryParameters()["path"]?.firstOrNull().withoutPrefix("/").orEmpty()
+
+            return VcsInfo(VcsType.GIT, uri.toString(), revision, path)
+        }
+
+        override fun toPermalinkInternal(vcsInfo: VcsInfo, startLine: Int, endLine: Int): String {
+            val actualEndLine = if (endLine != -1) endLine + 1 else startLine + 1
+
+            val lineQueryParam = "line=$startLine&lineEnd=$actualEndLine&lineStartColumn=1&lineEndColumn=1"
+            val pathQueryParam = "&path=/${vcsInfo.path}".takeUnless { vcsInfo.path.isEmpty() }.orEmpty()
+            val revisionQueryParam = "&version=$gitCommitPrefix${vcsInfo.revision}".takeUnless {
+                vcsInfo.revision.isEmpty()
+            }.orEmpty()
+            return "${vcsInfo.url}?$lineQueryParam$pathQueryParam$revisionQueryParam"
+        }
+
+        override fun toArchiveDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo): String {
+            val pathIterator = Paths.get(URI(vcsInfo.url).path).iterator()
+            val team = pathIterator.nextOrNull().takeIf { it.toString() == userOrOrg }?.let {
+                pathIterator.nextOrNull()?.toString()
+            }.orEmpty()
+
+            return "https://dev.azure.com/$userOrOrg/$team/_apis/git/repositories/" +
+                    "$project/items?path=/" +
+                    "&versionDescriptor[version]=${vcsInfo.revision}" +
+                    "&versionDescriptor[versionType]=commit" +
+                    "&\$format=zip&download=true"
+        }
+
+        override fun toRawDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo): String {
+            val pathIterator = Paths.get(URI(vcsInfo.url).path).iterator()
+            val team = pathIterator.nextOrNull().takeIf { it.toString() == userOrOrg }?.let {
+                pathIterator.nextOrNull()?.toString()
+            }.orEmpty()
+
+            return "https://dev.azure.com/$userOrOrg/$team/_apis/git/repositories/$project/items" +
+                    "?scopePath=/${vcsInfo.path}"
+        }
+
+        /**
+         * Return whether [url] is a VCS URI for Azure DevOps. URIs referencing an artifacts feed are excluded.
+         */
+        override fun isApplicable(url: URI): Boolean = super.isApplicable(url) && url.host != "pkgs.$hostname"
+    },
+
     /**
      * The enum constant to handle [Bitbucket][https://bitbucket.org/]-specific information.
      */
@@ -57,7 +116,7 @@ enum class VcsHost(
                 var revision = ""
                 var path = ""
 
-                if (pathIterator.hasNext() && pathIterator.next().toString() == "src") {
+                if (pathIterator.nextOrNull()?.toString() == "src") {
                     if (pathIterator.hasNext()) {
                         revision = pathIterator.next().toString()
                         path = projectUrl.path.substringAfter(revision).trimStart('/').removeSuffix(".git")
@@ -130,6 +189,9 @@ enum class VcsHost(
 
         override fun toRawDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
             "https://$hostname/$userOrOrg/$project/raw/${vcsInfo.revision}/${vcsInfo.path}"
+
+        override fun isApplicable(url: URI): Boolean =
+            super.isApplicable(url) && url.host?.endsWith(".pkg.$hostname") == false
     },
 
     /**
@@ -250,7 +312,7 @@ enum class VcsHost(
 
         override fun toRawDownloadUrlInternal(userOrOrg: String, project: String, vcsInfo: VcsInfo) =
             "https://${vcsInfo.type.toString().lowercase()}.$hostname/~$userOrOrg/$project/blob/${vcsInfo.revision}/" +
-                    "${vcsInfo.path}"
+                    vcsInfo.path
     };
 
     companion object {
@@ -392,7 +454,7 @@ enum class VcsHost(
     /**
      * Return whether this host is applicable for the [url] URI.
      */
-    fun isApplicable(url: URI) = url.host?.endsWith(hostname) == true
+    open fun isApplicable(url: URI) = url.host?.endsWith(hostname) == true
 
     /**
      * Return whether this host is applicable for the [url] string.
@@ -523,7 +585,7 @@ private fun toGitPermalink(
     if (revision.isNotEmpty()) {
         // GitHub and GitLab are tolerant about "blob" vs. "tree" here, but SourceHut requires "tree" also for files.
         val gitObject = if (path.isNotEmpty()) {
-            // Markdown files are usually rendered and can only link to lines in blame view.
+            // Markdown files are usually rendered and can only link to lines in the blame view.
             if (path.isPathToMarkdownFile() && startLine != -1) "blame" else "tree"
         } else {
             "commit"

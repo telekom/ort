@@ -36,7 +36,7 @@ import org.ossreviewtoolkit.model.VulnerabilityReference
 import org.ossreviewtoolkit.model.config.AdvisorConfiguration
 import org.ossreviewtoolkit.model.config.VulnerableCodeConfiguration
 import org.ossreviewtoolkit.utils.common.enumSetOf
-import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.ort.OkHttpClientHelper
 
 /**
  * The number of elements to request at once in a bulk request. This value was chosen more or less randomly to keep the
@@ -68,9 +68,9 @@ class VulnerableCode(name: String, vulnerableCodeConfiguration: VulnerableCodeCo
         val startTime = Instant.now()
 
         return runCatching {
-            mutableMapOf<Package, List<AdvisorResult>>().also {
+            buildMap {
                 packages.chunked(BULK_REQUEST_SIZE).forEach { pkg ->
-                    it += loadVulnerabilities(pkg, startTime)
+                    putAll(loadVulnerabilities(pkg, startTime))
                 }
             }
         }.getOrElse {
@@ -102,7 +102,7 @@ class VulnerableCode(name: String, vulnerableCodeConfiguration: VulnerableCodeCo
      * Convert this vulnerability from the VulnerableCode data model to a [Vulnerability].
      */
     private fun VulnerableCodeService.Vulnerability.toModel(): Vulnerability =
-        Vulnerability(vulnerabilityId, references.flatMap { it.toModel() })
+        Vulnerability(id = vulnerabilityId, references = references.flatMap { it.toModel() })
 
     /**
      * Convert this reference from the VulnerableCode data model to a list of [VulnerabilityReference] objects.

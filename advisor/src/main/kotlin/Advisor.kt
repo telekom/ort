@@ -26,14 +26,15 @@ import java.util.ServiceLoader
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.AdvisorRecord
 import org.ossreviewtoolkit.model.AdvisorResult
 import org.ossreviewtoolkit.model.AdvisorRun
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.config.AdvisorConfiguration
-import org.ossreviewtoolkit.utils.core.Environment
-import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.ort.Environment
 
 /**
  * The class to manage [AdviceProvider]s. It invokes the configured providers and adds their findings to the current
@@ -43,7 +44,7 @@ class Advisor(
     private val providerFactories: List<AdviceProviderFactory>,
     private val config: AdvisorConfiguration
 ) {
-    companion object {
+    companion object : Logging {
         private val LOADER = ServiceLoader.load(AdviceProviderFactory::class.java)!!
 
         /**
@@ -59,7 +60,7 @@ class Advisor(
         val startTime = Instant.now()
 
         if (ortResult.analyzer == null) {
-            log.warn {
+            logger.warn {
                 "Cannot run the advisor as the provided ORT result does not contain an analyzer result. " +
                         "No result will be added."
             }
@@ -71,15 +72,27 @@ class Advisor(
 
         val packages = ortResult.getPackages(skipExcluded).map { it.pkg }
         if (packages.isEmpty()) {
-            log.info { "There are no packages to give advice for." }
+            logger.info { "There are no packages to give advice for." }
         } else {
-
             val providers = providerFactories.map { it.create(config) }
 
             runBlocking {
                 providers.map { provider ->
                     async {
-                        provider.retrievePackageFindings(packages)
+                        val providerResults = provider.retrievePackageFindings(packages)
+
+                        logger.info {
+                            "Found ${providerResults.values.flatten().distinct().size} distinct vulnerabilities via " +
+                                "${provider.providerName}. "
+                        }
+
+                        providerResults.filter { it.value.isNotEmpty() }.keys.takeIf { it.isNotEmpty() }?.let { pkgs ->
+                            logger.debug {
+                                "Affected packages:\n\n${pkgs.joinToString("\n") { it.id.toCoordinates() }}\n"
+                            }
+                        }
+
+                        providerResults
                     }
                 }.forEach { providerResults ->
                     providerResults.await().forEach { (pkg, advisorResults) ->

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +27,8 @@ import java.util.ServiceLoader
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.downloader.consolidateProjectPackagesByVcs
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Package
@@ -35,11 +38,10 @@ import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.ScannerDetails
 import org.ossreviewtoolkit.model.ScannerRun
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
+import org.ossreviewtoolkit.model.config.Options
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
-import org.ossreviewtoolkit.model.config.ScannerOptions
 import org.ossreviewtoolkit.model.utils.filterByProject
-import org.ossreviewtoolkit.utils.core.Environment
-import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.ort.Environment
 
 const val TOOL_NAME = "scanner"
 
@@ -48,7 +50,7 @@ private fun removeConcludedPackages(packages: Set<Package>, scanner: Scanner): S
         // Remove all packages that have a concluded license and authors set.
         ?: packages.partition { it.concludedLicense != null && it.authors.isNotEmpty() }.let { (skip, keep) ->
             if (skip.isNotEmpty()) {
-                scanner.log.debug { "Not scanning the following packages with concluded licenses: $skip" }
+                Scanner.logger.debug { "Not scanning the following packages with concluded licenses: $skip" }
             }
 
             keep.toSet()
@@ -82,8 +84,16 @@ fun scanOrtResult(
         "At least one scanner must be specified."
     }
 
+    // Note: Currently, each scanner gets its own reference to the whole scanner configuration, which includes the
+    // options for all scanners.
+    if (packageScanner != null && projectScanner != null) {
+        check(packageScanner.scannerConfig === projectScanner.scannerConfig) {
+            "The package and project scanners need to refer to the same global scanner configuration."
+        }
+    }
+
     if (ortResult.analyzer == null) {
-        Scanner.log.warn {
+        Scanner.logger.warn {
             "Cannot run the scanner as the provided ORT result does not contain an analyzer result. " +
                     "No result will be added."
         }
@@ -97,10 +107,7 @@ fun scanOrtResult(
     val consolidatedProjects = consolidateProjectPackagesByVcs(ortResult.getProjects(skipExcluded))
     val projectPackages = consolidatedProjects.keys
 
-    val projectPackageIds = projectPackages.map { it.id }
-    val packages = ortResult.getPackages(skipExcluded)
-        .filter { it.pkg.id !in projectPackageIds }
-        .map { it.pkg }
+    val packages = ortResult.getPackages(skipExcluded).map { it.pkg }
 
     val scanResults = runBlocking {
         val deferredProjectScan = async {
@@ -150,13 +157,7 @@ fun scanOrtResult(
 
     val endTime = Instant.now()
 
-    // Note: Currently, each scanner gets its own reference to the whole scanner configuration, which includes the
-    // options for all scanners.
-    check(packageScanner?.scannerConfig === projectScanner?.scannerConfig) {
-        "The package and project scanners need to refer to the same global scanner configuration."
-    }
-
-    val filteredScannerOptions = mutableMapOf<String, ScannerOptions>()
+    val filteredScannerOptions = mutableMapOf<String, Options>()
 
     packageScanner?.scannerConfig?.options?.get(packageScanner.scannerName)?.let { packageScannerOptions ->
         val filteredPackageScannerOptions = packageScanner.filterSecretOptions(packageScannerOptions)
@@ -198,7 +199,7 @@ abstract class Scanner(
     val scannerConfig: ScannerConfiguration,
     protected val downloaderConfig: DownloaderConfiguration
 ) {
-    companion object {
+    companion object : Logging {
         private val LOADER = ServiceLoader.load(ScannerFactory::class.java)!!
 
         /**
@@ -239,5 +240,5 @@ abstract class Scanner(
     /**
      * Filter the scanner-specific options to remove / obfuscate any secrets, like credentials.
      */
-    open fun filterSecretOptions(options: ScannerOptions) = options
+    open fun filterSecretOptions(options: Options) = options
 }

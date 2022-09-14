@@ -200,7 +200,7 @@ fun File.searchUpwardsForFile(searchFileName: String, ignoreCase: Boolean = fals
 }
 
 /**
- * Search [this] directory upwards towards the root until a contained sub-directory called [searchDirName] is found and
+ * Search [this] directory upwards towards the root until a contained subdirectory called [searchDirName] is found and
  * return the parent of [searchDirName], or return null if no such directory is found.
  */
 fun File.searchUpwardsForSubdirectory(searchDirName: String): File? {
@@ -397,8 +397,8 @@ fun String.percentEncode(): String =
         .replace("%7E", "~")
 
 /**
- * Replace any user name / password in the URI represented by this [String] with [userInfo]. If [userInfo] is null, the
- * user name / password are stripped. Return the unmodified [String] if it does not represent a URI.
+ * Replace any username / password in the URI represented by this [String] with [userInfo]. If [userInfo] is null, the
+ * username / password are stripped. Return the unmodified [String] if it does not represent a URI.
  */
 fun String.replaceCredentialsInUri(userInfo: String? = null) =
     toUri {
@@ -422,6 +422,13 @@ fun String.toUri() = runCatching { URI(this) }
 fun <R> String.toUri(transform: (URI) -> R) = toUri().mapCatching(transform)
 
 /**
+ * Return this string with (nested) single- and double-quotes removed. If [trimWhitespace] is true, then intermediate
+ * whitespace is also removed, otherwise it is kept.
+ */
+fun String.unquote(trimWhitespace: Boolean = true) =
+    trim { (trimWhitespace && it.isWhitespace()) || it == '\'' || it == '"' }
+
+/**
  * Return this string with the first character upper-cased.
  */
 fun String.uppercaseFirstChar() =
@@ -440,20 +447,36 @@ fun String?.withoutSuffix(suffix: String, missingSuffixValue: () -> String? = { 
     this?.removeSuffix(suffix)?.takeIf { it != this } ?: missingSuffixValue()
 
 /**
- * Recursively collect the messages of this [Throwable] and all its causes.
+ * Recursively collect the messages of this [Throwable] and all its causes and join them to a single [String].
  */
-fun Throwable.collectMessages(): List<String> {
-    val messages = mutableListOf<String>()
-    var cause: Throwable? = this
-    while (cause != null) {
-        val suppressed = cause.suppressed.joinToString("") { "\nSuppressed: ${it.javaClass.simpleName}: ${it.message}" }
-        messages += "${cause.javaClass.simpleName}: ${cause.message}$suppressed"
-        cause = cause.cause
-    }
-    return messages
+fun Throwable.collectMessages(): String {
+    fun Throwable.formatCauseAndSuppressedMessages(): String? =
+        buildString {
+            cause?.also {
+                appendLine("Caused by: ${it.javaClass.simpleName}: ${it.message}")
+                it.formatCauseAndSuppressedMessages()?.prependIndent()?.also(::append)
+            }
+
+            suppressed.forEach {
+                appendLine("Suppressed: ${it.javaClass.simpleName}: ${it.message}")
+                it.formatCauseAndSuppressedMessages()?.prependIndent()?.also(::append)
+            }
+        }.trim().takeUnless { it.isEmpty() }
+
+    return listOfNotNull(
+        "${javaClass.simpleName}: $message",
+        formatCauseAndSuppressedMessages()
+    ).joinToString("\n")
 }
 
 /**
- * Recursively collect the messages of this [Throwable] and all its causes and join them to a single [String].
+ * Retrieve query parameters of this [URI]. Multiple values of a single key are supported if they are split by a comma,
+ * or if keys are repeated as defined in RFC6570 section 3.2.9, see https://datatracker.ietf.org/doc/rfc6570.
  */
-fun Throwable.collectMessagesAsString() = collectMessages().joinToString("\nCaused by: ")
+fun URI.getQueryParameters(): Map<String, List<String>> {
+    if (query == null) return emptyMap()
+
+    return query.split('&')
+        .groupBy({ it.substringBefore('=') }, { it.substringAfter('=').split(',') })
+        .mapValues { (_, v) -> v.flatten() }
+}

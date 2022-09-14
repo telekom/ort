@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021 HERE Europe B.V.
+ * Copyright (C) 2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,8 +30,8 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
-import org.ossreviewtoolkit.helper.common.PackageConfigurationOption
-import org.ossreviewtoolkit.helper.common.createProvider
+import org.ossreviewtoolkit.helper.utils.PackageConfigurationOption
+import org.ossreviewtoolkit.helper.utils.createProvider
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.LicenseFinding
 import org.ossreviewtoolkit.model.config.OrtConfiguration
@@ -39,8 +40,8 @@ import org.ossreviewtoolkit.model.utils.RootLicenseMatcher
 import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
 import org.ossreviewtoolkit.utils.common.expandTilde
-import org.ossreviewtoolkit.utils.core.ORT_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.core.ortConfigDirectory
+import org.ossreviewtoolkit.utils.ort.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.ort.ortConfigDirectory
 import org.ossreviewtoolkit.utils.spdx.SpdxConstants
 import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 
@@ -88,12 +89,11 @@ class GetPackageLicensesCommand : CliktCommand(
         val packageConfigurationProvider = packageConfigurationOption.createProvider()
 
         val result = scanResults.firstOrNull()?.let { scanResult ->
-            val packageConfiguration = packageConfigurationProvider.getPackageConfiguration(
-                packageId, scanResult.provenance
-            )
+            val packageConfigurations =
+                packageConfigurationProvider.getPackageConfigurations(packageId, scanResult.provenance)
 
-            val licenseFindingCurations = packageConfiguration?.licenseFindingCurations.orEmpty()
-            val pathExcludes = packageConfiguration?.pathExcludes.orEmpty()
+            val licenseFindingCurations = packageConfigurations.flatMap { it.licenseFindingCurations }
+            val pathExcludes = packageConfigurations.flatMap { it.pathExcludes }
 
             val nonExcludedLicenseFindings = scanResult.summary.licenseFindings.filter { licenseFinding ->
                 pathExcludes.none { it.matches(licenseFinding.location.path) }

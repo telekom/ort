@@ -24,6 +24,8 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty
 import java.io.File
 import java.io.IOException
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.eclipse.jgit.lib.SymbolicRef
 
 import org.ossreviewtoolkit.downloader.VersionControlSystem
@@ -35,18 +37,17 @@ import org.ossreviewtoolkit.model.utils.parseRepoManifestPath
 import org.ossreviewtoolkit.utils.common.CommandLineTool
 import org.ossreviewtoolkit.utils.common.Os
 import org.ossreviewtoolkit.utils.common.ProcessCapture
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.isSymbolicLink
 import org.ossreviewtoolkit.utils.common.realFile
 import org.ossreviewtoolkit.utils.common.searchUpwardsForSubdirectory
 import org.ossreviewtoolkit.utils.common.withoutPrefix
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 /**
- * The branch of git-repo to use. This allows to override git-repo's default of using the "stable" branch.
+ * The branch or tag of git-repo to use. This allows to override git-repo's default of using the "stable" branch.
  */
-private const val GIT_REPO_BRANCH = "v2.17.2"
+private const val GIT_REPO_BRANCH = "v2.21"
 
 /**
  * The minimal manifest structure as used by the wrapping "manifest.xml" file as of repo version 2.4. For the full
@@ -66,6 +67,8 @@ private data class Include(
 )
 
 class GitRepo : VersionControlSystem(), CommandLineTool {
+    companion object : Logging
+
     override val type = VcsType.GIT_REPO
     override val priority = 50
     override val latestRevisionNames = listOf("HEAD", "@")
@@ -154,7 +157,7 @@ class GitRepo : VersionControlSystem(), CommandLineTool {
             manifestPath?.let { listOf("-m", it) }
         ).flatten()
 
-        log.info {
+        logger.info {
             val revisionDetails = manifestRevision?.let { " with revision '$it'" }.orEmpty()
             val pathDetails = manifestPath?.let { " using manifest '$it'" }.orEmpty()
             "Initializing git-repo from $repoUrl$revisionDetails$pathDetails."
@@ -194,7 +197,7 @@ class GitRepo : VersionControlSystem(), CommandLineTool {
             // Switching manifest branches / revisions requires running "init" again.
             runRepo(workingTree.workingDir, "init", *manifestOptions.toTypedArray())
 
-            // Repo allows to checkout Git repositories to nested directories. If a manifest is badly configured, a
+            // Repo allows to check out Git repositories to nested directories. If a manifest is badly configured, a
             // nested Git checkout overwrites files in a directory of the upper-level Git repository. However, we still
             // want to be able to download such projects, so specify "--force-sync" to work around that issue.
             val syncArgs = mutableListOf("sync", "-c", "--force-sync")
@@ -203,14 +206,14 @@ class GitRepo : VersionControlSystem(), CommandLineTool {
 
             runRepo(workingTree.workingDir, *syncArgs.toTypedArray())
 
-            log.debug { runRepo(workingTree.workingDir, "info").stdout }
+            logger.debug { runRepo(workingTree.workingDir, "info").stdout }
         }.onFailure { e ->
             e.showStackTrace()
 
-            log.warn {
+            logger.warn {
                 val revisionDetails = manifestRevision?.let { " to revision '$it'" }.orEmpty()
                 val pathDetails = manifestPath?.let { " using manifest '$it'" }.orEmpty()
-                "Failed to sync the working tree$revisionDetails$pathDetails: ${e.collectMessagesAsString()}"
+                "Failed to sync the working tree$revisionDetails$pathDetails: ${e.collectMessages()}"
             }
         }.map {
             revision

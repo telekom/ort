@@ -33,6 +33,8 @@ import com.vdurmont.semver4j.Requirement
 import java.io.File
 import java.util.SortedSet
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.PackageManager
 import org.ossreviewtoolkit.downloader.VersionControlSystem
@@ -56,7 +58,6 @@ import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.utils.common.CommandLineTool
 import org.ossreviewtoolkit.utils.common.stashDirectories
 import org.ossreviewtoolkit.utils.common.textValueOrEmpty
-import org.ossreviewtoolkit.utils.core.log
 
 /**
  * The [CocoaPods](https://cocoapods.org/) package manager for Objective-C.
@@ -66,7 +67,7 @@ import org.ossreviewtoolkit.utils.core.log
  * on any platform. Note that obtaining the dependency tree from the 'pod' command without a lock file has Xcode
  * dependencies and is not supported by this class.
  *
- * The only interactions with the 'pod' command happen in order to obtain metadata for dependencies. Therefore
+ * The only interactions with the 'pod' command happen in order to obtain metadata for dependencies. Therefore,
  * 'pod spec which' gets executed, which works also under Linux.
  */
 class CocoaPods(
@@ -75,6 +76,8 @@ class CocoaPods(
     analyzerConfig: AnalyzerConfiguration,
     repoConfig: RepositoryConfiguration
 ) : PackageManager(name, analysisRoot, analyzerConfig, repoConfig), CommandLineTool {
+    companion object : Logging
+
     class Factory : AbstractPackageManagerFactory<CocoaPods>("CocoaPods") {
         override val globsForDefinitionFiles = listOf("Podfile")
 
@@ -89,7 +92,7 @@ class CocoaPods(
 
     override fun command(workingDir: File?) = "pod"
 
-    override fun getVersionRequirement() = Requirement.buildIvy("[1.11.0,)")
+    override fun getVersionRequirement(): Requirement = Requirement.buildIvy("[1.11.0,)")
 
     override fun getVersionArguments() = "--version --allow-root"
 
@@ -170,7 +173,7 @@ class CocoaPods(
 
     private fun getPackage(id: Identifier, workingDir: File): Package {
         val podspec = getPodspec(id, workingDir) ?: run {
-            log.warn { "Could not find a '.podspec' file for package '${id.toCoordinates()}'." }
+            logger.warn { "Could not find a '.podspec' file for package '${id.toCoordinates()}'." }
 
             return Package.EMPTY.copy(id = id)
         }
@@ -217,7 +220,7 @@ private const val LOCKFILE_FILENAME = "Podfile.lock"
 
 private const val SCOPE_NAME = "dependencies"
 
-private val NAME_AND_VERSION_REGEX = "([\\S]+)\\s+(.*)".toRegex()
+private val NAME_AND_VERSION_REGEX = "(\\S+)\\s+(.*)".toRegex()
 
 private fun getPackageReferences(podfileLock: File): SortedSet<PackageReference> {
     val versionForName = mutableMapOf<String, String>()

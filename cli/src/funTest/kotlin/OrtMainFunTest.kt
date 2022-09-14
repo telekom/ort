@@ -33,7 +33,7 @@ import org.ossreviewtoolkit.downloader.VersionControlSystem
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.utils.common.redirectStdout
-import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.ort.normalizeVcsUrl
 import org.ossreviewtoolkit.utils.test.createTestTempDir
 import org.ossreviewtoolkit.utils.test.patchActualResult
 import org.ossreviewtoolkit.utils.test.patchExpectedResult
@@ -65,7 +65,7 @@ class OrtMainFunTest : StringSpec() {
             )
             val iterator = stdout.iterator()
             while (iterator.hasNext()) {
-                if (iterator.next() == "The following package managers are activated:") break
+                if (iterator.next() == "The following package managers are enabled:") break
             }
 
             iterator.hasNext() shouldBe true
@@ -83,7 +83,7 @@ class OrtMainFunTest : StringSpec() {
             )
             val iterator = stdout.iterator()
             while (iterator.hasNext()) {
-                if (iterator.next() == "The following package managers are activated:") break
+                if (iterator.next() == "The following package managers are enabled:") break
             }
 
             iterator.hasNext() shouldBe true

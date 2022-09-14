@@ -21,13 +21,19 @@ package org.ossreviewtoolkit.model.config
 
 import com.fasterxml.jackson.annotation.JsonInclude
 
-import org.ossreviewtoolkit.utils.core.ORT_REPO_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_REPO_CONFIG_FILENAME
 
 /**
  * A project specific configuration for ORT which is usually stored in [ORT_REPO_CONFIG_FILENAME] at the root of a
  * repository. It will be included in the analyzer result and can be further processed by the other tools.
  */
 data class RepositoryConfiguration(
+    /**
+     * The configuration for the analyzer. Values in this configuration take precedence over global configuration.
+     */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL)
+    val analyzer: AnalyzerConfiguration? = null,
+
     /**
      * Defines which parts of the repository will be excluded. Note that excluded parts will still be analyzed and
      * scanned, but related errors will be marked as resolved in the reporter output.

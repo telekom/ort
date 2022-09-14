@@ -46,9 +46,9 @@ import org.ossreviewtoolkit.model.utils.DatabaseUtils
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.checkDatabaseEncoding
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.tableExists
 import org.ossreviewtoolkit.scanner.storages.utils.jsonb
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.expandTilde
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 class UploadResultToPostgresCommand : CliktCommand(
     name = "upload-result-to-postgres",
@@ -91,7 +91,7 @@ class UploadResultToPostgresCommand : CliktCommand(
                     val config = configs.first()
                     println(
                         "Multiple PostgreSQL storages are configured, using the first one which points to schema " +
-                                "${config.schema} at ${config.url}."
+                                "${config.connection.schema} at ${config.connection.url}."
                     )
                 }
 
@@ -111,7 +111,7 @@ class UploadResultToPostgresCommand : CliktCommand(
         }
 
         val dataSource = DatabaseUtils.createHikariDataSource(
-            config = postgresConfig,
+            config = postgresConfig.connection,
             applicationNameSuffix = "upload-result-command"
         )
 
@@ -141,7 +141,7 @@ class UploadResultToPostgresCommand : CliktCommand(
         } catch (e: SQLException) {
             e.showStackTrace()
 
-            println("Could not store ORT result: ${e.collectMessagesAsString()}")
+            println("Could not store ORT result: ${e.collectMessages()}")
         }
     }
 }

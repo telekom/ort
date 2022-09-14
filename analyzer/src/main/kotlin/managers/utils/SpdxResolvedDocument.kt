@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Bosch.IO GmbH
+ * Copyright (C) 2021-2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,9 @@
 package org.ossreviewtoolkit.analyzer.managers.utils
 
 import java.io.File
-import java.net.Authenticator
 import java.net.URI
+
+import org.apache.logging.log4j.kotlin.Logging
 
 import org.ossreviewtoolkit.analyzer.managers.SpdxDocumentFile
 import org.ossreviewtoolkit.model.Hash
@@ -31,11 +32,11 @@ import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
-import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.core.addBasicAuthorization
-import org.ossreviewtoolkit.utils.core.createOrtTempDir
-import org.ossreviewtoolkit.utils.core.downloadFile
-import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.ort.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.ort.addBasicAuthorization
+import org.ossreviewtoolkit.utils.ort.createOrtTempDir
+import org.ossreviewtoolkit.utils.ort.downloadFile
+import org.ossreviewtoolkit.utils.ort.requestPasswordAuthentication
 import org.ossreviewtoolkit.utils.spdx.model.SpdxDocument
 import org.ossreviewtoolkit.utils.spdx.model.SpdxExternalDocumentReference
 import org.ossreviewtoolkit.utils.spdx.model.SpdxPackage
@@ -84,9 +85,9 @@ internal data class SpdxResolvedDocument(
      */
     private val issuesByReferenceId: Map<String, OrtIssue>
 ) {
-    companion object {
+    companion object : Logging {
         fun load(cache: SpdxDocumentCache, rootDocumentFile: File, managerName: String): SpdxResolvedDocument {
-            val rootDocument = cache.load(rootDocumentFile)
+            val rootDocument = cache.load(rootDocumentFile).getOrThrow()
 
             val references = mutableMapOf<SpdxExternalDocumentReference, ResolvedSpdxDocument>()
             val issues = mutableMapOf<String, OrtIssue>()
@@ -106,6 +107,7 @@ internal data class SpdxResolvedDocument(
             // while package identifiers from the root document are not qualified. Thus, there can be no clash.
             val packages = collectPackages(references) + rootDocument.getPackages()
             val relations = collectAndQualifyRelations(references) + rootDocument.relationships
+
             return SpdxResolvedDocument(resolvedRootDocument, managerName, references, relations, packages, issues)
         }
     }
@@ -269,9 +271,9 @@ internal fun SpdxExternalDocumentReference.resolve(
         resolvedUri.takeUnless { baseUri.query != null } ?: URI("$resolvedUri?${baseUri.query}")
     }.getOrElse {
         return ResolutionResult(
-            null,
-            baseUri,
-            createAndLogIssue(
+            document = null,
+            uri = baseUri,
+            issue = SpdxResolvedDocument.createAndLogIssue(
                 source = managerName,
                 message = "The SPDX document at '$spdxDocument' cannot be resolved as a URI (referred from $baseUri " +
                         "as part of '$externalDocumentId')."
@@ -297,16 +299,28 @@ private fun SpdxExternalDocumentReference.resolveFromFile(
     baseUri: URI,
     managerName: String
 ): ResolutionResult {
-    return uri.toDefinitionFile()?.let {
-        ResolutionResult(cache.load(it), uri, verifyChecksum(it, baseUri, managerName))
-    } ?: ResolutionResult(
-        null,
-        baseUri,
-        createAndLogIssue(
+    val file = uri.toDefinitionFile() ?: return ResolutionResult(
+        document = null,
+        uri = baseUri,
+        issue = SpdxResolvedDocument.createAndLogIssue(
             source = managerName,
             message = "The file pointed to by '$uri' in reference '$externalDocumentId' does not exist."
         )
     )
+
+    val document = cache.load(file).getOrElse {
+        return ResolutionResult(
+            document = null,
+            uri = uri,
+            issue = SpdxResolvedDocument.createAndLogIssue(
+                source = managerName,
+                message = "Failed to parse the SPDX document pointed to by '$uri' in reference " +
+                        "'$externalDocumentId': ${it.message}"
+            )
+        )
+    }
+
+    return ResolutionResult(document, uri, verifyChecksum(file, baseUri, managerName))
 }
 
 /**
@@ -320,20 +334,15 @@ private fun SpdxExternalDocumentReference.resolveFromDownload(
     baseUri: URI,
     managerName: String
 ): ResolutionResult {
-    log.info { "Downloading SPDX document from $uri (referred from $baseUri as part of '$externalDocumentId')." }
+    SpdxResolvedDocument.logger.info {
+        "Downloading SPDX document from $uri (referred from $baseUri as part of '$externalDocumentId')."
+    }
 
     val tempDir = createOrtTempDir()
     return try {
         val client = OkHttpClientHelper.buildClient {
             // Use the authenticator also to request preemptive authentication.
-            val auth = Authenticator.requestPasswordAuthentication(
-                /* host = */ uri.host,
-                /* addr = */ null,
-                /* port = */ uri.port,
-                /* protocol = */ uri.scheme,
-                /* prompt = */ null,
-                /* scheme = */ null
-            )
+            val auth = requestPasswordAuthentication(uri)
 
             if (auth != null) {
                 addBasicAuthorization(auth.userName, String(auth.password))
@@ -341,15 +350,30 @@ private fun SpdxExternalDocumentReference.resolveFromDownload(
         }
 
         val file = client.downloadFile(uri.toString(), tempDir).getOrNull() ?: run {
-            val issue = createAndLogIssue(
-                source = managerName,
-                message = "Failed to download SPDX document from $uri (referred from $baseUri as part of " +
-                        "'$externalDocumentId')."
+            return ResolutionResult(
+                document = null,
+                uri = uri,
+                issue = SpdxResolvedDocument.createAndLogIssue(
+                    source = managerName,
+                    message = "Failed to download SPDX document from $uri (referred from $baseUri as part of " +
+                            "'$externalDocumentId')."
+                )
             )
-            return ResolutionResult(null, uri, issue)
         }
 
-        ResolutionResult(cache.load(file), uri, verifyChecksum(file, baseUri, managerName))
+        val document = cache.load(file).getOrElse {
+            return ResolutionResult(
+                document = null,
+                uri = uri,
+                issue = SpdxResolvedDocument.createAndLogIssue(
+                    source = managerName,
+                    message = "Failed to parse SPDX document from $uri (referred from $baseUri as part of " +
+                            "'$externalDocumentId'): ${it.message}"
+                )
+            )
+        }
+
+        ResolutionResult(document, uri, verifyChecksum(file, baseUri, managerName))
     } finally {
         tempDir.safeDeleteRecursively(force = true)
     }
@@ -363,7 +387,7 @@ private fun SpdxExternalDocumentReference.verifyChecksum(file: File, uri: URI, m
     val hash = Hash.create(checksum.checksumValue, checksum.algorithm.name)
     if (hash.verify(file)) return null
 
-    return createAndLogIssue(
+    return SpdxResolvedDocument.createAndLogIssue(
         source = managerName,
         severity = Severity.WARNING,
         message = "The SPDX document at '$spdxDocument' does not match the expected $hash (referred from $uri as " +

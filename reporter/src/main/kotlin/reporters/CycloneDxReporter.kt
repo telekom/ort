@@ -45,7 +45,7 @@ import org.ossreviewtoolkit.model.utils.toPurl
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.utils.common.isFalse
-import org.ossreviewtoolkit.utils.core.ORT_NAME
+import org.ossreviewtoolkit.utils.ort.ORT_NAME
 import org.ossreviewtoolkit.utils.spdx.SpdxLicense
 
 /**
@@ -148,14 +148,17 @@ class CycloneDxReporter : Reporter {
             ?: setOf(FileFormat.XML)
 
         if (createSingleBom) {
-            val bom = Bom().apply { serialNumber = "urn:uuid:${UUID.randomUUID()}" }
+            val bom = Bom().apply {
+                serialNumber = "urn:uuid:${UUID.randomUUID()}"
+                components = mutableListOf()
+            }
 
             // In case of multiple projects it is not always clear for which project to create the BOM:
             //
             // - If a multi-module project only produces a single application that gets distributed, then usually only a
             //   single BOM for that application is generated.
             // - If a multi-module project produces multiple applications (e.g. if there is one module per independent
-            //   micro-service), then usually for each project a BOM is generated as there are multiple things being
+            //   microservice), then usually for each project a BOM is generated as there are multiple things being
             //   distributed.
             //
             // As this distinction is hard to make programmatically (without additional information about the
@@ -173,7 +176,7 @@ class CycloneDxReporter : Reporter {
                 input.ortResult.dependencyNavigator.projectDependencies(project, maxDepth = 1)
             }
 
-            input.ortResult.getPackages().forEach { (pkg, _) ->
+            input.ortResult.getPackages(omitExcluded = true).forEach { (pkg, _) ->
                 val dependencyType = if (pkg.id in allDirectDependencies) "direct" else "transitive"
                 addPackageToBom(input, pkg, bom, dependencyType)
             }
@@ -181,7 +184,10 @@ class CycloneDxReporter : Reporter {
             outputFiles += writeBom(bom, schemaVersion, outputDir, REPORT_BASE_FILENAME, outputFileFormats)
         } else {
             projects.forEach { project ->
-                val bom = Bom().apply { serialNumber = "urn:uuid:${UUID.randomUUID()}" }
+                val bom = Bom().apply {
+                    serialNumber = "urn:uuid:${UUID.randomUUID()}"
+                    components = mutableListOf()
+                }
 
                 // Add information about projects as external references at the BOM level.
                 bom.addExternalReference(
@@ -206,7 +212,7 @@ class CycloneDxReporter : Reporter {
                 )
 
                 val dependencies = input.ortResult.dependencyNavigator.projectDependencies(project)
-                val packages = input.ortResult.getPackages().mapNotNull { (pkg, _) ->
+                val packages = input.ortResult.getPackages(omitExcluded = true).mapNotNull { (pkg, _) ->
                     pkg.takeIf { it.id in dependencies }
                 }
 
@@ -232,7 +238,7 @@ class CycloneDxReporter : Reporter {
         val declaredLicenseNames = resolvedLicenseInfo.getLicenseNames(LicenseSource.DECLARED)
         val detectedLicenseNames = resolvedLicenseInfo.getLicenseNames(LicenseSource.DETECTED)
 
-        // Get all licenses, but note down their origins inside of an extensible type.
+        // Get all licenses, but note down their origins inside an extensible type.
         val licenseObjects = mapLicenseNamesToObjects(concludedLicenseNames, "concluded license", input) +
                 mapLicenseNamesToObjects(declaredLicenseNames, "declared license", input) +
                 mapLicenseNamesToObjects(detectedLicenseNames, "detected license", input)

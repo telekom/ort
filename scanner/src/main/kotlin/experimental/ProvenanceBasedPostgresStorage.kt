@@ -23,6 +23,8 @@ import java.sql.SQLException
 
 import javax.sql.DataSource
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
@@ -42,9 +44,8 @@ import org.ossreviewtoolkit.model.utils.DatabaseUtils.checkDatabaseEncoding
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.tableExists
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.transaction
 import org.ossreviewtoolkit.scanner.storages.utils.jsonb
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.common.collectMessages
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 class ProvenanceBasedPostgresStorage(
     /**
@@ -57,6 +58,8 @@ class ProvenanceBasedPostgresStorage(
      */
     private val tableName: String = "provenance_scan_results"
 ) : ProvenanceBasedScanStorage {
+    companion object : Logging
+
     private val table = ProvenanceScanResults(tableName)
 
     /** The [Database] instance on which all operations are executed. */
@@ -115,7 +118,7 @@ class ProvenanceBasedPostgresStorage(
         } catch (e: SQLException) {
             e.showStackTrace()
 
-            log.error { "Could not read scan results: ${e.collectMessagesAsString()}" }
+            logger.error { "Could not read scan results: ${e.collectMessages()}" }
 
             throw ScanStorageException(e)
         }
@@ -158,7 +161,7 @@ class ProvenanceBasedPostgresStorage(
         } catch (e: SQLException) {
             e.showStackTrace()
 
-            log.error { "Could not write scan result: ${e.collectMessagesAsString()}" }
+            logger.error { "Could not write scan result: ${e.collectMessages()}" }
 
             throw ScanStorageException(e)
         }

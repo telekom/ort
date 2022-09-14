@@ -25,15 +25,18 @@ import java.io.ByteArrayInputStream
 import java.io.FileNotFoundException
 import java.io.IOException
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.yamlMapper
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.fileSystemEncode
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
-import org.ossreviewtoolkit.utils.core.storage.FileStorage
+import org.ossreviewtoolkit.utils.ort.showStackTrace
+import org.ossreviewtoolkit.utils.ort.storage.FileStorage
 
 class FileBasedNestedProvenanceStorage(private val backend: FileStorage) : NestedProvenanceStorage {
+    companion object : Logging
+
     override fun readNestedProvenance(root: RepositoryProvenance): NestedProvenanceResolutionResult? =
         readResults(root).find { it.nestedProvenance.root == root }
 
@@ -51,9 +54,9 @@ class FileBasedNestedProvenanceStorage(private val backend: FileStorage) : Neste
                     emptyList()
                 }
                 else -> {
-                    log.info {
+                    logger.info {
                         "Could not read resolved nested provenances for '$root' from path '$path': " +
-                                it.collectMessagesAsString()
+                                it.collectMessages()
                     }
 
                     emptyList()
@@ -73,15 +76,15 @@ class FileBasedNestedProvenanceStorage(private val backend: FileStorage) : Neste
 
         runCatching {
             backend.write(path, input)
-            log.debug { "Stored resolved nested provenance for '$root' at path '$path'." }
+            logger.debug { "Stored resolved nested provenance for '$root' at path '$path'." }
         }.onFailure {
             when (it) {
                 is IllegalArgumentException, is IOException -> {
                     it.showStackTrace()
 
-                    log.warn {
+                    logger.warn {
                         "Could not store resolved nested provenance for '$root' at path '$path': " +
-                                it.collectMessagesAsString()
+                                it.collectMessages()
                     }
                 }
                 else -> throw it

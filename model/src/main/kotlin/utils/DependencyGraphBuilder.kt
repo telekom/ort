@@ -22,6 +22,8 @@ package org.ossreviewtoolkit.model.utils
 import java.util.LinkedList
 import java.util.SortedSet
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.DependencyGraph
 import org.ossreviewtoolkit.model.DependencyGraphEdge
 import org.ossreviewtoolkit.model.DependencyGraphNode
@@ -31,13 +33,12 @@ import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.PackageLinkage
 import org.ossreviewtoolkit.model.RootDependencyIndex
-import org.ossreviewtoolkit.utils.core.log
 
 /**
  * Internal class to represent the result of a search in the dependency graph. The outcome of the search
  * determines how to integrate a specific dependency into the dependency graph.
  */
-private sealed class DependencyGraphSearchResult {
+private sealed interface DependencyGraphSearchResult {
     /**
      * A specialized [DependencyGraphSearchResult] that indicates that the dependency that was searched for is already
      * present in the dependency graph. This is the easiest case, as the [DependencyReference] that was found
@@ -46,7 +47,7 @@ private sealed class DependencyGraphSearchResult {
     data class Found(
         /** The reference to the dependency that was searched in the graph. */
         val ref: DependencyReference
-    ) : DependencyGraphSearchResult()
+    ) : DependencyGraphSearchResult
 
     /**
      * A specialized [DependencyGraphSearchResult] that indicates that the dependency that was searched for was not
@@ -55,7 +56,7 @@ private sealed class DependencyGraphSearchResult {
     data class NotFound(
         /** The index of the fragment to which to add the dependency. */
         val fragmentIndex: Int
-    ) : DependencyGraphSearchResult()
+    ) : DependencyGraphSearchResult
 
     /**
      * A specialized [DependencyGraphSearchResult] that indicates that the dependency that was searched for in its
@@ -64,7 +65,7 @@ private sealed class DependencyGraphSearchResult {
      * tree. In this case, a new fragment has to be added to the graph to host this special variant of this
      * dependency.
      */
-    object Incompatible : DependencyGraphSearchResult()
+    object Incompatible : DependencyGraphSearchResult
 }
 
 /**
@@ -104,6 +105,8 @@ class DependencyGraphBuilder<D>(
      */
     private val dependencyHandler: DependencyHandler<D>
 ) {
+    companion object : Logging
+
     /**
      * A list storing the identifiers of all dependencies added to this builder. This list is then used to resolve
      * dependencies based on their indices.
@@ -135,10 +138,10 @@ class DependencyGraphBuilder<D>(
     private val resolvedPackages = mutableMapOf<Identifier, Package>()
 
     /**
-     * A set storing the packages that are direct dependencies of one of the scopes. These are the entry points into
-     * the dependency graph.
+     * A list storing all [DependencyReference]s that have been created to represent the dependencies known to this
+     * builder.
      */
-    private val directDependencies = mutableSetOf<DependencyReference>()
+    private val references = mutableListOf<DependencyReference>()
 
     /**
      * Add the given [dependency] for the scope with the given [scopeName] to this builder. This function needs to be
@@ -168,7 +171,7 @@ class DependencyGraphBuilder<D>(
         if (checkReferences) checkReferences()
 
         val (sortedDependencyIds, indexMapping) = constructSortedDependencyIds(dependencyIds)
-        val (nodes, edges) = directDependencies.toGraph(indexMapping)
+        val (nodes, edges) = references.toGraph(indexMapping)
 
         return DependencyGraph(
             sortedDependencyIds,
@@ -180,15 +183,15 @@ class DependencyGraphBuilder<D>(
     }
 
     private fun Collection<DependencyGraphEdge>.removeCycles(): List<DependencyGraphEdge> {
-        val edges = mapTo(mutableSetOf()) { it.from to it.to }
+        val edges = toMutableSet()
         val edgesToKeep = breakCycles(edges)
         val edgesToRemove = edges - edgesToKeep
 
         edgesToRemove.forEach {
-            this@DependencyGraphBuilder.log.warn { "Removing edge '${it.first} -> ${it.second}' to break a cycle." }
+            logger.warn { "Removing edge '${it.from} -> ${it.to}' to break a cycle." }
         }
 
-        return filter { it.from to it.to in edgesToKeep }
+        return filter { it in edgesToKeep }
     }
 
     private fun checkReferences() {
@@ -197,7 +200,7 @@ class DependencyGraphBuilder<D>(
                     "${validPackageDependencies - resolvedPackages.keys}."
         }
 
-        val packageReferencesKeysWithMultipleDistinctPackageReferences = directDependencies.groupBy { it.key }.filter {
+        val packageReferencesKeysWithMultipleDistinctPackageReferences = references.groupBy { it.key }.filter {
             it.value.distinct().size > 1
         }.keys
 
@@ -363,6 +366,13 @@ class DependencyGraphBuilder<D>(
         }
 
         val fragmentMapping = referenceMappings[index.fragment]
+        if (index.root in fragmentMapping) {
+            // If this point is reached, the package has already been inserted when processing its dependencies.
+            // This means that there is a cyclic dependency. To handle this case correctly, the insert operation has
+            // to be started anew.
+            return addDependencyToGraph(scopeName, dependency, transitive)
+        }
+
         val ref = DependencyReference(
             pkg = index.root,
             fragment = index.fragment,
@@ -371,12 +381,13 @@ class DependencyGraphBuilder<D>(
             issues = issues
         )
         fragmentMapping[index.root] = ref
+        references += ref
 
         if (ref.issues.isEmpty() && ref.linkage !in PackageLinkage.PROJECT_LINKAGE) {
             validPackageDependencies += id
         }
 
-        return updateDirectDependencies(ref, transitive)
+        return ref
     }
 
     /**
@@ -386,18 +397,6 @@ class DependencyGraphBuilder<D>(
      */
     private fun updateResolvedPackages(id: Identifier, dependency: D, issues: MutableList<OrtIssue>) {
         resolvedPackages.compute(id) { _, pkg -> pkg ?: dependencyHandler.createPackage(dependency, issues) }
-    }
-
-    /**
-     * Add the given [dependency reference][ref] to the set of direct dependencies if it is not [transitive]. If one of
-     * the direct dependencies of this package is in this set, it is removed, as it is obviously no direct dependency.
-     * Because this function is called for all dependencies, all transitive dependencies are eventually removed.
-     */
-    private fun updateDirectDependencies(ref: DependencyReference, transitive: Boolean): DependencyReference {
-        directDependencies.removeAll(ref.dependencies)
-        if (!transitive) directDependencies += ref
-
-        return ref
     }
 
     /**
@@ -476,8 +475,8 @@ private enum class NodeColor { WHITE, GRAY, BLACK }
  * A depth-first-search (DFS)-based implementation which breaks all cycles in O(V + E).
  * Finding a minimal solution is NP-complete.
  */
-internal fun breakCycles(edges: Collection<Pair<Int, Int>>): Set<Pair<Int, Int>> {
-    val outgoingEdgesForNodes = edges.groupBy({ it.first }, { it.second }).mapValues { it.value.toMutableSet() }
+internal fun breakCycles(edges: Collection<DependencyGraphEdge>): Set<DependencyGraphEdge> {
+    val outgoingEdgesForNodes = edges.groupBy({ it.from }, { it.to }).mapValues { it.value.toMutableSet() }
     val color = outgoingEdgesForNodes.keys.associateWithTo(mutableMapOf()) { NodeColor.WHITE }
 
     fun visit(u: Int) {
@@ -509,7 +508,7 @@ internal fun breakCycles(edges: Collection<Pair<Int, Int>>): Set<Pair<Int, Int>>
     }
 
     return outgoingEdgesForNodes.flatMapTo(mutableSetOf()) { (fromNode, toNodes) ->
-        toNodes.map { toNode -> fromNode to toNode }
+        toNodes.map { toNode -> DependencyGraphEdge(fromNode, toNode) }
     }
 }
 

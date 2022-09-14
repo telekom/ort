@@ -30,6 +30,7 @@ import java.io.File
 
 import org.ossreviewtoolkit.model.LicenseFinding
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
+import org.ossreviewtoolkit.model.config.FileArchiverConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.scanner.PathScanner
 import org.ossreviewtoolkit.utils.test.createSpecTempDir
@@ -37,7 +38,7 @@ import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
 abstract class AbstractScannerFunTest(testTags: Set<Tag> = emptySet()) : StringSpec() {
     protected val downloaderConfig = DownloaderConfiguration()
-    protected val scannerConfig = ScannerConfiguration()
+    protected val scannerConfig = ScannerConfiguration(archive = FileArchiverConfiguration(enabled = false))
 
     // This is loosely based on the patterns from
     // https://github.com/licensee/licensee/blob/6c0f803/lib/licensee/project_files/license_file.rb#L6-L43.
@@ -52,7 +53,7 @@ abstract class AbstractScannerFunTest(testTags: Set<Tag> = emptySet()) : StringS
     override suspend fun beforeSpec(spec: Spec) {
         inputDir = createSpecTempDir()
 
-        // Copy our own root license under different names to a temporary directory so we have something to operate on.
+        // Copy our own root license under different names to a temporary directory, so we have something to operate on.
         val ortLicense = File("../LICENSE")
         commonlyDetectedFiles.forEach {
             val text = ortLicense.readText()

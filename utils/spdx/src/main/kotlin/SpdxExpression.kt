@@ -128,8 +128,9 @@ sealed class SpdxExpression {
 
     /**
      * Normalize all license IDs using a mapping containing common misspellings of license IDs. If [mapDeprecated] is
-     * `true` also deprecated IDs are mapped to they current counterparts. The result of this function is not guaranteed
-     * to contain only valid IDs. Use [validate] to check the returned [SpdxExpression] for validity afterwards.
+     * `true`, also deprecated IDs are mapped to their current counterparts. The result of this function is not
+     * guaranteed to contain only valid IDs. Use [validate] to check the returned [SpdxExpression] for validity
+     * afterwards.
      */
     abstract fun normalize(mapDeprecated: Boolean = true): SpdxExpression
 
@@ -436,7 +437,7 @@ sealed class SpdxSingleLicenseExpression : SpdxExpression() {
 
     /**
      * Return the URL for the licence if this is [SpdxLicenseIdExpression] or [SpdxLicenseWithExceptionExpression].
-     * Otherwise return null.
+     * Otherwise, return null.
      */
     abstract fun getLicenseUrl(): String?
 }
@@ -470,8 +471,8 @@ class SpdxLicenseWithExceptionExpression(
     override fun exception() = exception
 
     override fun normalize(mapDeprecated: Boolean) =
-        // Manually cast to SpdxLicenseException, because the type resolver does not recognize that in all subclasses of
-        // SpdxSimpleExpression normalize() returns an SpdxSingleLicenseExpression.
+        // Manually cast to SpdxSingleLicenseExpression as the type resolver does not recognize that in all subclasses
+        // of SpdxSimpleExpression normalize() returns an SpdxSingleLicenseExpression.
         when (val normalizedLicense = license.normalize(mapDeprecated) as SpdxSingleLicenseExpression) {
             is SpdxSimpleExpression -> SpdxLicenseWithExceptionExpression(normalizedLicense, exception)
 

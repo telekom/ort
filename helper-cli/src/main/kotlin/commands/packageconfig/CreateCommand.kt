@@ -29,17 +29,19 @@ import com.github.ajalt.clikt.parameters.types.file
 
 import java.io.File
 
-import org.ossreviewtoolkit.helper.common.write
+import org.ossreviewtoolkit.helper.utils.PathExcludeGenerator
+import org.ossreviewtoolkit.helper.utils.sortPathExcludes
+import org.ossreviewtoolkit.helper.utils.write
 import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.Identifier
-import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RepositoryProvenance
+import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.config.PackageConfiguration
 import org.ossreviewtoolkit.model.config.VcsMatcher
 import org.ossreviewtoolkit.scanner.storages.FileBasedStorage
 import org.ossreviewtoolkit.utils.common.expandTilde
 import org.ossreviewtoolkit.utils.common.safeMkdirs
-import org.ossreviewtoolkit.utils.core.storage.LocalFileStorage
+import org.ossreviewtoolkit.utils.ort.storage.LocalFileStorage
 
 internal class CreateCommand : CliktCommand(
     help = "Creates one package configuration for the source artifact scan and one for the VCS scan, if " +
@@ -48,7 +50,7 @@ internal class CreateCommand : CliktCommand(
 ) {
     private val scanResultsStorageDir by option(
         "--scan-results-storage-dir",
-        help = "The scan results storage to extract the scan results to."
+        help = "The scan results storage to read the scan results from."
     ).convert { it.expandTilde() }
         .file(mustExist = false, canBeFile = false, canBeDir = true, mustBeWritable = false, mustBeReadable = false)
         .convert { it.absoluteFile.normalize() }
@@ -78,27 +80,36 @@ internal class CreateCommand : CliktCommand(
         help = "Overwrite any output files if they already exist."
     ).flag()
 
+    private val generatePathExcludes by option(
+        "--generate-path-excludes",
+        help = "Generate path excludes."
+    ).flag()
+
     override fun run() {
         outputDir.safeMkdirs()
 
         val scanResultsStorage = FileBasedStorage(LocalFileStorage(scanResultsStorageDir))
-        val scanResults = scanResultsStorage.read(packageId).getOrDefault(emptyList())
+        val scanResults = scanResultsStorage.read(packageId).getOrDefault(emptyList()).run {
+            listOfNotNull(
+                find { it.provenance is RepositoryProvenance },
+                find { it.provenance is ArtifactProvenance }
+            )
+        }
 
-        scanResults.find { it.provenance is RepositoryProvenance }?.provenance
-            ?.writePackageConfigurationFile("vcs.yml")
-        scanResults.find { it.provenance is ArtifactProvenance }?.provenance
-            ?.writePackageConfigurationFile("source-artifact.yml")
+        scanResults.forEach { scanResult ->
+            createPackageConfiguration(scanResult).writeToFile()
+        }
     }
 
-    private fun Provenance.writePackageConfigurationFile(filename: String) {
-        val packageConfiguration = createPackageConfiguration(packageId, this)
+    private fun PackageConfiguration.writeToFile() {
+        val filename = if (vcs != null) "vcs.yml" else "source-artifact.yml"
         val outputFile = getOutputFile(filename)
 
         if (!forceOverwrite && outputFile.exists()) {
             throw UsageError("The output file '${outputFile.absolutePath}' must not exist yet.", statusCode = 2)
         }
 
-        packageConfiguration.write(outputFile)
+        write(outputFile)
         println("Wrote a package configuration to '${outputFile.absolutePath}'.")
     }
 
@@ -111,27 +122,28 @@ internal class CreateCommand : CliktCommand(
 
         return outputDir.resolve(relativeOutputFilePath)
     }
+
+    private fun createPackageConfiguration(scanResult: ScanResult): PackageConfiguration =
+        PackageConfiguration(
+            id = packageId,
+            sourceArtifactUrl = (scanResult.provenance as? ArtifactProvenance)?.sourceArtifact?.url,
+            vcs = (scanResult.provenance as? RepositoryProvenance)?.let {
+                VcsMatcher(
+                    type = it.vcsInfo.type,
+                    url = it.vcsInfo.url,
+                    revision = it.resolvedRevision
+                )
+            },
+            pathExcludes = if (generatePathExcludes) {
+                PathExcludeGenerator.generatePathExcludes(scanResult.getFindingPaths()).sortPathExcludes()
+            } else {
+                emptyList()
+            }
+        )
 }
 
-private fun createPackageConfiguration(id: Identifier, provenance: Provenance): PackageConfiguration =
-    when (provenance) {
-        is ArtifactProvenance -> {
-            PackageConfiguration(
-                id = id,
-                sourceArtifactUrl = provenance.sourceArtifact.url
-            )
-        }
-
-        is RepositoryProvenance -> {
-            PackageConfiguration(
-                id = id,
-                vcs = VcsMatcher(
-                    type = provenance.vcsInfo.type,
-                    url = provenance.vcsInfo.url,
-                    revision = provenance.resolvedRevision
-                )
-            )
-        }
-
-        else -> throw IllegalArgumentException("Unsupported provenance $provenance.")
+private fun ScanResult.getFindingPaths(): Set<String> =
+    mutableSetOf<String>().apply {
+        summary.licenseFindings.mapTo(this) { it.location.path }
+        summary.copyrightFindings.mapTo(this) { it.location.path }
     }

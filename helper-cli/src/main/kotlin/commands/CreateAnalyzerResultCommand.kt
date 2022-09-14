@@ -30,8 +30,8 @@ import com.github.ajalt.clikt.parameters.types.file
 import java.sql.Connection
 import java.time.Instant
 
-import org.ossreviewtoolkit.helper.common.ORTH_NAME
-import org.ossreviewtoolkit.helper.common.writeOrtResult
+import org.ossreviewtoolkit.helper.utils.ORTH_NAME
+import org.ossreviewtoolkit.helper.utils.writeOrtResult
 import org.ossreviewtoolkit.model.AnalyzerResult
 import org.ossreviewtoolkit.model.AnalyzerRun
 import org.ossreviewtoolkit.model.ArtifactProvenance
@@ -49,9 +49,9 @@ import org.ossreviewtoolkit.model.config.PostgresStorageConfiguration
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.model.utils.DatabaseUtils
 import org.ossreviewtoolkit.utils.common.expandTilde
-import org.ossreviewtoolkit.utils.core.Environment
-import org.ossreviewtoolkit.utils.core.ORT_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.core.ortConfigDirectory
+import org.ossreviewtoolkit.utils.ort.Environment
+import org.ossreviewtoolkit.utils.ort.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.ort.ortConfigDirectory
 
 internal class CreateAnalyzerResultCommand : CliktCommand(
     help = "Creates an analyzer result that contains packages for the given list of package ids. The result contains " +
@@ -89,12 +89,14 @@ internal class CreateAnalyzerResultCommand : CliktCommand(
 
     private val scancodeVersion by option(
         "--scancode-version",
-        help = "The ScanCode version to match for in the scan results."
+        help = "The ScanCode version to match for in the scan results. If blank, any ScanCode version is matched."
     )
 
     override fun run() {
         val ids = packageIdsFile.readLines().filterNot { it.isBlank() }.map { Identifier(it.trim()) }
-        val packages = openDatabaseConnection().use { getScannedPackages(it, ids, scancodeVersion) }.filterMaxByDate()
+        val packages = openDatabaseConnection().use { connection ->
+            getScannedPackages(connection, ids, scancodeVersion?.takeIf { it.isNotBlank() })
+        }.filterMaxByDate()
         val ortResult = createAnalyzerResult(packages)
 
         println("Writing analyzer result with ${packages.size} packages to '${ortFile.absolutePath}'.")
@@ -107,7 +109,7 @@ internal class CreateAnalyzerResultCommand : CliktCommand(
             ?: throw IllegalArgumentException("postgresStorage not configured.")
 
         val dataSource = DatabaseUtils.createHikariDataSource(
-            config = storageConfig,
+            config = storageConfig.connection,
             applicationNameSuffix = ORTH_NAME,
             maxPoolSize = 1
         )
@@ -129,7 +131,7 @@ private fun getScannedPackages(
 ): List<ScannedPackage> {
     val whereClause = listOfNotNull(
         "s.identifier = ANY(?)",
-        scanCodeVersion?.let { "s.scan_result->'scanner'->>'version' = '$it'" }
+        scanCodeVersion?.takeIf { it.isNotEmpty() }.let { "s.scan_result->'scanner'->>'version' = '$it'" }
     ).joinToString(" AND ")
 
     val query = """

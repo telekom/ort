@@ -31,13 +31,14 @@ import kotlin.time.measureTimedValue
 
 import kotlinx.coroutines.runBlocking
 
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.perf
+import org.apache.logging.log4j.kotlin.Logging
 
 /**
  * A class providing the framework to run Kotlin scripts.
  */
 abstract class ScriptRunner {
+    companion object : Logging
+
     /** The scripting host instance. */
     private val scriptingHost = BasicJvmScriptingHost()
 
@@ -55,7 +56,7 @@ abstract class ScriptRunner {
             runBlocking { scriptingHost.compiler.invoke(script.toScriptSource(), compConfig) }
         }
 
-        log.perf { "Compiling the script took $duration." }
+        logger.info { "Compiling the script took $duration." }
 
         logReports(result.reports)
 
@@ -70,7 +71,7 @@ abstract class ScriptRunner {
             scriptingHost.eval(script.toScriptSource(), compConfig, evalConfig)
         }
 
-        log.perf { "Evaluating the script took $duration." }
+        logger.info { "Evaluating the script took $duration." }
 
         logReports(result.reports)
 
@@ -83,11 +84,11 @@ abstract class ScriptRunner {
     private fun logReports(reports: List<ScriptDiagnostic>) =
         reports.forEach { report ->
             when (report.severity) {
-                ScriptDiagnostic.Severity.DEBUG -> log.debug(report.message, report.exception)
-                ScriptDiagnostic.Severity.INFO -> log.info(report.message, report.exception)
-                ScriptDiagnostic.Severity.WARNING -> log.warn(report.message, report.exception)
-                ScriptDiagnostic.Severity.ERROR -> log.error(report.message, report.exception)
-                ScriptDiagnostic.Severity.FATAL -> log.fatal(report.message, report.exception)
+                ScriptDiagnostic.Severity.DEBUG -> logger.debug(report.message, report.exception)
+                ScriptDiagnostic.Severity.INFO -> logger.info(report.message, report.exception)
+                ScriptDiagnostic.Severity.WARNING -> logger.warn(report.message, report.exception)
+                ScriptDiagnostic.Severity.ERROR -> logger.error(report.message, report.exception)
+                ScriptDiagnostic.Severity.FATAL -> logger.fatal(report.message, report.exception)
             }
         }
 }

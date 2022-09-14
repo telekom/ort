@@ -27,8 +27,9 @@ import com.sksamuel.hoplite.fp.getOrElse
 
 import java.io.File
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.Severity
-import org.ossreviewtoolkit.utils.core.log
 
 /**
  * The configuration model for all ORT components.
@@ -89,6 +90,11 @@ data class OrtConfiguration(
     val scanner: ScannerConfiguration = ScannerConfiguration(),
 
     /**
+     * The configuration of the reporter.
+     */
+    val reporter: ReporterConfiguration = ReporterConfiguration(),
+
+    /**
      * The configuration of the notifier.
      */
     val notifier: NotifierConfiguration = NotifierConfiguration(),
@@ -97,7 +103,7 @@ data class OrtConfiguration(
      */
     val oscake: OSCakeConfiguration = OSCakeConfiguration()
 ) {
-    companion object {
+    companion object : Logging {
         /**
          * Load the [OrtConfiguration]. The different sources are used with this priority:
          *
@@ -110,7 +116,7 @@ data class OrtConfiguration(
         fun load(args: Map<String, String>? = null, file: File? = null): OrtConfiguration {
             val sources = listOfNotNull(
                 args?.filterKeys { it.startsWith("ort.") }?.takeUnless { it.isEmpty() }?.let {
-                    log.info {
+                    logger.info {
                         val argsList = it.map { (k, v) -> "\t$k=$v" }
                         "Using ORT configuration arguments:\n" + argsList.joinToString("\n")
                     }
@@ -118,7 +124,17 @@ data class OrtConfiguration(
                     PropertySource.map(it)
                 },
                 file?.takeIf { it.isFile }?.let {
-                    log.info { "Using ORT configuration file '$it'." }
+                    logger.info { "Using ORT configuration file '$it'." }
+
+                    if (file.extension == "conf") {
+                        logger.warn {
+                            "The Hocon configuration file format is deprecated. Support for Hocon configuration " +
+                                    "files will be removed end of September 2022. Please migrate your configuration " +
+                                    "file to the YAML format. Run `ort config --show-active` to print your current " +
+                                    "configuration as YAML."
+                        }
+                    }
+
                     PropertySource.file(it)
                 }
             )
@@ -143,9 +159,19 @@ data class OrtConfiguration(
 }
 
 /**
- * An internal wrapper class to hold an [OrtConfiguration]. This class is needed to correctly map the _ort_
- * prefix in configuration files when they are processed by the underlying configuration library.
+ * A wrapper class to hold an [OrtConfiguration]. This class is needed to correctly map the _ort_ prefix in
+ * configuration files when they are processed by the underlying configuration library.
  */
-internal data class OrtConfigurationWrapper(
+data class OrtConfigurationWrapper(
     val ort: OrtConfiguration
 )
+
+/**
+ * A typealias for key-value pairs, used in several configuration classes.
+ */
+typealias Options = Map<String, String>
+
+/**
+ * The filename of the reference configuration file.
+ */
+const val REFERENCE_CONFIG_FILENAME = "reference.yml"

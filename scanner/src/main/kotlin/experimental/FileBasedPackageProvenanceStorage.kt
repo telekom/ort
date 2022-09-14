@@ -26,16 +26,19 @@ import java.io.ByteArrayInputStream
 import java.io.FileNotFoundException
 import java.io.IOException
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.RemoteArtifact
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.yamlMapper
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
-import org.ossreviewtoolkit.utils.core.storage.FileStorage
+import org.ossreviewtoolkit.utils.common.collectMessages
+import org.ossreviewtoolkit.utils.ort.showStackTrace
+import org.ossreviewtoolkit.utils.ort.storage.FileStorage
 
 class FileBasedPackageProvenanceStorage(val backend: FileStorage) : PackageProvenanceStorage {
+    companion object : Logging
+
     override fun readProvenance(id: Identifier, sourceArtifact: RemoteArtifact): PackageProvenanceResolutionResult? =
         readResults(id).find { it.sourceArtifact == sourceArtifact }?.result
 
@@ -56,9 +59,9 @@ class FileBasedPackageProvenanceStorage(val backend: FileStorage) : PackageProve
                     emptyList()
                 }
                 else -> {
-                    log.info {
+                    logger.info {
                         "Could not read resolved provenances for '${id.toCoordinates()}' from path '$path': " +
-                                it.collectMessagesAsString()
+                                it.collectMessages()
                     }
 
                     emptyList()
@@ -93,15 +96,15 @@ class FileBasedPackageProvenanceStorage(val backend: FileStorage) : PackageProve
 
         runCatching {
             backend.write(path, input)
-            log.debug { "Stored resolved provenances for '${id.toCoordinates()}' at path '$path'." }
+            logger.debug { "Stored resolved provenances for '${id.toCoordinates()}' at path '$path'." }
         }.onFailure {
             when (it) {
                 is IllegalArgumentException, is IOException -> {
                     it.showStackTrace()
 
-                    log.warn {
+                    logger.warn {
                         "Could not store resolved provenances for '${id.toCoordinates()}' at path '$path': " +
-                                it.collectMessagesAsString()
+                                it.collectMessages()
                     }
                 }
                 else -> throw it

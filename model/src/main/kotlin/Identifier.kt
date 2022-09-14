@@ -22,6 +22,7 @@ package org.ossreviewtoolkit.model
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonValue
 
+import org.ossreviewtoolkit.utils.common.AlphaNumericComparator
 import org.ossreviewtoolkit.utils.common.encodeOr
 
 /**
@@ -62,7 +63,8 @@ data class Identifier(
             version = ""
         )
 
-        private val COMPARATOR = compareBy<Identifier>({ it.type }, { it.namespace }, { it.name }, { it.version })
+        private val COMPARATOR = compareBy<Identifier>({ it.type }, { it.namespace }, { it.name })
+            .thenComparing({ it.version }, AlphaNumericComparator)
     }
 
     private constructor(components: List<String>) : this(

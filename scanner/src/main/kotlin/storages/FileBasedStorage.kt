@@ -26,16 +26,17 @@ import java.io.ByteArrayInputStream
 import java.io.FileNotFoundException
 import java.io.IOException
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.ScanResultContainer
 import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
 import org.ossreviewtoolkit.scanner.experimental.ScanStorageException
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
-import org.ossreviewtoolkit.utils.core.storage.FileStorage
+import org.ossreviewtoolkit.utils.common.collectMessages
+import org.ossreviewtoolkit.utils.ort.showStackTrace
+import org.ossreviewtoolkit.utils.ort.storage.FileStorage
 
 const val SCAN_RESULTS_FILE_NAME = "scan-results.yml"
 
@@ -48,6 +49,8 @@ class FileBasedStorage(
      */
     val backend: FileStorage
 ) : ScanResultsStorage() {
+    companion object : Logging
+
     override val name = "${javaClass.simpleName} with ${backend.javaClass.simpleName} backend"
 
     override fun readInternal(id: Identifier): Result<List<ScanResult>> {
@@ -62,9 +65,9 @@ class FileBasedStorage(
             if (it is FileNotFoundException) return EMPTY_RESULT
 
             val message = "Could not read scan results for '${id.toCoordinates()}' from path '$path': " +
-                    it.collectMessagesAsString()
+                    it.collectMessages()
 
-            log.info { message }
+            logger.info { message }
 
             throw ScanStorageException(message)
         }
@@ -77,7 +80,7 @@ class FileBasedStorage(
             val message = "Did not store scan result for '${id.toCoordinates()}' because a scan result for the same " +
                     "scanner and provenance was already stored."
 
-            log.warn { message }
+            logger.warn { message }
 
             return Result.failure(ScanStorageException(message))
         }
@@ -90,15 +93,15 @@ class FileBasedStorage(
 
         return runCatching {
             backend.write(path, input)
-            log.debug { "Stored scan result for '${id.toCoordinates()}' at path '$path'." }
+            logger.debug { "Stored scan result for '${id.toCoordinates()}' at path '$path'." }
         }.onFailure {
             if (it is IllegalArgumentException || it is IOException) {
                 it.showStackTrace()
 
                 val message = "Could not store scan result for '${id.toCoordinates()}' at path '$path': " +
-                        it.collectMessagesAsString()
+                        it.collectMessages()
 
-                log.warn { message }
+                logger.warn { message }
 
                 return Result.failure(ScanStorageException(message))
             }

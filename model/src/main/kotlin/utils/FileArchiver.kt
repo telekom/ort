@@ -25,17 +25,17 @@ import java.io.IOException
 import kotlin.time.measureTime
 import kotlin.time.measureTimedValue
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.KnownProvenance
 import org.ossreviewtoolkit.utils.common.FileMatcher
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.packZip
 import org.ossreviewtoolkit.utils.common.unpackZip
-import org.ossreviewtoolkit.utils.core.createOrtTempFile
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.ortDataDirectory
-import org.ossreviewtoolkit.utils.core.perf
-import org.ossreviewtoolkit.utils.core.showStackTrace
-import org.ossreviewtoolkit.utils.core.storage.FileStorage
+import org.ossreviewtoolkit.utils.ort.createOrtTempFile
+import org.ossreviewtoolkit.utils.ort.ortDataDirectory
+import org.ossreviewtoolkit.utils.ort.showStackTrace
+import org.ossreviewtoolkit.utils.ort.storage.FileStorage
 
 /**
  * A class to archive files matched by provided patterns in a ZIP file that is stored in a [FileStorage][storage].
@@ -65,7 +65,7 @@ class FileArchiver(
         storage: FileStorage
     ) : this(patterns, FileArchiverFileStorage(storage))
 
-    companion object {
+    companion object : Logging {
         val DEFAULT_ARCHIVE_DIR by lazy { ortDataDirectory.resolve("scanner/archive") }
     }
 
@@ -83,7 +83,7 @@ class FileArchiver(
      * Archive all files in [directory] matching any of the configured patterns in the [storage].
      */
     fun archive(directory: File, provenance: KnownProvenance) {
-        log.info { "Archiving files matching ${matcher.patterns} from '$directory'..." }
+        logger.info { "Archiving files matching ${matcher.patterns} from '$directory'..." }
 
         val zipFile = createOrtTempFile(suffix = ".zip")
 
@@ -92,7 +92,7 @@ class FileArchiver(
                 val relativePath = file.relativeTo(directory).invariantSeparatorsPath
 
                 matcher.matches(relativePath).also { result ->
-                    log.debug {
+                    logger.debug {
                         if (result) {
                             "Adding '$relativePath' to archive."
                         } else {
@@ -103,11 +103,11 @@ class FileArchiver(
             }
         }
 
-        log.perf { "Archived directory '${directory.invariantSeparatorsPath}' in $zipDuration." }
+        logger.info { "Archived directory '$directory' in $zipDuration." }
 
         val writeDuration = measureTime { storage.addArchive(provenance, zipFile) }
 
-        log.perf { "Wrote archive of directory '${directory.invariantSeparatorsPath}' to storage in $writeDuration." }
+        logger.info { "Wrote archive of directory '$directory' to storage in $writeDuration." }
 
         zipFile.delete()
     }
@@ -118,24 +118,20 @@ class FileArchiver(
     fun unarchive(directory: File, provenance: KnownProvenance): Boolean {
         val (zipFile, readDuration) = measureTimedValue { storage.getArchive(provenance) }
 
-        log.perf {
-            "Read archive of directory '${directory.invariantSeparatorsPath}' from storage in $readDuration."
-        }
+        logger.info { "Read archive of directory '$directory' from storage in $readDuration." }
 
         if (zipFile == null) return false
 
         return try {
-            val unzipDuration = measureTime { zipFile.inputStream().use { it.unpackZip(directory) } }
+            val unzipDuration = measureTime { zipFile.unpackZip(directory) }
 
-            log.perf {
-                "Unarchived directory '${directory.invariantSeparatorsPath}' in $unzipDuration."
-            }
+            logger.info { "Unarchived directory '$directory' in $unzipDuration." }
 
             true
         } catch (e: IOException) {
             e.showStackTrace()
 
-            log.error { "Could not extract ${zipFile.absolutePath}: ${e.collectMessagesAsString()}" }
+            logger.error { "Could not extract ${zipFile.absolutePath}: ${e.collectMessages()}" }
 
             false
         } finally {

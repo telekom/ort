@@ -23,8 +23,12 @@ package org.ossreviewtoolkit.scanner.scanners
 import java.io.File
 import java.time.Instant
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.LicenseFinding
+import org.ossreviewtoolkit.model.OrtIssue
 import org.ossreviewtoolkit.model.ScanSummary
+import org.ossreviewtoolkit.model.Severity
 import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
@@ -39,9 +43,8 @@ import org.ossreviewtoolkit.scanner.experimental.ScanContext
 import org.ossreviewtoolkit.utils.common.Os
 import org.ossreviewtoolkit.utils.common.ProcessCapture
 import org.ossreviewtoolkit.utils.common.unpackZip
-import org.ossreviewtoolkit.utils.core.OkHttpClientHelper
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.ortToolsDirectory
+import org.ossreviewtoolkit.utils.ort.OkHttpClientHelper
+import org.ossreviewtoolkit.utils.ort.ortToolsDirectory
 import org.ossreviewtoolkit.utils.spdx.calculatePackageVerificationCode
 
 class Askalono internal constructor(
@@ -49,6 +52,8 @@ class Askalono internal constructor(
     scannerConfig: ScannerConfiguration,
     downloaderConfig: DownloaderConfiguration
 ) : CommandLineScanner(name, scannerConfig, downloaderConfig), PathScannerWrapper {
+    companion object : Logging
+
     class AskalonoFactory : AbstractScannerWrapperFactory<Askalono>("Askalono") {
         override fun create(scannerConfig: ScannerConfiguration, downloaderConfig: DownloaderConfiguration) =
             Askalono(scannerName, scannerConfig, downloaderConfig)
@@ -76,7 +81,7 @@ class Askalono internal constructor(
         val unpackDir = ortToolsDirectory.resolve(name).resolve(expectedVersion)
 
         if (unpackDir.resolve(command()).isFile) {
-            log.info { "Skipping to bootstrap $name as it was found in $unpackDir." }
+            logger.info { "Skipping to bootstrap $name as it was found in $unpackDir." }
             return unpackDir
         }
 
@@ -90,10 +95,10 @@ class Askalono internal constructor(
         val archive = "askalono-$platform.zip"
         val url = "https://github.com/amzn/askalono/releases/download/$expectedVersion/$archive"
 
-        log.info { "Downloading $scannerName from $url... " }
+        logger.info { "Downloading $scannerName from $url... " }
         val (_, body) = OkHttpClientHelper.download(url).getOrThrow()
 
-        log.info { "Unpacking '$archive' to '$unpackDir'... " }
+        logger.info { "Unpacking '$archive' to '$unpackDir'... " }
         body.bytes().unpackZip(unpackDir)
 
         return unpackDir
@@ -111,27 +116,28 @@ class Askalono internal constructor(
         val endTime = Instant.now()
 
         return with(process) {
-            if (stderr.isNotBlank()) log.debug { stderr }
+            if (stderr.isNotBlank()) logger.debug { stderr }
             if (isError) throw ScanException(errorMessage)
 
-            generateSummary(startTime, endTime, path, stdoutFile)
+            generateSummary(startTime, endTime, path, stdout)
         }
     }
 
-    private fun generateSummary(startTime: Instant, endTime: Instant, scanPath: File, resultFile: File): ScanSummary {
+    private fun generateSummary(startTime: Instant, endTime: Instant, scanPath: File, result: String): ScanSummary {
         val licenseFindings = sortedSetOf<LicenseFinding>()
 
-        resultFile.readLines().forEach { line ->
+        result.lines().forEach { line ->
             val root = jsonMapper.readTree(line)
             root["result"]?.let { result ->
-                val licenseFinding = LicenseFinding(
+                val licenseFinding = LicenseFinding.createAndMap(
                     license = result["license"]["name"].textValue(),
                     location = TextLocation(
                         // Turn absolute paths in the native result into relative paths to not expose any information.
                         relativizePath(scanPath, File(root["path"].textValue())),
                         TextLocation.UNKNOWN_LINE
                     ),
-                    score = result["score"].floatValue()
+                    score = result["score"].floatValue(),
+                    detectedLicenseMapping = scannerConfig.detectedLicenseMapping
                 )
 
                 licenseFindings += licenseFinding
@@ -144,7 +150,13 @@ class Askalono internal constructor(
             packageVerificationCode = calculatePackageVerificationCode(scanPath),
             licenseFindings = licenseFindings,
             copyrightFindings = sortedSetOf(),
-            issues = mutableListOf()
+            issues = listOf(
+                OrtIssue(
+                    source = scannerName,
+                    message = "This scanner is not capable of detecting copyright statements.",
+                    severity = Severity.HINT
+                )
+            )
         )
     }
 

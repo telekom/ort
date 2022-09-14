@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
- * Copyright (C) 2021 Bosch.IO GmbH
+ * Copyright (C) 2021-2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ import org.ossreviewtoolkit.cli.utils.SeverityStats
 import org.ossreviewtoolkit.cli.utils.configurationGroup
 import org.ossreviewtoolkit.cli.utils.createProvider
 import org.ossreviewtoolkit.cli.utils.inputGroup
+import org.ossreviewtoolkit.cli.utils.logger
 import org.ossreviewtoolkit.cli.utils.outputGroup
 import org.ossreviewtoolkit.cli.utils.readOrtResult
 import org.ossreviewtoolkit.cli.utils.writeOrtResult
@@ -67,19 +68,18 @@ import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
 import org.ossreviewtoolkit.model.licenses.orEmpty
 import org.ossreviewtoolkit.model.readValue
 import org.ossreviewtoolkit.model.readValueOrDefault
+import org.ossreviewtoolkit.model.utils.CompositePackageConfigurationProvider
 import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
 import org.ossreviewtoolkit.model.utils.SimplePackageConfigurationProvider
 import org.ossreviewtoolkit.model.utils.mergeLabels
 import org.ossreviewtoolkit.utils.common.expandTilde
 import org.ossreviewtoolkit.utils.common.safeMkdirs
-import org.ossreviewtoolkit.utils.core.ORT_COPYRIGHT_GARBAGE_FILENAME
-import org.ossreviewtoolkit.utils.core.ORT_EVALUATOR_RULES_FILENAME
-import org.ossreviewtoolkit.utils.core.ORT_LICENSE_CLASSIFICATIONS_FILENAME
-import org.ossreviewtoolkit.utils.core.ORT_REPO_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.core.ORT_RESOLUTIONS_FILENAME
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.ortConfigDirectory
-import org.ossreviewtoolkit.utils.core.perf
+import org.ossreviewtoolkit.utils.ort.ORT_COPYRIGHT_GARBAGE_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_EVALUATOR_RULES_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_LICENSE_CLASSIFICATIONS_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_REPO_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_RESOLUTIONS_FILENAME
+import org.ossreviewtoolkit.utils.ort.ortConfigDirectory
 
 class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT result files against policy rules.") {
     private val ortFile by option(
@@ -258,11 +258,12 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
 
         if (checkSyntax) {
             if (Evaluator().checkSyntax(script)) {
+                println("Syntax check succeeded.")
                 return
-            } else {
-                println("Syntax check failed.")
-                throw ProgramResult(2)
             }
+
+            println("Syntax check failed.")
+            throw ProgramResult(2)
         }
 
         val existingOrtFile = requireNotNull(ortFile) {
@@ -283,17 +284,19 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
 
         val config = globalOptionsForSubcommands.config
 
-        val packageConfigurations = packageConfigurationOption.createProvider().getPackageConfigurations()
-            .toMutableSet()
-        val repositoryPackageConfigurations = ortResultInput.repository.config.packageConfigurations
+        val packageConfigurationProvider = if (config.enableRepositoryPackageConfigurations) {
+            CompositePackageConfigurationProvider(
+                SimplePackageConfigurationProvider(ortResultInput.repository.config.packageConfigurations),
+                packageConfigurationOption.createProvider()
+            )
+        } else {
+            if (ortResultInput.repository.config.packageConfigurations.isNotEmpty()) {
+                logger.info { "Local package configurations were not applied because the feature is not enabled." }
+            }
 
-        if (config.enableRepositoryPackageConfigurations) {
-            packageConfigurations += repositoryPackageConfigurations
-        } else if (repositoryPackageConfigurations.isNotEmpty()) {
-            log.warn { "Local package configurations were not applied because the feature is not enabled." }
+            packageConfigurationOption.createProvider()
         }
 
-        val packageConfigurationProvider = SimplePackageConfigurationProvider(packageConfigurations)
         val copyrightGarbage = copyrightGarbageFile.takeIf { it.isFile }?.readValue<CopyrightGarbage>().orEmpty()
 
         val licenseInfoResolver = LicenseInfoResolver(
@@ -304,13 +307,14 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
             licenseFilenamePatterns = LicenseFilenamePatterns.getInstance()
         )
 
+        val resolutionProvider = DefaultResolutionProvider.create(ortResultInput, resolutionsFile)
         val licenseClassifications =
             licenseClassificationsFile.takeIf { it.isFile }?.readValue<LicenseClassifications>().orEmpty()
-        val evaluator = Evaluator(ortResultInput, licenseInfoResolver, licenseClassifications)
+        val evaluator = Evaluator(ortResultInput, licenseInfoResolver, resolutionProvider, licenseClassifications)
 
         val (evaluatorRun, duration) = measureTimedValue { evaluator.run(script) }
 
-        log.perf { "Executed the evaluator in $duration." }
+        logger.info { "Executed the evaluator in $duration." }
 
         evaluatorRun.violations.forEach { violation ->
             println(violation.format())
@@ -324,7 +328,6 @@ class EvaluatorCommand : CliktCommand(name = "evaluate", help = "Evaluate ORT re
             writeOrtResult(ortResultOutput, outputFiles, "evaluation")
         }
 
-        val resolutionProvider = DefaultResolutionProvider.create(ortResultOutput, resolutionsFile)
         val (resolvedViolations, unresolvedViolations) =
             evaluatorRun.violations.partition { resolutionProvider.isResolved(it) }
         val severityStats = SeverityStats.createFromRuleViolations(resolvedViolations, unresolvedViolations)

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +31,7 @@ import java.util.ServiceLoader
 
 import kotlin.time.measureTime
 
+import org.apache.logging.log4j.kotlin.Logging
 import org.apache.maven.project.ProjectBuildingException
 
 import org.ossreviewtoolkit.downloader.VcsHost
@@ -41,15 +43,15 @@ import org.ossreviewtoolkit.model.ProjectAnalyzerResult
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.AnalyzerConfiguration
+import org.ossreviewtoolkit.model.config.PackageManagerConfiguration
 import org.ossreviewtoolkit.model.config.RepositoryConfiguration
 import org.ossreviewtoolkit.model.createAndLogIssue
 import org.ossreviewtoolkit.utils.common.VCS_DIRECTORIES
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.isSymbolicLink
-import org.ossreviewtoolkit.utils.core.ORT_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.normalizeVcsUrl
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.ort.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.ort.normalizeVcsUrl
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 typealias ManagedProjectFiles = Map<PackageManagerFactory, List<File>>
 
@@ -64,7 +66,7 @@ abstract class PackageManager(
     val analyzerConfig: AnalyzerConfiguration,
     val repoConfig: RepositoryConfiguration
 ) {
-    companion object {
+    companion object : Logging {
         private val LOADER = ServiceLoader.load(PackageManagerFactory::class.java)!!
 
         /**
@@ -77,6 +79,7 @@ abstract class PackageManager(
         private val PACKAGE_MANAGER_DIRECTORIES = listOf(
             // Ignore intermediate build system directories.
             ".gradle",
+            ".yarn",
             "node_modules",
             // Ignore resources in a standard Maven / Gradle project layout.
             "META-INF/maven",
@@ -107,7 +110,7 @@ abstract class PackageManager(
                 object : SimpleFileVisitor<Path>() {
                     override fun preVisitDirectory(dir: Path, attributes: BasicFileAttributes): FileVisitResult {
                         if (IGNORED_DIRECTORY_MATCHERS.any { it.matches(dir) }) {
-                            PackageManager.log.info {
+                            logger.info {
                                 "Not analyzing directory '$dir' as it is hard-coded to be ignored."
                             }
 
@@ -119,13 +122,11 @@ abstract class PackageManager(
                         // Note that although FileVisitOption.FOLLOW_LINKS is not set, this would still follow junctions
                         // on Windows, so do a better check here.
                         if (dirAsFile.isSymbolicLink()) {
-                            PackageManager.log.info { "Not following symbolic link to directory '$dir'." }
+                            logger.info { "Not following symbolic link to directory '$dir'." }
                             return FileVisitResult.SKIP_SUBTREE
                         }
 
-                        val filesInDir = dirAsFile.walk().maxDepth(1).filter {
-                            it.isFile && it.length() > 0
-                        }.toList()
+                        val filesInDir = dirAsFile.walk().maxDepth(1).filter { it.isFile }.toList()
 
                         packageManagers.forEach { manager ->
                             // Create a list of lists of matching files per glob.
@@ -207,6 +208,16 @@ abstract class PackageManager(
     open fun mapDefinitionFiles(definitionFiles: List<File>): List<File> = definitionFiles
 
     /**
+     * Return if this package manager must run before or after certain other package managers. This can manually be
+     * configured by the user in [PackageManagerConfiguration.mustRunAfter], but in some cases it is possible to
+     * determine such dependencies automatically.
+     */
+    open fun findPackageManagerDependencies(
+        managedFiles: Map<PackageManager, List<File>>
+    ): PackageManagerDependencyResult =
+        PackageManagerDependencyResult(mustRunBefore = emptySet(), mustRunAfter = emptySet())
+
+    /**
      * Optional step to run before dependency resolution, like checking for prerequisites.
      */
     protected open fun beforeResolution(definitionFiles: List<File>) {}
@@ -219,7 +230,7 @@ abstract class PackageManager(
     /**
      * Generate the final result to be returned by this package manager. This function is called at the very end of the
      * execution of this package manager (after [afterResolution]) with the [projectResults] created for the single
-     * definition files that have been processed. It can be overridden by sub classes to add additional data to the
+     * definition files that have been processed. It can be overridden by subclasses to add additional data to the
      * result. This base implementation produces a result that contains only the passed in map with project results.
      */
     protected open fun createPackageManagerResult(projectResults: Map<File, List<ProjectAnalyzerResult>>):
@@ -246,7 +257,7 @@ abstract class PackageManager(
         definitionFiles.forEach { definitionFile ->
             val relativePath = definitionFile.relativeTo(analysisRoot).invariantSeparatorsPath.ifEmpty { "." }
 
-            log.info { "Resolving $managerName dependencies for path '$relativePath'..." }
+            logger.info { "Resolving $managerName dependencies for path '$relativePath'..." }
 
             val duration = measureTime {
                 runCatching {
@@ -273,7 +284,7 @@ abstract class PackageManager(
                         createAndLogIssue(
                             source = managerName,
                             message = "Resolving $managerName dependencies for path '$relativePath' failed with: " +
-                                    it.collectMessagesAsString()
+                                    it.collectMessages()
                         )
                     )
 
@@ -281,7 +292,7 @@ abstract class PackageManager(
                 }
             }
 
-            log.info { "Resolving $managerName dependencies for path '$relativePath' took $duration." }
+            logger.info { "Resolving $managerName dependencies for path '$relativePath' took $duration." }
         }
 
         afterResolution(definitionFiles)
@@ -304,6 +315,27 @@ abstract class PackageManager(
 
             "No lockfile found in '$relativePathString'. This potentially results in unstable versions of " +
                     "dependencies. To support this, enable the 'allowDynamicVersions' option in '$ORT_CONFIG_FILENAME'."
+        }
+    }
+
+    /**
+     * Remove all packages from the contained [ProjectAnalyzerResult]s which are also projects.
+     */
+    protected fun Map<File, List<ProjectAnalyzerResult>>.filterProjectPackages():
+            Map<File, List<ProjectAnalyzerResult>> {
+        val projectIds = flatMapTo(mutableSetOf()) { (_, projectResult) -> projectResult.map { it.project.id } }
+
+        return mapValues { entry ->
+            entry.value.map { projectResult ->
+                val projectReferences = projectResult.packages.filterTo(mutableSetOf()) { it.id in projectIds }
+                projectResult.takeIf { projectReferences.isEmpty() }
+                    ?: projectResult.copy(packages = (projectResult.packages - projectReferences).toSortedSet())
+                        .also {
+                            logger.info { "Removing ${projectReferences.size} packages that are projects." }
+
+                            logger.debug { projectReferences.joinToString { it.id.toCoordinates() } }
+                        }
+            }
         }
     }
 }

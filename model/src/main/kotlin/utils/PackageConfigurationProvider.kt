@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,14 +27,17 @@ import org.ossreviewtoolkit.model.config.PackageConfiguration
 /**
  * A provider for [PackageConfiguration]s.
  */
-interface PackageConfigurationProvider {
-    /**
-     * Return all [PackageConfiguration]s of this provider.
-     */
-    fun getPackageConfigurations(): List<PackageConfiguration>
+fun interface PackageConfigurationProvider {
+    companion object {
+        /**
+         * A provider that does not provide any curations.
+         */
+        @JvmField
+        val EMPTY = PackageConfigurationProvider { _, _ -> emptyList() }
+    }
 
     /**
-     * Return the first matching [PackageConfiguration] for the given [packageId] and [provenance] if any.
+     * Return a list of [PackageConfiguration]s for the given [packageId] and [provenance].
      */
-    fun getPackageConfiguration(packageId: Identifier, provenance: Provenance): PackageConfiguration?
+    fun getPackageConfigurations(packageId: Identifier, provenance: Provenance): List<PackageConfiguration>
 }

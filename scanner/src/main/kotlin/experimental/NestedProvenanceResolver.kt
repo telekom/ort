@@ -22,11 +22,12 @@ package org.ossreviewtoolkit.scanner.experimental
 
 import kotlinx.coroutines.runBlocking
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.ArtifactProvenance
 import org.ossreviewtoolkit.model.KnownProvenance
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RepositoryProvenance
-import org.ossreviewtoolkit.utils.core.log
 
 /**
  * The [NestedProvenanceResolver] provides a function to resolve nested provenances.
@@ -47,6 +48,8 @@ class DefaultNestedProvenanceResolver(
     private val storage: NestedProvenanceStorage,
     private val workingTreeCache: WorkingTreeCache
 ) : NestedProvenanceResolver {
+    companion object : Logging
+
     override fun resolveNestedProvenance(provenance: KnownProvenance): NestedProvenance {
         return when (provenance) {
             is ArtifactProvenance -> NestedProvenance(root = provenance, subRepositories = emptyMap())
@@ -59,19 +62,19 @@ class DefaultNestedProvenanceResolver(
 
         if (storedResult != null) {
             if (storedResult.hasOnlyFixedRevisions) {
-                log.info {
+                logger.info {
                     "Found a stored nested provenance for $provenance with only fixed revisions, skipping resolution."
                 }
 
                 return storedResult.nestedProvenance
             } else {
-                log.info {
+                logger.info {
                     "Found a stored nested provenance for $provenance with at least one non-fixed revision, " +
                             "restarting resolution."
                 }
             }
         } else {
-            log.info {
+            logger.info {
                 "Could not find a stored nested provenance for $provenance, attempting resolution."
             }
         }

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2017-2021 HERE Europe B.V.
- * Copyright (C) 2021 Bosch.IO GmbH
+ * Copyright (C) 2021-2022 Bosch.IO GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,12 @@
 
 package org.ossreviewtoolkit.reporter.reporters.evaluatedmodel
 
+import org.ossreviewtoolkit.model.AdvisorResult
 import org.ossreviewtoolkit.model.CuratedPackage
 import org.ossreviewtoolkit.model.DependencyNode
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.OrtIssue
+import org.ossreviewtoolkit.model.PackageLinkage
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RemoteArtifact
@@ -39,12 +41,13 @@ import org.ossreviewtoolkit.model.config.PathExclude
 import org.ossreviewtoolkit.model.config.RuleViolationResolution
 import org.ossreviewtoolkit.model.config.ScopeExclude
 import org.ossreviewtoolkit.model.config.VulnerabilityResolution
+import org.ossreviewtoolkit.model.licenses.LicenseView
 import org.ossreviewtoolkit.model.utils.FindingCurationMatcher
 import org.ossreviewtoolkit.model.utils.FindingsMatcher
 import org.ossreviewtoolkit.model.utils.RootLicenseMatcher
 import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.reporter.ReporterInput
-import org.ossreviewtoolkit.utils.core.ProcessedDeclaredLicense
+import org.ossreviewtoolkit.utils.ort.ProcessedDeclaredLicense
 
 /**
  * Maps the [reporter input][input] to an [EvaluatedModel].
@@ -79,7 +82,11 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
 
     private val packageExcludeInfo = mutableMapOf<Identifier, PackageExcludeInfo>()
 
-    fun build(): EvaluatedModel {
+    /**
+     * Build an [EvaluatedModel] instance. If [deduplicateDependencyTree] is *true*, remove duplicate subtrees from
+     * the dependency tree. This may be necessary for huge projects to avoid excessive memory consumption.
+     */
+    fun build(deduplicateDependencyTree: Boolean = false): EvaluatedModel {
         createExcludeInfo()
         createScopes()
 
@@ -95,11 +102,17 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
             addRuleViolation(ruleViolation)
         }
 
-        createVulnerabilities()
+        input.ortResult.advisor?.results?.advisorResults?.forEach { (id, results) ->
+            val pkg = packages.getValue(id)
+
+            results.forEach { result ->
+                addAdvisorResult(pkg, result)
+            }
+        }
 
         input.ortResult.analyzer?.result?.projects?.forEach { project ->
             val pkg = packages.getValue(project.id)
-            addDependencyTree(project, pkg)
+            addDependencyTree(project, pkg, deduplicateDependencyTree)
         }
 
         input.ortResult.analyzer?.result?.projects?.forEach { project ->
@@ -197,37 +210,6 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
         }
     }
 
-    private fun createVulnerabilities() {
-        input.ortResult.advisor
-            ?.results
-            ?.advisorResults
-            ?.flatMap { (id, results) ->
-                val pkg = packages[id] ?: createEmptyPackage(id)
-
-                results.flatMap { result ->
-                    result.vulnerabilities.map { vulnerability ->
-                        val resolutions = addResolutions(vulnerability)
-                        val evaluatedReferences: List<EvaluatedVulnerabilityReference> =
-                            vulnerability.references.map {
-                                EvaluatedVulnerabilityReference(
-                                    it.url,
-                                    it.scoringSystem,
-                                    it.severity,
-                                    VulnerabilityReference.getSeverityString(it.scoringSystem, it.severity)
-                                )
-                            }
-
-                        vulnerabilities += EvaluatedVulnerability(
-                            pkg = pkg,
-                            id = vulnerability.id,
-                            references = evaluatedReferences,
-                            resolutions = resolutions
-                        )
-                    }
-                }
-            }
-    }
-
     private fun TextLocation.getRelativePathToRoot(id: Identifier): String =
         input.ortResult.getProject(id)?.let { input.ortResult.getFilePathRelativeToAnalyzerRoot(it, path) } ?: path
 
@@ -235,15 +217,16 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
         if (input.ortResult.isProject(id)) {
             input.ortResult.repository.config.curations.licenseFindings
         } else {
-            input.packageConfigurationProvider.getPackageConfiguration(id, provenance)
-                ?.licenseFindingCurations.orEmpty()
+            input.packageConfigurationProvider.getPackageConfigurations(id, provenance)
+                .flatMap { it.licenseFindingCurations }
         }
 
     private fun getPathExcludes(id: Identifier, provenance: Provenance): List<PathExclude> =
         if (input.ortResult.isProject(id)) {
             input.ortResult.getExcludes().paths
         } else {
-            input.packageConfigurationProvider.getPackageConfiguration(id, provenance)?.pathExcludes.orEmpty()
+            input.packageConfigurationProvider.getPackageConfigurations(id, provenance)
+                .flatMap { it.pathExcludes }
         }
 
     private fun addProject(project: Project) {
@@ -324,6 +307,11 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
             detectedLicenses = detectedLicenses,
             detectedExcludedLicenses = detectedExcludedLicenses,
             concludedLicense = pkg.concludedLicense,
+            effectiveLicense = input.licenseInfoResolver.resolveLicenseInfo(pkg.id).filterExcluded().effectiveLicense(
+                LicenseView.CONCLUDED_OR_DECLARED_AND_DETECTED,
+                input.ortResult.getPackageLicenseChoices(pkg.id),
+                input.ortResult.getRepositoryLicenseChoices()
+            )?.sort(),
             description = pkg.description,
             homepageUrl = pkg.homepageUrl,
             binaryArtifact = pkg.binaryArtifact,
@@ -391,6 +379,38 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
         ruleViolations += evaluatedViolation
     }
 
+    private fun addAdvisorResult(pkg: EvaluatedPackage, result: AdvisorResult) {
+        // TODO: Add defects from the result to the model.
+
+        result.vulnerabilities.forEach { vulnerability ->
+            addVulnerability(pkg, vulnerability)
+        }
+
+        addIssues(result.summary.issues, EvaluatedOrtIssueType.ADVISOR, pkg, null, null)
+    }
+
+    private fun addVulnerability(pkg: EvaluatedPackage, vulnerability: Vulnerability) {
+        val resolutions = addResolutions(vulnerability)
+
+        val evaluatedReferences = vulnerability.references.map {
+            EvaluatedVulnerabilityReference(
+                it.url,
+                it.scoringSystem,
+                it.severity,
+                VulnerabilityReference.getSeverityString(it.scoringSystem, it.severity)
+            )
+        }
+
+        vulnerabilities += EvaluatedVulnerability(
+            pkg = pkg,
+            id = vulnerability.id,
+            summary = vulnerability.summary,
+            description = vulnerability.description,
+            references = evaluatedReferences,
+            resolutions = resolutions
+        )
+    }
+
     private fun convertScanResult(
         result: ScanResult,
         findings: MutableList<EvaluatedFinding>,
@@ -422,7 +442,29 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
         return actualScanResult
     }
 
-    private fun addDependencyTree(project: Project, pkg: EvaluatedPackage) {
+    private fun addDependencyTree(
+        project: Project,
+        pkg: EvaluatedPackage,
+        deduplicateDependencyTree: Boolean
+    ) {
+        val visitedNodes = mutableMapOf<Any, DependencyTreeNode>()
+
+        fun createDependencyNode(
+            dependency: EvaluatedPackage,
+            linkage: PackageLinkage,
+            issues: List<EvaluatedOrtIssue>,
+            children: List<DependencyTreeNode> = emptyList()
+        ) =
+            DependencyTreeNode(
+                linkage = linkage,
+                pkg = dependency,
+                scope = null,
+                children = children,
+                pathExcludes = emptyList(),
+                scopeExcludes = emptyList(),
+                issues = issues
+            )
+
         fun DependencyNode.toEvaluatedTreeNode(
             scope: EvaluatedScope,
             path: List<EvaluatedPackage>
@@ -444,20 +486,28 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
                 issues += addIssues(this.issues, EvaluatedOrtIssueType.ANALYZER, dependency, null, packagePath)
             }
 
-            return DependencyTreeNode(
-                linkage = linkage,
-                pkg = dependency,
-                scope = null,
-                children = visitDependencies { dependencies ->
-                    dependencies.map { it.toEvaluatedTreeNode(scope, path + dependency) }.toList()
-                },
-                pathExcludes = emptyList(),
-                scopeExcludes = emptyList(),
-                issues = issues
-            )
+            visitedNodes += getInternalId() to createDependencyNode(dependency, linkage, issues)
+
+            val children = visitDependencies { dependencies ->
+                dependencies.map { node ->
+                    val nodeId = node.getInternalId()
+
+                    if (deduplicateDependencyTree && nodeId in visitedNodes) {
+                        // Cut the duplicate subtree here and only return the node without its children.
+                        visitedNodes.getValue(nodeId).copy(children = emptyList())
+                    } else {
+                        node.toEvaluatedTreeNode(scope, path + dependency)
+                    }
+                }.toList()
+            }
+
+            return createDependencyNode(dependency, linkage, issues, children)
         }
 
         val scopeTrees = input.ortResult.dependencyNavigator.scopeNames(project).map { scope ->
+            // Deduplication should not happen across scopes.
+            visitedNodes.clear()
+
             val subTrees = input.ortResult.dependencyNavigator.directDependencies(project, scope).map {
                 it.toEvaluatedTreeNode(scopes.getValue(scope), mutableListOf())
             }.toList()

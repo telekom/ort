@@ -19,14 +19,13 @@
 
 package org.ossreviewtoolkit.model
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonInclude
 
 import org.ossreviewtoolkit.model.utils.RootLicenseMatcher
 
 /**
  * The result of a single scan of a single package.
  */
-@JsonIgnoreProperties("raw_result")
 data class ScanResult(
     /**
      * Provenance information about the scanned source code.
@@ -41,22 +40,32 @@ data class ScanResult(
     /**
      * A summary of the scan results.
      */
-    val summary: ScanSummary
+    val summary: ScanSummary,
+
+    /**
+     * A map for scanner specific data that cannot be mapped into any generalized property, but still needs to be
+     * stored in the scan result.
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    val additionalData: Map<String, String> = emptyMap()
 ) {
     /**
      * Filter all detected licenses and copyrights from the [summary] which are underneath [path], and set the [path]
      * for [provenance]. Findings which [RootLicenseMatcher] assigns as root license files for [path] are also kept.
      */
     fun filterByPath(path: String): ScanResult =
-        takeIf { path.isBlank() } ?: ScanResult(
-            provenance = if (provenance is RepositoryProvenance) {
-                provenance.copy(vcsInfo = provenance.vcsInfo.copy(path = path))
-            } else {
-                provenance
-            },
-            scanner = scanner,
-            summary = summary.filterByPath(path),
-        )
+        when {
+            path.isBlank() -> this
+
+            provenance is RepositoryProvenance -> {
+                copy(
+                    provenance = provenance.copy(vcsInfo = provenance.vcsInfo.copy(path = path)),
+                    summary = summary.filterByPath(path)
+                )
+            }
+
+            else -> copy(summary = summary.filterByPath(path))
+        }
 
     /**
      * Return a [ScanResult] whose [summary] contains only findings from the [provenance]'s [VcsInfo.path].

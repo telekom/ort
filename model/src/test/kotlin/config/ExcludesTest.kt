@@ -38,7 +38,7 @@ import org.ossreviewtoolkit.model.PackageReference
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.Repository
 import org.ossreviewtoolkit.model.Scope
-import org.ossreviewtoolkit.utils.core.Environment
+import org.ossreviewtoolkit.utils.ort.Environment
 
 class ExcludesTest : WordSpec() {
     private val id = Identifier("type", "namespace", "name", "version")
@@ -55,7 +55,7 @@ class ExcludesTest : WordSpec() {
 
     private val pathExclude1 = PathExclude("path1", PathExcludeReason.BUILD_TOOL_OF, "")
     private val pathExclude2 = PathExclude("path2", PathExcludeReason.BUILD_TOOL_OF, "")
-    private val pathExclude3 = PathExclude("**.ext", PathExcludeReason.BUILD_TOOL_OF, "")
+    private val pathExclude3 = PathExclude("**/*.ext", PathExcludeReason.BUILD_TOOL_OF, "")
     private val pathExclude4 = PathExclude("**/file.ext", PathExcludeReason.BUILD_TOOL_OF, "")
 
     private val scope1 = Scope("scope1", sortedSetOf(PackageReference(id)))

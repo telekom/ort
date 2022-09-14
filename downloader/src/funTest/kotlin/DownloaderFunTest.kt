@@ -23,9 +23,10 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.core.test.TestCase
 import io.kotest.matchers.file.aFile
-import io.kotest.matchers.file.haveFileSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.endWith
+import io.kotest.matchers.string.startWith
 import io.kotest.matchers.types.shouldBeTypeOf
 
 import java.io.File
@@ -40,6 +41,7 @@ import org.ossreviewtoolkit.model.SourceCodeOrigin
 import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.model.config.DownloaderConfiguration
+import org.ossreviewtoolkit.utils.common.VCS_DIRECTORIES
 import org.ossreviewtoolkit.utils.test.ExpensiveTag
 import org.ossreviewtoolkit.utils.test.createTestTempDir
 
@@ -79,7 +81,11 @@ class DownloaderFunTest : StringSpec() {
             }
 
             licenseFile shouldBe aFile()
-            licenseFile should haveFileSize(11376L)
+
+            with(licenseFile.readText().trim()) {
+                this should startWith("JUnit")
+                this should endWith("in any resulting litigation.")
+            }
 
             outputDir.walk().count() shouldBe 234
         }
@@ -110,9 +116,9 @@ class DownloaderFunTest : StringSpec() {
             exception.suppressed.size shouldBe 2
             exception.suppressed[0]!!.message shouldBe "No VCS URL provided for 'Maven:junit:junit:4.12'. " +
                     "Please define the \"connection\" tag within the \"scm\" tag in the POM file, " +
-                    "see: http://maven.apache.org/pom.html#SCM"
+                    "see: https://maven.apache.org/pom.html#SCM"
             exception.suppressed[1]!!.message shouldBe "Source artifact does not match expected " +
-                    "Hash(value=0123456789abcdef0123456789abcdef01234567, algorithm=SHA1)."
+                    "Hash(value=0123456789abcdef0123456789abcdef01234567, algorithm=SHA-1)."
         }
 
         "Falls back to downloading source package when download from VCS fails".config(tags = setOf(ExpensiveTag)) {
@@ -151,7 +157,11 @@ class DownloaderFunTest : StringSpec() {
             }
 
             licenseFile shouldBe aFile()
-            licenseFile should haveFileSize(11376L)
+
+            with(licenseFile.readText().trim()) {
+                this should startWith("JUnit")
+                this should endWith("in any resulting litigation.")
+            }
 
             outputDir.walk().count() shouldBe 234
         }
@@ -192,9 +202,13 @@ class DownloaderFunTest : StringSpec() {
             }
 
             licenseFile shouldBe aFile()
-            licenseFile should haveFileSize(11376L)
 
-            outputDir.walk().count() shouldBe 608
+            with(licenseFile.readText().trim()) {
+                this should startWith("JUnit")
+                this should endWith("in any resulting litigation.")
+            }
+
+            outputDir.walk().onEnter { it.name !in VCS_DIRECTORIES }.count() shouldBe 588
         }
 
         "Can download a TGZ source artifact from SourceForge".config(tags = setOf(ExpensiveTag)) {

@@ -25,6 +25,8 @@ import com.vdurmont.semver4j.Requirement
 
 import java.io.File
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.analyzer.AbstractPackageManagerFactory
 import org.ossreviewtoolkit.analyzer.managers.utils.hasYarnLockFile
 import org.ossreviewtoolkit.analyzer.managers.utils.mapDefinitionFilesForYarn
@@ -42,6 +44,8 @@ class Yarn(
     analyzerConfig: AnalyzerConfiguration,
     repoConfig: RepositoryConfiguration
 ) : Npm(name, analysisRoot, analyzerConfig, repoConfig) {
+    companion object : Logging
+
     class Factory : AbstractPackageManagerFactory<Yarn>("Yarn") {
         override val globsForDefinitionFiles = listOf("package.json")
 
@@ -69,6 +73,8 @@ class Yarn(
 
     override fun getRemotePackageDetails(workingDir: File, packageName: String): JsonNode {
         val process = run(workingDir, "info", "--json", packageName)
-        return jsonMapper.readTree(process.stdoutFile)["data"]
+        return jsonMapper.readTree(process.stdout)["data"] ?: jsonMapper.readTree(process.stderr)["data"].also {
+            logger.warn { "Error running '${process.commandLine}' in directory $workingDir: $it" }
+        }
     }
 }

@@ -24,6 +24,8 @@ import java.io.IOException
 
 import javax.sql.DataSource
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.jetbrains.exposed.dao.IntEntity
 import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
@@ -41,8 +43,7 @@ import org.ossreviewtoolkit.model.RepositoryProvenance
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.checkDatabaseEncoding
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.tableExists
 import org.ossreviewtoolkit.model.utils.DatabaseUtils.transaction
-import org.ossreviewtoolkit.utils.core.createOrtTempFile
-import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.ort.createOrtTempFile
 
 /**
  * A PostgreSQL based storage for archive files.
@@ -53,6 +54,8 @@ class PostgresFileArchiverStorage(
      */
     dataSource: Lazy<DataSource>
 ) : FileArchiverStorage {
+    companion object : Logging
+
     /** Stores the database connection used by this object. */
     private val database by lazy {
         Database.connect(dataSource.value, databaseConfig = DatabaseConfig { defaultFetchSize = 1000 }).apply {
@@ -86,7 +89,7 @@ class PostgresFileArchiverStorage(
                     // The exception can happen when an archive with the same provenance has been inserted in parallel.
                     // That race condition is possible because [java.sql.Connection.TRANSACTION_READ_COMMITTED] is used
                     // as transaction isolation level (by default).
-                    log.warn(e) { "Could not insert archive for '${provenance.storageKey()}'." }
+                    logger.warn(e) { "Could not insert archive for '${provenance.storageKey()}'." }
                 }
             }
         }

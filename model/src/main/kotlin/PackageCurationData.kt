@@ -19,13 +19,12 @@
 
 package org.ossreviewtoolkit.model
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 
 import java.util.SortedSet
 
 import org.ossreviewtoolkit.utils.common.zip
-import org.ossreviewtoolkit.utils.core.DeclaredLicenseProcessor
+import org.ossreviewtoolkit.utils.ort.DeclaredLicenseProcessor
 import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 
 /**
@@ -33,7 +32,6 @@ import org.ossreviewtoolkit.utils.spdx.SpdxExpression
  * package with corrections. This is required because the metadata provided by a package can be wrong (e.g. outdated
  * VCS data) or incomplete.
  */
-@JsonIgnoreProperties(value = [/* Backwards-compatibility: */ "declared_licenses"])
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class PackageCurationData(
     /**
@@ -53,14 +51,13 @@ data class PackageCurationData(
     val cpe: String? = null,
 
     /**
-     * The list of authors of this package.
+     * The set of authors of this package.
      */
     val authors: SortedSet<String>? = null,
 
     /**
-     * The concluded license as an [SpdxExpression]. It can be used to correct the [declared licenses of a package]
-     * [Package.declaredLicenses] in case the found in the packages metadata or the licenses detected by a scanner do
-     * not match reality.
+     * The concluded license as an [SpdxExpression]. It can be used to override the [declared][Package.declaredLicenses]
+     * / [detected][LicenseFinding.license] licenses of a package.
      */
     val concludedLicense: SpdxExpression? = null,
 
@@ -123,7 +120,6 @@ data class PackageCurationData(
             ).normalize()
         } ?: original.vcsProcessed
 
-        val authors = authors ?: original.authors
         val declaredLicenseMapping = targetPackage.getDeclaredLicenseMapping() + declaredLicenseMapping
         val declaredLicensesProcessed = DeclaredLicenseProcessor.process(
             original.declaredLicenses,
@@ -134,7 +130,7 @@ data class PackageCurationData(
             id = original.id,
             purl = purl ?: original.purl,
             cpe = cpe ?: original.cpe,
-            authors = authors,
+            authors = authors ?: original.authors,
             declaredLicenses = original.declaredLicenses,
             declaredLicensesProcessed = declaredLicensesProcessed,
             concludedLicense = concludedLicense ?: original.concludedLicense,
@@ -148,7 +144,7 @@ data class PackageCurationData(
             isModified = isModified ?: original.isModified
         )
 
-        val declaredLicenseMappingDiff = mutableMapOf<String, SpdxExpression>().apply {
+        val declaredLicenseMappingDiff = buildMap {
             val previous = targetPackage.getDeclaredLicenseMapping().toList()
             val current = declaredLicenseMapping.toList()
 

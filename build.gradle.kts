@@ -35,30 +35,28 @@ import org.jetbrains.gradle.ext.settings
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
-val detektPluginVersion: String by project
-val kotlinPluginVersion: String by project
-
-val jacksonVersion: String by project
-val kotestVersion: String by project
-val log4jCoreVersion: String by project
-val okhttpVersion: String by project
-
 plugins {
-    kotlin("jvm")
-
-    id("com.github.ben-manes.versions")
-    id("com.github.gmazzo.buildconfig")
-    id("io.gitlab.arturbosch.detekt")
-    id("org.barfuin.gradle.taskinfo")
-    id("org.jetbrains.dokka")
-    id("org.jetbrains.gradle.plugin.idea-ext")
+    alias(libs.plugins.buildConfig)
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.dokka)
+    alias(libs.plugins.ideaExt)
+    alias(libs.plugins.kotlin)
+    alias(libs.plugins.taskInfo)
+    alias(libs.plugins.versionCatalogUpdate)
+    alias(libs.plugins.versions)
 }
 
 buildscript {
     dependencies {
-        // For some reason "jgitVersion" needs to be declared here instead of globally.
-        val jgitVersion: String by project
-        classpath("org.eclipse.jgit:org.eclipse.jgit:$jgitVersion")
+        classpath(libs.jgit)
+    }
+
+    configurations.all {
+        resolutionStrategy {
+            // Work around the Kotlin plugin to depend on an outdated version of the Download plugin, see
+            // https://youtrack.jetbrains.com/issue/KT-53822.
+            force("de.undercouch:gradle-download-task:${libs.plugins.download.get().version}")
+        }
     }
 }
 
@@ -68,9 +66,9 @@ if (version == Project.DEFAULT_VERSION) {
         // Make the output exactly match "git describe --abbrev=10 --always --tags --dirty", which is what is used in
         // "scripts/docker_build.sh", to make the hash match what JitPack uses.
         val description = git.describe().setAbbrev(10).setAlways(true).setTags(true).call()
-        val isDirty = git.status().call().hasUncommittedChanges()
 
-        if (isDirty) "$description-dirty" else description
+        // Simulate the "--dirty" option with JGit.
+        description.takeUnless { git.status().call().hasUncommittedChanges() } ?: "$description-dirty"
     }
 }
 
@@ -104,17 +102,23 @@ extensions.findByName("buildScan")?.withGroovyBuilder {
 }
 
 tasks.named<DependencyUpdatesTask>("dependencyUpdates").configure {
+    gradleReleaseChannel = "current"
+    outputFormatter = "json"
+
     val nonFinalQualifiers = listOf(
         "alpha", "b", "beta", "cr", "dev", "ea", "eap", "m", "milestone", "pr", "preview", "rc", "\\d{14}"
     ).joinToString("|", "(", ")")
 
     val nonFinalQualifiersRegex = Regex(".*[.-]$nonFinalQualifiers[.\\d-+]*", RegexOption.IGNORE_CASE)
 
-    gradleReleaseChannel = "current"
-
     rejectVersionIf {
         candidate.version.matches(nonFinalQualifiersRegex)
     }
+}
+
+versionCatalogUpdate {
+    // Keep the custom sorting / grouping.
+    sortByKey.set(false)
 }
 
 allprojects {
@@ -136,13 +140,10 @@ allprojects {
     dependencies {
         "detektPlugins"(project(":detekt-rules"))
 
-        "detektPlugins"("io.gitlab.arturbosch.detekt:detekt-formatting:$detektPluginVersion")
+        "detektPlugins"("io.gitlab.arturbosch.detekt:detekt-formatting:${rootProject.libs.versions.detektPlugin.get()}")
     }
 
     detekt {
-        // Align the detekt core and plugin versions.
-        toolVersion = detektPluginVersion
-
         // Only configure differences to the default.
         buildUponDefaultConfig = true
         config = files("$rootDir/.detekt.yml")
@@ -152,7 +153,7 @@ allprojects {
         basePath = rootProject.projectDir.path
     }
 
-    tasks.withType<Detekt> detekt@{
+    tasks.withType<Detekt>().configureEach detekt@{
         dependsOn(":detekt-rules:assemble")
 
         reports {
@@ -179,7 +180,7 @@ subprojects {
 
     testing {
         suites {
-            register("funTest", JvmTestSuite::class) {
+            register<JvmTestSuite>("funTest") {
                 sources {
                     kotlin {
                         testType.set(TestSuiteType.FUNCTIONAL_TEST)
@@ -195,19 +196,19 @@ subprojects {
         getByName("funTest").associateWith(getByName(KotlinCompilation.MAIN_COMPILATION_NAME))
     }
 
-    plugins.withType<JavaLibraryPlugin> {
+    plugins.withType<JavaLibraryPlugin>().configureEach {
         dependencies {
             "testImplementation"(project(":utils:test-utils"))
 
-            "testImplementation"("io.kotest:kotest-runner-junit5:$kotestVersion")
-            "testImplementation"("io.kotest:kotest-assertions-core:$kotestVersion")
+            "testImplementation"(libs.kotestAssertionsCore)
+            "testImplementation"(libs.kotestRunnerJunit5)
         }
 
         configurations["funTestImplementation"].extendsFrom(configurations["testImplementation"])
     }
 
     dependencies {
-        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinPluginVersion")
+        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${rootProject.libs.versions.kotlinPlugin.get()}")
     }
 
     configurations.all {
@@ -216,14 +217,14 @@ subprojects {
         if (!name.startsWith("detekt")) {
             resolutionStrategy {
                 // Ensure all OkHttp versions match our version >= 4 to avoid Kotlin vs. Java issues with OkHttp 3.
-                force("com.squareup.okhttp3:okhttp:$okhttpVersion")
+                force(rootProject.libs.okhttp)
 
-                // Ensure all API library versions match our core library version.
-                force("org.apache.logging.log4j:log4j-api:$log4jCoreVersion")
+                // Ensure all Log4j API versions match our version.
+                force(rootProject.libs.log4jApi)
 
                 // Ensure that all transitive versions of Kotlin libraries match our version of Kotlin.
-                force("org.jetbrains.kotlin:kotlin-reflect:$kotlinPluginVersion")
-                force("org.jetbrains.kotlin:kotlin-script-runtime:$kotlinPluginVersion")
+                force("org.jetbrains.kotlin:kotlin-reflect:${rootProject.libs.versions.kotlinPlugin.get()}")
+                force("org.jetbrains.kotlin:kotlin-script-runtime:${rootProject.libs.versions.kotlinPlugin.get()}")
             }
         }
     }
@@ -239,7 +240,7 @@ subprojects {
         kotlinOptions {
             allWarningsAsErrors = true
             jvmTarget = javaVersion.majorVersion
-            apiVersion = "1.6"
+            apiVersion = "1.7"
             freeCompilerArgs = freeCompilerArgs + customCompilerArgs
         }
     }
@@ -248,6 +249,9 @@ subprojects {
         dokkaSourceSets {
             configureEach {
                 jdkVersion.set(11)
+
+                val jacksonVersion = libs.versions.jackson.get()
+                val log4jApiVersion = libs.versions.log4jApi.get()
 
                 externalDocumentationLink {
                     val baseUrl = "https://codehaus-plexus.github.io/plexus-containers/plexus-container-default/apidocs"
@@ -269,7 +273,7 @@ subprojects {
                 }
 
                 externalDocumentationLink {
-                    val majorVersion = log4jCoreVersion.substringBefore('.')
+                    val majorVersion = log4jApiVersion.substringBefore('.')
                     val baseUrl = "https://logging.apache.org/log4j/$majorVersion.x/log4j-api/apidocs"
                     url.set(URL(baseUrl))
                     packageListUrl.set(URL("$baseUrl/package-list"))

@@ -20,10 +20,12 @@
 package org.ossreviewtoolkit.downloader
 
 import io.kotest.core.spec.style.WordSpec
+import io.kotest.inspectors.forAll
 import io.kotest.matchers.nulls.beNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 
+import org.ossreviewtoolkit.downloader.VcsHost.AZURE_DEVOPS
 import org.ossreviewtoolkit.downloader.VcsHost.BITBUCKET
 import org.ossreviewtoolkit.downloader.VcsHost.GITHUB
 import org.ossreviewtoolkit.downloader.VcsHost.GITLAB
@@ -32,6 +34,63 @@ import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 
 class VcsHostTest : WordSpec({
+    "The Azure DevOps implementation" should {
+        val projectUrl = "https://dev.azure.com/oss-review-toolkit/kotlin-devs/_git/ort?path=/README.md" +
+                "&version=GC0000000000000000000000000000000000000000"
+        val vcsInfo = VcsInfo(
+            type = VcsType.GIT,
+            url = "https://dev.azure.com/oss-review-toolkit/kotlin-devs/_git/ort",
+            revision = "0000000000000000000000000000000000000000",
+            path = "README.md"
+        )
+
+        "correctly get the user or organization name" {
+            AZURE_DEVOPS.getUserOrOrganization(projectUrl) shouldBe "oss-review-toolkit"
+        }
+
+        "correctly get the project name" {
+            AZURE_DEVOPS.getProject(projectUrl) shouldBe "ort"
+        }
+
+        "be able to extract VCS information from a project URL" {
+            AZURE_DEVOPS.toVcsInfo(projectUrl) shouldBe vcsInfo
+        }
+
+        "be able to create permalinks from VCS information" {
+            AZURE_DEVOPS.toPermalink(vcsInfo, 1) shouldBe "https://dev.azure.com/oss-review-toolkit/kotlin-devs/_git/" +
+                    "ort?line=1&lineEnd=2" +
+                    "&lineStartColumn=1&lineEndColumn=1" +
+                    "&path=/README.md" +
+                    "&version=GC0000000000000000000000000000000000000000"
+
+            AZURE_DEVOPS.toPermalink(vcsInfo, 1, 3) shouldBe "https://dev.azure.com/oss-review-toolkit/kotlin-devs/" +
+                    "_git/ort?line=1&lineEnd=4" +
+                    "&lineStartColumn=1&lineEndColumn=1" +
+                    "&path=/README.md" +
+                    "&version=GC0000000000000000000000000000000000000000"
+        }
+
+        "be able to create source archive links from project URLs" {
+            AZURE_DEVOPS.toArchiveDownloadUrl(vcsInfo) shouldBe "https://dev.azure.com/oss-review-toolkit/" +
+                    "kotlin-devs/_apis/git/repositories/ort/items?path=/" +
+                    "&versionDescriptor[version]=0000000000000000000000000000000000000000" +
+                    "&versionDescriptor[versionType]=commit" +
+                    "&\$format=zip&download=true"
+        }
+
+        "be able to create raw download URLs from file URLs" {
+            AZURE_DEVOPS.toRawDownloadUrl(projectUrl) shouldBe "https://dev.azure.com/oss-review-toolkit/kotlin-devs/" +
+                    "_apis/git/repositories/ort/items?scopePath=/README.md"
+        }
+
+        "not be applicable to a URL pointing to a package registry" {
+            val url = "https://pkgs.dev.azure.com/project/0123456789/_packaging/some-npm-registry/" +
+                    "npm/registry/apkg/-/apkg-1.2.3.tgz"
+
+            VcsHost.fromUrl(url) should beNull()
+        }
+    }
+
     "The Bitbucket implementation" should {
         val projectUrl = "https://bitbucket.org/yevster/spdxtraxample/" +
                 "src/287aebca5e7ff4167af1fb648640dcdbdf4ec666/LICENSE.txt"
@@ -125,6 +184,18 @@ class VcsHostTest : WordSpec({
             GITHUB.toRawDownloadUrl(
                 "https://github.com/dotnet/corefx/blob/master/LICENSE.TXT"
             ) shouldBe "https://github.com/dotnet/corefx/raw/master/LICENSE.TXT"
+        }
+
+        "not be applicable to a URL pointing to a GitHub registry" {
+            val urls = listOf(
+                "https://npm.pkg.github.com/download/@org/project/1.2.3/1234567890",
+                "https://maven.pkg.github.com/org/repository",
+                "https://nuget.pkg.github.com/OWNER/index.json"
+            )
+
+            urls.forAll {
+                VcsHost.fromUrl(it) should beNull()
+            }
         }
     }
 
@@ -382,6 +453,10 @@ class VcsHostTest : WordSpec({
     }
 
     "Creating a VcsHost from a URL" should {
+        "work for an Azure DevOps URL" {
+            VcsHost.fromUrl("https://dev.azure.com/oss-review-toolkit/kotlin-devs/_git/ort") shouldBe AZURE_DEVOPS
+        }
+
         "work for a GitHub URL" {
             VcsHost.fromUrl("https://github.com/oss-review-toolkit/ort") shouldBe GITHUB
         }

@@ -56,7 +56,7 @@ import org.ossreviewtoolkit.notifier.Notifier
 import org.ossreviewtoolkit.reporter.HowToFixTextProvider
 import org.ossreviewtoolkit.reporter.ReporterInput
 import org.ossreviewtoolkit.reporter.reporters.freemarker.asciidoc.PdfTemplateReporter
-import org.ossreviewtoolkit.utils.core.ORT_REPO_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.ort.ORT_REPO_CONFIG_FILENAME
 import org.ossreviewtoolkit.utils.spdx.toSpdx
 import org.ossreviewtoolkit.utils.test.createSpecTempDir
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
@@ -147,11 +147,12 @@ class ExamplesFunTest : StringSpec() {
             val result = evaluator.run(script)
 
             result.violations.map { it.rule } shouldContainExactlyInAnyOrder listOf(
-                "UNHANDLED_LICENSE",
                 "COPYLEFT_LIMITED_IN_SOURCE",
-                "VULNERABILITY_IN_PACKAGE",
+                "DEPRECATED_SCOPE_EXCLUDE_REASON_IN_ORT_YML",
                 "HIGH_SEVERITY_VULNERABILITY_IN_PACKAGE",
-                "DEPRECATED_SCOPE_EXCLUDE_REASON_IN_ORT_YML"
+                "MISSING_CONTRIBUTING_FILE",
+                "UNHANDLED_LICENSE",
+                "VULNERABILITY_IN_PACKAGE"
             )
         }
 

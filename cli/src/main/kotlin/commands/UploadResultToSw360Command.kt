@@ -19,8 +19,6 @@
 
 package org.ossreviewtoolkit.cli.commands
 
-import com.fasterxml.jackson.databind.DeserializationFeature
-
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.requireObject
 import com.github.ajalt.clikt.parameters.options.convert
@@ -40,6 +38,7 @@ import org.eclipse.sw360.clients.utils.SW360ClientException
 
 import org.ossreviewtoolkit.cli.GlobalOptions
 import org.ossreviewtoolkit.cli.utils.inputGroup
+import org.ossreviewtoolkit.cli.utils.logger
 import org.ossreviewtoolkit.cli.utils.readOrtResult
 import org.ossreviewtoolkit.downloader.Downloader
 import org.ossreviewtoolkit.model.Identifier
@@ -47,15 +46,13 @@ import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.config.Sw360StorageConfiguration
-import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.model.utils.toPurl
 import org.ossreviewtoolkit.scanner.storages.Sw360Storage
-import org.ossreviewtoolkit.utils.common.archive
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.expandTilde
+import org.ossreviewtoolkit.utils.common.packZip
 import org.ossreviewtoolkit.utils.common.safeDeleteRecursively
-import org.ossreviewtoolkit.utils.core.createOrtTempDir
-import org.ossreviewtoolkit.utils.core.log
+import org.ossreviewtoolkit.utils.ort.createOrtTempDir
 
 class UploadResultToSw360Command : CliktCommand(
     name = "upload-result-to-sw360",
@@ -89,8 +86,7 @@ class UploadResultToSw360Command : CliktCommand(
             "No SW360 storage is configured for the scanner."
         }
 
-        val sw360JsonMapper = jsonMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        val sw360Connection = Sw360Storage.createConnection(sw360Config, sw360JsonMapper)
+        val sw360Connection = Sw360Storage.createConnection(sw360Config)
         val sw360ReleaseClient = sw360Connection.releaseAdapter
         val sw360ProjectClient = sw360Connection.projectAdapter
         val downloader = Downloader(globalOptionsForSubcommands.config.downloader)
@@ -105,17 +101,16 @@ class UploadResultToSw360Command : CliktCommand(
                 if (attachSources) {
                     val tempDirectory = createOrtTempDir(pkg.id.toPath())
                     try {
-                        // First, download the sources of the package into a sources directory, whose parent directory
+                        // First, download the sources of the package into a source directory, whose parent directory
                         // is temporary.
                         val sourcesDirectory = tempDirectory.resolve("sources")
                         downloader.download(pkg, sourcesDirectory)
 
-                        // After downloading the source files successfully in a sources directory, create a
-                        // ZIP file of the sources directory and save it in the root directory of it.
-                        // Finally the created ZIP file of the sources can be uploaded to SW360 as an attachment
-                        // of the release.
+                        // After downloading the source files successfully in a source directory, create a ZIP file of
+                        // the sources directory and save it in the root directory of it. Finally, the created ZIP file
+                        // of the sources can be uploaded to SW360 as an attachment of the release.
                         val zipFile = tempDirectory.resolve("${pkg.id.toPath("-")}.zip")
-                        val archiveResult = archive(sourcesDirectory, zipFile)
+                        val archiveResult = sourcesDirectory.packZip(zipFile)
 
                         val uploadResult = sw360ReleaseClient.uploadAttachments(
                             AttachmentUploadRequest.builder(release)
@@ -124,12 +119,12 @@ class UploadResultToSw360Command : CliktCommand(
                         )
 
                         if (uploadResult.isSuccess) {
-                            log.info {
+                            logger.info {
                                 "Successfully uploaded source attachment '${zipFile.name}' to release " +
                                         "${release.id}:${release.name}"
                             }
                         } else {
-                            log.error { "Could not upload source attachment: " + uploadResult.failedUploads() }
+                            logger.error { "Could not upload source attachment: " + uploadResult.failedUploads() }
                         }
                     } finally {
                         tempDirectory.safeDeleteRecursively(force = true)
@@ -157,11 +152,11 @@ class UploadResultToSw360Command : CliktCommand(
 
         return try {
             client.createProject(sw360Project)?.also {
-                log.debug { "Project '${it.name}-${it.version}' created in SW360." }
+                logger.debug { "Project '${it.name}-${it.version}' created in SW360." }
             }
         } catch (e: SW360ClientException) {
-            log.error {
-                "Could not create the project '${project.id.toCoordinates()}' in SW360: " + e.collectMessagesAsString()
+            logger.error {
+                "Could not create the project '${project.id.toCoordinates()}' in SW360: " + e.collectMessages()
             }
 
             null
@@ -174,7 +169,7 @@ class UploadResultToSw360Command : CliktCommand(
 
         val unmappedLicenses = pkg.declaredLicensesProcessed.unmapped.toSortedSet()
         if (unmappedLicenses.isNotEmpty()) {
-            log.warn {
+            logger.warn {
                 "The following licenses could not be mapped in order to create a SW360 release: $unmappedLicenses"
             }
         }
@@ -186,11 +181,11 @@ class UploadResultToSw360Command : CliktCommand(
 
         return try {
             client.createRelease(sw360Release)?.also {
-                log.debug { "Release '${it.name}-${it.version}' created in SW360." }
+                logger.debug { "Release '${it.name}-${it.version}' created in SW360." }
             }
         } catch (e: SW360ClientException) {
-            log.error {
-                "Could not create the release for '${pkg.id.toCoordinates()}' in SW360: " + e.collectMessagesAsString()
+            logger.error {
+                "Could not create the release for '${pkg.id.toCoordinates()}' in SW360: " + e.collectMessages()
             }
 
             null

@@ -19,24 +19,30 @@
 
 package org.ossreviewtoolkit.evaluator
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.model.DependencyNode
 import org.ossreviewtoolkit.model.OrtResult
 import org.ossreviewtoolkit.model.Package
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.RuleViolation
 import org.ossreviewtoolkit.model.licenses.LicenseInfoResolver
+import org.ossreviewtoolkit.model.utils.DefaultResolutionProvider
+import org.ossreviewtoolkit.model.utils.ResolutionProvider
 import org.ossreviewtoolkit.model.utils.createLicenseInfoResolver
-import org.ossreviewtoolkit.utils.core.log
 
 /**
  * A set of evaluator [Rule]s, using an [ortResult] as input.
  */
 class RuleSet(
     val ortResult: OrtResult,
-    val licenseInfoResolver: LicenseInfoResolver = ortResult.createLicenseInfoResolver()
+    val licenseInfoResolver: LicenseInfoResolver,
+    val resolutionProvider: ResolutionProvider
 ) {
+    companion object : Logging
+
     /**
-     * The list of all issues created by the rules of this [RuleSet].
+     * The set of all issues created by the rules of this [RuleSet].
      */
     val violations = mutableSetOf<RuleViolation>()
 
@@ -44,7 +50,17 @@ class RuleSet(
      * A DSL function to configure an [OrtResultRule]. The rule is applied once to [ortResult].
      */
     fun ortResultRule(name: String, configure: OrtResultRule.() -> Unit) {
-        OrtResultRule(this, name, ortResult).apply {
+        OrtResultRule(this, name).apply {
+            configure()
+            evaluate()
+        }
+    }
+
+    /**
+     * A DSL function to configure an [ProjectSourceRule]. The rule is applied once to [ortResult].
+     */
+    fun projectSourceRule(name: String, configure: ProjectSourceRule.() -> Unit) {
+        ProjectSourceRule(this, name).apply {
             configure()
             evaluate()
         }
@@ -83,7 +99,7 @@ class RuleSet(
             visitedPackages: MutableSet<DependencyNode>
         ) {
             if (node in visitedPackages) {
-                log.debug { "Skipping rule $name for already visited dependency ${node.id.toCoordinates()}." }
+                logger.debug { "Skipping rule $name for already visited dependency ${node.id.toCoordinates()}." }
                 return
             }
 
@@ -93,7 +109,7 @@ class RuleSet(
                 ?: ortResult.getProject(node.id)?.toPackage()?.toCuratedPackage()
 
             if (curatedPackage == null) {
-                log.warn { "Could not find package for dependency ${node.id.toCoordinates()}, skipping rule $name." }
+                logger.warn { "Could not find package for dependency ${node.id.toCoordinates()}, skipping rule $name." }
             } else {
                 val resolvedLicenseInfo = licenseInfoResolver.resolveLicenseInfo(curatedPackage.pkg.id)
 
@@ -145,5 +161,6 @@ class RuleSet(
 fun ruleSet(
     ortResult: OrtResult,
     licenseInfoResolver: LicenseInfoResolver = ortResult.createLicenseInfoResolver(),
-    configure: RuleSet.() -> Unit
-) = RuleSet(ortResult, licenseInfoResolver).apply(configure)
+    resolutionProvider: ResolutionProvider = DefaultResolutionProvider.create(),
+    configure: RuleSet.() -> Unit = { }
+) = RuleSet(ortResult, licenseInfoResolver, resolutionProvider).apply(configure)

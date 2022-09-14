@@ -28,14 +28,14 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.file
 
+import org.ossreviewtoolkit.helper.utils.logger
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.config.OrtConfiguration
 import org.ossreviewtoolkit.model.yamlMapper
 import org.ossreviewtoolkit.scanner.ScanResultsStorage
 import org.ossreviewtoolkit.utils.common.expandTilde
-import org.ossreviewtoolkit.utils.core.ORT_CONFIG_FILENAME
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.ortConfigDirectory
+import org.ossreviewtoolkit.utils.ort.ORT_CONFIG_FILENAME
+import org.ossreviewtoolkit.utils.ort.ortConfigDirectory
 
 internal class ListStoredScanResultsCommand : CliktCommand(
     help = "Lists the provenance of all stored scan results for a given package identifier."
@@ -67,7 +67,7 @@ internal class ListStoredScanResultsCommand : CliktCommand(
         println("Searching for scan results of '${packageId.toCoordinates()}' in ${ScanResultsStorage.storage.name}.")
 
         val scanResults = ScanResultsStorage.storage.read(packageId).getOrElse {
-            log.error { "Could not read scan results: ${it.message}" }
+            logger.error { "Could not read scan results: ${it.message}" }
             throw ProgramResult(1)
         }
 

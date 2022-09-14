@@ -32,6 +32,8 @@ import java.io.IOException
 import java.net.Authenticator
 import java.util.regex.Pattern
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.LsRemoteCommand
 import org.eclipse.jgit.api.errors.GitAPIException
@@ -49,20 +51,17 @@ import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.utils.common.CommandLineTool
 import org.ossreviewtoolkit.utils.common.Os
-import org.ossreviewtoolkit.utils.common.collectMessagesAsString
+import org.ossreviewtoolkit.utils.common.collectMessages
 import org.ossreviewtoolkit.utils.common.safeMkdirs
-import org.ossreviewtoolkit.utils.core.installAuthenticatorAndProxySelector
-import org.ossreviewtoolkit.utils.core.log
-import org.ossreviewtoolkit.utils.core.showStackTrace
+import org.ossreviewtoolkit.utils.ort.requestPasswordAuthentication
+import org.ossreviewtoolkit.utils.ort.showStackTrace
 
 // TODO: Make this configurable.
 const val GIT_HISTORY_DEPTH = 50
 
 class Git : VersionControlSystem(), CommandLineTool {
-    companion object {
+    companion object : Logging {
         init {
-            installAuthenticatorAndProxySelector()
-
             // Make sure that JGit uses the exact same authentication information as ORT itself. This addresses
             // discrepancies in the way .netrc files are interpreted between JGit's and ORT's implementation.
             CredentialsProvider.setDefault(AuthenticatorCredentialsProvider)
@@ -88,7 +87,7 @@ class Git : VersionControlSystem(), CommandLineTool {
                     } catch (e: AgentProxyException) {
                         e.showStackTrace()
 
-                        log.error { "Could not create SSH Agent connector: ${e.collectMessagesAsString()}" }
+                        logger.error { "Could not create SSH Agent connector: ${e.collectMessages()}" }
                     }
                 }
             }
@@ -115,7 +114,7 @@ class Git : VersionControlSystem(), CommandLineTool {
         return (refs["HEAD"] as? SymbolicRef)?.target?.name?.removePrefix("refs/heads/") ?: "master"
     }
 
-    override fun transformVersion(output: String) =
+    override fun transformVersion(output: String): String =
         versionRegex.matcher(output.lineSequence().first()).let {
             if (it.matches()) {
                 it.group("version")
@@ -130,7 +129,7 @@ class Git : VersionControlSystem(), CommandLineTool {
         runCatching {
             LsRemoteCommand(null).setRemote(vcsUrl).call().isNotEmpty()
         }.onFailure {
-            log.debug { "Failed to check whether $type is applicable for $vcsUrl: ${it.collectMessagesAsString()}" }
+            logger.debug { "Failed to check whether $type is applicable for $vcsUrl: ${it.collectMessages()}" }
         }.isSuccess
 
     override fun initWorkingTree(targetDir: File, vcs: VcsInfo): WorkingTree {
@@ -143,7 +142,7 @@ class Git : VersionControlSystem(), CommandLineTool {
                 }
 
                 if (vcs.path.isNotBlank()) {
-                    log.info { "Configuring Git to do sparse checkout of path '${vcs.path}'." }
+                    logger.info { "Configuring Git to do sparse checkout of path '${vcs.path}'." }
 
                     git.repository.config.setBoolean("core", null, "sparseCheckout", true)
 
@@ -178,7 +177,7 @@ class Git : VersionControlSystem(), CommandLineTool {
 
     private fun updateWorkingTreeWithoutSubmodules(workingTree: WorkingTree, revision: String): Result<String> =
         runCatching {
-            log.info { "Trying to fetch only revision '$revision' with depth limited to $GIT_HISTORY_DEPTH." }
+            logger.info { "Trying to fetch only revision '$revision' with depth limited to $GIT_HISTORY_DEPTH." }
             workingTree.runGit("fetch", "--depth", "$GIT_HISTORY_DEPTH", "origin", revision)
 
             // The documentation for git-fetch states that "By default, any tag that points into the histories being
@@ -187,48 +186,43 @@ class Git : VersionControlSystem(), CommandLineTool {
             if (revision in workingTree.listRemoteTags()) {
                 workingTree.runGit("tag", "-f", revision, "FETCH_HEAD")
             }
-
-            workingTree.runGit("checkout", revision)
-        }.onFailure {
+        }.recoverCatching {
             it.showStackTrace()
 
-            log.warn {
-                "Could not fetch only revision '$revision': ${it.collectMessagesAsString()}\n" +
-                        "Falling back to fetching all refs."
-            }
-        }.recoverCatching {
-            log.info { "Falling back to fetching all refs with depth limited to $GIT_HISTORY_DEPTH." }
+            logger.info { "Could not fetch only revision '$revision': ${it.collectMessages()}" }
+            logger.info { "Falling back to fetching all refs with depth limited to $GIT_HISTORY_DEPTH." }
 
             workingTree.runGit("fetch", "--depth", "$GIT_HISTORY_DEPTH", "--tags", "origin")
-            workingTree.runGit("checkout", revision).isSuccess
-        }.onFailure {
+        }.recoverCatching {
             it.showStackTrace()
 
-            log.warn {
-                "Could not fetch with only a depth of $GIT_HISTORY_DEPTH: ${it.collectMessagesAsString()}\n" +
-                        "Falling back to fetching everything."
-            }
-        }.recoverCatching {
-            log.info { "Falling back to fetch everything including tags." }
+            logger.info { "Could not fetch with only a depth of $GIT_HISTORY_DEPTH: ${it.collectMessages()}" }
+            logger.info { "Falling back to fetch everything including tags." }
 
             if (workingTree.isShallow()) {
                 workingTree.runGit("fetch", "--unshallow", "--tags", "origin")
             } else {
                 workingTree.runGit("fetch", "--tags", "origin")
             }
-
-            workingTree.runGit("checkout", revision)
         }.onFailure {
             it.showStackTrace()
 
-            log.warn { "Failed to fetch everything: ${it.collectMessagesAsString()}" }
-        }.map {
+            logger.warn { "Failed to fetch everything: ${it.collectMessages()}" }
+        }.mapCatching {
+            workingTree.runGit("checkout", revision)
+
             revision
         }
 
     private fun updateSubmodules(workingTree: WorkingTree) {
         if (!workingTree.workingDir.resolve(".gitmodules").isFile) return
-        workingTree.runGit("submodule", "update", "--init", "--recursive", "--depth", "$GIT_HISTORY_DEPTH")
+
+        runCatching {
+            workingTree.runGit("submodule", "update", "--init", "--recursive", "--depth", "$GIT_HISTORY_DEPTH")
+        }.recover {
+            // As Git's dumb HTTP transport does not support shallow capabilities, also try to not limit the depth.
+            workingTree.runGit("submodule", "update", "--recursive")
+        }
     }
 
     private fun WorkingTree.runGit(vararg args: String) = run(*args, workingDir = workingDir)
@@ -239,7 +233,7 @@ class Git : VersionControlSystem(), CommandLineTool {
  * [Authenticator]. An instance of this class is installed by [Git], making sure that JGit uses the exact same
  * authentication mechanism as ORT.
  */
-internal object AuthenticatorCredentialsProvider : CredentialsProvider() {
+internal object AuthenticatorCredentialsProvider : CredentialsProvider(), Logging {
     override fun isInteractive(): Boolean = false
 
     override fun supports(vararg items: CredentialItem): Boolean =
@@ -248,18 +242,11 @@ internal object AuthenticatorCredentialsProvider : CredentialsProvider() {
         }
 
     override fun get(uri: URIish, vararg items: CredentialItem): Boolean {
-        log.debug { "JGit queries credentials ${items.map { it.javaClass.simpleName }} for '${uri.host}'." }
+        logger.debug { "JGit queries credentials ${items.map { it.javaClass.simpleName }} for '${uri.host}'." }
 
-        val auth = Authenticator.requestPasswordAuthentication(
-            /* host = */ uri.host,
-            /* addr = */ null,
-            /* port = */ uri.port,
-            /* protocol = */ uri.scheme,
-            /* prompt = */ null,
-            /* scheme = */ null
-        ) ?: return false
+        val auth = requestPasswordAuthentication(uri.host, uri.port, uri.scheme) ?: return false
 
-        log.debug { "Passing credentials for '${uri.host}' to JGit." }
+        logger.debug { "Passing credentials for '${uri.host}' to JGit." }
 
         items.forEach { item ->
             when (item) {

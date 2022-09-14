@@ -24,11 +24,13 @@ import com.fasterxml.jackson.databind.JsonNode
 
 import java.io.File
 
+import org.apache.logging.log4j.kotlin.Logging
+
 import org.ossreviewtoolkit.analyzer.managers.flutterHome
+import org.ossreviewtoolkit.downloader.VcsHost
 import org.ossreviewtoolkit.utils.common.Os
 import org.ossreviewtoolkit.utils.common.isSymbolicLink
 import org.ossreviewtoolkit.utils.common.textValueOrEmpty
-import org.ossreviewtoolkit.utils.core.log
 
 /**
  * A reader for the Pub cache directory. It looks for files in the ".pub-cache" directory in the user's home
@@ -36,6 +38,8 @@ import org.ossreviewtoolkit.utils.core.log
  * installation directory.
  */
 internal class PubCacheReader {
+    companion object : Logging
+
     private val pubCacheRoot by lazy {
         Os.env["PUB_CACHE"]?.let { return@lazy File(it) }
 
@@ -50,9 +54,8 @@ internal class PubCacheReader {
         flutterHome.resolve(".pub-cache").takeIf { it.isDirectory }
     }
 
-    fun findFile(packageInfo: JsonNode, filename: String): File? {
-        val artifactRootDir = findProjectRoot(packageInfo) ?: return null
-
+    fun findFile(packageInfo: JsonNode, workingDir: File, filename: String): File? {
+        val artifactRootDir = findProjectRoot(packageInfo, workingDir) ?: return null
         // Try to locate the file directly.
         val file = artifactRootDir.resolve(filename)
         if (file.isFile) return file
@@ -63,13 +66,25 @@ internal class PubCacheReader {
             .find { !it.isSymbolicLink() && it.isFile && it.name == filename }
     }
 
-    fun findProjectRoot(packageInfo: JsonNode): File? {
+    fun findProjectRoot(packageInfo: JsonNode, workingDir: File): File? {
         val packageVersion = packageInfo["version"].textValueOrEmpty()
         val type = packageInfo["source"].textValueOrEmpty()
         val description = packageInfo["description"]
         val packageName = description["name"].textValueOrEmpty()
         val url = description["url"].textValueOrEmpty()
-        val resolvedRef = packageInfo["resolved-ref"].textValueOrEmpty()
+        val resolvedRef = description["resolved-ref"].textValueOrEmpty()
+        val resolvedPath = description["path"].textValueOrEmpty()
+        val isPathRelative = description["relative"]?.booleanValue() ?: false
+
+        if (type == "path" && resolvedPath.isNotEmpty()) {
+            // For "path" packages, the path should be the absolute resolved path
+            // of the "path" given in the description.
+            return if (isPathRelative) {
+                workingDir.resolve(resolvedPath).takeIf { it.isDirectory }
+            } else {
+                File(resolvedPath).takeIf { it.isDirectory }
+            }
+        }
 
         val path = if (type == "hosted" && url.isNotEmpty()) {
             // Packages with source set to "hosted" and "url" key in description set to "https://pub.dartlang.org".
@@ -77,10 +92,13 @@ internal class PubCacheReader {
             "hosted/${url.replace("https://", "")}/$packageName-$packageVersion"
         } else if (type == "git" && resolvedRef.isNotEmpty()) {
             // Packages with source set to "git" and a "resolved-ref" key in description set to a gitHash.
-            // The path should be resolved to "git/packageName-gitHash".
-            "git/$packageName-$resolvedRef"
+            // These packages do not define a packageName in the packageInfo, but by definition the path resolves to
+            // the project name as given from the VcsHost and to the resolvedRef.
+            val projectName = VcsHost.fromUrl(url)?.getProject(url) ?: return null
+
+            "git/$projectName-$resolvedRef"
         } else {
-            log.error { "Could not find projectRoot of '$packageName'." }
+            logger.error { "Could not find projectRoot of '$packageName'." }
 
             // Unsupported type.
             return null
