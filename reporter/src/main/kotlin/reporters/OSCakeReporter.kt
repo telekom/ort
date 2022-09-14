@@ -31,7 +31,7 @@ import org.apache.logging.log4j.Level
 
 import org.ossreviewtoolkit.model.Identifier
 import org.ossreviewtoolkit.model.Package
-import org.ossreviewtoolkit.model.config.ScannerOptions
+import org.ossreviewtoolkit.model.config.Options
 import org.ossreviewtoolkit.model.jsonMapper
 import org.ossreviewtoolkit.reporter.Reporter
 import org.ossreviewtoolkit.reporter.ReporterInput
@@ -126,7 +126,7 @@ class OSCakeReporter : Reporter {
      * If the folder "native-scan-results" is empty, the raw data files from scanner are copied. The folder for
      * the raw data files is configured in ort.conf (scanner.options.ScanCode) as parameter "--json"
      */
-    private fun prepareNativeScanResults(options: Map<String, ScannerOptions>?) {
+    private fun prepareNativeScanResults(options: Map<String, Options>?) {
         // get folder name "rawDir" of scanner files from file "scan-result.yml"
         val scannerCommandLineParams = (options?.get("ScanCode")?.get("commandLine") ?: "").split(" ")
         val ind = scannerCommandLineParams.indexOfFirst { it == "--json" }

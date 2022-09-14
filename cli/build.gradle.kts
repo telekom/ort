@@ -161,8 +161,7 @@ dependencies {
     implementation(libs.postgres)
     implementation(libs.reflections)
     implementation(libs.sw360Client)
-
-    implementation("org.apache.commons:commons-csv:$commonsCsvVersion")
+    implementation(libs.commonsCsv)
 
     testImplementation(project(":utils:test-utils"))
 

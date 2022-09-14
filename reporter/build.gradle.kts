@@ -19,7 +19,6 @@
  * License-Filename: LICENSE
  */
 
-val hopliteVersion: String by project
 plugins {
     // Apply core plugins.
     `java-library`
@@ -81,6 +80,7 @@ dependencies {
 
     testImplementation(libs.kotestAssertionsJson)
     testImplementation(libs.mockk)
+
     // for OSCake-Reporter
-    implementation("com.sksamuel.hoplite:hoplite-core:$hopliteVersion")
+    implementation(libs.hopliteCore)
 }

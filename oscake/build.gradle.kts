@@ -30,6 +30,6 @@ repositories {
 dependencies {
     api(project(":model"))
     api(project(":reporter"))
-    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:$jacksonVersion")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
+    implementation(libs.jacksonDatatypeJsr310)
+    implementation(libs.jacksonModuleKotlin)
 }

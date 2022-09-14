@@ -64,6 +64,7 @@ semver4j = "3.1.0"
 springCore = "5.3.22"
 svnkit = "1.10.8"
 sw360Client = "16.0.0-m1"
+commonsCsv = "1.8"
 toml4j = "0.7.2"
 wiremock = "2.33.2"
 xz = "1.9"
@@ -158,6 +159,7 @@ semver4j = { module = "com.vdurmont:semver4j", version.ref = "semver4j" }
 springCore = { module = "org.springframework:spring-core", version.ref = "springCore" }
 svnkit = { module = "org.tmatesoft.svnkit:svnkit", version.ref = "svnkit" }
 sw360Client = { module = "org.eclipse.sw360:client", version.ref = "sw360Client" }
+commonsCsv = { module = "org.apache.commons:commons-csv", version.ref = "commonsCsv" }
 toml4j = { module = "com.moandjiezana.toml:toml4j", version.ref = "toml4j" }
 wiremock = { module = "com.github.tomakehurst:wiremock-jre8", version.ref = "wiremock" }
 xz = { module = "org.tukaani:xz", version.ref = "xz" }
