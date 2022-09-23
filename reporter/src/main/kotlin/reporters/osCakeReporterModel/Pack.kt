@@ -390,13 +390,12 @@ data class Pack(
     ): Boolean {
         val licensesList = fileLicensing.licenses.mapNotNull { it.license }.toList()
         val dirLicensings = bestMatchedDirLicensings(path)
-        for(dirLicensing in dirLicensings) {
+        for (dirLicensing in dirLicensings) {
             if (
                 isEqual(dirLicensing.first.licenses.map { it.license }.toList(), licensesList, cfgCompOnlyDist) &&
                 !licensesList.contains("NOASSERTION")
             ) {
-                if (dirLicensing.first.licenses.any { it.path == fileLicensing.scope } && cfgPresFileScopes)
-                  continue;
+                if (dirLicensing.first.licenses.any { it.path == fileLicensing.scope } && cfgPresFileScopes) continue
                 return true
             }
         }
@@ -428,7 +427,8 @@ data class Pack(
     }
 
     /**
-     * Find the best matching [DirLicensing]s depending on the hierarchy based on the [path], sorted by matched path length
+     * Find the best matching [DirLicensing]s depending on the hierarchy based on the [path],
+     * sorted by matched path length
      */
     private fun bestMatchedDirLicensings(path: String): MutableList<Pair<DirLicensing, Int>> {
         val dirList = mutableListOf<Pair<DirLicensing, Int>>()
@@ -438,7 +438,7 @@ data class Pack(
             }
             if (dirList.isNotEmpty()) {
                 dirList.sortByDescending { it.second }
-                return dirList;
+                return dirList
             }
         }
         return dirList
@@ -517,7 +517,7 @@ data class Pack(
         val copyrightsList = fileLicensing.copyrights.map { it.copyright }.toList()
 
         val dirLicensings = bestMatchedDirLicensings(path)
-        for(dirLicensing in dirLicensings) {
+        for (dirLicensing in dirLicensings) {
             if (
                 isEqual(
                     dirLicensing.first.copyrights.mapNotNull { it.copyright }.toList(),
@@ -525,8 +525,7 @@ data class Pack(
                     cfgCompOnlyDist
                 )
             ) {
-                if (dirLicensing.first.copyrights.any { it.path == fileLicensing.scope } && cfgPresFileScopes)
-                    continue;
+                if (dirLicensing.first.copyrights.any { it.path == fileLicensing.scope } && cfgPresFileScopes) continue
                 return true
             }
         }

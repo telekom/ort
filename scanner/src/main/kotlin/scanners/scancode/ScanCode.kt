@@ -221,8 +221,10 @@ class ScanCode internal constructor(
         resultFile: File
     ) = ProcessCapture(
         scannerPath.absolutePath,
-        //*commandLineOptions.toTypedArray(),
-        *commandLineOptions.joinToString(",").replace("{rawFileName}", java.util.UUID.randomUUID().toString()).split(",").toTypedArray(),
+        // *commandLineOptions.toTypedArray(),
+        *commandLineOptions.joinToString(",")
+            .replace("{rawFileName}", java.util.UUID.randomUUID().toString())
+            .split(",").toTypedArray(),
         path.absolutePath,
         OUTPUT_FORMAT_OPTION,
         resultFile.absolutePath

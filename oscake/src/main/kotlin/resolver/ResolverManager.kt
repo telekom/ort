@@ -345,7 +345,7 @@ internal class ResolverManager(
                         project.declaredLicensesProcessed.mapped
                     )
             }
-            ortResult?.analyzer?.result?.packages?.filter { !ortResult.isExcluded(it.pkg.id) }?.forEach { it ->
+            ortResult?.analyzer?.result?.packages?.filter { !ortResult.isExcluded(it.pkg.id) }?.forEach {
                 if (it.pkg.declaredLicenses.size > 1) {
                     if (isValidLicense(it.pkg.declaredLicensesProcessed.spdxExpression.toString()))
                         licMap[it.pkg.id] = AnalyzerLicenses(
