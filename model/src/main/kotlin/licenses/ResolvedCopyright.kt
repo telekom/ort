@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Bosch.IO GmbH
+ * Copyright (C) 2022 The ORT Project Authors (see <https://github.com/oss-review-toolkit/ort/blob/main/NOTICE>)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,26 +17,22 @@
  * License-Filename: LICENSE
  */
 
-package org.ossreviewtoolkit.clients.fossid
+package org.ossreviewtoolkit.model.licenses
 
-data class PostRequestBody private constructor(
-    val action: String,
-    val group: String,
-    val data: Map<String, String>
-) {
-    constructor(
-        action: String,
-        group: String,
-        user: String,
-        apiKey: String,
-        options: Map<String, String> = emptyMap()
-    ) : this(
-        action,
-        group,
-        buildMap {
-            put("username", user)
-            put("key", apiKey)
-            putAll(options)
-        }
-    )
-}
+import org.ossreviewtoolkit.utils.ort.CopyrightStatementsProcessor
+
+/**
+ * A resolved copyright.
+ */
+data class ResolvedCopyright(
+    /**
+     * The resolved copyright statement.
+     */
+    val statement: String,
+
+    /**
+     * The resolved findings for this copyright. The statements in the findings can be different to [statement] if they
+     * were processed by the [CopyrightStatementsProcessor].
+     */
+    val findings: Set<ResolvedCopyrightFinding>
+)

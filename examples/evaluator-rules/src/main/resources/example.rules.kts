@@ -180,6 +180,26 @@ fun RuleSet.copyleftInSourceLimitedRule() = packageRule("COPYLEFT_LIMITED_IN_SOU
     }
 }
 
+fun RuleSet.dependencyInProjectSourceRule() = projectSourceRule("DEPENDENCY_IN_PROJECT_SOURCE_RULE") {
+    val denyDirPatterns = listOf(
+        "**/node_modules" to setOf("NPM", "Yarn", "PNPM"),
+        "**/vendor" to setOf("GoMod", "GoDep")
+    )
+
+    denyDirPatterns.forEach { (pattern, packageManagers) ->
+        val offendingDirs = projectSourceFindDirectories(pattern)
+
+        if (offendingDirs.isNotEmpty()) {
+            issue(
+                Severity.ERROR,
+                "The directories ${offendingDirs.joinToString()} belong to the package manager(s) " +
+                        "${packageManagers.joinToString()} and must not be committed.",
+                "Please delete the directories: ${offendingDirs.joinToString()}."
+            )
+        }
+    }
+}
+
 fun RuleSet.vulnerabilityInPackageRule() = packageRule("VULNERABILITY_IN_PACKAGE") {
     require {
         -isExcluded()
@@ -264,12 +284,76 @@ fun RuleSet.deprecatedScopeExcludeReasonInOrtYmlRule() = ortResultRule("DEPRECAT
     }
 }
 
+fun RuleSet.missingCiConfigurationRule() = projectSourceRule("MISSING_CI_CONFIGURATION") {
+    require {
+        -AnyOf(
+            projectSourceHasFile(
+                ".appveyor.yml",
+                ".bitbucket-pipelines.yml",
+                ".gitlab-ci.yml",
+                ".travis.yml"
+            ),
+            projectSourceHasDirectory(
+                ".circleci",
+                ".github/workflows"
+            )
+        )
+    }
+
+    error(
+        message = "This project does not have any known CI configuration files.",
+        howToFix = "Please setup a CI. If you already have setup a CI and the error persists, please contact support."
+    )
+}
+
 fun RuleSet.missingContributingFileRule() = projectSourceRule("MISSING_CONTRIBUTING_FILE") {
     require {
         -projectSourceHasFile("CONTRIBUTING.md")
     }
 
     error("The project's code repository does not contain the file 'CONTRIBUTING.md'.")
+}
+
+fun RuleSet.missingReadmeFileRule() = projectSourceRule("MISSING_README_FILE") {
+    require {
+        -projectSourceHasFile("README.md")
+    }
+
+    error("The project's code repository does not contain the file 'README.md'.")
+}
+
+fun RuleSet.missingReadmeFileLicenseSectionRule() = projectSourceRule("MISSING_README_FILE_LICENSE_SECTION") {
+    require {
+        +projectSourceHasFile("README.md")
+        -projectSourceHasFileWithContent(".*^#{1,2} License$.*", "README.md")
+    }
+
+    error(
+        message = "The file 'README.md' is missing a \"License\" section.",
+        howToFix = "Please add a \"License\" section to the file 'README.md'."
+    )
+}
+
+fun RuleSet.wrongLicenseInLicenseFileRule() = projectSourceRule("WRONG_LICENSE_IN_LICENSE_FILE_RULE") {
+    require {
+        +projectSourceHasFile("LICENSE")
+    }
+
+    val allowedRootLicenses = setOf("Apackage-2.0", "MIT")
+    val detectedRootLicenses = projectSourceGetDetectedLicensesByFilePath("LICENSE").values.flatten().toSet()
+    val wrongLicenses = detectedRootLicenses - allowedRootLicenses
+
+    if (wrongLicenses.isNotEmpty()) {
+        error(
+            message = "The file 'LICENSE' contains the following disallowed licenses ${wrongLicenses.joinToString()}.",
+            howToFix = "Please use only the following allowed licenses: ${allowedRootLicenses.joinToString()}."
+        )
+    } else if (detectedRootLicenses.isEmpty()) {
+        error(
+            message = "The file 'LICENSE' does not contain any license which is not allowed.",
+            howToFix = "Please use one of the following allowed licenses: ${allowedRootLicenses.joinToString()}."
+        )
+    }
 }
 
 /**
@@ -290,7 +374,14 @@ val ruleSet = ruleSet(ortResult, licenseInfoResolver, resolutionProvider) {
 
     // Rules which get executed once:
     deprecatedScopeExcludeReasonInOrtYmlRule()
+
+    // Prior to open sourcing use case rules (which get executed once):
+    dependencyInProjectSourceRule()
+    missingCiConfigurationRule()
     missingContributingFileRule()
+    missingReadmeFileRule()
+    missingReadmeFileLicenseSectionRule()
+    wrongLicenseInLicenseFileRule()
 }
 
 // Populate the list of policy rule violations to return.

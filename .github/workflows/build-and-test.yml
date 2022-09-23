@@ -23,11 +23,10 @@ jobs:
       with:
         distribution: temurin
         java-version: 11
-        cache: gradle
     - name: Build all classes
       uses: gradle/gradle-build-action@v2
       with:
-        arguments: --stacktrace classes -x :reporter-web-app:yarnBuild
+        arguments: --scan classes -x :reporter-web-app:yarnBuild
   build-reporter-web-app:
     needs: build
     runs-on: ubuntu-22.04
@@ -39,11 +38,10 @@ jobs:
       with:
         distribution: temurin
         java-version: 11
-        cache: gradle
     - name: Build the reporter-web-app
       uses: gradle/gradle-build-action@v2
       with:
-        arguments: --stacktrace :reporter-web-app:yarnBuild
+        arguments: --scan :reporter-web-app:yarnBuild
   test:
     needs: build
     runs-on: ubuntu-22.04
@@ -55,7 +53,6 @@ jobs:
       with:
         distribution: temurin
         java-version: 11
-        cache: gradle
     - name: Run unit tests
       uses: gradle/gradle-build-action@v2
       with:
@@ -90,7 +87,6 @@ jobs:
       with:
         distribution: temurin
         java-version: 11
-        cache: gradle
     - name: Run functional tests
       uses: gradle/gradle-build-action@v2
       with:
@@ -111,7 +107,8 @@ jobs:
       with:
         distribution: temurin
         java-version: 11
-        cache: gradle
+    - name: Restore Gradle cache entries
+      uses: gradle/gradle-build-action@v2
     - name: Validate Batect wrapper scripts
       uses: batect/batect-wrapper-validation-action@v0
     - name: Run functional tests

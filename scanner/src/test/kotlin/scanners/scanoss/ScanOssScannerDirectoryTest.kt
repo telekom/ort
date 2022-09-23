@@ -38,7 +38,7 @@ import org.ossreviewtoolkit.model.config.DownloaderConfiguration
 import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.utils.test.shouldNotBeNull
 
-const val TEST_DIRECTORY_TO_SCAN = "src/test/assets/scanoss/filesToScan"
+private val TEST_DIRECTORY_TO_SCAN = File("src/test/assets/scanoss/filesToScan")
 
 /**
  * A test for scanning a directory with the [ScanOss] scanner.
@@ -76,18 +76,18 @@ class ScanOssScannerDirectoryTest : StringSpec({
         } andThenAnswer {
             UUID.fromString("c198b884-f6cf-496f-95eb-0e7968dd2ec6")
         }
-        val result = scanner.scanPath(File(TEST_DIRECTORY_TO_SCAN))
+        val result = scanner.scanPath(TEST_DIRECTORY_TO_SCAN)
 
         verify(exactly = 1) {
-            scanner.createWfpForFile("$TEST_DIRECTORY_TO_SCAN/ArchiveUtils.kt")
-            scanner.createWfpForFile("$TEST_DIRECTORY_TO_SCAN/ScannerFactory.kt")
+            scanner.createWfpForFile(TEST_DIRECTORY_TO_SCAN.resolve("ArchiveUtils.kt"))
+            scanner.createWfpForFile(TEST_DIRECTORY_TO_SCAN.resolve("ScannerFactory.kt"))
         }
 
         result.scanner shouldNotBeNull {
             results.scanResults shouldHaveSize 1
             results.scanResults[results.scanResults.firstKey()] shouldNotBeNull {
                 this shouldHaveSize 1
-                this.first() shouldNotBeNull {
+                first() shouldNotBeNull {
                     summary.packageVerificationCode shouldBe "07c881ae4fcc30a69f5d66453d54d194f062252e"
                     summary.licenseFindings shouldHaveSize 2
                     summary.licenseFindings.first().license.toString() shouldBe "Apache-2.0"

@@ -49,8 +49,16 @@ tasks.addRule("Pattern: yarn<Command>") {
             // Execute the Yarn version downloaded by Gradle using the NodeJs version downloaded by Gradle.
             commandLine = listOf(nodeExecutable.path, yarnJs.path, command)
 
-            // Prepend the directory of the bootstrapped Node.js to the PATH environment.
-            environment = environment + mapOf("PATH" to "$nodeBinDir${File.pathSeparator}${environment["PATH"]}")
+            val oldPath = System.getenv("PATH")
+            val newPath = listOf(
+                // Prepend the directory of the bootstrapped Node.js to the PATH environment.
+                nodeBinDir.path,
+                // Prepend the directory of additional tools like "rescripts" to the PATH environment.
+                projectDir.resolve("node_modules/.bin").path,
+                oldPath
+            ).joinToString(File.pathSeparator)
+
+            environment = environment + mapOf("PATH" to newPath)
         }
     }
 }

@@ -42,6 +42,7 @@ import org.ossreviewtoolkit.model.config.ScannerConfiguration
 import org.ossreviewtoolkit.scanner.AbstractScannerFactory
 import org.ossreviewtoolkit.scanner.BuildConfig
 import org.ossreviewtoolkit.scanner.PathScanner
+import org.ossreviewtoolkit.scanner.ScannerCriteria
 import org.ossreviewtoolkit.scanner.experimental.AbstractScannerWrapperFactory
 import org.ossreviewtoolkit.scanner.experimental.PathScannerWrapper
 import org.ossreviewtoolkit.scanner.experimental.ScanContext
@@ -73,7 +74,7 @@ class ScanOss internal constructor(
     private val service = ScanOssService.create(config.apiUrl)
 
     override val name = scannerName
-    override val criteria by lazy { getScannerCriteria() }
+    override val criteria by lazy { ScannerCriteria.fromConfig(details, scannerConfig) }
 
     // TODO: Find out the best / cheapest way to query the SCANOSS server for its version.
     override val version = BuildConfig.SCANOSS_VERSION
@@ -99,7 +100,7 @@ class ScanOss internal constructor(
                 .filter { !it.isDirectory && !BlacklistRules.hasBlacklistedExt(it.name) }
                 .forEach {
                     logger.info { "Computing fingerprint for file ${it.absolutePath}..." }
-                    append(createWfpForFile(it.path))
+                    append(createWfpForFile(it))
                 }
         }
 
@@ -133,11 +134,11 @@ class ScanOss internal constructor(
 
     internal fun generateRandomUUID() = UUID.randomUUID()
 
-    internal fun createWfpForFile(filePath: String): String {
+    internal fun createWfpForFile(file: File): String {
         generateRandomUUID().let { uuid ->
             // TODO: Let's keep the original file extension to give SCANOSS some hint about the mime type.
-            fileNamesAnonymizationMapping[uuid] = filePath
-            return Winnowing.wfpForFile(uuid.toString(), filePath)
+            fileNamesAnonymizationMapping[uuid] = file.path
+            return Winnowing.wfpForFile(uuid.toString(), file.path)
         }
     }
 

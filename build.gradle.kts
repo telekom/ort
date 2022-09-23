@@ -21,6 +21,7 @@
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
 
 import io.gitlab.arturbosch.detekt.Detekt
+import io.gitlab.arturbosch.detekt.report.ReportMergeTask
 
 import java.net.URL
 
@@ -121,6 +122,10 @@ versionCatalogUpdate {
     sortByKey.set(false)
 }
 
+val mergeDetektReports by tasks.registering(ReportMergeTask::class) {
+    output.set(rootProject.buildDir.resolve("reports/detekt/merged.sarif"))
+}
+
 allprojects {
     buildscript {
         repositories {
@@ -153,7 +158,7 @@ allprojects {
         basePath = rootProject.projectDir.path
     }
 
-    tasks.withType<Detekt>().configureEach detekt@{
+    tasks.withType<Detekt> detekt@{
         dependsOn(":detekt-rules:assemble")
 
         reports {
@@ -161,6 +166,12 @@ allprojects {
             sarif.required.set(true)
             txt.required.set(false)
             xml.required.set(false)
+        }
+
+        finalizedBy(mergeDetektReports)
+
+        mergeDetektReports.configure {
+            input.from(this@detekt.sarifReportFile)
         }
     }
 }
@@ -225,6 +236,10 @@ subprojects {
                 // Ensure that all transitive versions of Kotlin libraries match our version of Kotlin.
                 force("org.jetbrains.kotlin:kotlin-reflect:${rootProject.libs.versions.kotlinPlugin.get()}")
                 force("org.jetbrains.kotlin:kotlin-script-runtime:${rootProject.libs.versions.kotlinPlugin.get()}")
+
+                // Starting with version 1.32 the YAML file size is limited to 3 MiB, which is not configurable yet via
+                // Hoplite or Jackson.
+                force("org.yaml:snakeyaml:1.31")
             }
         }
     }

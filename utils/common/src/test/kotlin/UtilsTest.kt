@@ -23,29 +23,37 @@ package org.ossreviewtoolkit.utils.common
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.inspectors.forAll
 import io.kotest.matchers.collections.containExactly
-import io.kotest.matchers.nulls.beNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 
 import java.io.File
 
 class UtilsTest : WordSpec({
-    "getCommonFileParent" should {
-        "return null for an empty list" {
-            getCommonFileParent(emptyList()) should beNull()
+    "getCommonParentFile" should {
+        fun getCommonParentFile(vararg files: String) = getCommonParentFile(files.map { File(it) })
+
+        "return a file with an empty path for an empty list" {
+            getCommonParentFile() shouldBe File("")
         }
 
-        "return null for files that have no directory in common".config(enabled = Os.isWindows) {
-            // On non-Windows, all files have the root directory in common.
-            getCommonFileParent(listOf(File("C:/foo"), File("D:/bar"))) should beNull()
+        "return the parent file for a single file" {
+            getCommonParentFile("/foo/bar") shouldBe File("/foo")
         }
 
-        "return the absolute common directory for relative files" {
-            getCommonFileParent(listOf(File("foo"), File("bar"))) shouldBe File(".").absoluteFile.normalize()
+        "return a file with an empty path for files that have no parent in common".config(enabled = Os.isWindows) {
+            getCommonParentFile("C:/foo", "D:/bar") shouldBe File("")
         }
 
-        "return the absolute parent directory for a single file" {
-            getCommonFileParent(listOf(File("/foo/bar"))) shouldBe File("/foo").absoluteFile
+        "return the root directory for different files with absolute paths".config(enabled = !Os.isWindows) {
+            getCommonParentFile("/foo", "/bar") shouldBe File("/")
+        }
+
+        "return the relative root directory for different files with relative paths" {
+            getCommonParentFile("foo/bar.ext", "bar.ext") shouldBe File("")
+        }
+
+        "return the common parent for relative files" {
+            getCommonParentFile("common/foo", "common/bar") shouldBe File("common")
         }
     }
 
