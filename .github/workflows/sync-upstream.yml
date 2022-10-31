@@ -16,7 +16,7 @@ jobs:
 
     - name: Fork Sync With Upstream
       id: sync
-      uses: aormsby/Fork-Sync-With-Upstream-action@v2.1
+      uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
       with:
         upstream_repository: oss-review-toolkit/ort
         upstream_branch: master
